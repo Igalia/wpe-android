@@ -2,4 +2,4 @@
 
 #include <android/log.h>
 
-#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "WPEDemo-Native", __VA_ARGS__)
+#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "libwpe-android", __VA_ARGS__)
