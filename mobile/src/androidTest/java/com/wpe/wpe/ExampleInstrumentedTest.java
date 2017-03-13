@@ -1,4 +1,4 @@
-package com.wpe.wpedemo;
+package com.wpe.wpe;
 
 import android.content.Context;
 import android.support.test.InstrumentationRegistry;

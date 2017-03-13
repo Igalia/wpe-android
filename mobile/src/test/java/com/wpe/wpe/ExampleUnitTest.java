@@ -1,4 +1,4 @@
-package com.wpe.wpedemo;
+package com.wpe.wpe;
 
 import org.junit.Test;
 
