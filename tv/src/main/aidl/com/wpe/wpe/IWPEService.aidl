@@ -1,9 +1,8 @@
-// IWPEService.aidl
-package com.wpe.wpedemo;
+package com.wpe.wpe;
 
 import android.os.Bundle;
 
-import com.wpe.wpedemo.external.SurfaceWrapper;
+import com.wpe.wpe.external.SurfaceWrapper;
 
 interface IWPEService {
     int connect(in Bundle args);
