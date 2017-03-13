@@ -75,6 +75,8 @@ typedef gint64 goffset;
 #define G_GOFFSET_FORMAT        G_GINT64_FORMAT
 #define G_GOFFSET_CONSTANT(val) G_GINT64_CONSTANT(val)
 
+#define G_POLLFD_FORMAT "%d"
+
 
 #define GPOINTER_TO_INT(p)	((gint)  (glong) (p))
 #define GPOINTER_TO_UINT(p)	((guint) (gulong) (p))
@@ -94,27 +96,13 @@ typedef unsigned long guintptr;
 #endif
 
 #define GLIB_MAJOR_VERSION 2
-#define GLIB_MINOR_VERSION 46
-#define GLIB_MICRO_VERSION 2
+#define GLIB_MINOR_VERSION 50
+#define GLIB_MICRO_VERSION 3
 
 #define G_OS_UNIX
 
 
 #define G_VA_COPY	va_copy
-
-#ifdef	__cplusplus
-#define	G_HAVE_INLINE	1
-#else	/* !__cplusplus */
-#define G_HAVE_INLINE 1
-#define G_HAVE___INLINE 1
-#define G_HAVE___INLINE__ 1
-#endif	/* !__cplusplus */
-
-#ifdef	__cplusplus
-#define G_CAN_INLINE	1
-#else	/* !__cplusplus */
-#define G_CAN_INLINE	1
-#endif
 
 #ifndef __cplusplus
 # define G_HAVE_ISO_VARARGS 1
@@ -188,6 +176,7 @@ typedef unsigned long guintptr;
 #define G_MODULE_SUFFIX "so"
 
 typedef int GPid;
+#define G_PID_FORMAT "i"
 
 #define GLIB_SYSDEF_AF_UNIX 1
 #define GLIB_SYSDEF_AF_INET 2
