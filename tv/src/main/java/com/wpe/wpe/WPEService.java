@@ -7,13 +7,15 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
+import android.view.Surface;
 
 import com.wpe.wpe.external.SurfaceWrapper;
 
 public class WPEService extends Service {
 
-    private Thread m_thread;
+    protected Thread m_thread;
     private ParcelFileDescriptor[] m_serviceFds = null;
+    protected Surface m_surface = null;
 
     public final IWPEService.Stub m_binder = new IWPEService.Stub() {
         @Override
@@ -32,7 +34,8 @@ public class WPEService extends Service {
         @Override
         public void provideSurface(SurfaceWrapper surfaceWrapper)
         {
-            Log.i("WPEService", "IWPEService.Stub.provideSurface()");
+            Log.i("WPEService", "IWPEService.Stub.provideSurface(), surface " + surfaceWrapper.getSurface());
+            provideServiceSurface(surfaceWrapper.getSurface());
         }
     };
 
@@ -47,6 +50,7 @@ public class WPEService extends Service {
             {
                 Log.i("WPEService", "m_thread.run()");
 
+                ParcelFileDescriptor[] fds = null;
                 try {
                     synchronized (m_thread) {
                         while (m_serviceFds == null) {
@@ -54,12 +58,13 @@ public class WPEService extends Service {
                         }
                     }
 
-                    ParcelFileDescriptor[] fds = m_serviceFds;
+                    fds = m_serviceFds;
                     m_serviceFds = null;
-                    initializeService(fds);
                 } catch (InterruptedException e) {
                     Log.e("WPEService", "thread startup failed", e);
                 }
+
+                initializeService(fds);
             }
         }, "WPEServiceThread");
         m_thread.start();
@@ -81,6 +86,14 @@ public class WPEService extends Service {
     {
         synchronized (m_thread) {
             m_serviceFds = fds;
+            m_thread.notifyAll();
+        }
+    }
+
+    private void provideServiceSurface(Surface surface)
+    {
+        synchronized (m_thread) {
+            m_surface = surface;
             m_thread.notifyAll();
         }
     }

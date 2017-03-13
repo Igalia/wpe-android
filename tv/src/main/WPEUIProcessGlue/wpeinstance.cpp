@@ -2,7 +2,7 @@
 #include <glib.h>
 #include <jni.h>
 
-#include "logging.h"
+#include "../CommonGlue/logging.h"
 
 static GMutex initMutex;
 static GCond initCond;
@@ -32,7 +32,7 @@ static gpointer wpeThreadEntry(gpointer)
     g_mutex_unlock(&initMutex);
 
     if (1) {
-        GSource* source = g_timeout_source_new(3000);
+        GSource* source = g_timeout_source_new(10000);
         g_source_set_callback(source, sourceCallback, NULL, NULL);
         g_source_attach(source, wpeThreadContext);
         g_source_unref(source);
@@ -56,11 +56,16 @@ static gpointer wpeThreadEntry(gpointer)
     WKViewRef view = WKViewCreate(pageConfiguration);
     WKRelease(pageConfiguration);
 
-#if 0
-    WKURLRef url = WKURLCreateWithUTF8CString("about:blank");
+    WKURLRef url = WKURLCreateWithUTF8CString("https://www.wapo.st");
+    // WKURLRef url = WKURLCreateWithUTF8CString("https://www.igalia.com");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://www.politico.com");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://helloracer.com/webgl/");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://people.igalia.com/zdobersek/poster-circle/index.html");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://motherfuckingwebsite.com/");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://www.google.com");
+    // WKURLRef url = WKURLCreateWithUTF8CString("about:blank");
     WKPageLoadURL(WKViewGetPage(view), url);
     WKRelease(url);
-#endif
 
     ALOGV("wpeThreadEntry() -- running");
     g_main_loop_run(wpeThreadLoop);

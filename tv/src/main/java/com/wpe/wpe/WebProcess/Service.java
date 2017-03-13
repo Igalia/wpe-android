@@ -4,9 +4,9 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
+import android.view.Surface;
 
 import com.wpe.wpe.WPEService;
-import com.wpe.wpe.WebProcess.Glue;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -19,6 +19,8 @@ public class Service extends WPEService {
     @Override
     public void onCreate()
     {
+        super.onCreate();
+
         try {
             Context context = getBaseContext();
             Log.i("WPEWebProcess", "files dir " + context.getFilesDir());
@@ -49,8 +51,6 @@ public class Service extends WPEService {
         } catch (IOException e) {
             Log.i("WPEAssets", "asset load failed: " + e);
         }
-
-        super.onCreate();
     }
 
     @Override
@@ -60,6 +60,26 @@ public class Service extends WPEService {
         Log.i("WPEWebProcess", "initializeService(), got " + fds.length + " fds");
         for (int i = 0; i < fds.length; ++i) {
             Log.i("WPEWebProcess", " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
+        }
+
+        Surface surface = null;
+
+        try {
+            synchronized (m_thread) {
+                while (m_surface == null) {
+                    m_thread.wait();
+                }
+
+                surface = m_surface;
+                m_surface = null;
+            }
+        } catch (InterruptedException e) {
+            Log.i("WPEWebProcess", "failed to get the Surface object");
+        }
+
+        {
+            Log.i("WPEWebProcess", "about to start main(), surface " + surface);
+            Glue.provideSurface(surface);
         }
         Glue.initializeMain(fds[0].detachFd(), /* fds[1].detachFd() */ -1);
     }

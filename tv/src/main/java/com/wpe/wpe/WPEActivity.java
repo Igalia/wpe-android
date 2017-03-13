@@ -4,17 +4,23 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.util.Log;
 
+import com.wpe.wpe.UIProcess.Glue;
+
 public class WPEActivity extends Activity {
 
+    private Glue m_glue;
     public WPEView m_view;
     private Thread m_thread;
-    private WPEUIProcessGlue m_glueObj;
 
     @Override protected void onCreate(Bundle icicle)
     {
         super.onCreate(icicle);
 
         Log.i("WPE", "Hello there");
+
+        m_glue = new Glue(this);
+
+        Log.i("WPE", "cache dir " + getBaseContext().getCacheDir());
 
         m_view = new WPEView(getApplication());
         setContentView(m_view);
@@ -27,8 +33,7 @@ public class WPEActivity extends Activity {
                 Log.i("WPEActivity", "m_thread.run()");
                 m_view.ensureSurfaceTexture();
 
-                m_glueObj = new WPEUIProcessGlue(activity);
-                WPEUIProcessGlue.init(m_glueObj);
+                Glue.init(m_glue);
             }
         }, "WPEActivityThread");
         m_thread.start();
@@ -49,7 +54,7 @@ public class WPEActivity extends Activity {
     @Override protected void onDestroy()
     {
         synchronized (m_thread) {
-            WPEUIProcessGlue.deinit();
+            Glue.deinit();
         }
 
         super.onDestroy();

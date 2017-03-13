@@ -18,12 +18,14 @@ import com.wpe.wpe.external.SurfaceWrapper;
 public class Glue {
 
     static {
-        System.loadLibrary("WPE-backend");
-        System.loadLibrary("Glue");
+        System.loadLibrary("WPEBackend-default");
+        System.loadLibrary("WPEUIProcessGlue");
     }
 
     public static native void init(Glue glueObj);
     public static native void deinit();
+
+    public static native void hackFrameComplete();
 
     private final int PROCESS_TYPE_WEBPROCESS = 0;
     private final int PROCESS_TYPE_NETWORKPROCESS = 1;
@@ -72,7 +74,7 @@ public class Glue {
     private final WPEActivity m_activity;
     private IWPEService m_service;
 
-    Glue(WPEActivity activity)
+    public Glue(WPEActivity activity)
     {
         m_activity = activity;
     }
