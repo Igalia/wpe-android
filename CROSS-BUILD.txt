@@ -118,6 +118,7 @@ make DESTDIR=$INSTALLROOT install
 # fontconfig 2.12.1
 # sha256sum a9f42d03949f948a3a4f762287dbc16e53a927c91a07ee64207ebd90a9e5e292
 LDFLAGS="-L$SYSROOT/usr/lib -llog -lm -lz -lfreetype -liconv -lxml2" \
+	ac_cv_func_link=no \
 	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
 	--with-arch=$ARCH --with-cache-dir=/var/cache/fontconfig --enable-libxml2 --disable-docs
 make -j7
