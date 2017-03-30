@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.wpe.wpe">
+    package="com.wpe.mobile">
 
     <application android:allowBackup="true"
         android:label="@string/app_name"
@@ -7,6 +7,22 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <activity
+            android:name="com.wpe.wpe.WPEActivity"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name="com.wpe.wpe.NetworkProcess.Service"
+            android:process=":WPENetworkProcess"/>
+        <service
+            android:name="com.wpe.wpe.WebProcess.Service"
+            android:process=":WPEWebProcess"/>
     </application>
 
 </manifest>
