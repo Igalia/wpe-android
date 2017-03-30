@@ -6,8 +6,20 @@
 #include "logging.h"
 
 extern "C" {
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_NetworkProcess_Glue_initializeXdg(JNIEnv*, jobject, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_NetworkProcess_Glue_initializeGioExtraModulesPath(JNIEnv*, jobject, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_NetworkProcess_Glue_initializeMain(JNIEnv*, jobject, jint);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_NetworkProcess_Glue_initializeXdg(JNIEnv* env, jobject, jstring xdgRuntimePath)
+{
+    ALOGV("Glue::initializeXdg()");
+
+    const char* cachePath = env->GetStringUTFChars(xdgRuntimePath, 0);
+    ALOGV("  runtimePath %s", cachePath);
+
+    setenv("XDG_RUNTIME_DIR", cachePath, 1);
 }
 
 JNIEXPORT void JNICALL
