@@ -8,7 +8,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name="com.wpe.wpe.WPEActivity"
+            android:name="com.wpe.pq.PQActivity"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:launchMode="singleTask">
             <intent-filter>
@@ -17,12 +17,14 @@
             </intent-filter>
         </activity>
 
+        <!--
         <service
             android:name="com.wpe.wpe.NetworkProcess.Service"
             android:process=":WPENetworkProcess"/>
         <service
             android:name="com.wpe.wpe.WebProcess.Service"
             android:process=":WPEWebProcess"/>
+            -->
     </application>
 
 </manifest>
