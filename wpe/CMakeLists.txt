@@ -15,6 +15,12 @@ set_target_properties(WPEWebKit_0
     ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit_0.so
 )
 
+add_library(WPEBackend_0 SHARED IMPORTED)
+set_target_properties(WPEBackend_0
+    PROPERTIES IMPORTED_LOCATION
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend_0.so
+)
+
 add_library(WPEBackend-default SHARED IMPORTED)
 set_target_properties(WPEBackend-default
     PROPERTIES IMPORTED_LOCATION
@@ -30,19 +36,29 @@ include_directories(
 )
 
 add_library(WPEUIProcessGlue SHARED
-    src/main/WPEUIProcessGlue/glue.cpp
-    src/main/WPEUIProcessGlue/wpeinstance.cpp
+    src/main/WPEUIProcessGlue/entrypoints.cpp
+    src/main/WPEUIProcessGlue/wpeuiprocessglue.cpp
 )
 
 target_link_libraries(WPEUIProcessGlue
     ${log-lib}
     glib-2.0
+    WPEBackend_0
     WPEBackend-default
     WPEWebKit_0
 )
 
+add_library(WPEDatabaseProcessGlue SHARED
+    src/main/WPEDatabaseProcessGlue/entrypoints.cpp
+)
+
+target_link_libraries(WPEDatabaseProcessGlue
+    ${log-lib}
+    WPEWebKit_0
+)
+
 add_library(WPENetworkProcessGlue SHARED
-    src/main/WPENetworkProcessGlue/glue.cpp
+    src/main/WPENetworkProcessGlue/entrypoints.cpp
 )
 
 target_link_libraries(WPENetworkProcessGlue
@@ -51,7 +67,7 @@ target_link_libraries(WPENetworkProcessGlue
 )
 
 add_library(WPEWebProcessGlue SHARED
-    src/main/WPEWebProcessGlue/glue.cpp
+    src/main/WPEWebProcessGlue/entrypoints.cpp
 )
 
 target_link_libraries(WPEWebProcessGlue
