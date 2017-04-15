@@ -11,6 +11,7 @@ find_package(GLIB 2.40.0 REQUIRED COMPONENTS gio gobject gthread gmodule)
 set(WPE_ANDROID_INCLUDE_DIRECTORIES
     ${GLIB_INCLUDE_DIRS}
     ${WPE_INCLUDE_DIRS}
+    "include"
 )
 
 set(WPE_ANDROID_LIBRARIES
@@ -22,7 +23,12 @@ set(WPE_ANDROID_LIBRARIES
 
 set(WPE_ANDROID_SOURCES
     src/android.cpp
+    src/hacks.cpp
     src/ipc.cpp
+    src/renderer-backend-egl.cpp
+    src/renderer-host.cpp
+    src/view-backend.cpp
+    src/view-backend-exportable.cpp
 )
 
 add_library(WPEBackend-android SHARED ${WPE_ANDROID_SOURCES})
