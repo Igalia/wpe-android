@@ -260,6 +260,10 @@ WK_EXPORT bool WKPreferencesGetMediaStreamEnabled(WKPreferencesRef preferencesRe
 WK_EXPORT void WKPreferencesSetPeerConnectionEnabled(WKPreferencesRef preferencesRef, bool enabled);
 WK_EXPORT bool WKPreferencesGetPeerConnectionEnabled(WKPreferencesRef preferencesRef);
 
+// Should default to false
+WK_EXPORT void WKPreferencesSetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef, bool enabled);
+WK_EXPORT bool WKPreferencesGetWebRTCLegacyAPIEnabled(WKPreferencesRef preferencesRef);
+
 // Defaults to false.
 WK_EXPORT void WKPreferencesSetSpatialNavigationEnabled(WKPreferencesRef preferencesRef, bool enabled);
 WK_EXPORT bool WKPreferencesGetSpatialNavigationEnabled(WKPreferencesRef preferencesRef);
@@ -287,14 +291,6 @@ WK_EXPORT void WKPreferencesSetApplePayEnabled(WKPreferencesRef preferencesRef, 
 // Defaults to true.
 WK_EXPORT bool WKPreferencesGetApplePayCapabilityDisclosureAllowed(WKPreferencesRef preferencesRef);
 WK_EXPORT void WKPreferencesSetApplePayCapabilityDisclosureAllowed(WKPreferencesRef preferencesRef, bool allowed);
-
-// Defaults to false.
-WK_EXPORT void WKPreferencesSetAllowRunningOfInsecureContent(WKPreferencesRef preferencesRef, bool enabled);
-WK_EXPORT bool WKPreferencesGetAllowRunningOfInsecureContent(WKPreferencesRef preferencesRef);
-
-// Defaults to false.
-WK_EXPORT void WKPreferencesSetAllowDisplayOfInsecureContent(WKPreferencesRef preferencesRef, bool enabled);
-WK_EXPORT bool WKPreferencesGetAllowDisplayOfInsecureContent(WKPreferencesRef preferencesRef);
 
 #ifdef __cplusplus
 }

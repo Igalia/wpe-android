@@ -84,6 +84,7 @@ WK_EXPORT void WKPageStopLoading(WKPageRef page);
 WK_EXPORT void WKPageReload(WKPageRef page);
 WK_EXPORT void WKPageReloadWithoutContentBlockers(WKPageRef page);
 WK_EXPORT void WKPageReloadFromOrigin(WKPageRef page);
+WK_EXPORT void WKPageReloadExpiredOnly(WKPageRef page);
 
 WK_EXPORT bool WKPageTryClose(WKPageRef page);
 WK_EXPORT void WKPageClose(WKPageRef page);
@@ -268,7 +269,6 @@ WK_EXPORT void WKPageValidateCommand(WKPageRef page, WKStringRef command, void* 
 WK_EXPORT void WKPageExecuteCommand(WKPageRef page, WKStringRef command);
 
 WK_EXPORT void WKPagePostMessageToInjectedBundle(WKPageRef page, WKStringRef messageName, WKTypeRef messageBody);
-WK_EXPORT void WKPagePostSynchronousMessageToInjectedBundle(WKPageRef page, WKStringRef messageName, WKTypeRef messageBody);
 
 WK_EXPORT void WKPageSelectContextMenuItem(WKPageRef page, WKContextMenuItemRef item);
 
