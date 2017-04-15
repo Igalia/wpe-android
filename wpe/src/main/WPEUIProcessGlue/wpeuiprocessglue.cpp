@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <WPE/WebKit.h>
+#include <wpe/input.h>
 #include <wpe/view-backend.h>
 #include <wpe-android/view-backend-exportable.h>
 #include <glib.h>
@@ -64,9 +65,9 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     WKViewRef view = WKViewCreateWithViewBackend(viewBackend, pageConfiguration);
     WKRelease(pageConfiguration);
 
-    // WKURLRef url = WKURLCreateWithUTF8CString("https://www.wapo.st");
+    WKURLRef url = WKURLCreateWithUTF8CString("https://www.wapo.st");
     // WKURLRef url = WKURLCreateWithUTF8CString("https://www.igalia.com");
-    WKURLRef url = WKURLCreateWithUTF8CString("http://www.politico.com");
+    // WKURLRef url = WKURLCreateWithUTF8CString("http://www.politico.com");
     // WKURLRef url = WKURLCreateWithUTF8CString("http://helloracer.com/webgl/");
     // WKURLRef url = WKURLCreateWithUTF8CString("http://people.igalia.com/zdobersek/poster-circle/index.html");
     // WKURLRef url = WKURLCreateWithUTF8CString("http://motherfuckingwebsite.com/");
@@ -121,7 +122,61 @@ void wpe_uiprocess_glue_deinit()
     ALOGV("wpe_instance_deinit() -- done");
 }
 
-void wpe_uiprocess_glue_frame_complete()
+static gboolean frameCompleteCallback(gpointer)
 {
     wpe_android_view_backend_exportable_dispatch_frame_complete(s_viewBackendExportable);
+    return FALSE;
+}
+
+void wpe_uiprocess_glue_frame_complete()
+{
+    GSource* source = g_idle_source_new();
+    g_source_set_callback(source, frameCompleteCallback, NULL, NULL);
+    g_source_set_priority(source, G_PRIORITY_HIGH + 30);
+    g_source_attach(source, wpeThreadContext);
+}
+
+static gboolean touchEventCallback(gpointer data)
+{
+    struct wpe_input_touch_event_raw* touchEventRaw = reinterpret_cast<struct wpe_input_touch_event_raw*>(data);
+
+    struct wpe_input_touch_event touchEvent;
+    touchEvent.touchpoints = touchEventRaw;
+    touchEvent.touchpoints_length = 1;
+    touchEvent.type = touchEventRaw->type;
+    touchEvent.id = 0;
+    touchEvent.time = touchEventRaw->time;
+
+    struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(s_viewBackendExportable);
+    wpe_view_backend_dispatch_touch_event(viewBackend, &touchEvent);
+
+    return FALSE;
+}
+
+void wpe_uiprocess_glue_touch_event(jlong time, jint type, jfloat x, jfloat y)
+{
+    wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
+    switch (type) {
+        case 0:
+            touchEventType = wpe_input_touch_event_type_down;
+            break;
+        case 1:
+            touchEventType = wpe_input_touch_event_type_motion;
+            break;
+        case 2:
+            touchEventType = wpe_input_touch_event_type_up;
+            break;
+    }
+
+    struct wpe_input_touch_event_raw* touchEventRaw = g_new0(struct wpe_input_touch_event_raw, 1);
+    touchEventRaw->type = touchEventType;
+    touchEventRaw->time = (uint32_t)time;
+    touchEventRaw->id = 0;
+    touchEventRaw->x = (int32_t)x;
+    touchEventRaw->y = (int32_t)y;
+
+    GSource* source = g_idle_source_new();
+    g_source_set_callback(source, touchEventCallback, touchEventRaw, g_free);
+    g_source_set_priority(source, G_PRIORITY_HIGH + 30);
+    g_source_attach(source, wpeThreadContext);
 }
