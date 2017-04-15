@@ -33,7 +33,7 @@ public class WPEActivity extends Activity {
                 Log.i("WPEActivity", "m_thread.run()");
                 m_view.ensureSurfaceTexture();
 
-                Glue.init(m_glue);
+                Glue.init(m_glue, m_view.width(), m_view.height());
             }
         }, "WPEActivityThread");
         m_thread.start();

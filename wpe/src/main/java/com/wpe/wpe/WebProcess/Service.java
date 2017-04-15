@@ -25,7 +25,7 @@ public class Service extends WPEService {
             Context context = getBaseContext();
             Log.i("WPEWebProcess", "files dir " + context.getFilesDir());
             Log.i("WPEWebProcess", "cache dir " + context.getExternalCacheDir());
-            Glue.initializeXdg(context.getExternalCacheDir().getAbsolutePath());
+            Glue.initializeXdg(context.getCacheDir().getAbsolutePath());
 
             AssetManager assetManager = context.getAssets();
 

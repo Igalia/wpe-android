@@ -22,10 +22,12 @@ public class Glue {
         System.loadLibrary("WPEUIProcessGlue");
     }
 
-    public static native void init(Glue glueObj);
+    public static native void init(Glue glueObj, int width, int height);
     public static native void deinit();
 
-    public static native void hackFrameComplete();
+    public static native void frameComplete();
+
+    public static native void touchEvent(long time, int type, float x, float y);
 
     private final int PROCESS_TYPE_WEBPROCESS = 0;
     private final int PROCESS_TYPE_NETWORKPROCESS = 1;
@@ -95,7 +97,7 @@ public class Glue {
         switch (processType) {
             case PROCESS_TYPE_WEBPROCESS:
                 Log.i("Glue", "should launch WebProcess");
-                launchServiceInternal(PROCESS_TYPE_WEBPROCESS, parcelFds, Service.class);
+                launchServiceInternal(PROCESS_TYPE_WEBPROCESS, parcelFds, com.wpe.wpe.WebProcess.Service.class);
                 break;
             case PROCESS_TYPE_NETWORKPROCESS:
                 Log.i("Glue", "should launch NetworkProcess");
@@ -103,6 +105,7 @@ public class Glue {
                 break;
             case PROCESS_TYPE_DATABASEPROCESS:
                 Log.i("Glue", "should launch DatabaseProcess");
+                launchServiceInternal(PROCESS_TYPE_DATABASEPROCESS, parcelFds, com.wpe.wpe.DatabaseProcess.Service.class);
                 break;
             default:
                 Log.i("Glue", "invalid process type");

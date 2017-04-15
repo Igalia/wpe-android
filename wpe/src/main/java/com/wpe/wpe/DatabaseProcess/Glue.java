@@ -1,8 +1,11 @@
 package com.wpe.wpe.DatabaseProcess;
 
-/**
- * Created by zan on 4/14/17.
- */
-
 public class Glue {
+
+    static {
+        System.loadLibrary("WPEDatabaseProcessGlue");
+    }
+
+    public static native void initializeXdg(String xdgCachePath);
+    public static native void initializeMain(int fd);
 }

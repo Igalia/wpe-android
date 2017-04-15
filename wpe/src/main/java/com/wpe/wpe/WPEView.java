@@ -8,6 +8,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.os.Handler;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.Surface;
 
 import java.nio.Buffer;
@@ -56,10 +57,10 @@ public class WPEView extends GLSurfaceView {
 
 
         static private float[] s_vertices = {
-                -1.0f + 0.125f, 1.0f - 0.125f,
-                1.0f - 0.125f, 1.0f - 0.125f,
-                -1.0f + 0.125f, -1.0f + 0.125f,
-                1.0f - 0.125f, -1.0f + 0.125f
+                -1.0f, 1.0f,
+                1.0f, 1.0f,
+                -1.0f, -1.0f,
+                1.0f, -1.0f
         };
 
         static private float[] s_texturePos = {
@@ -86,7 +87,7 @@ public class WPEView extends GLSurfaceView {
 
         public void onDrawFrame(GL10 gl)
         {
-            Log.i("WPEView", "Renderer::onDrawFrame()");
+            // Log.i("WPEView", "Renderer::onDrawFrame()");
 
             if (m_program == 0) {
                 m_vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
@@ -143,11 +144,17 @@ public class WPEView extends GLSurfaceView {
             GLES20.glDisableVertexAttribArray(1);
 
             m_view.m_surfaceDirty = false;
-            Log.i("WPEView", "completed onDrawFrame(), error " + GLES20.glGetError());
 
-            Glue.hackFrameComplete();
+            Glue.frameComplete();
         }
-        public void onSurfaceChanged(GL10 gl, int width, int height) { }
+        public void onSurfaceChanged(GL10 gl, int width, int height)
+        {
+            Log.i("WPEView", "Renderer::onSurfaceChanged() (" + width + "," + height + ")");
+            synchronized (m_view) {
+                m_view.m_width = width;
+                m_view.m_height = height;
+            }
+        }
         public void onSurfaceCreated(GL10 gl, EGLConfig config)
         {
             Log.i("WPEView", "Renderer::onSurfaceCreated() -- unlocked");
@@ -164,6 +171,8 @@ public class WPEView extends GLSurfaceView {
     private int m_textureId = 0;
     private SurfaceTexture m_surfaceTexture = null;
     private boolean m_surfaceDirty = false;
+    private int m_width;
+    private int m_height;
 
     public WPEView(Context context)
     {
@@ -213,13 +222,13 @@ public class WPEView extends GLSurfaceView {
 
                             m_textureId = textures[0];
                             m_surfaceTexture = new SurfaceTexture(m_textureId);
-                            m_surfaceTexture.setDefaultBufferSize(1920, 1080);
+                            m_surfaceTexture.setDefaultBufferSize(view.m_width, view.m_height);
                             Log.i("WPEView", "created texture " + textures[0] + ", surfaceTexture " + m_surfaceTexture);
                             m_surfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
                                 @Override
                                 public void onFrameAvailable(SurfaceTexture surfaceTexture)
                                 {
-                                    Log.i("WPEView", "new frame available for surfaceTexture " + surfaceTexture);
+                                    // Log.i("WPEView", "new frame available for surfaceTexture " + surfaceTexture);
                                     synchronized (view) {
                                         view.m_surfaceDirty = true;
                                     }
@@ -244,5 +253,38 @@ public class WPEView extends GLSurfaceView {
     public Surface createSurface()
     {
         return new Surface(m_surfaceTexture);
+    }
+
+    public int width() { return m_width; }
+    public int height() { return m_height; }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event)
+    {
+        Log.i("WPEView", "onTouchEvent(): " + event.toString());
+
+        int pointerCount = event.getPointerCount();
+        if (pointerCount < 1)
+            return false;
+
+        int eventType;
+
+        int eventAction = event.getActionMasked();
+        switch (eventAction) {
+            case MotionEvent.ACTION_DOWN:
+                eventType = 0;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                eventType = 1;
+                break;
+            case MotionEvent.ACTION_UP:
+                eventType = 2;
+                break;
+            default:
+                return false;
+        }
+
+        Glue.touchEvent(event.getEventTime(), eventType, event.getX(0), event.getY(0));
+        return true;
     }
 }
