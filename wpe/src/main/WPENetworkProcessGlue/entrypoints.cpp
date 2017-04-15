@@ -33,7 +33,6 @@ Java_com_wpe_wpe_NetworkProcess_Glue_initializeGioExtraModulesPath(JNIEnv* env, 
     setenv("GIO_EXTRA_MODULES", pathChars, 1);
 }
 
-
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_NetworkProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd)
 {

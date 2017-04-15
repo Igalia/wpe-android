@@ -5,17 +5,17 @@
 #include <dlfcn.h>
 
 extern "C" {
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv*, jobject, jobject);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv*, jobject, jobject, jint, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_deinit(JNIEnv*, jobject);
 
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_hackFrameComplete(JNIEnv*, jobject);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_frameComplete(JNIEnv*, jobject);
 
     JNIEXPORT JNIEnv* s_WPEUIProcessGlue_env = 0;
     JNIEXPORT jobject s_WPEUIProcessGlue_object = 0;
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj)
+Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj, jint width, jint height)
 {
     ALOGV("Glue.init()");
 
@@ -24,7 +24,7 @@ Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj)
     ALOGV("Glue initialized VM to %p, its address %p", env, &s_WPEUIProcessGlue_env);
     ALOGV("Glue initialized object to %p, its address %p", obj, &s_WPEUIProcessGlue_object);
 
-    wpe_instance_init(env, glueObj);
+    wpe_uiprocess_glue_init(env, glueObj, width, height);
 }
 
 JNIEXPORT void JNICALL
@@ -33,16 +33,12 @@ Java_com_wpe_wpe_UIProcess_Glue_deinit(JNIEnv*, jobject)
     ALOGV("Glue.deinit()");
     s_WPEUIProcessGlue_env = 0;
     s_WPEUIProcessGlue_object = 0;
-    wpe_instance_deinit();
+    wpe_uiprocess_glue_deinit();
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_UIProcess_Glue_hackFrameComplete(JNIEnv*, jobject)
+Java_com_wpe_wpe_UIProcess_Glue_frameComplete(JNIEnv*, jobject)
 {
-    ALOGV("Glue.hack_frameComplete()");
-
-    using HackFrameCompleteEntryPoint = void();
-    auto* entrypoint = reinterpret_cast<HackFrameCompleteEntryPoint*>(dlsym(RTLD_DEFAULT, "libwpe_android_hack_frameComplete"));
-
-    (*entrypoint)();
+    ALOGV("Glue.frameComplete()");
+    wpe_uiprocess_glue_frame_complete();
 }

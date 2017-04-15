@@ -1,4 +1,7 @@
+#include <algorithm>
 #include <WPE/WebKit.h>
+#include <wpe/view-backend.h>
+#include <wpe-android/view-backend-exportable.h>
 #include <glib.h>
 #include <jni.h>
 
@@ -10,6 +13,8 @@ static GCond initCond;
 static GThread* wpeThread;
 static GMainContext* wpeThreadContext;
 static GMainLoop* wpeThreadLoop;
+static wpe_android_view_backend_exportable* s_viewBackendExportable;
+static wpe_view_backend* wpeViewBackend;
 
 static gboolean sourceCallback(gpointer)
 {
@@ -17,9 +22,7 @@ static gboolean sourceCallback(gpointer)
     return TRUE;
 }
 
-extern jobject s_WPEUIProcessGlue_object;
-
-static gpointer wpeThreadEntry(gpointer)
+static gpointer wpeThreadEntry(gpointer, int width, int height)
 {
     g_mutex_lock(&initMutex);
     ALOGV("wpeThreadEntry() -- entered, g_main_context_default() %p", g_main_context_default());
@@ -53,7 +56,12 @@ static gpointer wpeThreadEntry(gpointer)
     WKRelease(pageGroupIdentifier);
 
     ALOGV("wpeThreadEntry() -- creating a new view");
-    WKViewRef view = WKViewCreate(pageConfiguration);
+    struct wpe_view_backend* viewBackend;
+    {
+        s_viewBackendExportable = wpe_android_view_backend_exportable_create(std::max(0, width), std::max(0, height));
+        viewBackend = wpe_android_view_backend_exportable_get_view_backend(s_viewBackendExportable);
+    }
+    WKViewRef view = WKViewCreateWithViewBackend(viewBackend, pageConfiguration);
     WKRelease(pageConfiguration);
 
     // WKURLRef url = WKURLCreateWithUTF8CString("https://www.wapo.st");
@@ -84,9 +92,9 @@ static gpointer wpeThreadEntry(gpointer)
     return NULL;
 }
 
-void wpe_instance_init(JNIEnv* env, jobject glueObj)
+void wpe_uiprocess_glue_init(JNIEnv* env, jobject glueObj, jint width, jint height)
 {
-    ALOGV("wpe_instance_init()");
+    ALOGV("wpe_instance_init() (%d,%d)", width, height);
 
 #if 0
     g_mutex_lock(&initMutex);
@@ -94,12 +102,12 @@ void wpe_instance_init(JNIEnv* env, jobject glueObj)
     g_cond_wait(&initCond, &initMutex);
     g_mutex_unlock(&initMutex);
 #endif
-    wpeThreadEntry(NULL);
+    wpeThreadEntry(NULL, width, height);
 
     ALOGV("wpe_instance_init() -- done");
 }
 
-void wpe_instance_deinit()
+void wpe_uiprocess_glue_deinit()
 {
     ALOGV("wpe_instance_deinit()");
 
@@ -111,4 +119,9 @@ void wpe_instance_deinit()
 #endif
 
     ALOGV("wpe_instance_deinit() -- done");
+}
+
+void wpe_uiprocess_glue_frame_complete()
+{
+    wpe_android_view_backend_exportable_dispatch_frame_complete(s_viewBackendExportable);
 }
