@@ -1,19 +1,12 @@
 package com.wpe.wpe.UIProcess;
 
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.Bundle;
-import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
 
-import com.wpe.wpe.IWPEService;
 import com.wpe.wpe.WPEActivity;
-import com.wpe.wpe.WebProcess.Service;
-import com.wpe.wpe.external.SurfaceWrapper;
 
 public class Glue {
 
@@ -29,52 +22,7 @@ public class Glue {
 
     public static native void touchEvent(long time, int type, float x, float y);
 
-    private final int PROCESS_TYPE_WEBPROCESS = 0;
-    private final int PROCESS_TYPE_NETWORKPROCESS = 1;
-    private final int PROCESS_TYPE_DATABASEPROCESS = 2;
-
-    private class WPEServiceConnection implements ServiceConnection {
-
-        private final int m_processType;
-        private final WPEActivity m_activity;
-        private Parcelable[] m_fds;
-
-        WPEServiceConnection(int processType, WPEActivity activity, Parcelable[] fds)
-        {
-            m_processType = processType;
-            m_activity = activity;
-            m_fds = fds;
-        }
-
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service)
-        {
-            Log.i("WPEServiceConnection", "onServiceConnected() name " + name.toString());
-            m_service = IWPEService.Stub.asInterface(service);
-
-            Bundle bundle = new Bundle();
-            bundle.putParcelableArray("fds", m_fds);
-            m_fds = null;
-
-            try {
-                m_service.connect(bundle);
-                if (m_processType == PROCESS_TYPE_WEBPROCESS) {
-                    m_service.provideSurface(new SurfaceWrapper(m_activity.m_view.createSurface()));
-                }
-            } catch (android.os.RemoteException e) {
-                Log.e("WPEActivity", "Failed to connect to service", e);
-            }
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name)
-        {
-            Log.i("WPEServiceConnection", "onServiceDisconnected()");
-        }
-    }
-
     private final WPEActivity m_activity;
-    private IWPEService m_service;
 
     public Glue(WPEActivity activity)
     {
@@ -95,17 +43,17 @@ public class Glue {
         }
 
         switch (processType) {
-            case PROCESS_TYPE_WEBPROCESS:
+            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 Log.i("Glue", "should launch WebProcess");
-                launchServiceInternal(PROCESS_TYPE_WEBPROCESS, parcelFds, com.wpe.wpe.WebProcess.Service.class);
+                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS, parcelFds, com.wpe.wpe.WebProcess.Service.class);
                 break;
-            case PROCESS_TYPE_NETWORKPROCESS:
+            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
                 Log.i("Glue", "should launch NetworkProcess");
-                launchServiceInternal(PROCESS_TYPE_NETWORKPROCESS, parcelFds, com.wpe.wpe.NetworkProcess.Service.class);
+                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS, parcelFds, com.wpe.wpe.NetworkProcess.Service.class);
                 break;
-            case PROCESS_TYPE_DATABASEPROCESS:
+            case WPEServiceConnection.PROCESS_TYPE_DATABASEPROCESS:
                 Log.i("Glue", "should launch DatabaseProcess");
-                launchServiceInternal(PROCESS_TYPE_DATABASEPROCESS, parcelFds, com.wpe.wpe.DatabaseProcess.Service.class);
+                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_DATABASEPROCESS, parcelFds, com.wpe.wpe.DatabaseProcess.Service.class);
                 break;
             default:
                 Log.i("Glue", "invalid process type");
