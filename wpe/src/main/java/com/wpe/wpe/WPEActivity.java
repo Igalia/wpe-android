@@ -19,6 +19,69 @@ public class WPEActivity extends Activity {
     private Thread m_thread;
     ArrayList<WPEServiceConnection> m_services;
 
+    private class WPEUIProcessThread {
+        private Thread m_thread;
+
+        Glue m_glueObj;
+        WPEView m_viewObj;
+
+        WPEUIProcessThread()
+        {
+            final WPEUIProcessThread thisObj = this;
+
+            m_thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i("WPEUIProcessThread", "in thread");
+                    while (true) {
+                        synchronized (thisObj) {
+                            try {
+                                while (m_glueObj == null) {
+                                    thisObj.wait();
+                                }
+                            } catch (InterruptedException e){
+                                Log.e("WPEAcitivty", "interruption in WPEUIProcessThread");
+                                break;
+                            }
+                        }
+
+                        Log.i("WPEUIProcessThread", "got glue " + m_glueObj + ", view " + m_viewObj);
+                        m_viewObj.ensureSurfaceTexture();
+
+                        Glue.init(m_glueObj, m_viewObj.width(), m_viewObj.height());
+                    }
+                }
+            });
+            m_thread.start();
+        }
+
+        public void runUIProcess(Glue glue, WPEView view)
+        {
+            final WPEUIProcessThread thisObj = this;
+            Log.i("WPEActivity", "WPEUIProcessThread, glue " + glue + " view " + view);
+
+            synchronized (thisObj) {
+                m_glueObj = glue;
+                m_viewObj = view;
+                thisObj.notifyAll();
+            }
+        }
+
+        public void stopUIProcess()
+        {
+            final WPEUIProcessThread thisObj = this;
+
+            synchronized (thisObj) {
+                m_glueObj = null;
+                m_viewObj = null;
+
+                Glue.deinit();
+            }
+        }
+    }
+
+    static private WPEUIProcessThread m_uiProcessThread;
+
     @Override protected void onCreate(Bundle icicle)
     {
         super.onCreate(icicle);
@@ -33,18 +96,12 @@ public class WPEActivity extends Activity {
         m_view = new WPEView(getApplication());
         setContentView(m_view);
 
-        final WPEActivity activity = this;
-        m_thread = new Thread(new Runnable() {
-            @Override
-            public void run()
-            {
-                Log.i("WPEActivity", "m_thread.run()");
-                m_view.ensureSurfaceTexture();
-
-                Glue.init(m_glue, m_view.width(), m_view.height());
-            }
-        }, "WPEActivityThread");
-        m_thread.start();
+        if (m_uiProcessThread == null) {
+            Log.i("WPE", "creating a new WPEUIProcessThread");
+            m_uiProcessThread = new WPEUIProcessThread();
+            Log.i("WPE", "created a new WPEUIProcessThread " + m_uiProcessThread);
+        }
+        m_uiProcessThread.runUIProcess(m_glue, m_view);
     }
 
     @Override protected void onPause()
@@ -61,6 +118,8 @@ public class WPEActivity extends Activity {
 
     @Override protected void onDestroy()
     {
+        m_uiProcessThread.stopUIProcess();
+
         Context context = getBaseContext();
         for (WPEServiceConnection serviceConnection : m_services) {
             context.unbindService(serviceConnection);
