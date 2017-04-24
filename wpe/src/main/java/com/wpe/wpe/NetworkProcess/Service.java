@@ -35,6 +35,9 @@ public class Service extends WPEService {
             com.wpe.wpe.NetworkProcess.Glue.initializeGioExtraModulesPath(osDir.getAbsolutePath());
 
             File osFile = new File(osDir, "libgiognutls.so");
+            if (osFile.exists())
+                return;
+
             Log.i("WPEAssets", "copying giognutls/libgiognutls.so to " + osFile.getAbsolutePath());
             OutputStream os = new FileOutputStream(osFile);
 
