@@ -12,7 +12,7 @@ static GMutex initMutex;
 static GCond initCond;
 
 static GThread* wpeThread;
-static GMainContext* wpeThreadContext;
+static GMainContext* wpeThreadContext = NULL;
 static GMainLoop* wpeThreadLoop;
 static wpe_android_view_backend_exportable* s_viewBackendExportable;
 static wpe_view_backend* wpeViewBackend;
@@ -28,14 +28,14 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     g_mutex_lock(&initMutex);
     ALOGV("wpeThreadEntry() -- entered, g_main_context_default() %p", g_main_context_default());
 
-    wpeThreadContext = g_main_context_new();
+    // wpeThreadContext = g_main_context_new();
     wpeThreadLoop = g_main_loop_new(wpeThreadContext, FALSE);
     ALOGV("wpeThreadEntry() -- context %p loop %p", wpeThreadContext, wpeThreadLoop);
 
     g_cond_signal(&initCond);
     g_mutex_unlock(&initMutex);
 
-    if (1) {
+    if (0) {
         GSource* source = g_timeout_source_new(10000);
         g_source_set_callback(source, sourceCallback, NULL, NULL);
         g_source_attach(source, wpeThreadContext);
@@ -76,19 +76,18 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     WKPageLoadURL(WKViewGetPage(view), url);
     WKRelease(url);
 
-    ALOGV("wpeThreadEntry() -- running");
+    ALOGV("wpeThreadEntry() -- running via GMainLoop %p for GMainContext %p", wpeThreadLoop, wpeThreadContext);
     g_main_loop_run(wpeThreadLoop);
     ALOGV("wpeThreadEntry() -- quitting");
 
     WKRelease(view);
+
     WKRelease(context);
 
     g_main_context_pop_thread_default(wpeThreadContext);
 
     g_main_loop_unref(wpeThreadLoop);
-    g_main_context_unref(wpeThreadContext);
     wpeThreadLoop = NULL;
-    wpeThreadContext = NULL;
 
     return NULL;
 }
@@ -96,6 +95,9 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
 void wpe_uiprocess_glue_init(JNIEnv* env, jobject glueObj, jint width, jint height)
 {
     ALOGV("wpe_instance_init() (%d,%d)", width, height);
+
+    if (!wpeThreadContext)
+        wpeThreadContext = g_main_context_new();
 
 #if 0
     g_mutex_lock(&initMutex);
