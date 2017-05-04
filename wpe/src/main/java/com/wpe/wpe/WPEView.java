@@ -116,11 +116,16 @@ public class WPEView extends GLSurfaceView {
                 Log.i("WPEView", "attrib locations " + m_aPosition + ", " + m_aTexture);
             }
 
-            GLES20.glClearColor(0.125f, 0.125f, 0.125f, 1.0f);
+            if (!m_view.m_surfaceDirty)
+                GLES20.glClearColor(0.875f, 0f, 0f, 1.0f);
+            else
+                GLES20.glClearColor(0f, 0.875f, 0f, 1.0f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-            if (m_view.m_surfaceTexture == null || !m_view.m_surfaceDirty)
+            if (m_view.m_surfaceTexture == null || !m_view.m_surfaceDirty) {
+                Glue.frameComplete();
                 return;
+            }
 
             GLES20.glUseProgram(m_program);
 
