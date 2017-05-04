@@ -7,6 +7,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!--
         <activity
             android:name="com.wpe.pq.PQActivity"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
@@ -16,15 +17,27 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        -->
 
-        <!--
+
+        <activity
+            android:name="com.wpe.wpe.WPEActivity"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <service
+            android:name="com.wpe.wpe.DatabaseProcess.Service"
+            android:process=":WPEDatabaseProcess"/>
         <service
             android:name="com.wpe.wpe.NetworkProcess.Service"
             android:process=":WPENetworkProcess"/>
         <service
             android:name="com.wpe.wpe.WebProcess.Service"
             android:process=":WPEWebProcess"/>
-            -->
     </application>
 
 </manifest>
