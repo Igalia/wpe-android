@@ -87,8 +87,6 @@ public class WPEView extends GLSurfaceView {
 
         public void onDrawFrame(GL10 gl)
         {
-            // Log.i("WPEView", "Renderer::onDrawFrame()");
-
             if (m_program == 0) {
                 m_vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
                 GLES20.glShaderSource(m_vertexShader, s_vertexShaderSource);
@@ -266,8 +264,6 @@ public class WPEView extends GLSurfaceView {
     @Override
     public boolean onTouchEvent(MotionEvent event)
     {
-        Log.i("WPEView", "onTouchEvent(): " + event.toString());
-
         int pointerCount = event.getPointerCount();
         if (pointerCount < 1)
             return false;
