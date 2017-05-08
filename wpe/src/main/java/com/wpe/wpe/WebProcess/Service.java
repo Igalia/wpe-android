@@ -65,13 +65,13 @@ public class Service extends WPEService {
         Surface surface = null;
 
         try {
-            synchronized (m_thread) {
-                while (m_surface == null) {
-                    m_thread.wait();
+            synchronized (m_serviceProcessThread) {
+                while (m_serviceProcessThread.m_surface == null) {
+                    m_serviceProcessThread.wait();
                 }
 
-                surface = m_surface;
-                m_surface = null;
+                surface = m_serviceProcessThread.m_surface;
+                m_serviceProcessThread.m_surface = null;
             }
         } catch (InterruptedException e) {
             Log.i("WPEWebProcess", "failed to get the Surface object");

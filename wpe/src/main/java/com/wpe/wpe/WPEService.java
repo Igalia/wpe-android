@@ -13,10 +13,6 @@ import com.wpe.wpe.external.SurfaceWrapper;
 
 public class WPEService extends Service {
 
-    protected Thread m_thread;
-    private ParcelFileDescriptor[] m_serviceFds = null;
-    protected Surface m_surface = null;
-
     public final IWPEService.Stub m_binder = new IWPEService.Stub() {
         @Override
         public int connect(Bundle args)
@@ -39,35 +35,60 @@ public class WPEService extends Service {
         }
     };
 
+    protected class WPEServiceProcessThread {
+        private Thread m_thread;
+        private WPEService m_service;
+        private ParcelFileDescriptor[] m_serviceFds = null;
+        public Surface m_surface = null;
+
+        WPEServiceProcessThread()
+        {
+            final WPEServiceProcessThread thisObj = this;
+            m_thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i("WPEServiceProcessThread", "running");
+
+                    while (true) {
+                        ParcelFileDescriptor[] fds = null;
+
+                        synchronized (thisObj) {
+                            try {
+                                while (m_service == null)
+                                    thisObj.wait();
+                                while (m_serviceFds == null)
+                                    thisObj.wait();
+                            } catch (InterruptedException e) {
+                                Log.i("WPEService", "interruption in WPEServiceProcessThread");
+                                break;
+                            }
+
+                            fds = m_serviceFds;
+                            m_serviceFds = null;
+                        }
+
+                        m_service.initializeService(fds);
+                    }
+                }
+            });
+            m_thread.start();
+        }
+    }
+
+    static protected WPEServiceProcessThread m_serviceProcessThread;
+
     @Override public void onCreate()
     {
-        super.onCreate();
         Log.i("WPEService", "onCreate()");
+        super.onCreate();
 
-        m_thread = new Thread(new Runnable() {
-            @Override
-            public void run()
-            {
-                Log.i("WPEService", "m_thread.run()");
+        if (m_serviceProcessThread == null)
+            m_serviceProcessThread = new WPEServiceProcessThread();
 
-                ParcelFileDescriptor[] fds = null;
-                try {
-                    synchronized (m_thread) {
-                        while (m_serviceFds == null) {
-                            m_thread.wait();
-                        }
-                    }
-
-                    fds = m_serviceFds;
-                    m_serviceFds = null;
-                } catch (InterruptedException e) {
-                    Log.e("WPEService", "thread startup failed", e);
-                }
-
-                initializeService(fds);
-            }
-        }, "WPEServiceThread");
-        m_thread.start();
+        synchronized (m_serviceProcessThread) {
+            m_serviceProcessThread.m_service = this;
+            m_serviceProcessThread.notifyAll();
+        }
     }
 
     @Override public IBinder onBind(Intent intent)
@@ -78,23 +99,23 @@ public class WPEService extends Service {
 
     @Override public void onDestroy()
     {
-        super.onDestroy();
         Log.i("WPEService", "onDestroy()");
+        super.onDestroy();
     }
 
     private void provideServiceFDs(ParcelFileDescriptor[] fds)
     {
-        synchronized (m_thread) {
-            m_serviceFds = fds;
-            m_thread.notifyAll();
+        synchronized (m_serviceProcessThread) {
+            m_serviceProcessThread.m_serviceFds = fds;
+            m_serviceProcessThread.notifyAll();
         }
     }
 
     private void provideServiceSurface(Surface surface)
     {
-        synchronized (m_thread) {
-            m_surface = surface;
-            m_thread.notifyAll();
+        synchronized (m_serviceProcessThread) {
+            m_serviceProcessThread.m_surface = surface;
+            m_serviceProcessThread.notifyAll();
         }
     }
 
