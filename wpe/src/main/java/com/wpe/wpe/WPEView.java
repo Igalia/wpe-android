@@ -120,35 +120,29 @@ public class WPEView extends GLSurfaceView {
                 GLES20.glClearColor(0f, 0.875f, 0f, 1.0f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-            if (m_view.m_surfaceTexture == null || !m_view.m_surfaceDirty) {
-                Glue.frameComplete();
-                return;
+            if (m_view.m_surfaceTexture != null) {
+                GLES20.glUseProgram(m_program);
+
+                m_view.m_surfaceTexture.updateTexImage();
+
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+                GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, m_view.m_textureId);
+
+                GLES20.glVertexAttribPointer(m_aPosition, 2, GLES20.GL_FLOAT, false, 0, createFloatBuffer(s_vertices));
+                GLES20.glVertexAttribPointer(m_aTexture, 2, GLES20.GL_FLOAT, false, 0, createFloatBuffer(s_texturePos));
+
+                GLES20.glEnableVertexAttribArray(0);
+                GLES20.glEnableVertexAttribArray(1);
+
+                GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
+
+                GLES20.glDisableVertexAttribArray(0);
+                GLES20.glDisableVertexAttribArray(1);
             }
 
-            GLES20.glUseProgram(m_program);
-
-            m_view.m_surfaceTexture.updateTexImage();
-
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-            GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, m_view.m_textureId);
-            /*
-            GLES20.glUniform1i(m_uTexture, 0);
-            */
-
-            GLES20.glVertexAttribPointer(m_aPosition, 2, GLES20.GL_FLOAT, false, 0, createFloatBuffer(s_vertices));
-            GLES20.glVertexAttribPointer(m_aTexture, 2, GLES20.GL_FLOAT, false, 0, createFloatBuffer(s_texturePos));
-
-            GLES20.glEnableVertexAttribArray(0);
-            GLES20.glEnableVertexAttribArray(1);
-
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-            GLES20.glDisableVertexAttribArray(0);
-            GLES20.glDisableVertexAttribArray(1);
-
+            if (m_view.m_surfaceDirty)
+                Glue.frameComplete();
             m_view.m_surfaceDirty = false;
-
-            Glue.frameComplete();
         }
         public void onSurfaceChanged(GL10 gl, int width, int height)
         {
