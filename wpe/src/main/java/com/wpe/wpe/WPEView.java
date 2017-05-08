@@ -206,6 +206,22 @@ public class WPEView extends GLSurfaceView {
         setPreserveEGLContextOnPause(true);
     }
 
+    @Override
+    public void onPause()
+    {
+        Log.i("WPEView", "onPause()");
+        super.onPause();
+    }
+
+    @Override
+    public void onResume()
+    {
+        Log.i("WPEView", "onResume()");
+        super.onResume();
+
+        requestRender();
+    }
+
     public void ensureSurfaceTexture()
     {
         Log.i("WPEView", "waitForSurfaceCreation()");
