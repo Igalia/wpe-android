@@ -203,6 +203,7 @@ public class WPEView extends GLSurfaceView {
         m_renderer = new Renderer(this);
         setRenderer(m_renderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
+        setPreserveEGLContextOnPause(true);
     }
 
     public void ensureSurfaceTexture()
