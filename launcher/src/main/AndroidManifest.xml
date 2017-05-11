@@ -2,7 +2,7 @@
     package="com.wpe.wpelauncher">
 
     <application android:allowBackup="true"
-        android:label="WPE"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
