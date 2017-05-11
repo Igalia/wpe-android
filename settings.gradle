@@ -1,1 +1,1 @@
-include ':mobile', ':tv', ':wpe', ':pq'
+include ':wpe', ':pq', ':launcher'
