@@ -1,17 +1,11 @@
 package com.wpe.wpe.NetworkProcess;
 
 import android.content.Context;
-import android.content.res.AssetManager;
+import android.content.pm.ApplicationInfo;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import com.wpe.wpe.WPEService;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
 public class Service extends WPEService {
 
@@ -20,45 +14,23 @@ public class Service extends WPEService {
     {
         super.onCreate();
 
-        try {
-            Context context = getBaseContext();
-            Log.i("WPENetworkProcess", "files dir " + context.getFilesDir());
-            Log.i("WPENetworkProcess", "cache dir " + context.getExternalCacheDir());
-            Glue.initializeXdg(context.getCacheDir().getAbsolutePath());
+        Context context = getBaseContext();
+        Log.i("WPENetworkProcess", "arch " + System.getProperty("os.arch"));
+        Log.i("WPENetworkProcess", System.getProperty("java.library.path"));
 
-            AssetManager assetManager = context.getAssets();
+        ApplicationInfo appInfo = context.getApplicationInfo();
+        Log.i("WPENetworkProcess", appInfo.nativeLibraryDir);
+        Log.i("WPENetworkProcess", appInfo.sourceDir);
 
-            InputStream is = assetManager.open("giognutls/libgiognutls.so");
-
-            File osDir = new File(context.getFilesDir(), "giognutls");
-            osDir.mkdirs();
-            com.wpe.wpe.NetworkProcess.Glue.initializeGioExtraModulesPath(osDir.getAbsolutePath());
-
-            File osFile = new File(osDir, "libgiognutls.so");
-            if (osFile.exists())
-                return;
-
-            Log.i("WPEAssets", "copying giognutls/libgiognutls.so to " + osFile.getAbsolutePath());
-            OutputStream os = new FileOutputStream(osFile);
-
-            int read;
-            byte[] buffer = new byte[1024];
-            while ((read = is.read(buffer)) != -1) {
-                os.write(buffer, 0, read);
-            }
-
-            is.close();
-            os.flush();
-            os.close();
-        } catch (IOException e) {
-            Log.i("WPEAssets", "asset load failed: " + e);
-        }
+        Log.i("WPENetworkProcess", "files dir " + context.getFilesDir());
+        Log.i("WPENetworkProcess", "cache dir " + context.getExternalCacheDir());
+        Glue.initializeXdg(context.getCacheDir().getAbsolutePath());
+        com.wpe.wpe.NetworkProcess.Glue.initializeGioExtraModulesPath(appInfo.nativeLibraryDir);
     }
 
     @Override
     protected void initializeService(ParcelFileDescriptor[] fds)
     {
-
         Log.i("WPENetworkProcess", "initializeService(), got " + fds.length + " fds");
         for (int i = 0; i < fds.length; ++i) {
             Log.i("WPENetworkProcess", " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
