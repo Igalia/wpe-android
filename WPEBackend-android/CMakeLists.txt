@@ -27,7 +27,6 @@ set(WPE_ANDROID_SOURCES
     src/ipc.cpp
     src/renderer-backend-egl.cpp
     src/renderer-host.cpp
-    src/view-backend.cpp
     src/view-backend-exportable.cpp
 )
 

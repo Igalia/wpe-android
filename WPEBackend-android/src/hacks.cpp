@@ -1,7 +1,6 @@
 #include "hacks.h"
 
 #include "logging.h"
-#include "view-backend.h"
 
 #include <android/native_window.h>
 

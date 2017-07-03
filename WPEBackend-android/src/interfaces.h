@@ -3,7 +3,6 @@
 #include <wpe/view-backend.h>
 
 extern struct wpe_renderer_host_interface android_renderer_host_impl;
-extern struct wpe_view_backend_interface android_view_backend_impl;
 
 extern struct wpe_renderer_backend_egl_interface android_renderer_backend_egl_impl;
 extern struct wpe_renderer_backend_egl_target_interface android_renderer_backend_egl_target_impl;

@@ -14,9 +14,6 @@ struct wpe_loader_interface _wpe_loader_interface = {
         if (!std::strcmp(object_name, "_wpe_renderer_host_interface"))
             return &android_renderer_host_impl;
 
-        if (!std::strcmp(object_name, "_wpe_view_backend_interface"))
-            return &android_view_backend_impl;
-
         if (!std::strcmp(object_name, "_wpe_renderer_backend_egl_interface"))
             return &android_renderer_backend_egl_impl;
 
