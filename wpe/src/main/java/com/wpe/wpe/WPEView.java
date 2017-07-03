@@ -87,6 +87,12 @@ public class WPEView extends GLSurfaceView {
 
         public void onDrawFrame(GL10 gl)
         {
+            boolean surfaceDirty = false;
+            synchronized (m_view) {
+                surfaceDirty = m_view.m_surfaceDirty;
+                m_view.m_surfaceDirty = false;
+             }
+
             if (m_program == 0) {
                 m_vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
                 GLES20.glShaderSource(m_vertexShader, s_vertexShaderSource);
@@ -114,7 +120,7 @@ public class WPEView extends GLSurfaceView {
                 Log.i("WPEView", "attrib locations " + m_aPosition + ", " + m_aTexture);
             }
 
-            if (!m_view.m_surfaceDirty)
+            if (!surfaceDirty)
                 GLES20.glClearColor(0.875f, 0f, 0f, 1.0f);
             else
                 GLES20.glClearColor(0f, 0.875f, 0f, 1.0f);
@@ -140,9 +146,8 @@ public class WPEView extends GLSurfaceView {
                 GLES20.glDisableVertexAttribArray(1);
             }
 
-            if (m_view.m_surfaceDirty)
+            if (surfaceDirty)
                 Glue.frameComplete();
-            m_view.m_surfaceDirty = false;
         }
         public void onSurfaceChanged(GL10 gl, int width, int height)
         {
