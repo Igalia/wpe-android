@@ -1,1 +1,1 @@
-include ':wpe', ':pq', ':launcher'
+include ':wpe', ':launcher'
