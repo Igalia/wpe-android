@@ -16,6 +16,7 @@ static GMainContext* wpeThreadContext = NULL;
 static GMainLoop* wpeThreadLoop;
 static wpe_android_view_backend_exportable* s_viewBackendExportable;
 static wpe_view_backend* wpeViewBackend;
+static char* wpePageURL = NULL;
 
 static gboolean sourceCallback(gpointer)
 {
@@ -65,14 +66,9 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     WKViewRef view = WKViewCreateWithViewBackend(viewBackend, pageConfiguration);
     WKRelease(pageConfiguration);
 
-    WKURLRef url = WKURLCreateWithUTF8CString("https://www.wapo.st");
-    // WKURLRef url = WKURLCreateWithUTF8CString("https://www.igalia.com");
-    // WKURLRef url = WKURLCreateWithUTF8CString("http://www.politico.com");
-    // WKURLRef url = WKURLCreateWithUTF8CString("http://helloracer.com/webgl/");
-    // WKURLRef url = WKURLCreateWithUTF8CString("http://people.igalia.com/zdobersek/poster-circle/index.html");
-    // WKURLRef url = WKURLCreateWithUTF8CString("http://motherfuckingwebsite.com/");
-    // WKURLRef url = WKURLCreateWithUTF8CString("http://www.google.com");
-    // WKURLRef url = WKURLCreateWithUTF8CString("about:blank");
+    ALOGV("wpeThreadEntry() -- URL %s", wpePageURL);
+
+    WKURLRef url = WKURLCreateWithUTF8CString(wpePageURL);
     WKPageLoadURL(WKViewGetPage(view), url);
     WKRelease(url);
 
@@ -122,6 +118,13 @@ void wpe_uiprocess_glue_deinit()
 #endif
 
     ALOGV("wpe_instance_deinit() -- done");
+}
+
+void wpe_uiprocess_glue_set_page_url(const char* urlData, jsize urlSize)
+{
+    if (wpePageURL)
+        g_free(wpePageURL);
+    wpePageURL = g_strndup(urlData, urlSize);
 }
 
 static gboolean frameCompleteCallback(gpointer)

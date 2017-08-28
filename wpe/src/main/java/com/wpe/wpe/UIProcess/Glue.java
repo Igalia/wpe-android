@@ -18,6 +18,8 @@ public class Glue {
     public static native void init(Glue glueObj, int width, int height);
     public static native void deinit();
 
+    public static native void setPageURL(String url);
+
     public static native void frameComplete();
 
     public static native void touchEvent(long time, int type, float x, float y);

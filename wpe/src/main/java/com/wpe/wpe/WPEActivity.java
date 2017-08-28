@@ -3,6 +3,9 @@ package com.wpe.wpe;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.PackageItemInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.Log;
@@ -95,6 +98,15 @@ public class WPEActivity extends Activity {
 
         m_view = new WPEView(getApplication());
         setContentView(m_view);
+
+        String pageURL = "http://www.igalia.com";
+        try {
+            ActivityInfo info = getPackageManager().getActivityInfo(getComponentName(), PackageManager.GET_META_DATA);
+            pageURL = info.metaData.getString("PageURL");
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        m_glue.setPageURL(pageURL);
 
         if (m_uiProcessThread == null) {
             Log.i("WPE", "creating a new WPEUIProcessThread");
