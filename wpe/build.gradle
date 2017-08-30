@@ -30,6 +30,13 @@ android {
             jniLibs.srcDirs = ['imported/lib', 'imported/gio-modules']
         }
     }
+    splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a", "armeabi-v7a"
+        }
+    }
 }
 
 dependencies {
