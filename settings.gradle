@@ -1,1 +1,1 @@
-include ':wpe', ':launcher'
+include ':wpe', ':launcher', ':tvdemo-wapost'
