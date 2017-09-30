@@ -1,0 +1,318 @@
+# Environment
+export WORKDIR=/work/android/wpe-demo/aarch64-clang
+export SYSROOT=$WORKDIR/toolchain/sysroot
+export INSTALLROOT=$WORKDIR/target
+export PATH=$WORKDIR/toolchain/bin:$PATH
+
+export ARCH=aarch64-linux-android
+export CROSS_COMPILE=aarch64-linux-android
+export CC=aarch64-linux-android-clang
+export CXX=aarch64-linux-android-clang++
+export CFLAGS="--sysroot=$WORKDIR/toolchain/sysroot -O2"
+export CXXFLAGS="--sysroot=$WORKDIR/toolchain/sysroot -O2"
+
+export PKG_CONFIG=pkg-config
+export PKG_CONFIG_DIR=
+export PKG_CONFIG_SYSROOT_DIR=$WORKDIR/toolchain/sysroot
+export PKG_CONFIG_LIBDIR=$WORKDIR/toolchain/sysroot/usr/lib/pkgconfig
+
+# Toolchain
+/work/android/android-ndk-r15c/build/tools/make-standalone-toolchain.sh \
+	--toolchain=$ARCH \
+	--arch=arm64 \
+	--platform=android-23 \
+	--install-dir=$WORKDIR/toolchain
+
+# gettext 0.19.8.1
+# sha256sum 105556dbc5c3fbbc2aa0edb46d22d055748b6f5c7cd7a8d99f8e7eb84e938be4
+cd gettext-runtime
+ac_cv_func___fsetlocking=no \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libffi 3.2.1
+# sha256sum d06ebb8e1d9a22d19e38d63fdb83954253f39bedc5d46232a05645685722ca37
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libiconv 1.15
+# sha256sum ccf536620a45458d26ba83887a983b96827001e92a13847b45e4925cc8913178
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# pcre 8.41
+# sha256sum 1d75ce90ea3f81ee080cdc04e68c9c25a9fb984861a0618be7bbf676b18eda3e
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-cpp
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# glib 2.53.3
+# sha256sum 82ee94bf4c01459b6b00cb9db0545c2237921e3060c0b74cff13fbc020cfd999
+LDFLAGS="-L$SYSROOT/usr/lib -lz -liconv -llog" \
+	glib_cv_stack_grows=no glib_cv_uscore=no ac_cv_func_posix_getpwuid_r=yes ac_cv_func_posix_getgrgid_r=no \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-libmount --with-libiconv=gnu
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# icu 59.1
+# sha256sum 2b0a4410153a9b20de0e20c7d8b66049a72aef244b53683d0d7521371683da0c
+cp -r source host-source
+
+# in host env
+cd host-source
+./configure --disable-samples --disable-tests --disable-extras --disable-icuio \
+	--disable-layout --disable-renaming
+make
+
+# in target env
+cd source
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-cross-build=$WORKDIR/build/icu/host-source --disable-samples --disable-tests
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libxml2 2.9.4
+# sha256sum ffb911191e509b966deb55de705387f14156e1a56b21824357cdf0053233633c
+# in Makefile.am, remove build targets 'runtest' and 'testrecurse'
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-gnu-ld --without-python --without-debug --with-zlib --without-lzma --with-iconv
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libxslt 1.1.29
+# sha256sum b5976e3857837e7617b29f2249ebb5eeac34e249208d31f1fbf7a6ba7a4090ce
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-gnu-ld --without-python --without-debug --without-crypto \
+	--with-libxml-prefix=$SYSROOT/usr \
+	--with-libxml-libs-prefix=$SYSROOT/usr/lib \
+	--with-libxml-include-prefix=$SYSROOT/usr/include
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# freetype 2.8
+# sha256sum 162ef25aa64480b1189cdb261228e6c5c44f212aac4b4621e28cf2157efb59f5
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-zlib --without-bzip2 --without-png
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# fontconfig 2.12.4
+# sha256sum a9f42d03949f948a3a4f762287dbc16e53a927c91a07ee64207ebd90a9e5e292
+LDFLAGS="-L$SYSROOT/usr/lib -llog -lm -lz -lfreetype -liconv -lxml2" \
+	ac_cv_func_link=no \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-arch=$ARCH --with-cache-dir=/var/cache/fontconfig --enable-libxml2 --disable-docs
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# harfbuzz 1.4.6
+# sha256sum 35d2f8ca476cbbec64ee824eca6b0209ff8db0334990b9f5af893b94f119d255
+LDFLAGS="-L$SYSROOT/usr/lib -lz" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-coretext=no --with-uniscribe=no --with-cairo=no --with-freetype=yes --with-graphite2=no --with-glib=no --with-icu=yes
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libjpeg-turbo 1.5.2
+# sha256sum 41429d3d253017433f66e3d472b8c7d998491d2f41caa7306b8d9a6f2a2c666c
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libpng 1.6.30
+# sha256sum d8d3ec9de6b5db740fefac702c37ffcf96ae46cb17c18c1544635a3852f78f7a
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libwebp 0.6.0
+# sha256sum c928119229d4f8f35e20113ffb61f281eda267634a8dc2285af4b0ee27cf2b40
+LDFLAGS="-L$SYSROOT/usr/lib -lm" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-jpeg --disable-png
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# pixman 0.34.0
+# sha256sum 21b6b249b51c6800dc9553b65106e1e37d0e25df942c90531d4c3997aa20a88e
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-gtk
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# cairo 1.14.8
+# sha256sum d1f2d98ae9a4111564f6de4e013d639cf77155baf2556582295a0f00a9bc5e20
+LDFLAGS="-L$SYSROOT/usr/lib -lz -liconv -lxml2 -lm" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--enable-trace=no --enable-interpreter=no --disable-directfb --enable-ft \
+	--disable-gobject --disable-glesv2 --disable-vg --disable-xlib --disable-xlib-xrender \
+	--disable-xcb --without-x --disable-egl --disable-ps --disable-pdf --enable-png \
+	--disable-script --disable-svg --disable-tee --disable-xml
+LDFLAGS="-L$SYSROOT/usr/lib -lz -liconv -lxml2 -lm" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--enable-trace=no --enable-interpreter=no --disable-directfb --enable-ft \
+	--disable-gobject --enable-glesv2 --disable-vg --disable-xlib --disable-xlib-xrender \
+	--disable-xcb --without-x --disable-egl --disable-ps --disable-pdf --enable-png \
+	--disable-script --disable-svg --disable-tee --disable-xml
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# sqlite 3.17.0
+# sha256sum a4e485ad3a16e054765baf6371826b5000beed07e626510896069c0bf013874c
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--enable-threadsafe --disable-readline
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libsoup 2.56.0
+# sha256sum d8216b71de8247bc6f274ec054c08547b2e04369c1f8add713e9350c8ef81fe5
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-glibtest --enable-vala=no --without-gnome --disable-tls-check
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# gmp 6.1.2
+# sha256sum 87b565e89a9a684fe4ebeeddb8399dce2599f9c9049854ca8c0dfbdea0e21912
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# nettle 3.3
+# sha256sum 46942627d5d0ca11720fec18d81fc38f7ef837ea4197c1f630e71ce0d470b11e
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-openssl
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libtasn1 4.10
+# sha256sum 681a4d9a0d259f2125713f2e5766c5809f151b3a1392fd91390f780b4b8f5a02
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# gnutls 3.5.11
+# sha256sum 82b10f0c4ef18f4e64ad8cef5dbaf14be732f5095a41cf366b4ecb4050382951
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-doc --disable-guile --disable-libdane --disable-rpath \
+	--enable-local-libopts --enable-openssl-compatibility \
+	--with-libnettle-prefix=$SYSROOT/usr --without-tpm --disable-tools \
+	--disable-crywrap --without-idn --without-p11-kit --with-zlib \
+	--with-included-unistring
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libgpg-error 1.27
+# sha256sum 4f93aac6fecb7da2b92871bb9ee33032be6a87b174f54abf8ddf0911a22d29d2
+cp src/syscfg/lock-obj-pub.aarch64-unknown-linux-gnu.h src/syscfg/lock-obj-pub.aarch64-unknown-linux-android.h
+LDFLAGS="-L$SYSROOT/usr/lib -lintl" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libgcrypt 1.7.6
+# sha256sum 626aafee84af9d2ce253d2c143dc1c0902dda045780cc241f39970fc60be05bc
+LDFLAGS="-L$SYSROOT/usr/lib -lintl" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--with-libgpg-error-prefix=$SYSROOT/usr
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# glib-networking 2.50.0
+# sha256sum 3f1a442f3c2a734946983532ce59ed49120319fdb10c938447c373d5e5286bee
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# gstreamer 1.10.4
+# sha256sum 50c2f5af50a6cc6c0a3f3ed43bdd8b5e2bff00bacfb766d4be139ec06d8b5218
+./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-examples --disable-tests --disable-failing-tests --disable-valgrind --disable-benchmarks \
+	--disable-check --disable-trace --disable-parse --disable-gst-debug --disable-registry --disable-tools
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# gst-plugins-base 1.10.4
+# sha256sum f6d245b6b3d4cb733f81ebb021074c525ece83db0c10e932794b339b8d935eb7
+LDFLAGS="-L$SYSROOT/usr/lib -lz -lffi -liconv -lintl -lpcre -lglib-2.0 -lgmodule-2.0" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-examples --disable-valgrind
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# gst-plugins-good 1.10.4
+# sha256sum 8a86c61434a8c44665365bd0b3557a040937d1f44bf69caee4e9ea816ce74d7e
+LDFLAGS="-L$SYSROOT/usr/lib -lm -lz -lffi -liconv -lintl -lpcre -lglib-2.0 -lgmodule-2.0" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT \
+	--disable-examples --disable-valgrind --disable-aalib --disable-aalibtest
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# libepoxy
+CFLAGS="$CFLAGS -DANDROID" \
+	./configure --prefix=/usr --host=$ARCH --target=$ARCH --with-sysroot=$SYSROOT --enable-glx=no
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# WPEBackend
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SHARED_LINKER_FLAGS="-llog" -DCMAKE_EXE_LINKER_FLAGS="-llog" \
+	-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" -DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" \
+	-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+	-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX \
+	-DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
+	-DCMAKE_INSTALL_PREFIX=/usr ..
+make -j7
+make DESTDIR=$SYSROOT install
+make DESTDIR=$INSTALLROOT install
+
+# WPEBackend-android
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SHARED_LINKER_FLAGS="-llog" -DCMAKE_EXE_LINKER_FLAGS="-llog" \
+	-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" -DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" \
+	-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+	-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX \
+	-DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
+	-DCMAKE_INSTALL_PREFIX=/usr ..
+
+# WPEWebKit
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_SHARED_LINKER_FLAGS="-llog -lintl" -DCMAKE_EXE_LINKER_FLAGS="-llog -lintl" \
+	-DCMAKE_C_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" -DCMAKE_CXX_FLAGS_RELEASE="-DNDEBUG -O2 -fPIE" \
+	-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+	-DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX \
+	-DCMAKE_FIND_ROOT_PATH="$SYSROOT" \
+	-DCMAKE_INSTALL_PREFIX=/usr \
+	-DENABLE_ENCRYPTED_MEDIA=ON -DENABLE_MEDIA_SOURCE=ON \
+	-DENABLE_WEBGL2=ON -DUSE_GSTREAMER_GL=OFF \
+	-DPORT=WPE -G Ninja ..
