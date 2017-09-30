@@ -22,7 +22,7 @@
 
             <meta-data
                 android:name="PageURL"
-                android:value="https://washingtonpost.com" />
+                android:value="https://www.washingtonpost.com/" />
         </activity>
 
     </application>
