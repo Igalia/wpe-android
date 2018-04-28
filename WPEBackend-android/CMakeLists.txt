@@ -4,7 +4,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 find_package(PkgConfig)
-pkg_check_modules(WPE wpe REQUIRED)
+pkg_check_modules(WPE wpe-0.1 REQUIRED)
 
 find_package(GLIB 2.40.0 REQUIRED COMPONENTS gio gobject gthread gmodule)
 

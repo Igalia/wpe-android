@@ -1,4 +1,4 @@
-#include <wpe/loader.h>
+#include <wpe/wpe.h>
 
 #include "interfaces.h"
 #include "logging.h"

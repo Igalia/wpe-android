@@ -1,6 +1,6 @@
-#include <wpe/renderer-backend-egl.h>
-#include <wpe/renderer-host.h>
-#include <wpe/view-backend.h>
+
+#include <wpe/wpe.h>
+#include <wpe/wpe-egl.h>
 
 extern struct wpe_renderer_host_interface android_renderer_host_impl;
 

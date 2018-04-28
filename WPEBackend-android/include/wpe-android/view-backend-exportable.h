@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#include <wpe/view-backend.h>
+#include <wpe/wpe.h>
 
 struct wpe_android_view_backend_exportable;
 
