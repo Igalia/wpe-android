@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.4.1)
 find_library(android-lib android)
 find_library(log-lib log)
 
+add_library(c++_shared SHARED IMPORTED)
+set_target_properties(c++_shared
+    PROPERTIES IMPORTED_LOCATION
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libc++_shared.so
+)
+
 add_library(cairo SHARED IMPORTED)
 set_target_properties(cairo
     PROPERTIES IMPORTED_LOCATION
@@ -13,6 +19,12 @@ add_library(cairo_2 SHARED IMPORTED)
 set_target_properties(cairo_2
     PROPERTIES IMPORTED_LOCATION
     ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libcairo_2.so
+)
+
+add_library(epoxy SHARED IMPORTED)
+set_target_properties(epoxy
+    PROPERTIES IMPORTED_LOCATION
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libepoxy.so
 )
 
 add_library(ffi_6 SHARED IMPORTED)
@@ -43,6 +55,12 @@ add_library(gio-2.0 SHARED IMPORTED)
 set_target_properties(gio-2.0
     PROPERTIES IMPORTED_LOCATION
     ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgio-2.0.so
+)
+
+add_library(giognutls SHARED IMPORTED)
+set_target_properties(giognutls
+    PROPERTIES IMPORTED_LOCATION
+    ${CMAKE_SOURCE_DIR}/imported/gio-modules/${ANDROID_ABI}/libgiognutls.so
 )
 
 add_library(glib-2.0 SHARED IMPORTED)
@@ -267,6 +285,12 @@ set_target_properties(xslt
     ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libxslt.so
 )
 
+add_library(webpdemux_2 SHARED IMPORTED)
+set_target_properties(webpdemux_2
+    PROPERTIES IMPORTED_LOCATION
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libwebpdemux_2.so
+)
+
 add_library(WPEWebKit_0 SHARED IMPORTED)
 set_target_properties(WPEWebKit_0
     PROPERTIES IMPORTED_LOCATION
@@ -291,12 +315,6 @@ set_target_properties(WPEBackend-default
     ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend-default.so
 )
 
-add_library(giognutls SHARED IMPORTED)
-set_target_properties(giognutls
-    PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/imported/gio-modules/${ANDROID_ABI}/libgiognutls.so
-)
-
 include_directories(
     imported/include/glib-2.0
     imported/lib/${ANDROID_ABI}/glib-2.0/include
@@ -317,7 +335,6 @@ target_link_libraries(WPEUIProcessGlue
     freetype
     gcrypt
     gio-2.0
-    giognutls
     glib-2.0
     gmodule-2.0
     gmp
@@ -364,10 +381,13 @@ if(ANDROID_ABI STREQUAL "armeabi-v7a")
     )
 elseif(ANDROID_ABI STREQUAL "arm64-v8a")
     target_link_libraries(WPEUIProcessGlue
+        c++_shared
         cairo
+        epoxy
         icudata_59
         icui18n_59
         icuuc_59
+        webpdemux_2
     )
 endif()
 
