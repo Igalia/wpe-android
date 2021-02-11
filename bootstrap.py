@@ -23,10 +23,12 @@ class Bootstrap:
             'libWPEWebKit-1.0_3.11.7.so'
         ]
         self.__build_includes = [
-            'glib-2.0',
-            'wpe-1.0',
-            'wpe-android',
-            'wpe-webkit-1.0'
+            ['glib-2.0', 'glib-2.0'],
+            ['libsoup-2.4', 'libsoup-2.4'],
+            ['wpe-1.0', 'wpe'],
+            ['wpe-android', 'wpe-android'],
+            ['wpe-webkit-1.0', 'wpe-webkit'],
+            ['xkbcommon', 'xkbcommon']
         ]
 
     def __cerbero_command(self, args):
@@ -75,8 +77,8 @@ class Bootstrap:
             shutil.rmtree(include_dir)
         os.makedirs(include_dir)
         for header in self.__build_includes:
-            shutil.copytree(os.path.join(sysroot, 'include', header),
-                            os.path.join(include_dir, header))
+            shutil.copytree(os.path.join(sysroot, 'include', header[0]),
+                            os.path.join(include_dir, header[1]))
 
         if self.__arch == 'arm64':
             android_abi = 'arm64-v8a'
@@ -112,9 +114,9 @@ class Bootstrap:
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
 
     def run(self):
-        self.__ensure_cerbero()
-        self.__build_deps()
-        self.__extract_deps()
+        #self.__ensure_cerbero()
+        #self.__build_deps()
+        #self.__extract_deps()
         self.__install_deps()
 
 if __name__ == "__main__":

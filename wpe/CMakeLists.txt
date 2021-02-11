@@ -30,8 +30,10 @@ set_target_properties(WPEBackend-default
 include_directories(
     imported/include/glib-2.0
     imported/lib/${ANDROID_ABI}/glib-2.0/include
-    imported/include/wpe-0.1
-    imported/include/wpe-0.1/WPE
+    imported/include/libsoup-2.4
+    imported/include
+    imported/include/wpe
+    imported/include/wpe-webkit
     src/main/CommonGlue
 )
 

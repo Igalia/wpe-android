@@ -1,7 +1,6 @@
 #include <algorithm>
-#include <WPE/WebKit.h>
-#include <wpe/input.h>
-#include <wpe/view-backend.h>
+#include <wpe/webkit.h>
+#include <wpe/wpe.h>
 #include <wpe-android/view-backend-exportable.h>
 #include <glib.h>
 #include <jni.h>
