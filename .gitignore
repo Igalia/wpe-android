@@ -7,4 +7,6 @@
 /captures
 .externalNativeBuild
 wpe/.cxx
+wpe/imported/
+wpe/src/main/jniLibs/
 *.swp

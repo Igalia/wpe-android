@@ -12,13 +12,13 @@ set_target_properties(glib-2.0
 add_library(WPEWebKit_1 SHARED IMPORTED)
 set_target_properties(WPEWebKit_1
     PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit_1.so
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit_1.0.so
 )
 
 add_library(WPEBackend_0 SHARED IMPORTED)
 set_target_properties(WPEBackend_0
     PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend_0.so
+    ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libwpe-1.0.so
 )
 
 add_library(WPEBackend-default SHARED IMPORTED)
@@ -43,9 +43,9 @@ add_library(WPEUIProcessGlue SHARED
 target_link_libraries(WPEUIProcessGlue
     ${log-lib}
     glib-2.0
-    WPEBackend_0
+    libwpe-1.0
     WPEBackend-default
-    WPEWebKit_1
+    WPEWebKit_1.0
 )
 
 add_library(WPEStorageProcessGlue SHARED
@@ -54,7 +54,7 @@ add_library(WPEStorageProcessGlue SHARED
 
 target_link_libraries(WPEStorageProcessGlue
     ${log-lib}
-    WPEWebKit_1
+    WPEWebKit_1.0
 )
 
 add_library(WPENetworkProcessGlue SHARED
@@ -63,7 +63,7 @@ add_library(WPENetworkProcessGlue SHARED
 
 target_link_libraries(WPENetworkProcessGlue
     ${log-lib}
-    WPEWebKit_1
+    WPEWebKit_1.0
 )
 
 add_library(WPEWebProcessGlue SHARED
@@ -74,5 +74,5 @@ target_link_libraries(WPEWebProcessGlue
     ${android-lib}
     ${log-lib}
     WPEBackend-default
-    WPEWebKit_1
+    WPEWebKit_1.0
 )
