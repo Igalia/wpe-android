@@ -1,9 +1,0 @@
-
-#include <wpe/wpe.h>
-#include <wpe/wpe-egl.h>
-
-extern struct wpe_renderer_host_interface android_renderer_host_impl;
-
-extern struct wpe_renderer_backend_egl_interface android_renderer_backend_egl_impl;
-extern struct wpe_renderer_backend_egl_target_interface android_renderer_backend_egl_target_impl;
-extern struct wpe_renderer_backend_egl_offscreen_target_interface android_renderer_backend_egl_offscreen_target_impl;
