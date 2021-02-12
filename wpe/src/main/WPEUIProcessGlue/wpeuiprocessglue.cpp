@@ -25,6 +25,8 @@ static gboolean sourceCallback(gpointer)
 
 static gpointer wpeThreadEntry(gpointer, int width, int height)
 {
+    pipe_stdout_to_logcat();
+
     g_mutex_lock(&initMutex);
     ALOGV("wpeThreadEntry() -- entered, g_main_context_default() %p", g_main_context_default());
 
