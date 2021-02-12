@@ -3,9 +3,10 @@
 #include "logging.h"
 #include "wpeuiprocessglue.h"
 #include <dlfcn.h>
+#include <stdlib.h>
 
 extern "C" {
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv*, jobject, jobject, jint, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv*, jobject, jobject, jint, jint, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_deinit(JNIEnv*, jobject);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_setPageURL(JNIEnv*, jobject, jstring);
@@ -19,14 +20,20 @@ extern "C" {
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj, jint width, jint height)
+Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj, jint width, jint height, jstring webkitExecPath)
 {
-    ALOGV("Glue.init()");
+    ALOGV("Glue.init() webkitExecPath %p", webkitExecPath);
 
     s_WPEUIProcessGlue_env = env;
     s_WPEUIProcessGlue_object = glueObj;
     ALOGV("Glue initialized VM to %p, its address %p", env, &s_WPEUIProcessGlue_env);
     ALOGV("Glue initialized object to %p, its address %p", obj, &s_WPEUIProcessGlue_object);
+
+    jsize pathLength = env->GetStringUTFLength(webkitExecPath);
+    const char* pathChars = env->GetStringUTFChars(webkitExecPath, 0);
+    ALOGV("  pathLength %d, pathChars %s", pathLength, pathChars);
+
+    setenv("WEBKIT_EXEC_PATH", pathChars, 1);
 
     wpe_uiprocess_glue_init(env, glueObj, width, height);
 }

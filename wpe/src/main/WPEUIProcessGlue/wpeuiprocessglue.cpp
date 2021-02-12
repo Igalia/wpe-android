@@ -64,7 +64,8 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     webkit_web_view_load_uri(view, wpePageURL);
     g_free(wpePageURL);
 
-    ALOGV("wpeThreadEntry() -- running via GMainLoop %p for GMainContext %p", wpeThreadLoop, wpeThreadContext);
+    ALOGV("wpeThreadEntry() -- running via GMainLoop %p for GMainContext %p",
+        wpeThreadLoop, wpeThreadContext);
     g_main_loop_run(wpeThreadLoop);
     ALOGV("wpeThreadEntry() -- quitting");
 
@@ -77,7 +78,7 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
 
 void wpe_uiprocess_glue_init(JNIEnv* env, jobject glueObj, jint width, jint height)
 {
-    ALOGV("wpe_instance_init() (%d,%d)", width, height);
+    ALOGV("wpe_instance_init() (%d, %d)", width, height);
 
     if (!wpeThreadContext)
         wpeThreadContext = g_main_context_new();
