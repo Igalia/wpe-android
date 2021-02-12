@@ -30,6 +30,10 @@ class Bootstrap:
             ['wpe-webkit-1.0', 'wpe-webkit'],
             ['xkbcommon', 'xkbcommon']
         ]
+        self.__build_libexec = [
+            'WPENetworkProcess',
+            'WPEWebProcess'
+        ]
 
     def __cerbero_command(self, args):
         os.chdir(self.__build_dir)
@@ -41,7 +45,7 @@ class Bootstrap:
         subprocess.call(command)
 
     def __ensure_cerbero(self):
-        origin = 'ssh://git@gitlab.igalia.com:4429/fjimenez/cerbero.git'
+        origin = 'https://gitlab.igalia.com/ferjm/cerbero.git'
         branch = 'wpe-android'
 
         if os.path.isdir(self.__build_dir):
@@ -112,6 +116,16 @@ class Bootstrap:
             if lib_name in self.__build_libs:
                 continue
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
+
+        sysroot_libexec = os.path.join(sysroot, 'libexec', 'wpe-webkit-1.0')
+        libexec_dir = os.path.join(wpe, 'imported', 'libexec', android_abi, 'wpe-webkit-1.0')
+        if os.path.exists(libexec_dir):
+            shutil.rmtree(libexec_dir)
+        os.makedirs(libexec_dir)
+        for libexec in self.__build_libexec:
+            origin = os.path.join(sysroot_libexec, libexec)
+            dst = os.path.join(libexec_dir, libexec)
+            shutil.copy(origin, dst)
 
     def run(self):
         self.__ensure_cerbero()
