@@ -118,7 +118,7 @@ class Bootstrap:
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
 
         sysroot_libexec = os.path.join(sysroot, 'libexec', 'wpe-webkit-1.0')
-        libexec_dir = os.path.join(wpe, 'imported', 'libexec', android_abi, 'wpe-webkit-1.0')
+        libexec_dir = os.path.join(wpe, 'src', 'main', 'assets', 'wpe-webkit-1.0', 'libexec')
         if os.path.exists(libexec_dir):
             shutil.rmtree(libexec_dir)
         os.makedirs(libexec_dir)
