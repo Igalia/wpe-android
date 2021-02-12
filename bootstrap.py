@@ -114,9 +114,9 @@ class Bootstrap:
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
 
     def run(self):
-        #self.__ensure_cerbero()
-        #self.__build_deps()
-        #self.__extract_deps()
+        self.__ensure_cerbero()
+        self.__build_deps()
+        self.__extract_deps()
         self.__install_deps()
 
 if __name__ == "__main__":
