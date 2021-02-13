@@ -56,6 +56,10 @@ public class WPEActivity extends Activity {
                     InputStream is = assetManager.open("wpe-webkit-1.0/libexec/" + asset);
 
                     File osFile = new File(libexecDir, asset);
+                    if (!osFile.setExecutable(true)) {
+                        Log.e("WPEAssets",
+                              "Could not make libexec file executable. Shit hitting the fan in 3, 2, 1...");
+                    }
                     Log.i("WPEAssets", "copying " + asset + "to " + osFile.getAbsolutePath());
                     OutputStream os = new FileOutputStream(osFile);
 
@@ -70,7 +74,7 @@ public class WPEActivity extends Activity {
                     os.close();
                 }
             } catch (IOException e) {
-                Log.i("WPEAssets", "asset load failed: " + e);
+                Log.e("WPEAssets", "asset load failed: " + e);
             }
 
             m_thread = new Thread(new Runnable() {
