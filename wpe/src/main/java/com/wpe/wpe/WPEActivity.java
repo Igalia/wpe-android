@@ -97,7 +97,8 @@ public class WPEActivity extends Activity {
                         m_viewObj.ensureSurfaceTexture();
 
                         Glue.init(m_glueObj, m_viewObj.width(), m_viewObj.height(),
-                                  libexecDir.getAbsolutePath());
+                                  libexecDir.getAbsolutePath(),
+                                  getBaseContext().getApplicationInfo().nativeLibraryDir);
                     }
                 }
             });
