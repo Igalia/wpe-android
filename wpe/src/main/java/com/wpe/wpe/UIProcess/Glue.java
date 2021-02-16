@@ -15,8 +15,7 @@ public class Glue {
         System.loadLibrary("WPEUIProcessGlue");
     }
 
-    public static native void init(Glue glueObj, int width, int height,
-                                   String webkitExecPath, String ldLibraryPath);
+    public static native void init(Glue glueObj, int width, int height);
     public static native void deinit();
 
     public static native void setPageURL(String url);

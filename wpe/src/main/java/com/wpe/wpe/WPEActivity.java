@@ -14,11 +14,6 @@ import android.util.Log;
 import com.wpe.wpe.UIProcess.Glue;
 import com.wpe.wpe.UIProcess.WPEServiceConnection;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 
 public class WPEActivity extends Activity {
@@ -37,45 +32,6 @@ public class WPEActivity extends Activity {
         WPEUIProcessThread()
         {
             final WPEUIProcessThread thisObj = this;
-
-            // The `assets` directory does not get unpacked, so we need to read its
-            // content and write it to a separate path to provide the WEBKIT_LIBEXEC_PATH
-            // env var value.
-            Context context = getBaseContext();
-            AssetManager assetManager = context.getAssets();
-
-            String libexecPath = getFilesDir().getAbsolutePath() + File.separator + "libexec";
-            final File libexecDir = new File(libexecPath);
-            if (!libexecDir.exists())
-                libexecDir.mkdirs();
-
-            try {
-
-                String[] assets = {"WPENetworkProcess", "WPEWebProcess"};
-                for (String asset: assets) {
-                    InputStream is = assetManager.open("wpe-webkit-1.0/libexec/" + asset);
-
-                    File osFile = new File(libexecDir, asset);
-                    if (!osFile.setExecutable(true)) {
-                        Log.e("WPEAssets",
-                              "Could not make libexec file executable. Shit hitting the fan in 3, 2, 1...");
-                    }
-                    Log.i("WPEAssets", "copying " + asset + "to " + osFile.getAbsolutePath());
-                    OutputStream os = new FileOutputStream(osFile);
-
-                    int read;
-                    byte[] buffer = new byte[1024];
-                    while ((read = is.read(buffer)) != -1) {
-                        os.write(buffer, 0, read);
-                    }
-
-                    is.close();
-                    os.flush();
-                    os.close();
-                }
-            } catch (IOException e) {
-                Log.e("WPEAssets", "asset load failed: " + e);
-            }
 
             m_thread = new Thread(new Runnable() {
                 @Override
@@ -96,9 +52,7 @@ public class WPEActivity extends Activity {
                         Log.i("WPEUIProcessThread", "got glue " + m_glueObj + ", view " + m_viewObj);
                         m_viewObj.ensureSurfaceTexture();
 
-                        Glue.init(m_glueObj, m_viewObj.width(), m_viewObj.height(),
-                                  libexecDir.getAbsolutePath(),
-                                  getBaseContext().getApplicationInfo().nativeLibraryDir);
+                        Glue.init(m_glueObj, m_viewObj.width(), m_viewObj.height());
                     }
                 }
             });
