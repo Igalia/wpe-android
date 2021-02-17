@@ -51,11 +51,12 @@ Java_com_wpe_wpe_WebProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd1, jint
     char fd2String[32];
     snprintf(fd2String, sizeof(fd1String), "%d", fd2);
 
-    char* argv[3];
-    argv[0] = "WPEWebProcess";
-    argv[1] = fd1String;
-    argv[2] = fd2String;
-    (*entrypoint)(3, argv);
+    char* argv[4];
+    argv[0] = "";
+    argv[1] = "WPEWebProcess";
+    argv[2] = fd1String;
+    argv[3] = fd2String;
+    (*entrypoint)(4, argv);
 }
 
 JNIEXPORT void JNICALL
