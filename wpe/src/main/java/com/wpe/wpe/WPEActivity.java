@@ -125,6 +125,7 @@ public class WPEActivity extends Activity {
 
     @Override protected void onResume()
     {
+        Log.i("WPE", "onResume");
         super.onResume();
         m_view.onResume();
     }
