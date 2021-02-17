@@ -41,7 +41,7 @@ class Bootstrap:
         subprocess.call(command)
 
     def __ensure_cerbero(self):
-        origin = 'https://gitlab.igalia.com/ferjm/cerbero.git'
+        origin = 'ssh://git@gitlab.igalia.com:4429/ferjm/cerbero.git'
         branch = 'wpe-android'
 
         if os.path.isdir(self.__build_dir):
@@ -100,9 +100,6 @@ class Bootstrap:
             else:
                 shutil.copy(origin, dst, follow_symlinks=False)
 
-        os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
-                os.path.join(lib_dir, 'libWPEBackend-default.so'))
-
         jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
         if os.path.exists(jnilib_dir):
             shutil.rmtree(jnilib_dir)
@@ -112,6 +109,12 @@ class Bootstrap:
             if lib_name in self.__build_libs:
                 continue
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
+
+        os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
+                os.path.join(lib_dir, 'libWPEBackend-default.so'))
+
+        shutil.copy(os.path.join(lib_dir, 'libWPEBackend-default.so'),
+                    os.path.join(jnilib_dir, 'libWPEBackend-android.so'))
 
     def run(self):
         self.__ensure_cerbero()
