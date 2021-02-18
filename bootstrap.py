@@ -110,6 +110,13 @@ class Bootstrap:
                 continue
             shutil.copy(lib_path, os.path.join(jnilib_dir, lib_name))
 
+        gio_dir = os.path.join(jnilib_dir, 'gio', 'modules')
+        if os.path.exists(gio_dir):
+            shutil.rmtree(gio_dir)
+        os.makedirs(gio_dir)
+        shutil.copy(os.path.join(sysroot_lib, 'gio', 'modules', 'libgiognutls.so'),
+                    os.path.join(gio_dir, 'libgiognutls.so'))
+
         os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
                 os.path.join(lib_dir, 'libWPEBackend-default.so'))
 
