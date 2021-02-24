@@ -1,5 +1,7 @@
 # WPE Android
 
+![logo](./logo.png)
+
 [WPE WebKit](https://wpewebkit.org/) port for Android.
 
 ## Setting up your environment
