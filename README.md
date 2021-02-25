@@ -19,7 +19,7 @@ To ease the cross-compilation process we use
 [Cerbero](https://gitlab.freedesktop.org/gstreamer/cerbero). To set all things up run:
 
 ```bash
-python3 ./bootstrap.py <arch>
+python3 ./scripts/bootstrap.py <arch>
 ```
 
 where `arch` is the target architecture that you want to cross-compile to. 

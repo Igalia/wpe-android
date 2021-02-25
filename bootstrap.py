@@ -72,7 +72,7 @@ class Bootstrap:
         # These are the libraries that the glue code link with,
         # that go into the `imported` folder and cannot go into
         # the `jniFolder` to avoid a duplicated library issue.
-       self.__build_libs = [
+        self.__build_libs = [
             'glib-2.0',
             'libglib-2.0.so',
             'libwpe-1.0.so',
@@ -258,7 +258,8 @@ class Bootstrap:
         self.__copy_libs(sysroot, lib_dir)
         self.__resolve_deps(lib_dir)
 
-        self.__copy_jni_libs(lib_dir, os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi))
+        jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
+        self.__copy_jni_libs(lib_dir, jnilib_dir)
 
         gio_dir = os.path.join(jnilib_dir, 'gio', 'modules')
         if os.path.exists(gio_dir):
