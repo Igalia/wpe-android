@@ -36,3 +36,4 @@ you should be able to open the `launcher` demo with Android Studio and run it on
 ## Known issues and limitations
 * The only supported architecture at the moment is `arm64`.
 * WPE Android does not work with an Android emulator due to EGL emulation issues.
+* The scripts and build have only been tested in Linux.
