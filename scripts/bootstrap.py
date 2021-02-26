@@ -76,7 +76,6 @@ class Bootstrap:
             'glib-2.0',
             'libglib-2.0.so',
             'libwpe-1.0.so',
-            'libWPEBackend-android.so',
             'libWPEWebKit-1.0.so',
             'libWPEWebKit-1.0_3.so',
             'libWPEWebKit-1.0_3.11.7.so'
@@ -89,7 +88,7 @@ class Bootstrap:
             ['wpe-webkit-1.0', 'wpe-webkit'],
             ['xkbcommon', 'xkbcommon']
         ]
-        self.__soname_replacemenets = [
+        self.__soname_replacements = [
             ('libnettle.so.6', 'libnettle_6.so'), # This entry is not retrievable from the packaged libnettle.so
         ]
         self.__base_needed = set(['libWPEWebKit-1.0_3.so'])
@@ -150,8 +149,10 @@ class Bootstrap:
 
         split = initial.split('.')
         assert len(split) > 2
-        assert split[-2] == 'so'
-        return '.'.join(split[:-2]) + '_' + split[-1] + '.so'
+        if split[-2] == 'so':
+            return '.'.join(split[:-2]) + '_' + split[-1] + '.so'
+        elif split[-3] == 'so':
+            return '.'.join(split[:-3]) + '_' + split[-2] + '_' + split[-1] + '.so'
 
     def __read_elf(self, lib_path):
         soname_list = []
@@ -175,42 +176,44 @@ class Bootstrap:
         with open(lib_path, 'rb') as lib_file:
             contents = lib_file.read()
 
-        for pair in self.__soname_replacemenets:
+        for pair in self.__soname_replacements:
             contents = contents.replace(bytes(pair[0], encoding='utf8'), bytes(pair[1], encoding='utf8'))
 
         with open(lib_path, 'wb') as lib_file:
             lib_file.write(contents)
 
-    def __copy_libs(self, sysroot_dir, lib_dir):
-        if os.path.exists(lib_dir):
-            shutil.rmtree(lib_dir)
-        os.makedirs(lib_dir)
+    def __copy_libs(self, sysroot_lib, lib_dir, install_list = None):
+        if install_list is None:
+            if os.path.exists(lib_dir):
+                shutil.rmtree(lib_dir)
+            os.makedirs(lib_dir)
 
-        sysroot_libs = os.path.join(sysroot_dir, 'lib')
-        sysroot_gio_modules = os.path.join(sysroot_libs, 'gio', 'modules')
-        lib_paths = list(map(lambda x: str(x), Path(sysroot_libs).glob('*.so')))
-        lib_paths += list(map(lambda x: str(x), Path(sysroot_gio_modules).glob('*.so')))
+        sysroot_gio_modules = os.path.join(sysroot_lib, 'gio', 'modules')
+        libs_paths = list(map(lambda x: str(x), Path(sysroot_lib).glob('*.so')))
+        libs_paths += list(map(lambda x: str(x), Path(sysroot_gio_modules).glob('*.so')))
 
-        for lib_path in lib_paths:
+        for lib_path in libs_paths:
             soname, _ = self.__read_elf(lib_path)
-
             adjusted_soname = self.__adjust_soname(soname)
             if (adjusted_soname != soname):
-                self.__soname_replacemenets.append((soname, adjusted_soname))
-            shutil.copy(lib_path, os.path.join(lib_dir, adjusted_soname))
+                self.__soname_replacements.append((soname, adjusted_soname))
+            if not install_list or lib_path in install_list:
+                shutil.copy(lib_path, os.path.join(lib_dir, adjusted_soname))
 
-        for pair in self.__soname_replacemenets:
+        for pair in self.__soname_replacements:
             assert len(pair[0]) == len(pair[1])
 
         for lib_path in Path(lib_dir).glob('*.so'):
             self.__replace_soname_values(lib_path)
 
-    def __copy_jni_libs(self, lib_dir, jni_lib_dir):
-        if os.path.exists(jni_lib_dir):
-            shutil.rmtree(jni_lib_dir)
-        os.makedirs(jni_lib_dir)
+    def __copy_jni_libs(self, jni_lib_dir, lib_dir, libs_paths = None):
+        if libs_paths is None:
+            if os.path.exists(jni_lib_dir):
+                shutil.rmtree(jni_lib_dir)
+            os.makedirs(jni_lib_dir)
+            libs_paths = Path(lib_dir).glob('*.so')
 
-        for lib_path in Path(lib_dir).glob('*.so'):
+        for lib_path in libs_paths:
             if os.path.basename(lib_path) in self.__build_libs:
                 continue
             shutil.copy(lib_path, os.path.join(jni_lib_dir, os.path.basename(lib_path)))
@@ -240,8 +243,7 @@ class Bootstrap:
             for entry in provided_diff:
                 print("    ", entry)
 
-    def __install_deps(self):
-        sysroot = os.path.join(self.__build_dir, 'sysroot')
+    def install_deps(self, sysroot, install_list = None):
         wpe = os.path.join(self.__root, 'wpe')
 
         self.__copy_headers(sysroot, os.path.join(wpe, 'imported', 'include'))
@@ -255,11 +257,16 @@ class Bootstrap:
 
         sysroot_lib = os.path.join(sysroot, 'lib')
         lib_dir = os.path.join(wpe, 'imported', 'lib', android_abi)
-        self.__copy_libs(sysroot, lib_dir)
+        libs_paths = None
+        if install_list is not None:
+            libs_paths = []
+            for lib in install_list:
+                libs_paths.append(os.path.join(sysroot_lib, lib))
+        self.__copy_libs(sysroot_lib, lib_dir, libs_paths)
         self.__resolve_deps(lib_dir)
 
         jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
-        self.__copy_jni_libs(lib_dir, jnilib_dir)
+        self.__copy_jni_libs(jnilib_dir, lib_dir, libs_paths)
 
         gio_dir = os.path.join(jnilib_dir, 'gio', 'modules')
         if os.path.exists(gio_dir):
@@ -268,17 +275,19 @@ class Bootstrap:
         shutil.copy(os.path.join(sysroot_lib, 'gio', 'modules', 'libgiognutls.so'),
                     os.path.join(gio_dir, 'libgiognutls.so'))
 
-        os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
-                os.path.join(lib_dir, 'libWPEBackend-default.so'))
-
-        shutil.copytree(os.path.join(sysroot_lib, 'glib-2.0'),
-                        os.path.join(lib_dir, 'glib-2.0'))
+        try:
+            os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
+                      os.path.join(lib_dir, 'libWPEBackend-default.so'))
+            shutil.copytree(os.path.join(sysroot_lib, 'glib-2.0'),
+                            os.path.join(lib_dir, 'glib-2.0'))
+        except:
+            print("Not copying existing files")
 
     def run(self):
         self.__ensure_cerbero()
         self.__build_deps()
         self.__extract_deps()
-        self.__install_deps()
+        self.install_deps(os.path.join(self.__build_dir, 'sysroot'))
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

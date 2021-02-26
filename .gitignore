@@ -11,3 +11,4 @@ wpe/imported/
 wpe/src/main/jniLibs/
 wpe/src/main/assets/wpe-webkit-1.0
 *.swp
+__pycache__

@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 
+from bootstrap import Bootstrap
 from enum import Enum
 from os.path import expanduser
 
@@ -17,12 +18,12 @@ class Recipe(Enum):
         return set(item.value for item in Recipe)
 
 class Patch:
-    def __init__(self, arch, recipe, patch):
+    def __init__(self, arch, recipe):
         if recipe not in Recipe.values():
             raise Exception("Unsupported recipe. Supported recipes: ", Recipe.values())
         self.__arch = arch
+        self.__root = os.getcwd()
         self.__recipe = recipe
-        self.__patch = patch
         self.__build_dir = os.path.join(os.getcwd(), 'build')
         self.__original_rc_file = None
 
@@ -31,6 +32,16 @@ class Patch:
         if 'zsh' in shell:
             return '.zshrc'
         return '.bashrc'
+
+    def __get_install_list(self):
+        if self.__recipe == Recipe.WEBKIT.value:
+            return ['libWPEWebKit-1.0.so']
+        elif self.__recipe == Recipe.WPEBACKEND.value:
+            raise Exception("Unimplemented")
+        elif self.__recipe == Recipe.LIBWPE.value:
+            raise Exception("Unimplemented")
+        else:
+            raise Exception("Unsupported recipe. Supported recipes: ", Recipe.values())
 
     def __patch_rc_file(self):
         sources_path = 'build/sources/android_{0}/'.format(self.__arch)
@@ -62,7 +73,7 @@ class Patch:
         rc_file = os.path.join(expanduser("~"), self.__get_rc_file_name())
         shutil.copy(self.__original_rc_file, rc_file)
 
-    def __cerbero_shell_command(self):
+    def __cerbero_shell_build(self):
         if not os.path.isdir(self.__build_dir):
             raise Exception("You need to run the bootstrap script first")
         os.chdir(self.__build_dir)
@@ -74,13 +85,16 @@ class Patch:
             'shell'
         ])
         self.__restore_rc_file()
+        os.chdir(self.__root)
 
     def run(self):
-        self.__cerbero_shell_command()
+        self.__cerbero_shell_build()
+        sysroot = os.path.join(self.__build_dir, 'build', 'dist', 'android_' + self.__arch)
+        Bootstrap(self.__arch).install_deps(sysroot, self.__get_install_list())
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage `./patch.py <arch> <recipe> <path_to_patch>` (i.e. ./patch.py arm64 wpewebkit /home/banana/changes.patch)")
-        print("Supported recipes: ", Recipe.values())
+    if len(sys.argv) != 3:
+        print("Usage `./patch.py <arch> <recipe>` (i.e. ./patch.py arm64 wpewebkit)")
+        print("Supported recipes: wpewebkit")
         exit()
-    Patch(sys.argv[1], sys.argv[2], sys.argv[3]).run()
+    Patch(sys.argv[1], sys.argv[2]).run()
