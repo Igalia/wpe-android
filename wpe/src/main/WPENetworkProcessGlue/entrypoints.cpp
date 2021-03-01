@@ -43,12 +43,14 @@ Java_com_wpe_wpe_NetworkProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd)
 
     ALOGV("Glue::initializeMain(), fd %d, entrypoint %p", fd, entrypoint);
 
+    char pidString[32];
+    snprintf(pidString, sizeof(pidString), "%d", getpid());
     char fdString[32];
     snprintf(fdString, sizeof(fdString), "%d", fd);
 
     char* argv[3];
-    argv[0] = "";
-    argv[1] = "WPENetworkProcess";
+    argv[0] = "WPENetworkProcess";
+    argv[1] = pidString;
     argv[2] = fdString;
     (*entrypoint)(3, argv);
 }
