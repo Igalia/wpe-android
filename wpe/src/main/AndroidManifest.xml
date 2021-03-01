@@ -6,9 +6,6 @@
             android:name="com.wpe.wpe.NetworkProcess.Service"
             android:process=":WPENetworkProcess"/>
         <service
-            android:name="com.wpe.wpe.StorageProcess.Service"
-            android:process=":WPEStorageProcess"/>
-        <service
             android:name="com.wpe.wpe.WebProcess.Service"
             android:process=":WPEWebProcess"/>
     </application>

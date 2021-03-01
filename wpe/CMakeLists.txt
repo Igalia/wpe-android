@@ -50,15 +50,6 @@ target_link_libraries(WPEUIProcessGlue
     WPEWebKit-1.0
 )
 
-add_library(WPEStorageProcessGlue SHARED
-    src/main/WPEStorageProcessGlue/entrypoints.cpp
-)
-
-target_link_libraries(WPEStorageProcessGlue
-    ${log-lib}
-    WPEWebKit-1.0
-)
-
 add_library(WPENetworkProcessGlue SHARED
     src/main/WPENetworkProcessGlue/entrypoints.cpp
 )

@@ -55,11 +55,6 @@ public class Glue {
                 m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
                                          parcelFds, com.wpe.wpe.NetworkProcess.Service.class);
                 break;
-            case WPEServiceConnection.PROCESS_TYPE_STORAGEPROCESS:
-                Log.i("Glue", "should launch StorageProcess");
-                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_STORAGEPROCESS,
-                                         parcelFds, com.wpe.wpe.StorageProcess.Service.class);
-                break;
             default:
                 Log.i("Glue", "invalid process type");
                 break;
