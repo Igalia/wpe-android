@@ -25,11 +25,6 @@ android {
             path "CMakeLists.txt"
         }
     }
-    sourceSets {
-        main {
-            jniLibs.srcDirs = ['imported/lib', 'imported/gio-modules']
-        }
-    }
     splits {
         abi {
             enable true

@@ -1,13 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.wpe.wpe">
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <application>
+    <application android:extractNativeLibs="true">
         <service
             android:name="com.wpe.wpe.NetworkProcess.Service"
             android:process=":WPENetworkProcess"/>
-        <service
-            android:name="com.wpe.wpe.StorageProcess.Service"
-            android:process=":WPEStorageProcess"/>
         <service
             android:name="com.wpe.wpe.WebProcess.Service"
             android:process=":WPEWebProcess"/>

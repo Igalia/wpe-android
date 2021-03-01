@@ -1,7 +1,6 @@
 #include <algorithm>
-#include <WPE/WebKit.h>
-#include <wpe/input.h>
-#include <wpe/view-backend.h>
+#include <wpe/webkit.h>
+#include <wpe/wpe.h>
 #include <wpe-android/view-backend-exportable.h>
 #include <glib.h>
 #include <jni.h>
@@ -26,10 +25,11 @@ static gboolean sourceCallback(gpointer)
 
 static gpointer wpeThreadEntry(gpointer, int width, int height)
 {
+    pipe_stdout_to_logcat();
+
     g_mutex_lock(&initMutex);
     ALOGV("wpeThreadEntry() -- entered, g_main_context_default() %p", g_main_context_default());
 
-    // wpeThreadContext = g_main_context_new();
     wpeThreadLoop = g_main_loop_new(wpeThreadContext, FALSE);
     ALOGV("wpeThreadEntry() -- context %p loop %p", wpeThreadContext, wpeThreadLoop);
 
@@ -46,51 +46,39 @@ static gpointer wpeThreadEntry(gpointer, int width, int height)
     g_main_context_push_thread_default(wpeThreadContext);
 
     ALOGV("wpeThreadEntry() -- operating on WK API");
-    WKContextRef context = WKContextCreate();
-
-    WKPageConfigurationRef pageConfiguration = WKPageConfigurationCreate();
-    WKPageConfigurationSetContext(pageConfiguration, context);
-
-    WKStringRef pageGroupIdentifier = WKStringCreateWithUTF8CString("WPEPageGroup");
-    WKPageGroupRef pageGroup = WKPageGroupCreateWithIdentifier(pageGroupIdentifier);
-    WKPageConfigurationSetPageGroup(pageConfiguration, pageGroup);
-    WKRelease(pageGroup);
-    WKRelease(pageGroupIdentifier);
+    auto* webContext = webkit_web_context_new();
 
     ALOGV("wpeThreadEntry() -- creating a new view");
-    struct wpe_view_backend* viewBackend;
+    struct wpe_view_backend* wpeBackend;
     {
         s_viewBackendExportable = wpe_android_view_backend_exportable_create(std::max(0, width), std::max(0, height));
-        viewBackend = wpe_android_view_backend_exportable_get_view_backend(s_viewBackendExportable);
+        wpeBackend = wpe_android_view_backend_exportable_get_view_backend(s_viewBackendExportable);
     }
-    WKViewRef view = WKViewCreateWithViewBackend(viewBackend, pageConfiguration);
-    WKRelease(pageConfiguration);
+
+    auto* viewBackend = webkit_web_view_backend_new(wpeBackend, NULL, NULL);
+
+    auto* view = webkit_web_view_new(viewBackend);
 
     ALOGV("wpeThreadEntry() -- URL %s", wpePageURL);
 
-    WKURLRef url = WKURLCreateWithUTF8CString(wpePageURL);
-    WKPageLoadURL(WKViewGetPage(view), url);
-    WKRelease(url);
+    webkit_web_view_load_uri(view, wpePageURL);
+    g_free(wpePageURL);
 
-    ALOGV("wpeThreadEntry() -- running via GMainLoop %p for GMainContext %p", wpeThreadLoop, wpeThreadContext);
+    ALOGV("wpeThreadEntry() -- running via GMainLoop %p for GMainContext %p",
+        wpeThreadLoop, wpeThreadContext);
     g_main_loop_run(wpeThreadLoop);
     ALOGV("wpeThreadEntry() -- quitting");
-
-    WKRelease(view);
-
-    WKRelease(context);
 
     g_main_context_pop_thread_default(wpeThreadContext);
 
     g_main_loop_unref(wpeThreadLoop);
     wpeThreadLoop = NULL;
-
     return NULL;
 }
 
 void wpe_uiprocess_glue_init(JNIEnv* env, jobject glueObj, jint width, jint height)
 {
-    ALOGV("wpe_instance_init() (%d,%d)", width, height);
+    ALOGV("wpe_instance_init() (%d, %d)", width, height);
 
     if (!wpeThreadContext)
         wpeThreadContext = g_main_context_new();

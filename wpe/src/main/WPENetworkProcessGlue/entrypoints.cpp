@@ -36,16 +36,21 @@ Java_com_wpe_wpe_NetworkProcess_Glue_initializeGioExtraModulesPath(JNIEnv* env, 
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_NetworkProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd)
 {
+    pipe_stdout_to_logcat();
+
     using NetworkProcessEntryPoint = int(int, char**);
     auto* entrypoint = reinterpret_cast<NetworkProcessEntryPoint*>(dlsym(RTLD_DEFAULT, "android_NetworkProcess_main"));
 
     ALOGV("Glue::initializeMain(), fd %d, entrypoint %p", fd, entrypoint);
 
+    char pidString[32];
+    snprintf(pidString, sizeof(pidString), "%d", getpid());
     char fdString[32];
     snprintf(fdString, sizeof(fdString), "%d", fd);
 
-    char* argv[2];
+    char* argv[3];
     argv[0] = "WPENetworkProcess";
-    argv[1] = fdString;
-    (*entrypoint)(2, argv);
+    argv[1] = pidString;
+    argv[2] = fdString;
+    (*entrypoint)(3, argv);
 }

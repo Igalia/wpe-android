@@ -47,15 +47,13 @@ public class Glue {
         switch (processType) {
             case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 Log.i("Glue", "should launch WebProcess");
-                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS, parcelFds, com.wpe.wpe.WebProcess.Service.class);
+                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
+                                         parcelFds, com.wpe.wpe.WebProcess.Service.class);
                 break;
             case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
                 Log.i("Glue", "should launch NetworkProcess");
-                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS, parcelFds, com.wpe.wpe.NetworkProcess.Service.class);
-                break;
-            case WPEServiceConnection.PROCESS_TYPE_STORAGEPROCESS:
-                Log.i("Glue", "should launch StorageProcess");
-                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_STORAGEPROCESS, parcelFds, com.wpe.wpe.StorageProcess.Service.class);
+                m_activity.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
+                                         parcelFds, com.wpe.wpe.NetworkProcess.Service.class);
                 break;
             default:
                 Log.i("Glue", "invalid process type");

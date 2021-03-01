@@ -3,6 +3,7 @@
 #include "logging.h"
 #include "wpeuiprocessglue.h"
 #include <dlfcn.h>
+#include <stdlib.h>
 
 extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv*, jobject, jobject, jint, jint);
@@ -19,7 +20,8 @@ extern "C" {
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj, jint width, jint height)
+Java_com_wpe_wpe_UIProcess_Glue_init(JNIEnv* env, jobject obj, jobject glueObj,
+                                     jint width, jint height)
 {
     ALOGV("Glue.init()");
 

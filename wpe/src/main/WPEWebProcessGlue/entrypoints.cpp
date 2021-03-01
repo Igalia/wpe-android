@@ -41,19 +41,24 @@ using WebProcessEntryPoint = int(int, char**);
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_WebProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd1, jint fd2)
 {
+    pipe_stdout_to_logcat();
+
     auto* entrypoint = reinterpret_cast<WebProcessEntryPoint*>(dlsym(RTLD_DEFAULT, "android_WebProcess_main"));
     ALOGV("Glue::initializeMain(), fd1 %d, fd2 %d, entrypoint %p", fd1, fd2, entrypoint);
 
+    char pidString[32];
+    snprintf(pidString, sizeof(pidString), "%d", getpid());
     char fd1String[32];
     snprintf(fd1String, sizeof(fd1String), "%d", fd1);
     char fd2String[32];
     snprintf(fd2String, sizeof(fd1String), "%d", fd2);
 
-    char* argv[3];
+    char* argv[4];
     argv[0] = "WPEWebProcess";
-    argv[1] = fd1String;
-    argv[2] = fd2String;
-    (*entrypoint)(3, argv);
+    argv[1] = pidString;
+    argv[2] = fd1String;
+    argv[3] = fd2String;
+    (*entrypoint)(4, argv);
 }
 
 JNIEXPORT void JNICALL

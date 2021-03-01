@@ -20,7 +20,6 @@ public class WPEServiceConnection implements ServiceConnection {
 
     static public final int PROCESS_TYPE_WEBPROCESS = 0;
     static public final int PROCESS_TYPE_NETWORKPROCESS = 1;
-    static public final int PROCESS_TYPE_STORAGEPROCESS = 2;
 
     public WPEServiceConnection(int processType, WPEActivity activity, Parcelable[] fds)
     {

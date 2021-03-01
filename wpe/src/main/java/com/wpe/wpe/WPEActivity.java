@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageItemInfo;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.Log;
@@ -124,6 +125,7 @@ public class WPEActivity extends Activity {
 
     @Override protected void onResume()
     {
+        Log.i("WPE", "onResume");
         super.onResume();
         m_view.onResume();
     }
