@@ -1,1 +1,1 @@
-include ':wpe', ':launcher', ':tvdemo-racers', ':tvdemo-norsemap', ':tvdemo-yttv', ':tvdemo-wapost', ':tvdemo-webgl2'
+include ':wpe', ':launcher'
