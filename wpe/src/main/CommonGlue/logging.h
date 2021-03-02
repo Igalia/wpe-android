@@ -3,6 +3,7 @@
 #include <android/log.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "WPEDemo-Native", __VA_ARGS__)
@@ -41,3 +42,7 @@ static int pipe_stdout_to_logcat()
     return 0;
 }
 
+static void enable_gst_debug()
+{
+    setenv("GST_DEBUG", "3", 1);
+}

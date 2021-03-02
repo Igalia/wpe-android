@@ -42,6 +42,7 @@ JNIEXPORT void JNICALL
 Java_com_wpe_wpe_WebProcess_Glue_initializeMain(JNIEnv*, jobject, jint fd1, jint fd2)
 {
     pipe_stdout_to_logcat();
+    enable_gst_debug();
 
     auto* entrypoint = reinterpret_cast<WebProcessEntryPoint*>(dlsym(RTLD_DEFAULT, "android_WebProcess_main"));
     ALOGV("Glue::initializeMain(), fd1 %d, fd2 %d, entrypoint %p", fd1, fd2, entrypoint);
