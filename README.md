@@ -4,6 +4,41 @@
 
 [WPE WebKit](https://wpewebkit.org/) port for Android.
 
+## WPEView API
+
+WPEView wraps the WPE WebKit browser engine in a reusable Android library.
+WPEView serves a similar purpose to Android's built-in WebView and tries to mimick
+its API aiming to be an easy to use drop-in replacement with extended functionality.
+
+Setting up WPEView in your Android application is fairly simple.
+
+(TODO: package, distribute and document installation)
+
+First, add the `WPEView` widget to your
+[Activity layout](https://developer.android.com/training/basics/firstapp/building-ui):
+
+```xml
+<com.wpe.wpe.WPEView
+        android:id="@+id/wpe_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".MainActivity"/>
+```
+
+And next, wire it in your Activity implementation to start using the API, for example, to load an URL:
+
+```kotlin
+override fun onCreate(savedInstanceState: Bundle?) {
+    super.onCreate(savedInstanceState)
+    setContentView(R.layout.activity_main)
+
+    var browser = findViewById(R.id.wpe_view)
+    browser?.loadUrl(INITIAL_URL)
+}
+```
+
+To see WPEView in action check the [examples](examples) folder.
+
 ## Setting up your environment
 
 ### python3
