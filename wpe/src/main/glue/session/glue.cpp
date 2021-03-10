@@ -3,6 +3,9 @@
 #include <wpe/wpe.h>
 #include <wpe-android/view-backend-exportable.h>
 #include <glib.h>
+#include <glib-object.h>
+#include <gobject/gvaluecollector.h>
+
 #include <jni.h>
 
 #include "logging.h"
@@ -16,8 +19,25 @@ static wpe_android_view_backend_exportable *s_viewBackendExportable;
 static WebKitWebView *view = NULL;
 static char *s_url = NULL;
 
+static void load_changed(WebKitWebView* view, WebKitLoadEvent loadEvent, gpointer) {
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        ALOGV("WEBKIT_LOAD_STARTED");
+    }
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        ALOGV("WEBKIT_LOAD_REDIRECTED");
+    }
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        ALOGV("WEBKIT_LOAD_COMMITED");
+    }
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        ALOGV("WEBKIT_LOAD_FINISHED");
+    }
+}
+
 static gboolean load_url_callback(gpointer data) {
-    ALOGV("load_url in %p", view);
+    ALOGV("load_url in %p %s", view, data);
+
+    g_signal_connect(view, "load-changed", G_CALLBACK(load_changed), NULL);
 
     char *url = reinterpret_cast<char *>(data);
     webkit_web_view_load_uri(view, url);
@@ -43,17 +63,15 @@ static void session_thread_entry(int width, int height) {
           g_main_context_default());
 
     sessionThreadLoop = g_main_loop_new(sessionThreadContext, FALSE);
-    ALOGV("session_thread_entry() -- context %p loop %p", sessionThreadContext, sessionThreadLoop);
 
     g_cond_signal(&initCond);
     g_mutex_unlock(&initMutex);
 
     g_main_context_push_thread_default(sessionThreadContext);
 
-    ALOGV("session_thread_entry() -- operating on WK API");
     webkit_web_context_new();
 
-    ALOGV("session_thread_entry() -- creating a new view");
+    ALOGV("Creating a new WebkitWebView");
     struct wpe_view_backend *wpeBackend;
     {
         s_viewBackendExportable = wpe_android_view_backend_exportable_create(std::max(0, width),
@@ -81,23 +99,21 @@ static void session_thread_entry(int width, int height) {
 }
 
 void wpe_session_glue_init(jint width, jint height) {
-    ALOGV("wpe_instance_init() (%d, %d)", width, height);
+    ALOGV("wpe_session_glue_init() (%d, %d)", width, height);
 
     if (!sessionThreadContext) {
         sessionThreadContext = g_main_context_new();
     }
 
     session_thread_entry(width, height);
-
-    ALOGV("wpe_instance_init() -- done");
 }
 
 void wpe_session_glue_deinit() {
-    ALOGV("wpe_instance_deinit()");
+    ALOGV("wpe_session_glue_deinit()");
 
     g_main_loop_quit(sessionThreadLoop);
 
-    ALOGV("wpe_instance_deinit() -- done");
+    ALOGV("wpe_session_glue_deinit() -- done");
 }
 
 void wpe_session_glue_set_page_url(const char *urlData, jsize urlSize) {
