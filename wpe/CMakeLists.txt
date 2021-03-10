@@ -34,15 +34,15 @@ include_directories(
     imported/include
     imported/include/wpe
     imported/include/wpe-webkit
-    src/main/CommonGlue
+    src/main/glue/common
 )
 
-add_library(WPEUIProcessGlue SHARED
-    src/main/WPEUIProcessGlue/entrypoints.cpp
-    src/main/WPEUIProcessGlue/wpeuiprocessglue.cpp
+add_library(WPESessionGlue SHARED
+        src/main/glue/session/entrypoints.cpp
+        src/main/glue/session/glue.cpp
 )
 
-target_link_libraries(WPEUIProcessGlue
+target_link_libraries(WPESessionGlue
     ${log-lib}
     glib-2.0
     libwpe-1.0
@@ -51,7 +51,7 @@ target_link_libraries(WPEUIProcessGlue
 )
 
 add_library(WPENetworkProcessGlue SHARED
-    src/main/WPENetworkProcessGlue/entrypoints.cpp
+    src/main/glue/networkprocess/entrypoints.cpp
 )
 
 target_link_libraries(WPENetworkProcessGlue
@@ -60,7 +60,7 @@ target_link_libraries(WPENetworkProcessGlue
 )
 
 add_library(WPEWebProcessGlue SHARED
-    src/main/WPEWebProcessGlue/entrypoints.cpp
+    src/main/glue/webprocess/entrypoints.cpp
 )
 
 target_link_libraries(WPEWebProcessGlue

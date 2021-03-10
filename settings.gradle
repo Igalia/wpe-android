@@ -1,1 +1,2 @@
-include ':wpe', ':launcher'
+include ':wpe'
+include ':examples:minibrowser'
