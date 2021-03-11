@@ -13,8 +13,8 @@
 static GMutex initMutex;
 static GCond initCond;
 
-static GMainContext *sessionThreadContext = NULL;
-static GMainLoop *sessionThreadLoop;
+static GMainContext *pageThreadContext = NULL;
+static GMainLoop *pageThreadLoop;
 static wpe_android_view_backend_exportable *s_viewBackendExportable;
 static WebKitWebView *view = NULL;
 static char *s_url = NULL;
@@ -49,25 +49,25 @@ void load_url(char *url) {
     GSource *source = g_idle_source_new();
     g_source_set_callback(source, load_url_callback, url, NULL);
     g_source_set_priority(source, G_PRIORITY_HIGH + 30);
-    g_source_attach(source, sessionThreadContext);
+    g_source_attach(source, pageThreadContext);
 
     g_free(url);
 }
 
-static void session_thread_entry(int width, int height) {
+static void page_thread_entry(int width, int height) {
     pipe_stdout_to_logcat();
     enable_gst_debug();
 
     g_mutex_lock(&initMutex);
-    ALOGV("session_thread_entry() -- entered, g_main_context_default() %p",
+    ALOGV("page_thread_entry() -- entered, g_main_context_default() %p",
           g_main_context_default());
 
-    sessionThreadLoop = g_main_loop_new(sessionThreadContext, FALSE);
+    pageThreadLoop = g_main_loop_new(pageThreadContext, FALSE);
 
     g_cond_signal(&initCond);
     g_mutex_unlock(&initMutex);
 
-    g_main_context_push_thread_default(sessionThreadContext);
+    g_main_context_push_thread_default(pageThreadContext);
 
     webkit_web_context_new();
 
@@ -87,43 +87,43 @@ static void session_thread_entry(int width, int height) {
         load_url(s_url);
     }
 
-    ALOGV("session_thread_entry() -- running via GMainLoop %p for GMainContext %p",
-          sessionThreadLoop, sessionThreadContext);
-    g_main_loop_run(sessionThreadLoop);
-    ALOGV("session_thread_entry() -- quitting");
+    ALOGV("page_thread_entry() -- running via GMainLoop %p for GMainContext %p",
+          pageThreadLoop, pageThreadContext);
+    g_main_loop_run(pageThreadLoop);
+    ALOGV("page_thread_entry() -- quitting");
 
-    g_main_context_pop_thread_default(sessionThreadContext);
+    g_main_context_pop_thread_default(pageThreadContext);
 
-    g_main_loop_unref(sessionThreadLoop);
-    sessionThreadLoop = NULL;
+    g_main_loop_unref(pageThreadLoop);
+    pageThreadLoop = NULL;
 }
 
-void wpe_session_glue_init(jint width, jint height) {
-    ALOGV("wpe_session_glue_init() (%d, %d)", width, height);
+void wpe_page_glue_init(jint width, jint height) {
+    ALOGV("wpe_page_glue_init() (%d, %d)", width, height);
 
-    if (!sessionThreadContext) {
-        sessionThreadContext = g_main_context_new();
+    if (!pageThreadContext) {
+        pageThreadContext = g_main_context_new();
     }
 
-    session_thread_entry(width, height);
+    page_thread_entry(width, height);
 }
 
-void wpe_session_glue_deinit() {
-    ALOGV("wpe_session_glue_deinit()");
+void wpe_page_glue_deinit() {
+    ALOGV("wpe_page_glue_deinit()");
 
-    g_main_loop_quit(sessionThreadLoop);
+    g_main_loop_quit(pageThreadLoop);
 
-    ALOGV("wpe_session_glue_deinit() -- done");
+    ALOGV("wpe_page_glue_deinit() -- done");
 }
 
-void wpe_session_glue_set_page_url(const char *urlData, jsize urlSize) {
+void wpe_page_glue_set_page_url(const char *urlData, jsize urlSize) {
     char *url = g_strndup(urlData, urlSize);
-    if (sessionThreadContext == NULL) {
-        ALOGV("wpe_session_glue_set_page_url queue url to load");
+    if (pageThreadContext == NULL) {
+        ALOGV("wpe_page_glue_set_page_url queue url to load");
         s_url = url;
         return;
     }
-    ALOGV("wpe_session_glue_set_page_url -- URL %s thread %p", url, sessionThreadContext);
+    ALOGV("wpe_page_glue_set_page_url -- URL %s thread %p", url, pageThreadContext);
     load_url(url);
 }
 
@@ -132,11 +132,11 @@ static gboolean frame_complete_callback(gpointer) {
     return FALSE;
 }
 
-void wpe_session_glue_frame_complete() {
+void wpe_page_glue_frame_complete() {
     GSource *source = g_idle_source_new();
     g_source_set_callback(source, frame_complete_callback, NULL, NULL);
     g_source_set_priority(source, G_PRIORITY_HIGH + 30);
-    g_source_attach(source, sessionThreadContext);
+    g_source_attach(source, pageThreadContext);
 }
 
 static gboolean touch_event_callback(gpointer data) {
@@ -156,7 +156,7 @@ static gboolean touch_event_callback(gpointer data) {
     return FALSE;
 }
 
-void wpe_session_glue_touch_event(jlong time, jint type, jfloat x, jfloat y) {
+void wpe_page_glue_touch_event(jlong time, jint type, jfloat x, jfloat y) {
     wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
     switch (type) {
         case 0:
@@ -180,5 +180,5 @@ void wpe_session_glue_touch_event(jlong time, jint type, jfloat x, jfloat y) {
     GSource *source = g_idle_source_new();
     g_source_set_callback(source, touch_event_callback, touchEventRaw, g_free);
     g_source_set_priority(source, G_PRIORITY_HIGH + 30);
-    g_source_attach(source, sessionThreadContext);
+    g_source_attach(source, pageThreadContext);
 }

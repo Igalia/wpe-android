@@ -1,4 +1,4 @@
-package com.wpe.wpe.session;
+package com.wpe.wpe.page;
 
 import com.wpe.wpe.services.WPEServiceConnection;
 
@@ -6,17 +6,17 @@ import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
 
-public class SessionGlue {
-    private static final String LOGTAG = "SessionGlue";
+public class PageGlue {
+    private static final String LOGTAG = "PageGlue";
 
-    private final Session m_session;
+    private final Page m_page;
 
     static {
         System.loadLibrary("WPEBackend-default");
-        System.loadLibrary("WPESessionGlue");
+        System.loadLibrary("WPEPageGlue");
     }
 
-    public static native void init(SessionGlue self, int width, int height);
+    public static native void init(PageGlue self, int width, int height);
 
     public static native void deinit();
 
@@ -26,8 +26,8 @@ public class SessionGlue {
 
     public static native void touchEvent(long time, int type, float x, float y);
 
-    public SessionGlue(Session session) {
-        m_session = session;
+    public PageGlue(Page page) {
+        m_page = page;
     }
 
     public void launchProcess(int processType, int[] fds) {
@@ -45,12 +45,12 @@ public class SessionGlue {
         switch (processType) {
             case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 Log.v(LOGTAG, "Should launch WebProcess");
-                m_session.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
+                m_page.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
                         parcelFds, com.wpe.wpe.services.webprocess.Service.class);
                 break;
             case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
                 Log.v(LOGTAG, "Should launch NetworkProcess");
-                m_session.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
+                m_page.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
                         parcelFds, com.wpe.wpe.services.networkprocess.Service.class);
                 break;
             default:

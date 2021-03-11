@@ -7,23 +7,21 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.gfx.View;
-import com.wpe.wpe.session.Session;
+import com.wpe.wpe.page.Page;
 
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
-import java.util.Map;
 
 /**
  * Top level Singleton object. Somehow equivalent to WebKit's UIProcess, manages the creation
- * and destruction of Session instances and funnels WPEView API calls to the appropriate
- * Session instance.
+ * and destruction of Page instances and funnels WPEView API calls to the appropriate
+ * Page instance.
  */
 @UiThread
 class Browser {
     private static final String LOGTAG = "WPE Browser";
     private static Browser m_instance = null;
 
-    private IdentityHashMap<WPEView, Session> m_sessions = null;
+    private IdentityHashMap<WPEView, Page> m_pages = null;
     private IdentityHashMap<WPEView, String> m_pendingLoads = null;
 
     private Browser() {}
@@ -35,26 +33,26 @@ class Browser {
         return m_instance;
     }
 
-    public View createSession(@NonNull WPEView wpeView, @NonNull Context context) {
-        Log.d(LOGTAG, "Create new Session instance for view");
-        if (m_sessions == null) {
-            m_sessions = new IdentityHashMap<>();
+    public View createPage(@NonNull WPEView wpeView, @NonNull Context context) {
+        Log.d(LOGTAG, "Create new Page instance for view");
+        if (m_pages == null) {
+            m_pages = new IdentityHashMap<>();
         }
-        assert(!m_sessions.containsKey(wpeView));
+        assert(!m_pages.containsKey(wpeView));
         View view = new View(context);
-        m_sessions.put(wpeView, new Session(context, String.valueOf(m_sessions.size()), view));
+        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), view));
         loadPendingUrls(wpeView);
         return view;
     }
 
-    public void destroySession(@NonNull WPEView wpeView) {
-        Log.d(LOGTAG, "Unregister Session for view");
-        assert(m_sessions.containsKey(wpeView));
-        m_sessions.remove(wpeView);
+    public void destroyPage(@NonNull WPEView wpeView) {
+        Log.d(LOGTAG, "Unregister Page for view");
+        assert(m_pages.containsKey(wpeView));
+        m_pages.remove(wpeView);
     }
 
     private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull String url) {
-        Log.v(LOGTAG, "No available session. Queueing " + url + " for load");
+        Log.v(LOGTAG, "No available page. Queueing " + url + " for load");
         if (m_pendingLoads == null) {
             m_pendingLoads = new IdentityHashMap<>();
         }
@@ -74,10 +72,10 @@ class Browser {
 
     public void loadUrl(@NonNull WPEView view, @NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
-        if (m_sessions == null || !m_sessions.containsKey(view)) {
+        if (m_pages == null || !m_pages.containsKey(view)) {
             queuePendingLoad(view, url);
             return;
         }
-        m_sessions.get(view).loadUrl(url);
+        m_pages.get(view).loadUrl(url);
     }
 }

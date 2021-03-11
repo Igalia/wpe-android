@@ -9,23 +9,23 @@ import android.util.Log;
 
 import com.wpe.wpe.external.SurfaceWrapper;
 import com.wpe.wpe.IWPEService;
-import com.wpe.wpe.session.Session;
+import com.wpe.wpe.page.Page;
 
 public class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
     private final int m_processType;
-    private final Session m_session;
+    private final Page m_page;
     private Parcelable[] m_fds;
     private IWPEService m_service;
 
     static public final int PROCESS_TYPE_WEBPROCESS = 0;
     static public final int PROCESS_TYPE_NETWORKPROCESS = 1;
 
-    public WPEServiceConnection(int processType, Session session, Parcelable[] fds)
+    public WPEServiceConnection(int processType, Page page, Parcelable[] fds)
     {
         m_processType = processType;
-        m_session = session;
+        m_page = page;
         m_fds = fds;
     }
 
@@ -42,7 +42,7 @@ public class WPEServiceConnection implements ServiceConnection {
         try {
             m_service.connect(bundle);
             if (m_processType == PROCESS_TYPE_WEBPROCESS) {
-                m_service.provideSurface(new SurfaceWrapper(m_session.view().createSurface()));
+                m_service.provideSurface(new SurfaceWrapper(m_page.view().createSurface()));
             }
         } catch (android.os.RemoteException e) {
             Log.e(LOGTAG, "Failed to connect to service", e);
@@ -53,6 +53,6 @@ public class WPEServiceConnection implements ServiceConnection {
     public void onServiceDisconnected(ComponentName name)
     {
         Log.i(LOGTAG, "onServiceDisconnected()");
-        m_session.dropService(this);
+        m_page.dropService(this);
     }
 }

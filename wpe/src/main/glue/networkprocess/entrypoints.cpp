@@ -49,7 +49,7 @@ Java_com_wpe_wpe_services_networkprocess_Glue_initializeMain(JNIEnv*, jobject, j
     snprintf(fdString, sizeof(fdString), "%d", fd);
 
     char* argv[3];
-    argv[0] = "WPENetworkProcess";
+    argv[0] = (char*)"WPENetworkProcess";
     argv[1] = pidString;
     argv[2] = fdString;
     (*entrypoint)(3, argv);

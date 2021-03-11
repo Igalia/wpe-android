@@ -55,7 +55,7 @@ Java_com_wpe_wpe_services_webprocess_Glue_initializeMain(JNIEnv*, jobject, jint 
     snprintf(fd2String, sizeof(fd1String), "%d", fd2);
 
     char* argv[4];
-    argv[0] = "WPEWebProcess";
+    argv[0] = (char*)"WPEWebProcess";
     argv[1] = pidString;
     argv[2] = fd1String;
     argv[3] = fd2String;

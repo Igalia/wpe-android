@@ -30,13 +30,13 @@ public class WPEView extends FrameLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        addView(Browser.getInstance().createSession(this, m_context));
+        addView(Browser.getInstance().createPage(this, m_context));
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        Browser.getInstance().destroySession(this);
+        Browser.getInstance().destroyPage(this);
     }
 
     /**

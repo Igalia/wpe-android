@@ -43,12 +43,12 @@ include_directories(
         src/main/glue/common
 )
 
-add_library(WPESessionGlue SHARED
-        src/main/glue/session/entrypoints.cpp
-        src/main/glue/session/glue.cpp
+add_library(WPEPageGlue SHARED
+        src/main/glue/page/entrypoints.cpp
+        src/main/glue/page/glue.cpp
         )
 
-target_link_libraries(WPESessionGlue
+target_link_libraries(WPEPageGlue
         ${log-lib}
         glib-2.0
         gobject-2.0

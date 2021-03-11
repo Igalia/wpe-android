@@ -1,4 +1,4 @@
-package com.wpe.wpe.session;
+package com.wpe.wpe.page;
 
 import android.content.Context;
 import android.content.Intent;
@@ -14,26 +14,26 @@ import com.wpe.wpe.services.WPEServiceConnection;
 import java.util.ArrayList;
 
 @UiThread
-public class Session {
+public class Page {
     private final String LOGTAG;
-    private final SessionGlue m_glue;
-    private final SessionThread m_sessionThread;
+    private final PageGlue m_glue;
+    private final PageThread m_pageThread;
     private final View m_view;
     private final Context m_context;
     private final ArrayList<WPEServiceConnection> m_services;
 
-    private class SessionThread {
+    private class PageThread {
         private Thread m_thread;
-        private SessionGlue m_glueRef;
+        private PageGlue m_glueRef;
         private View m_viewRef;
 
-        SessionThread() {
-            final SessionThread self = this;
+        PageThread() {
+            final PageThread self = this;
 
             m_thread = new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    Log.i(LOGTAG, "In Session thread");
+                    Log.i(LOGTAG, "In page thread");
                     while (true) {
                         synchronized (self) {
                             try {
@@ -41,12 +41,12 @@ public class Session {
                                     self.wait();
                                 }
                             } catch (InterruptedException e) {
-                                Log.v(LOGTAG, "Interruption in Session thread");
+                                Log.v(LOGTAG, "Interruption in page thread");
                                 break;
                             }
-                            Log.d(LOGTAG, "Got Session glue " + m_glueRef + " and view " + m_viewRef);
+                            Log.d(LOGTAG, "Got page glue " + m_glueRef + " and view " + m_viewRef);
                             m_viewRef.ensureSurfaceTexture();
-                            SessionGlue.init(m_glueRef, m_viewRef.width(), m_viewRef.height());
+                            PageGlue.init(m_glueRef, m_viewRef.width(), m_viewRef.height());
                         }
                     }
                 }
@@ -55,8 +55,8 @@ public class Session {
             m_thread.start();
         }
 
-        public void run(@NonNull SessionGlue glue, @NonNull View view) {
-            final SessionThread self = this;
+        public void run(@NonNull PageGlue glue, @NonNull View view) {
+            final PageThread self = this;
             Log.i(LOGTAG, "Glue " + glue + " view " + view);
             synchronized(self) {
                 m_glueRef = glue;
@@ -66,30 +66,30 @@ public class Session {
         }
 
         public void stop() {
-            final SessionThread self = this;
+            final PageThread self = this;
             synchronized (self) {
                 m_glueRef = null;
                 m_viewRef = null;
-                SessionGlue.deinit();
+                PageGlue.deinit();
             }
         }
     }
 
-    public Session(@NonNull Context context, @NonNull String sessionId, @NonNull View view) {
-        LOGTAG = "WPE Session" + sessionId;
-        Log.v(LOGTAG, "Session construction");
+    public Page(@NonNull Context context, @NonNull String pageId, @NonNull View view) {
+        LOGTAG = "WPE page" + pageId;
+        Log.v(LOGTAG, "page construction");
         m_context = context;
-        m_glue = new SessionGlue(this);
+        m_glue = new PageGlue(this);
         m_view = view;
         m_services = new ArrayList<WPEServiceConnection>();
 
-        m_sessionThread = new SessionThread();
-        m_sessionThread.run(m_glue, m_view);
+        m_pageThread = new PageThread();
+        m_pageThread.run(m_glue, m_view);
     }
 
     public void close() {
-        Log.v(LOGTAG, "Session destruction");
-        m_sessionThread.stop();
+        Log.v(LOGTAG, "page destruction");
+        m_pageThread.stop();
         for (WPEServiceConnection serviceConnection : m_services) {
             m_context.unbindService(serviceConnection);
         }
@@ -123,6 +123,6 @@ public class Session {
 
     public void loadUrl(@NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
-        SessionGlue.setPageURL(url);
+        PageGlue.setPageURL(url);
     }
 }
