@@ -69,7 +69,7 @@ class Bootstrap:
         self.__build_libs = [
             'glib-2.0',
             'libglib-2.0.so',
-            'libgobject-2.0.so'
+            'libgobject-2.0.so',
             'libwpe-1.0.so',
             'libWPEWebKit-1.0.so',
             'libWPEWebKit-1.0_3.so',
