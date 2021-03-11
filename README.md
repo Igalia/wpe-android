@@ -63,6 +63,12 @@ Currently the only supported architecture is `arm64`.
 This command will fetch `Cerbero`, the Android NDK and a bunch of dependencies required 
 to cross-compile WPE Android dependencies. The process takes a significant amount of time.
 
+You can optionally create a debug build of WPEWebKit adding `debug` to the bootstrap command:
+
+```bash
+python3 ./scripts/bootstrap.py <arch> debug
+```
+
 ### Android Studio
 [Android Studio](https://developer.android.com/studio/) is required to build and run WPE Android.
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed, 
