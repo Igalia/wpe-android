@@ -29,7 +29,7 @@ we only care about the libraries, except for WPEWebKit from which we want everyt
 
 The packaging step results in two different tar files. One containing the runtime assets
 and another one with the development assets. The content of these tar files is extracted
-in the `build/sysroot` folder.
+in the `cerbero/sysroot` folder.
 
 After that we are done with Cerbero and back into the bootstrap script.
 
@@ -61,7 +61,7 @@ class Bootstrap:
         self.__version = '2.30.4'
         self.__arch = arch
         self.__root = os.getcwd()
-        self.__build_dir = os.path.join(os.getcwd(), 'build')
+        self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
         # These are the libraries that the glue code link with,
         # that go into the `imported` folder and cannot go into
         # the `jniFolder` to avoid a duplicated library issue.
@@ -108,7 +108,7 @@ class Bootstrap:
             subprocess.call(['git', 'pull', 'origin', branch])
             os.chdir(self.__root)
         else:
-            subprocess.call(['git', 'clone', '--branch', branch, origin, 'build'])
+            subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
 
         self.__cerbero_command(['bootstrap'])
 
