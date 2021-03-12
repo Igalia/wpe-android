@@ -24,7 +24,7 @@ class Patch:
         self.__arch = arch
         self.__root = os.getcwd()
         self.__recipe = recipe
-        self.__build_dir = os.path.join(os.getcwd(), 'build')
+        self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
         self.__original_rc_file = None
 
     def __get_rc_file_name(self):
@@ -90,7 +90,7 @@ class Patch:
     def run(self):
         self.__cerbero_shell_build()
         sysroot = os.path.join(self.__build_dir, 'build', 'dist', 'android_' + self.__arch)
-        Bootstrap(self.__arch).install_deps(sysroot, self.__get_install_list())
+        Bootstrap(self.__arch, False).install_deps(sysroot, self.__get_install_list())
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
