@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.4.1)
 find_library(android-lib android)
 find_library(log-lib log)
 
+add_library(gio-2.0 SHARED IMPORTED)
+set_target_properties(gio-2.0
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgio-2.0.so
+        )
+
 add_library(glib-2.0 SHARED IMPORTED)
 set_target_properties(glib-2.0
         PROPERTIES IMPORTED_LOCATION
@@ -43,13 +49,14 @@ include_directories(
         src/main/glue/common
 )
 
-add_library(WPEPageGlue SHARED
-        src/main/glue/page/entrypoints.cpp
-        src/main/glue/page/glue.cpp
+add_library(WPEBrowserGlue SHARED
+        src/main/glue/browser/entrypoints.cpp
+        src/main/glue/browser/browser.cpp
         )
 
-target_link_libraries(WPEPageGlue
+target_link_libraries(WPEBrowserGlue
         ${log-lib}
+        gio-2.0
         glib-2.0
         gobject-2.0
         libwpe-1.0

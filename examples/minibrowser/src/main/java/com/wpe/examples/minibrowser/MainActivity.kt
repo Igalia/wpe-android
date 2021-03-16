@@ -9,7 +9,7 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
-import com.wpe.wpe.WPEView
+import com.wpe.wpeview.WPEView
 
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="

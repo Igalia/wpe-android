@@ -108,3 +108,61 @@ To get a nicer logcat with WPE Android you can run the following command:
 ```ssh
 adb logcat -v time | egrep -i '(wpe|WPE|webkit|WebKit|WEBKIT)' | logcat-colorize
 ```
+
+## Calling Java method from the JNI layer
+
+To find the internal name of Java classes run this command from the root path:
+
+```ssh
+javap -p -s wpe/build/intermediates/javac/debug/classes/com/wpe/wpe/<.class file>
+```
+
+replacing `<.class file>` with the name of the `.class` file containing the method you want to call. For example:
+
+```ssh
+javap -p -s wpe/build/intermediates/javac/debug/classes/com/wpe/wpe/Page.class
+```
+
+This gives an output like:
+
+```
+Compiled from "Page.java"
+public class com.wpe.wpe.Page {
+  private final java.lang.String LOGTAG;
+    descriptor: Ljava/lang/String;
+  private final com.wpe.wpe.BrowserGlue m_glue;
+    descriptor: Lcom/wpe/wpe/BrowserGlue;
+  private final com.wpe.wpe.gfx.View m_view;
+    descriptor: Lcom/wpe/wpe/gfx/View;
+  private final android.content.Context m_context;
+    descriptor: Landroid/content/Context;
+  private final java.util.ArrayList<com.wpe.wpe.services.WPEServiceConnection> m_services;
+    descriptor: Ljava/util/ArrayList;
+  private long m_webViewRef;
+    descriptor: J
+  public com.wpe.wpe.Page(android.content.Context, java.lang.String, com.wpe.wpe.gfx.View, com.wpe.wpe.BrowserGlue);
+    descriptor: (Landroid/content/Context;Ljava/lang/String;Lcom/wpe/wpe/gfx/View;Lcom/wpe/wpe/BrowserGlue;)V
+
+  public void close();
+    descriptor: ()V
+
+  protected void finalize() throws java.lang.Throwable;
+    descriptor: ()V
+
+  public void onReady(long);
+    descriptor: (J)V
+
+  public void launchService(int, android.os.Parcelable[], java.lang.Class);
+    descriptor: (I[Landroid/os/Parcelable;Ljava/lang/Class;)V
+
+  public void dropService(com.wpe.wpe.services.WPEServiceConnection);
+    descriptor: (Lcom/wpe/wpe/services/WPEServiceConnection;)V
+
+  public com.wpe.wpe.gfx.View view();
+    descriptor: ()Lcom/wpe/wpe/gfx/View;
+
+  public void loadUrl(java.lang.String);
+    descriptor: (Ljava/lang/String;)V
+```
+
+where the different `descriptor` values contain the strings you are looking for.

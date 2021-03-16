@@ -1,4 +1,4 @@
-package com.wpe.wpe;
+package com.wpe.wpeview;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -6,6 +6,8 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
+
+import com.wpe.wpe.Browser;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.

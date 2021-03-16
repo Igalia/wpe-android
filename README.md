@@ -18,7 +18,7 @@ First, add the `WPEView` widget to your
 [Activity layout](https://developer.android.com/training/basics/firstapp/building-ui):
 
 ```xml
-<com.wpe.wpe.WPEView
+<com.wpe.wpeview.WPEView
         android:id="@+id/wpe_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

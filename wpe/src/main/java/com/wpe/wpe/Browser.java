@@ -7,7 +7,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.gfx.View;
-import com.wpe.wpe.page.Page;
+import com.wpe.wpeview.WPEView;
 
 import java.util.IdentityHashMap;
 
@@ -17,14 +17,58 @@ import java.util.IdentityHashMap;
  * Page instance.
  */
 @UiThread
-class Browser {
+public class Browser {
     private static final String LOGTAG = "WPE Browser";
     private static Browser m_instance = null;
+    private final BrowserGlue m_glue;
+    private final UIProcessThread m_uiProcessThread;
 
     private IdentityHashMap<WPEView, Page> m_pages = null;
     private IdentityHashMap<WPEView, String> m_pendingLoads = null;
 
-    private Browser() {}
+    private class UIProcessThread {
+        private Thread m_thread;
+        private BrowserGlue m_glueRef;
+
+        UIProcessThread() {
+            final UIProcessThread self = this;
+
+            m_thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.i(LOGTAG, "In UIProcess thread");
+                    while (true) {
+                        try {
+                            while (self.m_glueRef == null) {
+                                self.wait();
+                            }
+                        } catch (InterruptedException e) {
+                            Log.v(LOGTAG, "Interruption in UIProcess thread");
+                        }
+                        // Create a WebKitWebContext and run the main loop.
+                        BrowserGlue.init(m_glueRef);
+                    }
+                }
+            });
+
+            m_thread.start();
+        }
+
+        public void run(@NonNull BrowserGlue glue) {
+            final UIProcessThread self = this;
+            synchronized (self) {
+                m_glueRef = glue;
+                self.notifyAll();
+            }
+        }
+    }
+
+    private Browser() {
+        Log.v(LOGTAG, "Browser creation");
+        m_glue = new BrowserGlue(this);
+        m_uiProcessThread = new UIProcessThread();
+        m_uiProcessThread.run(m_glue);
+    }
 
     public static Browser getInstance() {
         if (m_instance == null) {
@@ -40,7 +84,7 @@ class Browser {
         }
         assert(!m_pages.containsKey(wpeView));
         View view = new View(context);
-        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), view));
+        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), view, m_glue));
         loadPendingUrls(wpeView);
         return view;
     }

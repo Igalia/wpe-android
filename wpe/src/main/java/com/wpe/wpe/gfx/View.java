@@ -12,7 +12,7 @@ import android.view.Surface;
 
 import androidx.annotation.UiThread;
 
-import com.wpe.wpe.page.PageGlue;
+import com.wpe.wpe.BrowserGlue;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -145,7 +145,7 @@ public class View extends GLSurfaceView {
             }
 
             if (surfaceDirty) {
-                PageGlue.frameComplete();
+                BrowserGlue.frameComplete();
             }
         }
 
@@ -297,7 +297,7 @@ public class View extends GLSurfaceView {
                 return false;
         }
 
-        PageGlue.touchEvent(event.getEventTime(), eventType, event.getX(0), event.getY(0));
+        BrowserGlue.touchEvent(event.getEventTime(), eventType, event.getX(0), event.getY(0));
         return true;
     }
 }

@@ -9,7 +9,7 @@ import android.util.Log;
 
 import com.wpe.wpe.external.SurfaceWrapper;
 import com.wpe.wpe.IWPEService;
-import com.wpe.wpe.page.Page;
+import com.wpe.wpe.Page;
 
 public class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";

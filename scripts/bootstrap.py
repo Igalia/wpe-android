@@ -68,6 +68,7 @@ class Bootstrap:
         # to avoid a duplicated library issue.
         self.__build_libs = [
             'glib-2.0',
+            'libgio-2.0.so',
             'libglib-2.0.so',
             'libgobject-2.0.so',
             'libwpe-1.0.so',

@@ -25,7 +25,7 @@
 
     </androidx.appcompat.widget.Toolbar>
 
-    <com.wpe.wpe.WPEView
+    <com.wpe.wpeview.WPEView
         android:id="@+id/wpe_view"
         android:layout_below="@id/toolbar"
         android:layout_width="match_parent"
