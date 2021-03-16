@@ -13,9 +13,12 @@ import androidx.annotation.UiThread;
 
 import com.wpe.wpe.gfx.View;
 import com.wpe.wpe.services.WPEServiceConnection;
+import com.wpe.wpeview.WPEView;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 
 @UiThread
 public class Page {
@@ -25,8 +28,8 @@ public class Page {
     private final Context m_context;
     private final ArrayList<WPEServiceConnection> m_services;
     private final PageThread m_thread;
-
     private long m_webViewRef = 0;
+    private String m_pendingLoad;
 
     private static class PageThreadMessageHandler extends Handler {
         private final WeakReference<Page> m_page;
@@ -125,6 +128,9 @@ public class Page {
     public void onReady(long webViewRef) {
        Log.v(LOGTAG, "Page ready");
        m_webViewRef = webViewRef;
+       if (m_pendingLoad != null) {
+           loadUrl(m_pendingLoad);
+       }
     }
 
     public void launchService(int processType, Parcelable[] fds, Class cls) {
@@ -147,7 +153,8 @@ public class Page {
     public void loadUrl(@NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
         if (m_webViewRef == 0) {
-            // TODO queue load.
+            Log.d(LOGTAG, "Need to queue load of url " + url);
+            m_pendingLoad = url;
             return;
         }
         BrowserGlue.loadURL(m_webViewRef, url);

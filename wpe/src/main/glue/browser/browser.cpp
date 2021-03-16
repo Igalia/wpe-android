@@ -79,7 +79,7 @@ void wpe_browser_glue_new_web_view(int width, int height, std::function<void (lo
     ALOGV("wpe_browser_glue_new_web_view (%d, %d) tid %d", width, height, gettid());
 
     GMainLoop *resultLoop = g_main_loop_new(NULL, FALSE);
-    auto data = WebViewInitData { resultLoop, g_main_context_default(), width, height, callback };
+    auto *data = new WebViewInitData { resultLoop, g_main_context_default(), width, height, callback };
 
     g_main_context_invoke_full(uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
         g_assert(g_main_context_is_owner(uiProcessThreadContext));
@@ -98,17 +98,17 @@ void wpe_browser_glue_new_web_view(int width, int height, std::function<void (lo
 
         ALOGV("Created WebKitWebView %p", webView);
 
-        auto resultData = NewWebViewData { initData->mainLoop, webView, initData->callback };
+        auto *resultData = new NewWebViewData { initData->mainLoop, webView, initData->callback };
         g_main_context_invoke_full(initData->mainContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
             auto *resultData = reinterpret_cast<NewWebViewData*>(data);
             resultData->callback((long)resultData->webView);
             g_main_loop_quit(resultData->mainLoop);
 
             return G_SOURCE_REMOVE;
-        }, &resultData, NULL);
+        }, resultData, NULL);
 
         return G_SOURCE_REMOVE;
-    }, &data, NULL);
+    }, data, NULL);
     g_main_loop_run(resultLoop);
     g_main_loop_unref(resultLoop);
 }

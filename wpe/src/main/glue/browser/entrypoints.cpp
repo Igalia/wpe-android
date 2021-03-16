@@ -23,8 +23,8 @@ JNIEXPORT JNIEnv* s_WPEUIProcessGlue_env = 0;
 JNIEXPORT jobject s_WPEUIProcessGlue_object = 0;
 
 // This is used for cross-thread callbacks.
-jclass s_PageClass = nullptr;
-jobject s_PageObj = nullptr;
+static jclass s_PageClass = nullptr;
+static jobject s_PageObj = nullptr;
 
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
