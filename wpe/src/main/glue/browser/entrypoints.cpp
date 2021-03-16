@@ -62,6 +62,12 @@ Java_com_wpe_wpe_BrowserGlue_newWebView(JNIEnv* env, jobject, jobject pageObj, j
 }
 
 JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_destroyWebView(JNIEnv*, jobject, jlong webView) {
+    ALOGV("BrowserGlue.destroyWebView tid %d", gettid());
+    wpe_browser_glue_close_web_view(webView);
+}
+
+JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv* env, jobject, jlong webView, jstring url)
 {
     const char* urlChars = env->GetStringUTFChars(url, 0);
