@@ -47,16 +47,22 @@ public class BrowserGlue {
             parcelFds[i] = ParcelFileDescriptor.adoptFd(fds[i]);
         }
 
+        Page page = m_browser.getActivePage();
+        if (page == null) {
+            Log.e(LOGTAG, "No active page. Cannot launch auxiliary services");
+            return;
+        }
+
         switch (processType) {
             case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 Log.v(LOGTAG, "Should launch WebProcess");
-                //m_browser.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
-                //                        parcelFds, com.wpe.wpe.services.webprocess.Service.class);
+                page.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
+                                   parcelFds, com.wpe.wpe.services.webprocess.Service.class);
                 break;
             case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
                 Log.v(LOGTAG, "Should launch NetworkProcess");
-                //m_browser.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
-                //                        parcelFds, com.wpe.wpe.services.networkprocess.Service.class);
+                page.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
+                                   parcelFds, com.wpe.wpe.services.networkprocess.Service.class);
                 break;
             default:
                 Log.v(LOGTAG, "Invalid process type");

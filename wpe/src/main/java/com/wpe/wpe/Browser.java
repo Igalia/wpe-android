@@ -26,6 +26,8 @@ public class Browser {
     private IdentityHashMap<WPEView, Page> m_pages = null;
     private IdentityHashMap<WPEView, String> m_pendingLoads = null;
 
+    private WPEView m_activeView = null;
+
     private class UIProcessThread {
         private Thread m_thread;
         private BrowserGlue m_glueRef;
@@ -85,6 +87,7 @@ public class Browser {
         assert(!m_pages.containsKey(wpeView));
         View view = new View(context);
         m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), view, m_glue));
+        m_activeView = wpeView;
         loadPendingUrls(wpeView);
         return view;
     }
@@ -93,6 +96,21 @@ public class Browser {
         Log.d(LOGTAG, "Unregister Page for view");
         assert(m_pages.containsKey(wpeView));
         m_pages.remove(wpeView);
+        if (m_activeView == wpeView) {
+            m_activeView = null;
+        }
+    }
+
+    public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
+        Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
+        assert(m_pages.containsKey(wpeView));
+        if (visibility == android.view.View.VISIBLE) {
+            m_activeView = wpeView;
+        }
+    }
+
+    public Page getActivePage() {
+         return m_pages.get(m_activeView);
     }
 
     private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull String url) {

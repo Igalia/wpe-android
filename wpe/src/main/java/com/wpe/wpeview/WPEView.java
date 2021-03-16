@@ -2,6 +2,7 @@ package com.wpe.wpeview;
 
 import android.content.Context;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -18,7 +19,9 @@ import com.wpe.wpe.Browser;
  */
 @UiThread
 public class WPEView extends FrameLayout {
+    private static final String LOGTAG = "WPEView";
     private final Context m_context;
+
     public WPEView(final Context context) {
         super(context);
         m_context = context;
@@ -39,6 +42,12 @@ public class WPEView extends FrameLayout {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         Browser.getInstance().destroyPage(this);
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        Browser.getInstance().onVisibilityChanged(this, visibility);
     }
 
     /**
