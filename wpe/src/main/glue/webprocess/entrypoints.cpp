@@ -7,15 +7,15 @@
 #include "logging.h"
 
 extern "C" {
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_webprocess_Glue_initializeXdg(JNIEnv*, jobject, jstring);
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_webprocess_Glue_initializeFontconfig(JNIEnv*, jobject, jstring);
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_webprocess_Glue_initializeMain(JNIEnv*, jobject, jint, jint);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeXdg(JNIEnv*, jobject, jstring);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeFontconfig(JNIEnv*, jobject, jstring);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint, jint);
 
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_webprocess_Glue_provideSurface(JNIEnv*, jobject, jobject);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_provideSurface(JNIEnv*, jobject, jobject);
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_webprocess_Glue_initializeXdg(JNIEnv* env, jobject, jstring xdgCachePath)
+Java_com_wpe_wpe_services_WebProcessGlue_initializeXdg(JNIEnv* env, jobject, jstring xdgCachePath)
 {
     ALOGV("Glue::initializeXdg()");
 
@@ -26,7 +26,7 @@ Java_com_wpe_wpe_services_webprocess_Glue_initializeXdg(JNIEnv* env, jobject, js
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_webprocess_Glue_initializeFontconfig(JNIEnv* env, jobject, jstring fontconfigPath)
+Java_com_wpe_wpe_services_WebProcessGlue_initializeFontconfig(JNIEnv* env, jobject, jstring fontconfigPath)
 {
     ALOGV("Glue::initializeFontconfig(), path %p", fontconfigPath);
     jsize pathLength = env->GetStringUTFLength(fontconfigPath);
@@ -39,7 +39,7 @@ Java_com_wpe_wpe_services_webprocess_Glue_initializeFontconfig(JNIEnv* env, jobj
 using WebProcessEntryPoint = int(int, char**);
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_webprocess_Glue_initializeMain(JNIEnv*, jobject, jint fd1, jint fd2)
+Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint fd1, jint fd2)
 {
     pipe_stdout_to_logcat();
     enable_gst_debug();
@@ -63,7 +63,7 @@ Java_com_wpe_wpe_services_webprocess_Glue_initializeMain(JNIEnv*, jobject, jint 
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_webprocess_Glue_provideSurface(JNIEnv* env, jobject, jobject surface)
+Java_com_wpe_wpe_services_WebProcessGlue_provideSurface(JNIEnv* env, jobject, jobject surface)
 {
     ALOGV("Glue::provideSurface() surface object %p", surface);
 

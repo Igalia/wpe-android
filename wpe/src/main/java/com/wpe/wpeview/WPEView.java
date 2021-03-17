@@ -9,6 +9,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.Browser;
+import com.wpe.wpe.gfx.View;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
@@ -55,6 +56,10 @@ public class WPEView extends FrameLayout {
      * @param url The URL of the resource to be loaded.
      */
     public void loadUrl(@NonNull String url) {
-        Browser.getInstance().loadUrl(this, url);
+        View newView = Browser.getInstance().loadUrl(this, m_context, url);
+        if (newView != null) {
+            removeAllViews();
+            addView(newView);
+        }
     }
 }

@@ -28,9 +28,9 @@ android {
     }
 
     externalNativeBuild {
-      cmake {
-        path "CMakeLists.txt"
-      }
+        cmake {
+            path "CMakeLists.txt"
+        }
     }
 
     splits {
@@ -39,6 +39,51 @@ android {
             reset()
             include "arm64-v8a"
         }
+    }
+
+    def NUMBER_OF_AUX_PROCESSES = 40
+
+    android.libraryVariants.all { variant ->
+        variant.outputs.all { output ->
+            output.processManifest.doLast {
+                def manifestFile = file(output.processManifest.manifestOutputFile.get().asFile)
+                def manifestContent = manifestFile.getText()
+                def services = ""
+                for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; i++) {
+                    services += "\t\t<service\n" +
+                            "            android:name=\"com.wpe.wpe.services.WPEServices\$NetworkProcessService$i\"\n" +
+                            "            android:process=\":WPENetworkProcess$i\"/>\n" +
+                            "        <service\n" +
+                            "            android:name=\"com.wpe.wpe.services.WPEServices\$WebProcessService$i\"\n" +
+                            "            android:process=\":WPEWebProcess$i\"/>\n\n"
+                }
+                manifestContent = manifestContent.replace("<!-- SERVICES PLACEHOLDER -->", services)
+
+                println(manifestContent)
+
+                manifestFile.write(manifestContent)
+            }
+        }
+    }
+
+    android.libraryVariants.all { variant ->
+        File srcdir = new File("${project.projectDir}")
+
+        def wpeServicesTask = tasks.create("wpeservices${variant.name}").doLast({
+            def templateFile = file("$srcdir/src/main/java/com/wpe/wpe/services/WPEServices.java.template")
+            def templateFileContent = templateFile.getText()
+            def services = ""
+            for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; i++) {
+                services += "\tpublic static final class WebProcessService$i extends WebProcessService {}\n" +
+                        "\tpublic static final class NetworkProcessService$i extends NetworkProcessService {}\n"
+            }
+            templateFileContent = templateFileContent.replace("// SERVICES PLACEHOLDER", services)
+
+            def servicesFile = file("$srcdir/src/main/java/com/wpe/wpe/services/WPEServices.java")
+            servicesFile.write(templateFileContent)
+        })
+        wpeServicesTask.description = "Generate the code for multiple WPE auxiliary services"
+        variant.registerJavaGeneratingTask wpeServicesTask, srcdir
     }
 }
 

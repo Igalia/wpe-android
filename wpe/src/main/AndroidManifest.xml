@@ -7,12 +7,10 @@
 
     <application android:extractNativeLibs="true" android:debuggable="true"
         tools:ignore="HardcodedDebugMode">
-        <service
-            android:name="com.wpe.wpe.services.networkprocess.Service"
-            android:process=":WPENetworkProcess"/>
-        <service
-            android:name="com.wpe.wpe.services.webprocess.Service"
-            android:process=":WPEWebProcess"/>
+
+        <!-- Do not remove this section. Service definition is generated at build time -->
+        <!-- SERVICES PLACEHOLDER -->
+
     </application>
 
 </manifest>

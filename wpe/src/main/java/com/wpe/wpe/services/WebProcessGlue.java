@@ -1,8 +1,8 @@
-package com.wpe.wpe.services.webprocess;
+package com.wpe.wpe.services;
 
 import android.view.Surface;
 
-public class Glue {
+public class WebProcessGlue {
 
     static {
         System.loadLibrary("WPEBackend-default");

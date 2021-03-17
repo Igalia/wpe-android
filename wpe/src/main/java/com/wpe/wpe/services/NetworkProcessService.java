@@ -1,13 +1,14 @@
-package com.wpe.wpe.services.networkprocess;
+package com.wpe.wpe.services;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import com.wpe.wpe.services.NetworkProcessGlue;
 import com.wpe.wpe.services.WPEService;
 
-public class Service extends WPEService {
+public class NetworkProcessService extends WPEService {
     private static final String LOGTAG = "WPENetworkProcess";
 
     @Override
@@ -17,8 +18,8 @@ public class Service extends WPEService {
 
         Context context = getBaseContext();
         ApplicationInfo appInfo = context.getApplicationInfo();
-        Glue.initializeXdg(context.getCacheDir().getAbsolutePath());
-        Glue.initializeGioExtraModulesPath(appInfo.nativeLibraryDir);
+        NetworkProcessGlue.initializeXdg(context.getCacheDir().getAbsolutePath());
+        NetworkProcessGlue.initializeGioExtraModulesPath(appInfo.nativeLibraryDir);
     }
 
     @Override
@@ -28,7 +29,7 @@ public class Service extends WPEService {
         for (int i = 0; i < fds.length; ++i) {
             Log.v(LOGTAG, " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
         }
-        Glue.initializeMain(fds[0].detachFd());
+        NetworkProcessGlue.initializeMain(fds[0].detachFd());
     }
 
 }

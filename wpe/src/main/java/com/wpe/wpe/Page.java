@@ -24,10 +24,10 @@ import java.util.IdentityHashMap;
 public class Page {
     private final String LOGTAG;
     private final BrowserGlue m_glue;
-    private final View m_view;
     private final Context m_context;
     private final ArrayList<WPEServiceConnection> m_services;
-    private final PageThread m_thread;
+    private PageThread m_thread;
+    private View m_view;
     private long m_webViewRef = 0;
     private String m_pendingLoad;
 
@@ -44,7 +44,7 @@ public class Page {
             if (page == null) {
                 return;
             }
-            page.createWebView();
+            page.ensureWebView();
         }
     }
 
@@ -70,7 +70,6 @@ public class Page {
                         m_view.ensureSurfaceTexture();
                         Log.v(LOGTAG, "Surface texture ready");
                         m_handler.sendEmptyMessage(0);
-                        // TODO notify calling thread;
                         break;
                     }
                 }
@@ -98,9 +97,7 @@ public class Page {
         m_view = view;
         m_services = new ArrayList<>();
 
-        m_thread = new PageThread();
-        m_thread.run(m_view, new PageThreadMessageHandler(this));
-
+        ensureWebViewAndSurface();
     }
 
     public void close() {
@@ -109,6 +106,7 @@ public class Page {
             m_context.unbindService(serviceConnection);
         }
         m_services.clear();
+        m_view.release();
         BrowserGlue.destroyWebView(m_webViewRef);
     }
 
@@ -118,9 +116,18 @@ public class Page {
         close();
     }
 
-    private void createWebView() {
+    private void ensureWebViewAndSurface() {
+        m_thread = new PageThread();
+        m_thread.run(m_view, new PageThreadMessageHandler(this));
+    }
+
+    private void ensureWebView() {
         assert(m_view.width() > 0);
         assert(m_view.height() > 0);
+        if (m_webViewRef != 0) {
+            onReady(m_webViewRef);
+            return;
+        }
         BrowserGlue.newWebView(this, m_view.width(), m_view.height());
     }
 
@@ -129,7 +136,7 @@ public class Page {
        Log.v(LOGTAG, "Page ready");
        m_webViewRef = webViewRef;
        if (m_pendingLoad != null) {
-           loadUrl(m_pendingLoad);
+           loadUrlInternal();
        }
     }
 
@@ -150,13 +157,21 @@ public class Page {
         return m_view;
     }
 
-    public void loadUrl(@NonNull String url) {
+    private void loadUrlInternal() {
+        BrowserGlue.loadURL(m_webViewRef, m_pendingLoad);
+    }
+
+    public View loadUrl(@NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
-        if (m_webViewRef == 0) {
-            Log.d(LOGTAG, "Need to queue load of url " + url);
-            m_pendingLoad = url;
-            return;
+        if (m_webViewRef != 0) {
+            // If we already have a WebKitWebView reference, we can reuse it.
+            // However we need to recreate the gfx View and get a new texture.
+            m_view.release();
+            m_view = new View(context);
         }
-        BrowserGlue.loadURL(m_webViewRef, url);
+        Log.d(LOGTAG, "Ensuring WebView and Surface texture. Need to queue load of url " + url);
+        m_pendingLoad = url;
+        ensureWebViewAndSurface();
+        return m_view;
     }
 }

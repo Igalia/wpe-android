@@ -1,6 +1,7 @@
 package com.wpe.wpe;
 
 import com.wpe.wpe.services.WPEServiceConnection;
+import com.wpe.wpe.services.WPEServices;
 
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
@@ -53,20 +54,26 @@ public class BrowserGlue {
             return;
         }
 
-        switch (processType) {
-            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-                Log.v(LOGTAG, "Should launch WebProcess");
-                page.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
-                                   parcelFds, com.wpe.wpe.services.webprocess.Service.class);
-                break;
-            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                Log.v(LOGTAG, "Should launch NetworkProcess");
-                page.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
-                                   parcelFds, com.wpe.wpe.services.networkprocess.Service.class);
-                break;
-            default:
-                Log.v(LOGTAG, "Invalid process type");
-                break;
+        try {
+            switch (processType) {
+                case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
+                    Log.v(LOGTAG, "Should launch WebProcess");
+                    page.launchService(WPEServiceConnection.PROCESS_TYPE_WEBPROCESS,
+                            parcelFds, Class.forName("com.wpe.wpe.services.WPEServices$WebProcessService" + m_browser.m_webProcessCount));
+                    m_browser.m_webProcessCount++;
+                    break;
+                case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
+                    Log.v(LOGTAG, "Should launch NetworkProcess");
+                    page.launchService(WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS,
+                            parcelFds, Class.forName("com.wpe.wpe.services.WPEServices$NetworkProcessService" + m_browser.m_networkProcessCount));
+                    m_browser.m_networkProcessCount++;
+                    break;
+                default:
+                    Log.v(LOGTAG, "Invalid process type");
+                    break;
+            }
+        } catch (ClassNotFoundException e) {
+            Log.e(LOGTAG, "Could not launch auxiliary process " + e);
         }
     }
 }

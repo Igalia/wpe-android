@@ -170,6 +170,7 @@ public class View extends GLSurfaceView {
     private Renderer m_renderer;
     private boolean m_rendererSurfaceCreated = false;
     private int m_textureId = 0;
+    private Surface m_surface = null;
     private SurfaceTexture m_surfaceTexture = null;
     private boolean m_surfaceDirty = false;
     private int m_width;
@@ -199,6 +200,12 @@ public class View extends GLSurfaceView {
         setRenderer(m_renderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
         setPreserveEGLContextOnPause(true);
+    }
+
+    public void release() {
+        Log.v(LOGTAG, "Release");
+        m_surfaceTexture.release();
+        m_surface.release();
     }
 
     @Override
@@ -262,7 +269,11 @@ public class View extends GLSurfaceView {
     }
 
     public Surface createSurface() {
-        return new Surface(m_surfaceTexture);
+        if (m_surface != null) {
+            m_surface.release();
+        }
+        m_surface = new Surface(m_surfaceTexture);
+        return m_surface;
     }
 
     public int width() {

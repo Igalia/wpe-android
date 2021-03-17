@@ -6,13 +6,13 @@
 #include "logging.h"
 
 extern "C" {
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_networkprocess_Glue_initializeXdg(JNIEnv*, jobject, jstring);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_networkprocess_Glue_initializeGioExtraModulesPath(JNIEnv*, jobject, jstring);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_networkprocess_Glue_initializeMain(JNIEnv*, jobject, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeXdg(JNIEnv*, jobject, jstring);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeGioExtraModulesPath(JNIEnv*, jobject, jstring);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeMain(JNIEnv*, jobject, jint);
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_networkprocess_Glue_initializeXdg(JNIEnv* env, jobject, jstring xdgRuntimePath)
+Java_com_wpe_wpe_services_NetworkProcessGlue_initializeXdg(JNIEnv* env, jobject, jstring xdgRuntimePath)
 {
     ALOGV("Glue::initializeXdg()");
 
@@ -23,7 +23,7 @@ Java_com_wpe_wpe_services_networkprocess_Glue_initializeXdg(JNIEnv* env, jobject
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_networkprocess_Glue_initializeGioExtraModulesPath(JNIEnv* env, jobject, jstring extraModulesPath)
+Java_com_wpe_wpe_services_NetworkProcessGlue_initializeGioExtraModulesPath(JNIEnv* env, jobject, jstring extraModulesPath)
 {
     ALOGV("Glue::initializeGIOExtraModulesPath(), path %p", extraModulesPath);
     jsize pathLength = env->GetStringUTFLength(extraModulesPath);
@@ -34,7 +34,7 @@ Java_com_wpe_wpe_services_networkprocess_Glue_initializeGioExtraModulesPath(JNIE
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_networkprocess_Glue_initializeMain(JNIEnv*, jobject, jint fd)
+Java_com_wpe_wpe_services_NetworkProcessGlue_initializeMain(JNIEnv*, jobject, jint fd)
 {
     pipe_stdout_to_logcat();
 

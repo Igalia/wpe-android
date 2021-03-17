@@ -17,18 +17,33 @@ import java.util.IdentityHashMap;
  * Page instance.
  */
 @UiThread
-public class Browser {
+public final class Browser {
     private static final String LOGTAG = "WPE Browser";
     private static Browser m_instance = null;
     private final BrowserGlue m_glue;
     private final UIProcessThread m_uiProcessThread;
 
     private IdentityHashMap<WPEView, Page> m_pages = null;
-    private IdentityHashMap<WPEView, String> m_pendingLoads = null;
+    private IdentityHashMap<WPEView, PendingLoad> m_pendingLoads = null;
+
+    // FIXME This needs to be reworked to use something different to flag which
+    //       exact processes/services are up and which are available for launch
+    public int m_webProcessCount = 0;
+    public int m_networkProcessCount = 0;
 
     private WPEView m_activeView = null;
 
-    private class UIProcessThread {
+    private final class PendingLoad {
+        public final String m_url;
+        public final Context m_context;
+
+        PendingLoad(Context context, String url) {
+            m_url = url;
+            m_context = context;
+        }
+    }
+
+    private final class UIProcessThread {
         private Thread m_thread;
         private BrowserGlue m_glueRef;
 
@@ -80,7 +95,7 @@ public class Browser {
     }
 
     public View createPage(@NonNull WPEView wpeView, @NonNull Context context) {
-        Log.d(LOGTAG, "Create new Page instance for view");
+        Log.d(LOGTAG, "Create new Page instance for view " + wpeView);
         if (m_pages == null) {
             m_pages = new IdentityHashMap<>();
         }
@@ -113,31 +128,31 @@ public class Browser {
          return m_pages.get(m_activeView);
     }
 
-    private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull String url) {
-        Log.v(LOGTAG, "No available page. Queueing " + url + " for load");
+    private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad) {
+        Log.v(LOGTAG, "No available page. Queueing " + pendingLoad.m_url + " for load");
         if (m_pendingLoads == null) {
             m_pendingLoads = new IdentityHashMap<>();
         }
         // We only care about the last url.
-        m_pendingLoads.put(wpeView, url);
+        m_pendingLoads.put(wpeView, pendingLoad);
     }
 
     private void loadPendingUrls(@NonNull WPEView wpeView) {
         if (m_pendingLoads == null) {
             return;
         }
-        String url = m_pendingLoads.remove(wpeView);
-        if (url != null) {
-            loadUrl(wpeView, url);
+        PendingLoad load = m_pendingLoads.remove(wpeView);
+        if (load != null) {
+            loadUrl(wpeView, load.m_context, load.m_url);
         }
     }
 
-    public void loadUrl(@NonNull WPEView view, @NonNull String url) {
+    public View loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
-        if (m_pages == null || !m_pages.containsKey(view)) {
-            queuePendingLoad(view, url);
-            return;
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            queuePendingLoad(wpeView, new PendingLoad(context, url));
+            return null;
         }
-        m_pages.get(view).loadUrl(url);
+        return m_pages.get(wpeView).loadUrl(context, url);
     }
 }
