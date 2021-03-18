@@ -41,6 +41,12 @@ android {
         }
     }
 
+    // FIXME: There is no real fixed limitation on the number of services an app can spawn on
+    //        Android or the number of auxiliary processes WebKit spawns. However we have a
+    //        limitation imposed by the way Android requires Services to be defined in the
+    //        AndroidManifest. We have to generate the manifest at build time adding an independent
+    //        entry for each Service we expect to launch. This magic number is taken from GeckoView,
+    //        which uses a similar approach.
     def NUMBER_OF_AUX_PROCESSES = 40
 
     android.libraryVariants.all { variant ->

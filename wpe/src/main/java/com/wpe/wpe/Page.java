@@ -13,12 +13,9 @@ import androidx.annotation.UiThread;
 
 import com.wpe.wpe.gfx.View;
 import com.wpe.wpe.services.WPEServiceConnection;
-import com.wpe.wpeview.WPEView;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 
 @UiThread
 public class Page {
@@ -140,15 +137,16 @@ public class Page {
        }
     }
 
-    public void launchService(int processType, Parcelable[] fds, Class cls) {
+    public WPEServiceConnection launchService(int processType, Parcelable[] fds, Class cls) {
         Intent intent = new Intent(m_context, cls);
 
         WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, fds);
         m_services.add(serviceConnection);
         m_context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+        return serviceConnection;
     }
 
-    public void dropService(WPEServiceConnection serviceConnection) {
+    public void stopService(WPEServiceConnection serviceConnection) {
         m_context.unbindService(serviceConnection);
         m_services.remove(serviceConnection);
     }

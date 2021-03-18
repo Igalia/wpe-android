@@ -19,8 +19,8 @@ extern "C" {
 }
 
 // These are used by WebKit to call into the Java layer.
-JNIEXPORT JNIEnv* s_WPEUIProcessGlue_env = 0;
-JNIEXPORT jobject s_WPEUIProcessGlue_object = 0;
+JNIEXPORT JNIEnv* s_BrowserGlue_env = 0;
+JNIEXPORT jobject s_BrowserGlue_object = 0;
 
 // This is used for cross-thread callbacks.
 static jclass s_PageClass = nullptr;
@@ -30,8 +30,8 @@ JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
 {
     ALOGV("PageGlue.init()");
-    s_WPEUIProcessGlue_env = env;
-    s_WPEUIProcessGlue_object = glueObj;
+    s_BrowserGlue_env = env;
+    s_BrowserGlue_object = glueObj;
     wpe_browser_glue_init();
 }
 

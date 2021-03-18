@@ -53,6 +53,8 @@ public class WPEServiceConnection implements ServiceConnection {
     public void onServiceDisconnected(ComponentName name)
     {
         Log.i(LOGTAG, "onServiceDisconnected()");
-        m_page.dropService(this);
+        // FIXME We need to notify WebKit about the Service being killed.
+        //       What should WebKit do in this case?
+        m_page.stopService(this);
     }
 }
