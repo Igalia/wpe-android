@@ -17,6 +17,13 @@ import com.wpe.wpe.services.WPEServiceConnection;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 
+/**
+ * A Page roughly corresponds with a tab in a regular browser UI.
+ * There is a 1:1 relationship between WPEView and Page.
+ * Each Page instance has its own wpe.wpe.gfx.View and WebKitWebView instances associated.
+ * It also keeps references to the Services that host the logic of WebKit's auxiliary
+ * processes (WebProcess and NetworkProcess).
+ */
 @UiThread
 public class Page {
     private final String LOGTAG;
@@ -45,6 +52,11 @@ public class Page {
         }
     }
 
+    /**
+     * This thread is used during the initialization process of each Page instance
+     * to get a reference to its associated WebKitWebView from the browser glue and
+     * a valid Surface texture from its associated gfx.View.
+     */
     private class PageThread {
         private Thread m_thread;
         private View m_view;
@@ -128,6 +140,11 @@ public class Page {
         BrowserGlue.newWebView(this, m_view.width(), m_view.height());
     }
 
+    /**
+     * Callback triggered when the associated WebKitWebView instance is created.
+     * This is called by the JNI layer. See `Java_com_wpe_wpe_BrowserGlue_newWebView`
+     * @param webViewRef The reference to the associated WebKitWebView instance.
+     */
     @Keep
     public void onReady(long webViewRef) {
        Log.v(LOGTAG, "Page ready");
@@ -162,10 +179,12 @@ public class Page {
     public View loadUrl(@NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
         if (m_webViewRef != 0) {
-            // If we already have a WebKitWebView reference, we can reuse it.
-            // However we need to recreate the gfx View and get a new texture.
+            // FIXME: If we already have a WebKitWebView reference, we can probably reuse it.
+            // However we always need to recreate the gfx View and get a new texture.
             m_view.release();
             m_view = new View(context);
+            BrowserGlue.destroyWebView(m_webViewRef);
+            m_webViewRef = 0;
         }
         Log.d(LOGTAG, "Ensuring WebView and Surface texture. Need to queue load of url " + url);
         m_pendingLoad = url;

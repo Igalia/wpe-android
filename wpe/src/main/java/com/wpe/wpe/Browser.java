@@ -231,6 +231,14 @@ public final class Browser {
         return m_instance;
     }
 
+    /**
+     * Create a new Page instance.
+     * A Page corresponds to a tab in regular browser's UI
+     * @param wpeView The WPEView instance this Page is associated with.
+     *                There is a 1:1 relation between WPEView and Page instances.
+     * @param context The Context this Page is created in.
+     * @return a {@link com.wpe.wpe.gfx.View.Class} instance
+     */
     public View createPage(@NonNull WPEView wpeView, @NonNull Context context) {
         Log.d(LOGTAG, "Create new Page instance for view " + wpeView);
         if (m_pages == null) {
