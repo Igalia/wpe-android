@@ -10,12 +10,14 @@ import android.util.Log;
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
+import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.gfx.View;
+import com.wpe.wpe.gfx.ViewObserver;
 import com.wpe.wpe.services.WPEServiceConnection;
+import com.wpe.wpeview.WPEView;
 
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 
 /**
  * A Page roughly corresponds with a tab in a regular browser UI.
@@ -27,12 +29,25 @@ import java.util.ArrayList;
 @UiThread
 public class Page {
     private final String LOGTAG;
-    private final BrowserGlue m_glue;
+
     private final Context m_context;
-    private final ArrayList<WPEServiceConnection> m_services;
+
+    private final BrowserGlue m_glue;
+
+    private final int m_width;
+    private final int m_height;
+
+    private WPEServiceConnection m_webProcess;
+    private WPEServiceConnection m_networkProcess;
+
+    private final PageThreadMessageHandler m_handler;
     private PageThread m_thread;
+
     private View m_view;
+    private final ViewObserver m_viewObserver;
+
     private long m_webViewRef = 0;
+
     private String m_pendingLoad;
 
     private static class PageThreadMessageHandler extends Handler {
@@ -48,14 +63,12 @@ public class Page {
             if (page == null) {
                 return;
             }
-            page.ensureWebView();
+            page.onViewReady();
         }
     }
 
     /**
-     * This thread is used during the initialization process of each Page instance
-     * to get a reference to its associated WebKitWebView from the browser glue and
-     * a valid Surface texture from its associated gfx.View.
+     * This thread is used to get a valid Surface texture from its associated gfx.View.
      */
     private class PageThread {
         private Thread m_thread;
@@ -69,15 +82,20 @@ public class Page {
                 public void run() {
                     Log.i(LOGTAG, "In Page thread");
                     while (true) {
-                        try {
-                            while (self.m_view == null) {
-                                self.wait();
+                        synchronized (self) {
+                            try {
+                                while (self.m_view == null) {
+                                    Log.i(LOGTAG, "Waiting");
+                                    self.wait();
+                                }
+                            } catch (InterruptedException e) {
+                                Log.v(LOGTAG, "Interruption in Page thread");
                             }
-                        } catch (InterruptedException e) {
-                            Log.v(LOGTAG, "Interruption in Page thread");
                         }
+                        Log.v(LOGTAG, "ensureSurfaceTexture");
                         m_view.ensureSurfaceTexture();
                         Log.v(LOGTAG, "Surface texture ready");
+                        // Go back to the main thread.
                         m_handler.sendEmptyMessage(0);
                         break;
                     }
@@ -94,29 +112,37 @@ public class Page {
                 self.notifyAll();
             }
         }
+
+        public void stop() {
+            m_thread.interrupt();
+        }
     }
 
-    public Page(@NonNull Context context, @NonNull String pageId, @NonNull View view, @NonNull BrowserGlue browserGlue) {
+    public Page(@NonNull Context context, @NonNull String pageId, @NonNull BrowserGlue browserGlue, @NonNull ViewObserver observer) {
         LOGTAG = "WPE page" + pageId;
 
         Log.v(LOGTAG, "Page construction " + this);
 
         m_context = context;
         m_glue = browserGlue;
-        m_view = view;
-        m_services = new ArrayList<>();
 
-        ensureWebViewAndSurface();
+        m_width =  ((WPEView)observer).getMeasuredWidth();
+        m_height = ((WPEView)observer).getMeasuredHeight();
+
+        m_viewObserver = observer;
+
+        m_handler = new PageThreadMessageHandler(this);
+
+        ensureWebView();
     }
 
     public void close() {
         Log.v(LOGTAG, "Page destruction");
-        for (WPEServiceConnection serviceConnection : m_services) {
-            m_context.unbindService(serviceConnection);
-        }
-        m_services.clear();
-        m_view.release();
+        m_view.releaseTexture();
+        m_context.unbindService(m_webProcess);
+        m_context.unbindService(m_networkProcess);
         BrowserGlue.destroyWebView(m_webViewRef);
+        m_webViewRef = 0;
     }
 
     @Override
@@ -125,47 +151,92 @@ public class Page {
         close();
     }
 
-    private void ensureWebViewAndSurface() {
-        m_thread = new PageThread();
-        m_thread.run(m_view, new PageThreadMessageHandler(this));
-    }
-
-    private void ensureWebView() {
-        assert(m_view.width() > 0);
-        assert(m_view.height() > 0);
-        if (m_webViewRef != 0) {
-            onReady(m_webViewRef);
-            return;
-        }
-        BrowserGlue.newWebView(this, m_view.width(), m_view.height());
-    }
-
     /**
      * Callback triggered when the associated WebKitWebView instance is created.
      * This is called by the JNI layer. See `Java_com_wpe_wpe_BrowserGlue_newWebView`
      * @param webViewRef The reference to the associated WebKitWebView instance.
      */
     @Keep
-    public void onReady(long webViewRef) {
-       Log.v(LOGTAG, "Page ready");
-       m_webViewRef = webViewRef;
-       if (m_pendingLoad != null) {
-           loadUrlInternal();
-       }
+    public void onWebViewReady(long webViewRef) {
+        Log.v(LOGTAG, "WebKitWebView ready");
+        m_webViewRef = webViewRef;
+        loadUrlInternal();
     }
 
+    private void ensureWebView() {
+        if (m_webViewRef != 0) {
+            onWebViewReady(m_webViewRef);
+            return;
+        }
+        // Requests the creation of a new WebKitWebView. On creation, the `onWebViewReady` callback
+        // is triggered.
+        BrowserGlue.newWebView(this, m_width, m_height);
+    }
+
+    public void onViewReady() {
+        m_viewObserver.onViewReady(m_view);
+    }
+
+    private void ensureSurface() {
+        if (m_thread != null) {
+            m_thread.stop();
+            m_thread = null;
+        }
+        m_thread = new PageThread();
+        m_thread.run(m_view, m_handler);
+    }
+
+    @WorkerThread
     public WPEServiceConnection launchService(int processType, Parcelable[] fds, Class cls) {
+        // This runs in the UIProcess thread.
+        Log.v(LOGTAG, "launchService type: " + processType);
         Intent intent = new Intent(m_context, cls);
 
         WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, fds);
-        m_services.add(serviceConnection);
+        switch (processType) {
+            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
+                // FIXME: we probably want to kill the current web process here if any exists when
+                //        PSON is enabled.
+                m_webProcess = serviceConnection;
+                // WebKit's PSON (Process Switch On Navigation) creates new web processes when
+                // navigating across different security origins. In these case, we may already have
+                // created a previous WebKitWebView and gfx.View that we can reuse. We still need
+                // to create a fresh Surface in all cases though.
+                // FIXME: PSON is disabled at the moment because we have no way to handle the process
+                //        pool cache yet.
+                if (m_view == null) {
+                    m_view = new View(m_context);
+                    m_viewObserver.onViewCreated(m_view);
+                } else {
+                    m_view.releaseTexture();
+                }
+                ensureSurface();
+                break;
+            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
+                m_networkProcess = serviceConnection;
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown process type");
+        }
         m_context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
         return serviceConnection;
     }
 
+    @WorkerThread
     public void stopService(WPEServiceConnection serviceConnection) {
+        Log.d(LOGTAG, "stopService type: " + serviceConnection.processType());
+        // This runs in the UIProcess thread.
         m_context.unbindService(serviceConnection);
-        m_services.remove(serviceConnection);
+        switch (serviceConnection.processType()) {
+            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
+                m_webProcess = null;
+                break;
+            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
+                m_networkProcess = null;
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown process type");
+        }
     }
 
     public View view() {
@@ -173,22 +244,16 @@ public class Page {
     }
 
     private void loadUrlInternal() {
+        if (m_pendingLoad == null) {
+            return;
+        }
         BrowserGlue.loadURL(m_webViewRef, m_pendingLoad);
+        m_pendingLoad = null;
     }
 
-    public View loadUrl(@NonNull Context context, @NonNull String url) {
-        Log.d(LOGTAG, "Load URL " + url);
-        if (m_webViewRef != 0) {
-            // FIXME: If we already have a WebKitWebView reference, we can probably reuse it.
-            // However we always need to recreate the gfx View and get a new texture.
-            m_view.release();
-            m_view = new View(context);
-            BrowserGlue.destroyWebView(m_webViewRef);
-            m_webViewRef = 0;
-        }
-        Log.d(LOGTAG, "Ensuring WebView and Surface texture. Need to queue load of url " + url);
+    public void loadUrl(@NonNull Context context, @NonNull String url) {
+        Log.d(LOGTAG, "Queue URL load " + url);
         m_pendingLoad = url;
-        ensureWebViewAndSurface();
-        return m_view;
+        ensureWebView();
     }
 }

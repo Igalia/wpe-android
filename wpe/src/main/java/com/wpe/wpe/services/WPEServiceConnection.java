@@ -57,4 +57,8 @@ public class WPEServiceConnection implements ServiceConnection {
         //       What should WebKit do in this case?
         m_page.stopService(this);
     }
+
+    public int processType() {
+        return m_processType;
+    }
 }

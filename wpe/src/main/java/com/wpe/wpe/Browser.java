@@ -9,7 +9,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
-import com.wpe.wpe.gfx.View;
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
 
@@ -19,11 +18,10 @@ import java.util.Map;
 
 /**
  * Top level Singleton object. Somehow equivalent to WebKit's UIProcess. Among other duties it:
- *
+ * <p>
  * - manages the creation and destruction of Page instances.
  * - funnels WPEView API calls to the appropriate Page instance.
  * - manages the Android Services equivalent to WebKit's auxiliary processes.
- *
  */
 @UiThread
 public final class Browser {
@@ -57,17 +55,18 @@ public final class Browser {
 
     /**
      * The list of active auxiliary processes.
+     *
      * @see AuxiliaryProcesses.AuxiliaryProcess
      */
     private final AuxiliaryProcesses m_auxiliaryProcesses = new AuxiliaryProcesses();
 
     /**
      * The active view is the last view that changed its visibility to VISIBLE.
-     *
+     * <p>
      * We use this to know which auxiliary processes belongs to which WPEView/Page instance.
-     *
+     * <p>
      * FIXME: Find a better way to do this match. There are cases where this might not be
-     *        true (i.e. a non-visible tab triggering the creation of a new WebProcess)
+     * true (i.e. a non-visible tab triggering the creation of a new WebProcess)
      */
     private WPEView m_activeView = null;
 
@@ -87,22 +86,22 @@ public final class Browser {
      * in a shared network process. In addition to handling all network accesses, this process is
      * also responsible for managing the disk cache and Web APIs that allow websites to store
      * structured data such as Web Storage API and IndexedDB API.
-     *
+     * <p>
      * Because a WebContent process can Just-in-Time compile arbitrary JavaScript code loaded from
      * the internet, meaning that it can write to memory that gets executed, this process is
      * tightly sandboxed. It does not have access to any file system unless the user grants an
      * access, and it does not have direct access to the underlying operating system’s clipboard,
      * microphone, or video camera even though there are Web APIs that grant access to those
      * features. Instead, UI process brokers such requests.
-     *
+     * <p>
      * Given that Android forbids the fork syscall on non-rooted devices, we cannot directly spawn
      * child processes. Instead we use Android Services to host the logic of WebKit's auxiliary
      * processes.
-     *
+     * <p>
      * The life cycle of all WebKit's auxiliary processes is managed by WebKit itself. We only proxy
      * requests to spawn and terminate these processes/services.
      * FIXME: except for the case where Android decides to kill a Service. In that case we need to
-     *        notify WebKit. And? wait for WebKit to spawn the Service again?
+     * notify WebKit. And? wait for WebKit to spawn the Service again?
      */
     private final class AuxiliaryProcesses {
         private final class AuxiliaryProcess {
@@ -130,7 +129,7 @@ public final class Browser {
             if (m_firstAvailableIndex >= MAX_AUX_PROCESSES) {
                 throw new LimitExceededException("Limit exceeded spawning a new auxiliary process");
             }
-            assert(m_processes[m_firstAvailableIndex] == null);
+            assert (m_processes[m_firstAvailableIndex] == null);
             m_processes[m_firstAvailableIndex] = new AuxiliaryProcess(pid, page, connection);
             m_processIndexes.put(pid, m_firstAvailableIndex);
             m_firstAvailableIndex++;
@@ -181,7 +180,7 @@ public final class Browser {
      * It hosts an instance of WebKitWebContext and runs the main loop.
      */
     private final class UIProcessThread {
-        private Thread m_thread;
+        private final Thread m_thread;
         private BrowserGlue m_glueRef;
 
         UIProcessThread() {
@@ -234,27 +233,25 @@ public final class Browser {
     /**
      * Create a new Page instance.
      * A Page corresponds to a tab in regular browser's UI
+     *
      * @param wpeView The WPEView instance this Page is associated with.
      *                There is a 1:1 relation between WPEView and Page instances.
      * @param context The Context this Page is created in.
-     * @return a {@link com.wpe.wpe.gfx.View.Class} instance
      */
-    public View createPage(@NonNull WPEView wpeView, @NonNull Context context) {
+    public void createPage(@NonNull WPEView wpeView, @NonNull Context context) {
         Log.d(LOGTAG, "Create new Page instance for view " + wpeView);
         if (m_pages == null) {
             m_pages = new IdentityHashMap<>();
         }
-        assert(!m_pages.containsKey(wpeView));
-        View view = new View(context);
-        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), view, m_glue));
+        assert (!m_pages.containsKey(wpeView));
+        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), m_glue, wpeView));
         m_activeView = wpeView;
         loadPendingUrls(wpeView);
-        return view;
     }
 
     public void destroyPage(@NonNull WPEView wpeView) {
         Log.d(LOGTAG, "Unregister Page for view");
-        assert(m_pages.containsKey(wpeView));
+        assert (m_pages.containsKey(wpeView));
         Page page = m_pages.remove(wpeView);
         page.close();
         if (m_activeView == wpeView) {
@@ -264,7 +261,10 @@ public final class Browser {
 
     public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
         Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
-        assert(m_pages.containsKey(wpeView));
+        if (m_pages == null) {
+            return;
+        }
+        assert (m_pages.containsKey(wpeView));
         if (visibility == android.view.View.VISIBLE) {
             m_activeView = wpeView;
         }
@@ -337,12 +337,12 @@ public final class Browser {
         }
     }
 
-    public View loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url) {
+    public void loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Load URL " + url);
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             queuePendingLoad(wpeView, new PendingLoad(context, url));
-            return null;
+            return;
         }
-        return m_pages.get(wpeView).loadUrl(context, url);
+        m_pages.get(wpeView).loadUrl(context, url);
     }
 }

@@ -1,6 +1,7 @@
 package com.wpe.wpe.gfx;
 
 import android.content.Context;
+import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.opengl.EGL14;
 import android.opengl.GLES11Ext;
@@ -26,7 +27,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 @UiThread
 public class View extends GLSurfaceView {
-    private static final String LOGTAG = "WPE View";
+    private static final String LOGTAG = "WPE gfx View";
 
     private static class Renderer implements GLSurfaceView.Renderer {
         private View m_view;
@@ -200,12 +201,12 @@ public class View extends GLSurfaceView {
         setRenderer(m_renderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
         setPreserveEGLContextOnPause(true);
+        requestLayout();
     }
 
-    public void release() {
-        Log.v(LOGTAG, "Release");
+    public void releaseTexture() {
+        Log.v(LOGTAG, "Release texture");
         m_surfaceTexture.release();
-        m_surface.release();
     }
 
     @Override
@@ -249,15 +250,15 @@ public class View extends GLSurfaceView {
                                     Log.v(LOGTAG, "new frame available for surfaceTexture " + surfaceTexture);
                                     synchronized (view) {
                                         view.m_surfaceDirty = true;
+                                        view.notifyAll();
                                     }
                                     requestRender();
                                 }
                             });
-                            view.notifyAll();
                         }
                     }
                 });
-                while (m_surfaceTexture == null) {
+                while (m_surfaceTexture == null && !view.m_surfaceDirty) {
                     view.wait();
                 }
             } catch (InterruptedException e) {
@@ -269,11 +270,11 @@ public class View extends GLSurfaceView {
     }
 
     public Surface createSurface() {
-        if (m_surface != null) {
-            m_surface.release();
+        if (m_surfaceTexture == null) {
+            Log.e(LOGTAG, "No surface texture");
+            return null;
         }
-        m_surface = new Surface(m_surfaceTexture);
-        return m_surface;
+        return new Surface(m_surfaceTexture);
     }
 
     public int width() {

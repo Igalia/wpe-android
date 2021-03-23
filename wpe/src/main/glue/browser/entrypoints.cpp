@@ -50,7 +50,7 @@ Java_com_wpe_wpe_BrowserGlue_newWebView(JNIEnv* env, jobject, jobject pageObj, j
     s_PageClass = reinterpret_cast<jclass>(env->NewGlobalRef(localPageClass));
     s_PageObj = reinterpret_cast<jobject>(env->NewGlobalRef(pageObj));
     wpe_browser_glue_new_web_view(width, height, [env, pageObj] (long viewRef) {
-        jmethodID onReady = env->GetMethodID(s_PageClass, "onReady", "(J)V");
+        jmethodID onReady = env->GetMethodID(s_PageClass, "onWebViewReady", "(J)V");
         if (onReady == nullptr) {
             return;
         }
