@@ -1,7 +1,6 @@
 package com.wpe.wpeview;
 
 import android.content.Context;
-import android.opengl.GLSurfaceView;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.widget.FrameLayout;
@@ -89,16 +88,7 @@ public class WPEView extends FrameLayout implements ViewObserver {
     @Override @WorkerThread
     public void onViewReady(View view) {
         Log.v(LOGTAG, "View ready " + getChildCount());
-        post(new Runnable() {
-            public void run() {
-                // Run on the main thread
-                try {
-                    // FIXME: Once PSON is enabled we may want to do something smarter here and not
-                    //        display the view until this point.
-                } catch(Exception e) {
-                    Log.e(LOGTAG, e.toString());
-                }
-            }
-        });
+        // FIXME: Once PSON is enabled we may want to do something smarter here and not
+        //        display the view until this point.
     }
 }
