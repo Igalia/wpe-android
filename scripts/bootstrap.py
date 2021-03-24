@@ -29,7 +29,7 @@ we only care about the libraries, except for WPEWebKit from which we want everyt
 
 The packaging step results in two different tar files. One containing the runtime assets
 and another one with the development assets. The content of these tar files is extracted
-in the `build/sysroot` folder.
+in the `cerbero/sysroot` folder.
 
 After that we are done with Cerbero and back into the bootstrap script.
 
@@ -57,17 +57,20 @@ import sys
 from pathlib import Path
 
 class Bootstrap:
-    def __init__(self, arch):
+    def __init__(self, arch, debug):
         self.__version = '2.30.4'
         self.__arch = arch
         self.__root = os.getcwd()
-        self.__build_dir = os.path.join(os.getcwd(), 'build')
-        # These are the libraries that the glue code link with,
-        # that go into the `imported` folder and cannot go into
-        # the `jniFolder` to avoid a duplicated library issue.
+        self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
+        self.__debug = debug
+        # These are the libraries that the glue code link with, and are required during build
+        # time. These libreries go into the `imported` folder and cannot go into the `jniFolder`
+        # to avoid a duplicated library issue.
         self.__build_libs = [
             'glib-2.0',
+            'libgio-2.0.so',
             'libglib-2.0.so',
+            'libgobject-2.0.so',
             'libwpe-1.0.so',
             'libWPEWebKit-1.0.so',
             'libWPEWebKit-1.0_3.so',
@@ -95,6 +98,23 @@ class Bootstrap:
         command += args
         subprocess.call(command)
 
+    def __patch_wk_for_debug_build(self):
+        wk_recipe_path = os.path.join(self.__build_dir, 'recipes', 'wpewebkit.recipe')
+        with open(wk_recipe_path, 'r') as recipe_file:
+            recipe_contents = recipe_file.read()
+        recipe_contents = recipe_contents.replace('-DLOG_DISABLED=1', '-DLOG_DISABLED=0')
+        recipe_contents = recipe_contents.replace('-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_BUILD_TYPE=Debug')
+        recipe_contents = recipe_contents.replace('self.append_env(\'WEBKIT_DEBUG\', \'\')', 'self.append_env(\'WEBKIT_DEBUG\', \'all\')')
+        with open(wk_recipe_path, 'w') as recipe_file:
+            recipe_file.write(recipe_contents)
+
+        wk_package_path = os.path.join(self.__build_dir, 'packages', 'wpewebkit.package')
+        with open(wk_package_path, 'r') as package_file:
+            package_contents = package_file.read()
+        package_contents = package_contents.replace('strip = True', 'strip = False')
+        with open(wk_package_path, 'w') as package_file:
+            package_file.write(package_contents)
+
     def __ensure_cerbero(self):
         # TODO: change this to a public URL once we publish the
         #       cerbero changes
@@ -107,9 +127,12 @@ class Bootstrap:
             subprocess.call(['git', 'pull', 'origin', branch])
             os.chdir(self.__root)
         else:
-            subprocess.call(['git', 'clone', '--branch', branch, origin, 'build'])
+            subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
 
         self.__cerbero_command(['bootstrap'])
+
+        if self.__debug:
+            self.__patch_wk_for_debug_build()
 
     def __build_deps(self):
         self.__cerbero_command(['package', '-f', 'wpewebkit'])
@@ -283,8 +306,8 @@ class Bootstrap:
         self.install_deps(os.path.join(self.__build_dir, 'sysroot'))
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: ./bootstrap.py <arch> (i.e. ./bootstrap.py arm64)")
+    if len(sys.argv) < 2 and len(sys.argv) > 3:
+        print("Usage: ./bootstrap.py <arch> [debug] (i.e. ./bootstrap.py arm64 or ./bootstrap.py arm64 debug)")
         exit()
-    Bootstrap(sys.argv[1]).run()
+    Bootstrap(sys.argv[1], len(sys.argv) == 3 and sys.argv[2] == 'debug').run()
 

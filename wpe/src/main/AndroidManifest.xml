@@ -1,12 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.wpe.wpe">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.wpe.wpe">
+
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <application android:extractNativeLibs="true">
-        <service
-            android:name="com.wpe.wpe.NetworkProcess.Service"
-            android:process=":WPENetworkProcess"/>
-        <service
-            android:name="com.wpe.wpe.WebProcess.Service"
-            android:process=":WPEWebProcess"/>
+    <application android:extractNativeLibs="true" android:debuggable="true"
+        tools:ignore="HardcodedDebugMode">
+
+        <!-- Do not remove this section. Service definition is generated at build time -->
+        <!-- SERVICES PLACEHOLDER -->
+
     </application>
+
 </manifest>

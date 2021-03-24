@@ -1,44 +1,103 @@
-apply plugin: 'com.android.library'
+plugins {
+    id 'com.android.library'
+}
 
 android {
-    compileSdkVersion 24
-    buildToolsVersion "25.0.2"
+    compileSdkVersion 30
+    buildToolsVersion "30.0.3"
 
     defaultConfig {
         minSdkVersion 23
-        targetSdkVersion 24
+        targetSdkVersion 30
         versionCode 1
         versionName "1.0"
 
-        ndk {
-            abiFilters 'arm64-v8a'
-        }
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
     }
+
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
         }
     }
+
     splits {
         abi {
-            enable false
+            enable true
             reset()
             include "arm64-v8a"
         }
     }
+
+    // FIXME: There is no real fixed limitation on the number of services an app can spawn on
+    //        Android or the number of auxiliary processes WebKit spawns. However we have a
+    //        limitation imposed by the way Android requires Services to be defined in the
+    //        AndroidManifest. We have to generate the manifest at build time adding an independent
+    //        entry for each Service we expect to launch. This magic number is taken from GeckoView,
+    //        which uses a similar approach.
+    def NUMBER_OF_AUX_PROCESSES = 40
+
+    android.libraryVariants.all { variant ->
+        variant.outputs.all { output ->
+            output.processManifest.doLast {
+                def manifestFile = file(output.processManifest.manifestOutputFile.get().asFile)
+                def manifestContent = manifestFile.getText()
+                def services = ""
+                for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; i++) {
+                    services += "\t\t<service\n" +
+                            "            android:name=\"com.wpe.wpe.services.WPEServices\$NetworkProcessService$i\"\n" +
+                            "            android:process=\":WPENetworkProcess$i\"/>\n" +
+                            "        <service\n" +
+                            "            android:name=\"com.wpe.wpe.services.WPEServices\$WebProcessService$i\"\n" +
+                            "            android:process=\":WPEWebProcess$i\"/>\n\n"
+                }
+                manifestContent = manifestContent.replace("<!-- SERVICES PLACEHOLDER -->", services)
+
+                println(manifestContent)
+
+                manifestFile.write(manifestContent)
+            }
+        }
+    }
+
+    android.libraryVariants.all { variant ->
+        File srcdir = new File("${project.projectDir}")
+
+        def wpeServicesTask = tasks.create("wpeservices${variant.name}").doLast({
+            def templateFile = file("$srcdir/src/main/java/com/wpe/wpe/services/WPEServices.java.template")
+            def templateFileContent = templateFile.getText()
+            def services = ""
+            for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; i++) {
+                services += "\tpublic static final class WebProcessService$i extends WebProcessService {}\n" +
+                        "\tpublic static final class NetworkProcessService$i extends NetworkProcessService {}\n"
+            }
+            templateFileContent = templateFileContent.replace("// SERVICES PLACEHOLDER", services)
+
+            def servicesFile = file("$srcdir/src/main/java/com/wpe/wpe/services/WPEServices.java")
+            servicesFile.write(templateFileContent)
+        })
+        wpeServicesTask.description = "Generate the code for multiple WPE auxiliary services"
+        variant.registerJavaGeneratingTask wpeServicesTask, srcdir
+    }
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
-        exclude group: 'com.android.support', module: 'support-annotations'
-    })
-    compile 'com.android.support:appcompat-v7:25.1.1'
-    testCompile 'junit:junit:4.12'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'com.google.android.material:material:1.3.0'
+    implementation "androidx.annotation:annotation:1.1.0"
+    testImplementation 'junit:junit:4.+'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.2'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 }
