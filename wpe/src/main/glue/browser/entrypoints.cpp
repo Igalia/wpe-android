@@ -13,8 +13,11 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_destroyWebView(JNIEnv*, jobject, jlong);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv*, jobject, jlong, jstring);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv*, jobject, jlong);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv*, jobject, jlong);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv*, jobject, jlong);
 
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jlong, jint, jfloat, jfloat);
 }
 
@@ -73,6 +76,24 @@ Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv* env, jobject, jlong webView, jstrin
     const char* urlChars = env->GetStringUTFChars(url, 0);
     jsize urlLength = env->GetStringUTFLength(url);
     wpe_browser_glue_load_url(webView, urlChars, urlLength);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_go_back(webView);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_go_forward(webView);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_reload(webView);
 }
 
 JNIEXPORT void JNICALL

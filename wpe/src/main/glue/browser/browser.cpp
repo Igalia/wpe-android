@@ -165,6 +165,18 @@ void wpe_browser_glue_load_url(jlong webView, const char *urlData, jsize urlSize
     });
 }
 
+void wpe_browser_glue_go_back(jlong webView) {
+    webkit_web_view_go_back((WebKitWebView*)webView);
+}
+
+void wpe_browser_glue_go_forward(jlong webView) {
+    webkit_web_view_go_forward((WebKitWebView*)webView);
+}
+
+void wpe_browser_glue_reload(jlong webView) {
+    webkit_web_view_reload((WebKitWebView*)webView);
+}
+
 static gboolean frame_complete_callback(gpointer) {
     wpe_android_view_backend_exportable_dispatch_frame_complete(s_viewBackendExportable);
     return G_SOURCE_REMOVE;

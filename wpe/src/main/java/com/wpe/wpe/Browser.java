@@ -345,4 +345,24 @@ public final class Browser {
         }
         m_pages.get(wpeView).loadUrl(context, url);
     }
+
+    public boolean canGoBack(@NonNull WPEView wpeView) {
+        return m_pages.get(wpeView).canGoBack();
+    }
+
+    public boolean canGoForward(@NonNull WPEView wpeView) {
+        return m_pages.get(wpeView).canGoForward();
+    }
+
+    public void goBack(@NonNull WPEView wpeView) {
+        m_pages.get(wpeView).goBack();
+    }
+
+    public void goForward(@NonNull WPEView wpeView) {
+        m_pages.get(wpeView).goForward();
+    }
+
+    public void reload(@NonNull WPEView wpeView) {
+        m_pages.get(wpeView).reload();
+    }
 }

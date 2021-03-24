@@ -62,14 +62,6 @@ public class WPEView extends FrameLayout implements ViewObserver {
         Browser.getInstance().onVisibilityChanged(this, visibility);
     }
 
-    /**
-     * Loads the given URL.
-     * @param url The URL of the resource to be loaded.
-     */
-    public void loadUrl(@NonNull String url) {
-        Browser.getInstance().loadUrl(this, m_context, url);
-    }
-
     @Override @WorkerThread
     public void onViewCreated(View view) {
         Log.v(LOGTAG, "View created " + view + " number of views " + getChildCount());
@@ -90,5 +82,50 @@ public class WPEView extends FrameLayout implements ViewObserver {
         Log.v(LOGTAG, "View ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
+    }
+
+    /************** PUBLIC WPEView API *******************/
+
+    /**
+     * Loads the given URL.
+     * @param url The URL of the resource to be loaded.
+     */
+    public void loadUrl(@NonNull String url) {
+        Browser.getInstance().loadUrl(this, m_context, url);
+    }
+
+    /**
+     * Gets whether this WPEView has a back history item.
+     */
+    public boolean canGoBack() {
+        return Browser.getInstance().canGoBack(this);
+    }
+
+    /**
+     * Gets whether this WPEView has a forward history item.
+     */
+    public boolean canGoForward() {
+        return Browser.getInstance().canGoForward(this);
+    }
+
+    /**
+     * Goes back in the history of this WPEView.
+     */
+    public void goBack() {
+        Browser.getInstance().goBack(this);
+    }
+
+    /**
+     * Goes forward in the history of this WPEView.
+     */
+    public void goForward() {
+        Browser.getInstance().goForward(this);
+    }
+
+    /**
+     * Reloads the current URL.
+     */
+    public void reload() {
+        Browser.getInstance().reload(this);
     }
 }

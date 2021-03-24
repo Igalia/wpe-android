@@ -3,6 +3,8 @@ package com.wpe.examples.minibrowser
 import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -53,6 +55,40 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         })
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.actions, menu)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_back -> {
+            browser?.goBack()
+            true
+        }
+
+        R.id.action_forward -> {
+            browser?.goForward()
+            true
+        }
+
+        R.id.action_reload -> {
+            browser?.reload()
+            true
+        }
+
+        else -> {
+            super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onBackPressed() {
+        if (browser?.canGoBack()!!) {
+            browser?.goBack()
+        } else {
+            super.onBackPressed()
+        }
     }
 
     fun onCommit(text: String) {

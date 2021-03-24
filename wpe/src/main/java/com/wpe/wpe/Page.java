@@ -50,6 +50,9 @@ public class Page {
 
     private String m_pendingLoad;
 
+    private boolean m_canGoBack = true;
+    private boolean m_canGoForward = true;
+
     private static class PageThreadMessageHandler extends Handler {
         private final WeakReference<Page> m_page;
 
@@ -255,5 +258,33 @@ public class Page {
         Log.d(LOGTAG, "Queue URL load " + url);
         m_pendingLoad = url;
         ensureWebView();
+    }
+
+    public boolean canGoBack() {
+        // FIXME this value need to be properly fetched from BrowserGlue and cached locally
+        return m_canGoBack;
+    }
+
+    public boolean canGoForward() {
+        // FIXME this value need to be properly fetched from BrowserGlue and cached locally
+        return m_canGoForward;
+    }
+
+    public void goBack() {
+        if (m_webViewRef != 0) {
+            BrowserGlue.goBack(m_webViewRef);
+        }
+    }
+
+    public void goForward() {
+        if (m_webViewRef != 0) {
+            BrowserGlue.goForward(m_webViewRef);
+        }
+    }
+
+    public void reload() {
+        if (m_webViewRef != 0) {
+            BrowserGlue.reload(m_webViewRef);
+        }
     }
 }
