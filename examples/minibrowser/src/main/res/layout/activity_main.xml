@@ -25,6 +25,13 @@
 
     </androidx.appcompat.widget.Toolbar>
 
+    <ProgressBar
+        android:id="@+id/page_progress"
+        style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_alignBottom="@id/toolbar" />
+
     <com.wpe.wpeview.WPEView
         android:id="@+id/wpe_view"
         android:layout_below="@id/toolbar"

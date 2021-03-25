@@ -230,6 +230,12 @@ public final class Browser {
         return m_instance;
     }
 
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        m_glue.deinit();
+    }
+
     /**
      * Create a new Page instance.
      * A Page corresponds to a tab in regular browser's UI
@@ -244,7 +250,7 @@ public final class Browser {
             m_pages = new IdentityHashMap<>();
         }
         assert (!m_pages.containsKey(wpeView));
-        m_pages.put(wpeView, new Page(context, String.valueOf(m_pages.size()), m_glue, wpeView));
+        m_pages.put(wpeView, new Page(context, wpeView, String.valueOf(m_pages.size())));
         m_activeView = wpeView;
         loadPendingUrls(wpeView);
     }

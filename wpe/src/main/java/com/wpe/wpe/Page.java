@@ -13,7 +13,6 @@ import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.gfx.View;
-import com.wpe.wpe.gfx.ViewObserver;
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
 
@@ -32,7 +31,9 @@ public class Page {
 
     private final Context m_context;
 
-    private final BrowserGlue m_glue;
+    private final WPEView m_wpeView;
+
+    private boolean m_closed = false;
 
     private final int m_width;
     private final int m_height;
@@ -44,7 +45,6 @@ public class Page {
     private PageThread m_thread;
 
     private View m_view;
-    private final ViewObserver m_viewObserver;
 
     private long m_webViewRef = 0;
 
@@ -121,18 +121,17 @@ public class Page {
         }
     }
 
-    public Page(@NonNull Context context, @NonNull String pageId, @NonNull BrowserGlue browserGlue, @NonNull ViewObserver observer) {
+    public Page(@NonNull Context context, @NonNull WPEView wpeView, @NonNull String pageId) {
         LOGTAG = "WPE page" + pageId;
 
         Log.v(LOGTAG, "Page construction " + this);
 
         m_context = context;
-        m_glue = browserGlue;
 
-        m_width =  ((WPEView)observer).getMeasuredWidth();
-        m_height = ((WPEView)observer).getMeasuredHeight();
+        m_wpeView = wpeView;
 
-        m_viewObserver = observer;
+        m_width =  wpeView.getMeasuredWidth();
+        m_height = wpeView.getMeasuredHeight();
 
         m_handler = new PageThreadMessageHandler(this);
 
@@ -140,18 +139,16 @@ public class Page {
     }
 
     public void close() {
+        if (m_closed) {
+            return;
+        }
+        m_closed = true;
         Log.v(LOGTAG, "Page destruction");
         m_view.releaseTexture();
         m_context.unbindService(m_webProcess);
         m_context.unbindService(m_networkProcess);
         BrowserGlue.destroyWebView(m_webViewRef);
         m_webViewRef = 0;
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        close();
     }
 
     /**
@@ -177,7 +174,7 @@ public class Page {
     }
 
     public void onViewReady() {
-        m_viewObserver.onViewReady(m_view);
+        m_wpeView.onViewReady(m_view);
     }
 
     private void ensureSurface() {
@@ -209,7 +206,7 @@ public class Page {
                 //        pool cache yet.
                 if (m_view == null) {
                     m_view = new View(m_context);
-                    m_viewObserver.onViewCreated(m_view);
+                    m_wpeView.onViewCreated(m_view);
                 } else {
                     m_view.releaseTexture();
                 }
@@ -258,6 +255,10 @@ public class Page {
         Log.d(LOGTAG, "Queue URL load " + url);
         m_pendingLoad = url;
         ensureWebView();
+    }
+
+    public void onLoadProgress(double progress) {
+        m_wpeView.onLoadProgress(progress);
     }
 
     public boolean canGoBack() {

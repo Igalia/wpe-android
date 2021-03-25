@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
@@ -23,7 +24,11 @@ import com.wpe.wpe.gfx.ViewObserver;
 @UiThread
 public class WPEView extends FrameLayout implements ViewObserver {
     private static final String LOGTAG = "WPEView";
+
     private final Context m_context;
+
+    private WebChromeClient m_chromeClient;
+    private int m_currentLoadProgress = 0;
 
     public WPEView(final Context context) {
         super(context);
@@ -84,6 +89,13 @@ public class WPEView extends FrameLayout implements ViewObserver {
         //        display the view until this point.
     }
 
+    public void onLoadProgress(double progress) {
+        m_currentLoadProgress = (int) (progress * 100);
+        if (m_chromeClient != null) {
+            m_chromeClient.onProgressChanged(this, m_currentLoadProgress);
+        }
+    }
+
     /************** PUBLIC WPEView API *******************/
 
     /**
@@ -96,6 +108,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     /**
      * Gets whether this WPEView has a back history item.
+     *
+     * @return true if this WPEView has a back history item.
      */
     public boolean canGoBack() {
         return Browser.getInstance().canGoBack(this);
@@ -103,6 +117,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     /**
      * Gets whether this WPEView has a forward history item.
+     *
+     * @return true if this WPEView has a forward history item.
      */
     public boolean canGoForward() {
         return Browser.getInstance().canGoForward(this);
@@ -127,5 +143,37 @@ public class WPEView extends FrameLayout implements ViewObserver {
      */
     public void reload() {
         Browser.getInstance().reload(this);
+    }
+
+    /**
+     * Gets the progress for the current page.
+     *
+     * @return the progress for the current page between 0 and 100
+     */
+    public int getProgress() {
+        return m_currentLoadProgress;
+    }
+
+    /**
+     * Sets the chrome handler. This is an implementation of WebChromeClient for
+     * use in handling JavaScript dialogs, favicons, titles, and the progress.
+     * This will replace the current handler.
+     *
+     * @param client an implementation of WebChromeClient
+     * @see #getWebChromeClient
+     */
+    public void setWebChromeClient(@Nullable WebChromeClient client) {
+        m_chromeClient = client;
+    }
+
+    /**
+     * Gets the chrome handler.
+     *
+     * @return the WebChromeClient, or {@code null} if not yet set
+     * @see #setWebChromeClient
+     */
+    @Nullable
+    public WebChromeClient getWebChromeClient() {
+        return m_chromeClient;
     }
 }

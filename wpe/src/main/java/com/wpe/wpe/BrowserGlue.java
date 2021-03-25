@@ -63,4 +63,9 @@ public class BrowserGlue {
         Log.d(LOGTAG, "terminateProcess " + pid);
         m_browser.terminateAuxiliaryProcess(pid);
     }
+
+    @Keep
+    public void loadProgress(double progress) {
+        Log.d(LOGTAG, "progress " + progress);
+    }
 }
