@@ -18,14 +18,15 @@ public class BrowserGlue {
     }
 
     public static native void init(BrowserGlue self);
-
     public static native void deinit();
 
     public static native void newWebView(Page page, int width, int height);
-
     public static native void destroyWebView(long webView);
 
     public static native void loadURL(long webView, String url);
+    public static native void goBack(long webView);
+    public static native void goForward(long webView);
+    public static native void reload(long webView);
 
     public static native void frameComplete();
 
@@ -61,5 +62,10 @@ public class BrowserGlue {
     public void terminateProcess(long pid) {
         Log.d(LOGTAG, "terminateProcess " + pid);
         m_browser.terminateAuxiliaryProcess(pid);
+    }
+
+    @Keep
+    public void loadProgress(double progress) {
+        Log.d(LOGTAG, "progress " + progress);
     }
 }

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "WPE Glue", __VA_ARGS__)
 #define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "WPE Glue", __VA_ARGS__)
 
 static int pfd[2];

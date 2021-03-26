@@ -3,19 +3,24 @@ package com.wpe.examples.minibrowser
 import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
 import com.wpe.wpeview.WPEView
+import com.wpe.wpeview.WebChromeClient
 
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 
 class MainActivity : AppCompatActivity() {
     private lateinit var urlEditText: EditText
+    private lateinit var progressView: ProgressBar
 
     // TODO Tabs support
     private var browser: WPEView? = null
@@ -31,11 +36,15 @@ class MainActivity : AppCompatActivity() {
         browser = findViewById(R.id.wpe_view)
         browser?.loadUrl(INITIAL_URL)
         urlEditText.setText(INITIAL_URL)
+
+        setChromeClient()
     }
 
     private fun setupToolbar() {
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.displayOptions = ActionBar.DISPLAY_SHOW_CUSTOM
+
+        progressView = findViewById(R.id.page_progress)
     }
 
     private fun setupUrlEditText() {
@@ -53,6 +62,54 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         })
+    }
+
+    private fun setChromeClient() {
+        browser?.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WPEView?, progress: Int) {
+                super.onProgressChanged(view, progress)
+                progressView.progress = progress
+                if (progress in 1..99) {
+                    progressView.visibility = View.VISIBLE
+                } else {
+                    progressView.visibility = View.GONE
+                }
+            }
+        };
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.actions, menu)
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
+        R.id.action_back -> {
+            browser?.goBack()
+            true
+        }
+
+        R.id.action_forward -> {
+            browser?.goForward()
+            true
+        }
+
+        R.id.action_reload -> {
+            browser?.reload()
+            true
+        }
+
+        else -> {
+            super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onBackPressed() {
+        if (browser?.canGoBack()!!) {
+            browser?.goBack()
+        } else {
+            super.onBackPressed()
+        }
     }
 
     fun onCommit(text: String) {

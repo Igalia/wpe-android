@@ -1,9 +1,11 @@
 #include <algorithm>
-#include <wpe-android/view-backend-exportable.h>
+
 #include <gio/gio.h>
 #include <glib.h>
 #include <glib-object.h>
 #include <gobject/gvaluecollector.h>
+
+#include <wpe-android/view-backend-exportable.h>
 
 #include <jni.h>
 
@@ -17,6 +19,10 @@ static GMainContext *uiProcessThreadContext = NULL;
 static GMainLoop *uiProcessThreadLoop;
 
 static wpe_android_view_backend_exportable *s_viewBackendExportable;
+
+// FIXME: tabs support. Use:
+//        static std::unordered_map<WebKitWebView*, std::unique_ptr<PageEventObserver>> pageObservers;
+static std::unique_ptr<PageEventObserver> pageObserver;
 
 static void ui_process_thread_entry() {
     pipe_stdout_to_logcat();
@@ -61,25 +67,32 @@ void wpe_browser_glue_deinit() {
     g_main_loop_quit(uiProcessThreadLoop);
 }
 
+static void onLoadChanged(WebKitWebView*, WebKitLoadEvent loadEvent, gpointer) {
+    pageObserver->onLoadChanged(loadEvent);
+}
+
+static void onLoadProgressChanged(WebKitWebView* webView, GParamSpec*, gpointer) {
+    gdouble progress = webkit_web_view_get_estimated_load_progress(webView);
+    pageObserver->onLoadProgress(progress);
+}
+
 typedef struct {
     GMainLoop *mainLoop;
     GMainContext *mainContext;
     int width;
     int height;
-    std::function<void (long)> callback;
-} WebViewInitData;
-
-typedef struct {
-    GMainLoop *mainLoop;
     WebKitWebView *webView;
     std::function<void (long)> callback;
-} NewWebViewData;
+    std::unique_ptr<PageEventObserver> observer;
+} WebViewInitData;
 
-void wpe_browser_glue_new_web_view(int width, int height, std::function<void (long)> callback) {
+void wpe_browser_glue_new_web_view(int width, int height,
+                                   std::unique_ptr<PageEventObserver> observer,
+                                   std::function<void (long)> callback) {
     ALOGV("wpe_browser_glue_new_web_view (%d, %d) tid %d", width, height, gettid());
 
     GMainLoop *resultLoop = g_main_loop_new(NULL, FALSE);
-    auto *data = new WebViewInitData { resultLoop, g_main_context_default(), width, height, callback };
+    auto *data = new WebViewInitData { resultLoop, g_main_context_default(), width, height, NULL, callback, std::move(observer) };
 
     g_main_context_invoke_full(uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
         g_assert(g_main_context_is_owner(uiProcessThreadContext));
@@ -96,16 +109,24 @@ void wpe_browser_glue_new_web_view(int width, int height, std::function<void (lo
 
         auto *webView = webkit_web_view_new(viewBackend);
 
+        // FIXME: This needs to be disconnected when the webview is closed. Not a big deal until we
+        //        want to support multiple tabs.
+        g_signal_connect(webView, "load-changed", G_CALLBACK(onLoadChanged), NULL);
+        g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onLoadProgressChanged), NULL);
+
         ALOGV("Created WebKitWebView %p", webView);
 
-        auto *resultData = new NewWebViewData { initData->mainLoop, webView, initData->callback };
+        initData->webView = webView;
+
         g_main_context_invoke_full(initData->mainContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
-            auto *resultData = reinterpret_cast<NewWebViewData*>(data);
-            resultData->callback((long)resultData->webView);
-            g_main_loop_quit(resultData->mainLoop);
+            auto *initData = reinterpret_cast<WebViewInitData*>(data);
+            initData->callback((long)initData->webView);
+            g_main_loop_quit(initData->mainLoop);
+
+            pageObserver = std::move(initData->observer);
 
             return G_SOURCE_REMOVE;
-        }, resultData, NULL);
+        }, initData, NULL);
 
         return G_SOURCE_REMOVE;
     }, data, NULL);
@@ -121,21 +142,6 @@ void wpe_browser_glue_close_web_view(jlong webView) {
         webkit_web_view_try_close(view);
         return G_SOURCE_REMOVE;
     }, reinterpret_cast<WebKitWebView*>(webView), NULL);
-}
-
-static void onLoadChanged(WebKitWebView* view, WebKitLoadEvent loadEvent, gpointer) {
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_STARTED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_REDIRECTED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_COMMITED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_FINISHED");
-    }
 }
 
 typedef struct {
@@ -154,8 +160,6 @@ void wpe_browser_glue_load_url(jlong webView, const char *urlData, jsize urlSize
 
         ALOGV("load_url %s", loadUrlData->url);
 
-        g_signal_connect(loadUrlData->webView, "load-changed", G_CALLBACK(onLoadChanged), NULL);
-
         webkit_web_view_load_uri(loadUrlData->webView, loadUrlData->url);
 
         return G_SOURCE_REMOVE;
@@ -163,6 +167,18 @@ void wpe_browser_glue_load_url(jlong webView, const char *urlData, jsize urlSize
         auto *loadUrlData = reinterpret_cast<LoadUrlData*>(data);
         g_free(loadUrlData->url);
     });
+}
+
+void wpe_browser_glue_go_back(jlong webView) {
+    webkit_web_view_go_back((WebKitWebView*)webView);
+}
+
+void wpe_browser_glue_go_forward(jlong webView) {
+    webkit_web_view_go_forward((WebKitWebView*)webView);
+}
+
+void wpe_browser_glue_reload(jlong webView) {
+    webkit_web_view_reload((WebKitWebView*)webView);
 }
 
 static gboolean frame_complete_callback(gpointer) {

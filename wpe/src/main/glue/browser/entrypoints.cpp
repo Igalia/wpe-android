@@ -1,9 +1,12 @@
+#include <dlfcn.h>
+#include <memory>
+#include <stdlib.h>
+
 #include <jni.h>
 
-#include "logging.h"
 #include "browser.h"
-#include <dlfcn.h>
-#include <stdlib.h>
+#include "logging.h"
+#include "pageeventobserver.h"
 
 extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_init(JNIEnv*, jobject, jobject);
@@ -13,6 +16,9 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_destroyWebView(JNIEnv*, jobject, jlong);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv*, jobject, jlong, jstring);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv*, jobject, jlong);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv*, jobject, jlong);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv*, jobject, jlong);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jlong, jint, jfloat, jfloat);
@@ -22,14 +28,10 @@ extern "C" {
 JNIEXPORT JNIEnv* s_BrowserGlue_env = 0;
 JNIEXPORT jobject s_BrowserGlue_object = 0;
 
-// This is used for cross-thread callbacks.
-static jclass s_PageClass = nullptr;
-static jobject s_PageObj = nullptr;
-
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
 {
-    ALOGV("PageGlue.init()");
+    ALOGV("BrowserGlue.init()");
     s_BrowserGlue_env = env;
     s_BrowserGlue_object = glueObj;
     wpe_browser_glue_init();
@@ -38,7 +40,7 @@ Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject)
 {
-    ALOGV("PageGlue.deinit()");
+    ALOGV("BrowserGlue.deinit()");
     wpe_browser_glue_deinit();
 }
 
@@ -46,18 +48,21 @@ JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_newWebView(JNIEnv* env, jobject, jobject pageObj, jint width, jint height)
 {
     ALOGV("BrowserGlue.newWebView tid %d", gettid());
-    jclass localPageClass = env->GetObjectClass(pageObj);
-    s_PageClass = reinterpret_cast<jclass>(env->NewGlobalRef(localPageClass));
-    s_PageObj = reinterpret_cast<jobject>(env->NewGlobalRef(pageObj));
-    wpe_browser_glue_new_web_view(width, height, [env, pageObj] (long viewRef) {
-        jmethodID onReady = env->GetMethodID(s_PageClass, "onWebViewReady", "(J)V");
+    jclass pageClass = env->GetObjectClass(pageObj);
+    jclass _pageClass = reinterpret_cast<jclass>(env->NewGlobalRef(pageClass));
+    jobject _pageObj = reinterpret_cast<jobject>(env->NewGlobalRef(pageObj));
+    JavaVM *vm;
+    env->GetJavaVM(&vm);
+
+    std::unique_ptr<PageEventObserver> observer = std::make_unique<PageEventObserver>(vm, _pageClass, _pageObj);
+
+    wpe_browser_glue_new_web_view(width, height, std::move(observer), [env, pageObj, pageClass] (long viewRef) {
+        jmethodID onReady = env->GetMethodID(pageClass, "onWebViewReady", "(J)V");
         if (onReady == nullptr) {
             return;
         }
         ALOGV("webview %ld", (jlong)viewRef);
-        env->CallObjectMethod(s_PageObj, onReady, (jlong)viewRef);
-        env->DeleteGlobalRef(s_PageClass);
-        env->DeleteGlobalRef(s_PageObj);
+        env->CallVoidMethod(pageObj, onReady, (jlong)viewRef);
     });
 }
 
@@ -73,6 +78,24 @@ Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv* env, jobject, jlong webView, jstrin
     const char* urlChars = env->GetStringUTFChars(url, 0);
     jsize urlLength = env->GetStringUTFLength(url);
     wpe_browser_glue_load_url(webView, urlChars, urlLength);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_go_back(webView);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_go_forward(webView);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv* env, jobject, jlong webView)
+{
+    wpe_browser_glue_reload(webView);
 }
 
 JNIEXPORT void JNICALL
