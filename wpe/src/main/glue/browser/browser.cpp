@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <unordered_map>
 
 #include <gio/gio.h>
 #include <glib.h>
@@ -68,6 +67,15 @@ void wpe_browser_glue_deinit() {
     g_main_loop_quit(uiProcessThreadLoop);
 }
 
+static void onLoadChanged(WebKitWebView*, WebKitLoadEvent loadEvent, gpointer) {
+    pageObserver->onLoadChanged(loadEvent);
+}
+
+static void onLoadProgressChanged(WebKitWebView* webView, GParamSpec*, gpointer) {
+    gdouble progress = webkit_web_view_get_estimated_load_progress(webView);
+    pageObserver->onLoadProgress(progress);
+}
+
 typedef struct {
     GMainLoop *mainLoop;
     GMainContext *mainContext;
@@ -101,6 +109,11 @@ void wpe_browser_glue_new_web_view(int width, int height,
 
         auto *webView = webkit_web_view_new(viewBackend);
 
+        // FIXME: This needs to be disconnected when the webview is closed. Not a big deal until we
+        //        want to support multiple tabs.
+        g_signal_connect(webView, "load-changed", G_CALLBACK(onLoadChanged), NULL);
+        g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onLoadProgressChanged), NULL);
+
         ALOGV("Created WebKitWebView %p", webView);
 
         initData->webView = webView;
@@ -131,27 +144,6 @@ void wpe_browser_glue_close_web_view(jlong webView) {
     }, reinterpret_cast<WebKitWebView*>(webView), NULL);
 }
 
-static void onLoadChanged(WebKitWebView* view, WebKitLoadEvent loadEvent, gpointer) {
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_STARTED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_REDIRECTED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_COMMITED");
-    }
-    if (loadEvent == WEBKIT_LOAD_STARTED) {
-        ALOGV("WEBKIT_LOAD_FINISHED");
-    }
-}
-
-static void onLoadProgressChanged(WebKitWebView* webView, GParamSpec*, gpointer) {
-    gdouble progress = webkit_web_view_get_estimated_load_progress(webView);
-    ALOGV("LOAD PROGRESS %f", progress);
-    pageObserver->onProgress(progress);
-}
-
 typedef struct {
     WebKitWebView *webView;
     char *url;
@@ -167,9 +159,6 @@ void wpe_browser_glue_load_url(jlong webView, const char *urlData, jsize urlSize
         auto *loadUrlData = reinterpret_cast<LoadUrlData*>(data);
 
         ALOGV("load_url %s", loadUrlData->url);
-
-        g_signal_connect(loadUrlData->webView, "load-changed", G_CALLBACK(onLoadChanged), NULL);
-        g_signal_connect(loadUrlData->webView, "notify::estimated-load-progress", G_CALLBACK(onLoadProgressChanged), NULL);
 
         webkit_web_view_load_uri(loadUrlData->webView, loadUrlData->url);
 

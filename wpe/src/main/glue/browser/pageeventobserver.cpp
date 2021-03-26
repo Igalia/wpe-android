@@ -10,14 +10,28 @@ PageEventObserver::~PageEventObserver() {
     } catch(int) {}
 }
 
-void PageEventObserver::onProgress(double progress) {
+void PageEventObserver::onLoadChanged(WebKitLoadEvent loadEvent) {
     try {
         JNIEnv *env = ScopedEnv(vm).getEnv();
-        ALOGV("GETTING METHOD env %p pageClass %p", env, pageClass);
+        jmethodID onLoadChanged = env->GetMethodID(pageClass, "onLoadChanged", "(I)V");
+        if (onLoadChanged == nullptr) {
+            throw;
+        }
+        env->CallVoidMethod(pageObj, onLoadChanged, (int)loadEvent);
+    } catch(int) {
+        ALOGE("Could not send onLoadChanged event");
+    }
+}
+
+void PageEventObserver::onLoadProgress(double progress) {
+    try {
+        JNIEnv *env = ScopedEnv(vm).getEnv();
         jmethodID onLoadProgress = env->GetMethodID(pageClass, "onLoadProgress", "(D)V");
         if (onLoadProgress == nullptr) {
-            return;
+            throw;
         }
         env->CallVoidMethod(pageObj, onLoadProgress, progress);
-    } catch(int) {}
+    } catch(int) {
+        ALOGE("Could not send onLoadProgress event");
+    }
 }

@@ -29,6 +29,11 @@ import java.lang.ref.WeakReference;
 public class Page {
     private final String LOGTAG;
 
+    static public final int LOAD_STARTED = 0;
+    static public final int LOAD_REDIRECTED = 1;
+    static public final int LOAD_COMMITTED = 2;
+    static public final int LOAD_FINISHED = 3;
+
     private final Context m_context;
 
     private final WPEView m_wpeView;
@@ -255,6 +260,10 @@ public class Page {
         Log.d(LOGTAG, "Queue URL load " + url);
         m_pendingLoad = url;
         ensureWebView();
+    }
+
+    public void onLoadChanged(int loadEvent) {
+        m_wpeView.onLoadChanged(loadEvent);
     }
 
     public void onLoadProgress(double progress) {

@@ -11,6 +11,7 @@ import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.Browser;
+import com.wpe.wpe.Page;
 import com.wpe.wpe.gfx.View;
 import com.wpe.wpe.gfx.ViewObserver;
 
@@ -89,10 +90,26 @@ public class WPEView extends FrameLayout implements ViewObserver {
         //        display the view until this point.
     }
 
+    public void onLoadChanged(int loadEvent) {
+        if (loadEvent == Page.LOAD_FINISHED) {
+            onLoadProgress(100);
+        }
+    }
+
     public void onLoadProgress(double progress) {
-        m_currentLoadProgress = (int) (progress * 100);
-        if (m_chromeClient != null) {
-            m_chromeClient.onProgressChanged(this, m_currentLoadProgress);
+        try {
+            m_currentLoadProgress = (int) (progress * 100);
+            if (m_chromeClient != null) {
+                WPEView self = this;
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
+                    }
+                });
+            }
+        } catch(Exception e) {
+           Log.e(LOGTAG, "onLoadProgress error: " + e.toString());
         }
     }
 
