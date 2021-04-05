@@ -45,7 +45,7 @@ To see WPEView in action check the [examples](examples) folder.
 
 The bootstrap script requires [python3](https://www.python.org/downloads/).
 
-### Cross compile dependencies
+### Getting the dependencies
 
 WPE Android depends on a considerable amount of libraries, 
 including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and 
@@ -54,20 +54,29 @@ To ease the cross-compilation process we use
 [Cerbero](https://gitlab.freedesktop.org/gstreamer/cerbero). To set all things up run:
 
 ```bash
-python3 ./scripts/bootstrap.py <arch>
+python3 ./scripts/bootstrap.py
 ```
 
-where `arch` is the target architecture that you want to cross-compile to. 
-Currently the only supported architecture is `arm64`.
+This command will fetch the required binaries and place them in the expected location.
+
+If you want to build (and/or modify) the dependencies you can pass the `--build` option:
+
+```bash
+python3 ./scripts/bootstrap.py --build
+```
 
 This command will fetch `Cerbero`, the Android NDK and a bunch of dependencies required 
 to cross-compile WPE Android dependencies. The process takes a significant amount of time.
 
-You can optionally create a debug build of WPEWebKit adding `debug` to the bootstrap command:
+You can optionally create a debug build of WPEWebKit passing the `--debug` option to the bootstrap command:
 
 ```bash
-python3 ./scripts/bootstrap.py <arch> debug
+python3 ./scripts/bootstrap.py --build --debug
 ```
+
+Finally, the bootstrap option accepts the `--arch` option to set the target architecture. 
+Currently the only supported architecture is `arm64`.
+
 
 ### Android Studio
 [Android Studio](https://developer.android.com/studio/) is required to build and run WPE Android.

@@ -6,7 +6,7 @@ including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and
 the process of building and installing these dependencies we have a
 [bootstrap script](../bootstrap.py) that can be run with the following command:
 
-`python3 ./bootstrap.py <arch>`
+`python3 ./bootstrap.py --arch <arch> --build`
 
 where `<arch>` is the target architecture that you want to compile to.
 

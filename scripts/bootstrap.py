@@ -47,9 +47,11 @@ location within the `wpe` project. This is done by the `__install_deps` function
 
 """
 
+import argparse
 import glob
 import os
 import re
+import requests
 import shutil
 import subprocess
 import sys
@@ -57,12 +59,13 @@ import sys
 from pathlib import Path
 
 class Bootstrap:
-    def __init__(self, arch, debug):
+    def __init__(self, args):
         self.__version = '2.30.4'
-        self.__arch = arch
+        self.__arch = args.arch
+        self.__build = args.build
+        self.__debug = args.debug
         self.__root = os.getcwd()
         self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
-        self.__debug = debug
         # These are the libraries that the glue code link with, and are required during build
         # time. These libreries go into the `imported` folder and cannot go into the `jniFolder`
         # to avoid a duplicated library issue.
@@ -88,6 +91,19 @@ class Bootstrap:
             ('libnettle.so.6', 'libnettle_6.so'), # This entry is not retrievable from the packaged libnettle.so
         ]
         self.__base_needed = set(['libWPEWebKit-1.0_3.so'])
+        self.__wpewebkit_binary = 'wpewebkit-android-%s-%s.tar.xz' %(self.__arch, self.__version)
+        self.__wpewebkit_runtime_binary = 'wpewebkit-android-%s-%s-runtime.tar.xz' %(self.__arch, self.__version)
+
+    def __fetch_binaries(self):
+        assert(self.__build == False)
+        print('Fetching binaries...')
+        if not os.path.isdir(self.__build_dir):
+            os.mkdir(self.__build_dir)
+        os.chdir(self.__build_dir)
+        wpewebkit = requests.get('https://cloud.igalia.com/s/oNSwxHKJ9N8WLbN/download', allow_redirects=True)
+        open(self.__wpewebkit_binary, 'wb').write(wpewebkit.content)
+        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/QxKLCxK52W2TTps/download', allow_redirects=True)
+        open(self.__wpewebkit_runtime_binary, 'wb').write(wpewebkit_runtime.content)
 
     def __cerbero_command(self, args):
         os.chdir(self.__build_dir)
@@ -121,12 +137,13 @@ class Bootstrap:
         origin = 'ssh://git@gitlab.igalia.com:4429/ferjm/cerbero.git'
         branch = 'wpe-android'
 
-        if os.path.isdir(self.__build_dir):
+        if os.path.isdir(self.__build_dir) and os.path.isfile(os.path.join(self.__build_dir, 'cerbero-uninstalled')):
             os.chdir(self.__build_dir)
             subprocess.call(['git', 'reset', '--hard', 'origin/' + branch])
             subprocess.call(['git', 'pull', 'origin', branch])
             os.chdir(self.__root)
         else:
+            shutil.rmtree(self.__build_dir)
             subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
 
         self.__cerbero_command(['bootstrap'])
@@ -144,10 +161,10 @@ class Bootstrap:
             shutil.rmtree(sysroot)
         os.mkdir(sysroot)
 
-        devel_file_path = os.path.join(self.__build_dir, 'wpewebkit-android-%s-%s.tar.xz' %(self.__arch, self.__version))
+        devel_file_path = os.path.join(self.__build_dir, self.__wpewebkit_binary)
         subprocess.call(['tar', 'xf', devel_file_path, '-C', sysroot, 'include', 'lib/glib-2.0'])
 
-        runtime_file_path = os.path.join(self.__build_dir, 'wpewebkit-android-%s-%s-runtime.tar.xz' %(self.__arch, self.__version))
+        runtime_file_path = os.path.join(self.__build_dir, self.__wpewebkit_runtime_binary)
         subprocess.call(['tar', 'xf', runtime_file_path, '-C', sysroot, 'lib'])
 
     def __copy_headers(self, sysroot_dir, include_dir):
@@ -300,14 +317,26 @@ class Bootstrap:
             print("Not copying existing files")
 
     def run(self):
-        self.__ensure_cerbero()
-        self.__build_deps()
+        if self.__build:
+            self.__ensure_cerbero()
+            self.__build_deps()
+        else:
+            self.__fetch_binaries()
         self.__extract_deps()
         self.install_deps(os.path.join(self.__build_dir, 'sysroot'))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 and len(sys.argv) > 3:
-        print("Usage: ./bootstrap.py <arch> [debug] (i.e. ./bootstrap.py arm64 or ./bootstrap.py arm64 debug)")
-        exit()
-    Bootstrap(sys.argv[1], len(sys.argv) == 3 and sys.argv[2] == 'debug').run()
+    parser = argparse.ArgumentParser(
+        description='This script sets the dev environment up'
+    )
+
+    parser.add_argument('-a', '--arch', metavar='architecture', required=False, default='arm64', choices=['arm64'], help='The target architecture')
+    parser.add_argument('-d', '--debug', required=False, action='store_true', help='Build the binaries with debug symbols')
+    parser.add_argument('-b', '--build', required=False, action='store_true', help='Build dependencies instead of fetching the prebuilt binaries from the network')
+
+    args = parser.parse_args()
+
+    print(args)
+
+    Bootstrap(args).run()
 
