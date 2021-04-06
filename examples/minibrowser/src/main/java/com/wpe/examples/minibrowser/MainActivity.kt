@@ -22,22 +22,28 @@ class MainActivity : AppCompatActivity() {
     private lateinit var urlEditText: EditText
     private lateinit var progressView: ProgressBar
 
-    // TODO Tabs support
-    private var browser: WPEView? = null
+    private var activeTab: Tab? = null
+    private var tabs: ArrayList<Tab> = ArrayList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         setupToolbar()
-
         setupUrlEditText()
 
-        browser = findViewById(R.id.wpe_view)
-        browser?.loadUrl(INITIAL_URL)
-        urlEditText.setText(INITIAL_URL)
+        openTab(INITIAL_URL)
 
         setChromeClient()
+    }
+
+    private fun openTab(url: String) {
+        activeTab = Tab(this, findViewById(R.id.wpe_view), url)
+        tabs.add(activeTab!!)
+    }
+
+    fun setUrl(url: String) {
+        urlEditText.setText(url)
     }
 
     private fun setupToolbar() {
@@ -65,7 +71,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setChromeClient() {
-        browser?.webChromeClient = object : WebChromeClient() {
+        activeTab?.view?.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WPEView?, progress: Int) {
                 super.onProgressChanged(view, progress)
                 progressView.progress = progress
@@ -85,17 +91,22 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         R.id.action_back -> {
-            browser?.goBack()
+            activeTab?.view?.goBack()
             true
         }
 
         R.id.action_forward -> {
-            browser?.goForward()
+            activeTab?.view?.goForward()
             true
         }
 
         R.id.action_reload -> {
-            browser?.reload()
+            activeTab?.view?.reload()
+            true
+        }
+
+        R.id.action_tab -> {
+            showTabsSelector()
             true
         }
 
@@ -105,8 +116,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (browser?.canGoBack()!!) {
-            browser?.goBack()
+        if (activeTab?.view?.canGoBack()!!) {
+            activeTab?.view?.goBack()
         } else {
             super.onBackPressed()
         }
@@ -114,11 +125,11 @@ class MainActivity : AppCompatActivity() {
 
     fun onCommit(text: String) {
         if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
-            browser?.loadUrl(text)
+            activeTab?.view?.loadUrl(text)
         } else {
-            browser?.loadUrl(SEARCH_URI_BASE + text)
+            activeTab?.view?.loadUrl(SEARCH_URI_BASE + text)
         }
-        browser?.requestFocus()
+        activeTab?.view?.requestFocus()
     }
 
     private fun hideKeyboard() {
@@ -128,6 +139,12 @@ class MainActivity : AppCompatActivity() {
                 Context.INPUT_METHOD_SERVICE
             ) as InputMethodManager
             manager.hideSoftInputFromWindow(view.windowToken, 0)
+        }
+    }
+
+    private fun showTabsSelector() {
+        TabsSelector(tabs).apply {
+            show(supportFragmentManager, TabsSelector.TAG)
         }
     }
 }
