@@ -270,6 +270,14 @@ public class Page {
         m_wpeView.onLoadProgress(progress);
     }
 
+    public void onUriChanged(String uri) {
+        m_wpeView.onUriChanged(uri);
+    }
+
+    public void onTitleChanged(String title) {
+        m_wpeView.onTitleChanged(title);
+    }
+
     public boolean canGoBack() {
         // FIXME this value need to be properly fetched from BrowserGlue and cached locally
         return m_canGoBack;

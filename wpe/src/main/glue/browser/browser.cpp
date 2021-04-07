@@ -71,9 +71,19 @@ static void onLoadChanged(WebKitWebView*, WebKitLoadEvent loadEvent, gpointer) {
     pageObserver->onLoadChanged(loadEvent);
 }
 
-static void onLoadProgressChanged(WebKitWebView* webView, GParamSpec*, gpointer) {
+static void onLoadProgressChanged(WebKitWebView *webView, GParamSpec*, gpointer) {
     gdouble progress = webkit_web_view_get_estimated_load_progress(webView);
     pageObserver->onLoadProgress(progress);
+}
+
+static void onUriChanged(WebKitWebView *webView, GParamSpec*, gpointer) {
+    const char *uri = webkit_web_view_get_uri(webView);
+    pageObserver->onUriChanged(uri);
+}
+
+static void onTitleChanged(WebKitWebView *webView, GParamSpec*, gpointer) {
+    const char *title = webkit_web_view_get_title(webView);
+    pageObserver->onTitleChanged(title);
 }
 
 typedef struct {
@@ -113,6 +123,8 @@ void wpe_browser_glue_new_web_view(int width, int height,
         //        want to support multiple tabs.
         g_signal_connect(webView, "load-changed", G_CALLBACK(onLoadChanged), NULL);
         g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onLoadProgressChanged), NULL);
+        g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), NULL);
+        g_signal_connect(webView, "notify::title", G_CALLBACK(onTitleChanged), NULL);
 
         ALOGV("Created WebKitWebView %p", webView);
 

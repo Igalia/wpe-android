@@ -30,6 +30,9 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     private WebChromeClient m_chromeClient;
     private int m_currentLoadProgress = 0;
+    private String m_title = "about:blank";
+    private String m_url = "about:blank";
+    private String m_originalUrl = "about:blank";
 
     public WPEView(final Context context) {
         super(context);
@@ -113,6 +116,14 @@ public class WPEView extends FrameLayout implements ViewObserver {
         }
     }
 
+    public void onUriChanged(String uri) {
+        m_url = uri;
+    }
+
+    public void onTitleChanged(String title) {
+        m_title = title;
+    }
+
     /************** PUBLIC WPEView API *******************/
 
     /**
@@ -120,6 +131,7 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * @param url The URL of the resource to be loaded.
      */
     public void loadUrl(@NonNull String url) {
+        m_originalUrl = url;
         Browser.getInstance().loadUrl(this, m_context, url);
     }
 
@@ -169,6 +181,40 @@ public class WPEView extends FrameLayout implements ViewObserver {
      */
     public int getProgress() {
         return m_currentLoadProgress;
+    }
+
+    /**
+     * Gets the title for the current page. This is the title of the current page until
+     * WebViewClient.onReceivedTitle is called
+     *
+     * @return the title for the current page or null
+     */
+    public String getTitle() {
+        return m_title;
+    }
+
+    /**
+     * Get the url for the current page. This is not always the same as the url
+     * passed to WebViewClient.onPageStarted because although the load for
+     * that url has begun, the current page may not have changed.
+     *
+     * @return The url for the current page.
+     */
+    public String getUrl() {
+        return m_url;
+    }
+
+    /**
+     * Get the original url for the current page. This is not always the same
+     * as the url passed to WebViewClient.onPageStarted because although the
+     * load for that url has begun, the current page may not have changed.
+     * Also, there may have been redirects resulting in a different url to that
+     * originally requested.
+     *
+     * @return The url that was originally requested for the current page.
+     */
+    public String getOriginalUrl() {
+        return m_originalUrl;
     }
 
     /**
