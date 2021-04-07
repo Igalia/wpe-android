@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
+import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.android.synthetic.main.tabs_selector.*
@@ -38,6 +39,12 @@ class TabsSelector(tabs: ArrayList<Tab>) : BottomSheetDialogFragment() {
             title.text = tabs[position].view?.title
             val subtitle = row.findViewById<TextView>(R.id.tabSubtitle)
             subtitle.text = tabs[position].view?.url
+
+            val closeButton = row.findViewById<ImageView>(R.id.closeButton)
+            closeButton.setOnClickListener {
+                tabs[position].close()
+                notifyDataSetChanged()
+            }
 
             return row
         }

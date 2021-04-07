@@ -6,10 +6,13 @@ import com.wpe.wpeview.WebChromeClient
 class Tab(browser: MainActivity, view: WPEView, url: String) {
     private val browser: MainActivity = browser
     internal val view: WPEView = view
-    private val url: String = url
 
     init {
         view.loadUrl(url)
         browser.setUrl(url)
+    }
+
+    fun close() {
+        browser.closeTab(this)
     }
 }

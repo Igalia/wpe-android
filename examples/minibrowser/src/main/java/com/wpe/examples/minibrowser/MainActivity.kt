@@ -42,6 +42,17 @@ class MainActivity : AppCompatActivity() {
         tabs.add(activeTab!!)
     }
 
+    internal fun closeTab(tab: Tab) {
+        val index = tabs.indexOf(tab);
+        if (activeTab == tab) {
+            val next = (index + 1) % tabs.size;
+            activeTab = tabs[next];
+
+        }
+        tabs.removeAt(index);
+        // TODO Actually close tab when we have the Fragment based model.
+    }
+
     fun setUrl(url: String) {
         urlEditText.setText(url)
     }
