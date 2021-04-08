@@ -9,6 +9,7 @@ import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.tabs_selector.*
 
 class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment() {
@@ -56,6 +57,14 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.tabs_selector, container, false)
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        val addButton = view.findViewById<FloatingActionButton>(R.id.newTabButton)
+        addButton.setOnClickListener {
+            (activity as MainActivity).newTab("about:blank")
+        }
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {

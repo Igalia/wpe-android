@@ -36,10 +36,10 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         setupToolbar()
         setupUrlEditText()
 
-        openTab(INITIAL_URL)
-   }
+        newTab(INITIAL_URL)
+    }
 
-    private fun openTab(url: String) {
+    internal fun newTab(url: String?) {
         val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
         val tabId = (1..12)
             .map { i -> kotlin.random.Random.nextInt(0, charPool.size) }
@@ -185,7 +185,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             activeTab?.view?.loadUrl(url)
             activeTab?.view?.requestFocus()
         } else {
-            openTab(url)
+            newTab(url)
         }
     }
 
