@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
 import com.wpe.wpeview.WPEView
+import com.wpe.wpeview.WPEViewClient
 import com.wpe.wpeview.WebChromeClient
 
 const val INITIAL_URL = "https://igalia.com"
@@ -33,13 +34,13 @@ class MainActivity : AppCompatActivity() {
         setupUrlEditText()
 
         openTab(INITIAL_URL)
-
-        setChromeClient()
-    }
+   }
 
     private fun openTab(url: String) {
         activeTab = Tab(this, findViewById(R.id.wpe_view), url)
         tabs.add(activeTab!!)
+        setChromeClient()
+        setWPEViewClient()
     }
 
     internal fun closeTab(tab: Tab) {
@@ -93,6 +94,24 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         };
+    }
+
+    private fun setWPEViewClient() {
+        activeTab?.view?.wpeViewClient = object : WPEViewClient() {
+            override fun onPageStarted(view: WPEView?, url: String?) {
+                super.onPageStarted(view, url)
+                if (url != null) {
+                    setUrl(url)
+                }
+            }
+
+            override fun onPageFinished(view: WPEView?, url: String?) {
+                super.onPageFinished(view, url)
+                if (url != null) {
+                    setUrl(url)
+                }
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

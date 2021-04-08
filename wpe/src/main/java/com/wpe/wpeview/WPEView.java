@@ -29,6 +29,7 @@ public class WPEView extends FrameLayout implements ViewObserver {
     private final Context m_context;
 
     private WebChromeClient m_chromeClient;
+    private WPEViewClient m_wpeViewClient;
     private int m_currentLoadProgress = 0;
     private String m_title = "about:blank";
     private String m_url = "about:blank";
@@ -93,27 +94,56 @@ public class WPEView extends FrameLayout implements ViewObserver {
         //        display the view until this point.
     }
 
+    private void runOnMainThread(Runnable runnable) {
+        try {
+            post(runnable);
+        } catch(Exception e) {
+            Log.e(LOGTAG, e.toString());
+        }
+    }
+
     public void onLoadChanged(int loadEvent) {
-        if (loadEvent == Page.LOAD_FINISHED) {
-            onLoadProgress(100);
+        WPEView self = this;
+        switch (loadEvent) {
+            case Page.LOAD_STARTED:
+                if (m_wpeViewClient == null) {
+                    return;
+                }
+                runOnMainThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        m_wpeViewClient.onPageStarted(self, m_url);
+                    }
+                });
+                break;
+            case Page.LOAD_FINISHED:
+                onLoadProgress(100);
+                if (m_wpeViewClient == null) {
+                    return;
+                }
+                runOnMainThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        m_wpeViewClient.onPageFinished(self, m_url);
+                    }
+                });
+                break;
+            default: return;
         }
     }
 
     public void onLoadProgress(double progress) {
-        try {
-            m_currentLoadProgress = (int) (progress * 100);
-            if (m_chromeClient != null) {
-                WPEView self = this;
-                post(new Runnable() {
-                    @Override
-                    public void run() {
-                        m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
-                    }
-                });
-            }
-        } catch(Exception e) {
-           Log.e(LOGTAG, "onLoadProgress error: " + e.toString());
+        m_currentLoadProgress = (int) (progress * 100);
+        if (m_chromeClient == null) {
+            return;
         }
+        WPEView self = this;
+        runOnMainThread(new Runnable() {
+            @Override
+            public void run() {
+                m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
+            }
+        });
     }
 
     public void onUriChanged(String uri) {
@@ -122,6 +152,16 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     public void onTitleChanged(String title) {
         m_title = title;
+        if (m_chromeClient == null) {
+            return;
+        }
+        WPEView self = this;
+        runOnMainThread(new Runnable() {
+            @Override
+            public void run() {
+                m_chromeClient.onReceivedTitle(self, m_title);
+            }
+        });
     }
 
     /************** PUBLIC WPEView API *******************/
@@ -238,5 +278,25 @@ public class WPEView extends FrameLayout implements ViewObserver {
     @Nullable
     public WebChromeClient getWebChromeClient() {
         return m_chromeClient;
+    }
+
+    /**
+     * Set the WPEViewClient that will receive various notifications and
+     * requests. This will replace the current handler.
+     * @param client An implementation of WPEViewClient.
+     */
+    public void setWPEViewClient(@Nullable WPEViewClient client) {
+        m_wpeViewClient = client;
+    }
+
+    /**
+     * Gets the WPEViewClient.
+     *
+     * @return the WPEViewClient, or {@code null} if not yet set
+     * @see #setWPEViewClient
+     */
+    @Nullable
+    public WPEViewClient getWPEViewClient() {
+        return m_wpeViewClient;
     }
 }

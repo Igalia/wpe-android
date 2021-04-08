@@ -8,4 +8,11 @@ public class WebChromeClient {
      *                 an integer between 0 and 100.
      */
     public void onProgressChanged(WPEView view, int progress) {}
+
+    /**
+     * Notify the host application of a change in the document title.
+     * @param view The WPEView that initiated the callback.
+     * @param title A String containing the new title of the document.
+     */
+    public void onReceivedTitle(WPEView view, String title) {}
 }
