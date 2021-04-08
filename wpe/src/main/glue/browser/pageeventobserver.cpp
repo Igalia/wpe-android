@@ -19,7 +19,7 @@
     env->CallVoidMethod(pageObj, _method, ARG);
 
 #define JAVA_CALL_WITH_CAST(ARG, TYPE, CASTFUN) \
-    TYPE arg = env->CASTFUN(env, ARG); \
+    TYPE arg = env->CASTFUN(ARG); \
     env->CallVoidMethod(pageObj, _method, arg);
 
 #define JAVA_CALL_END() \
@@ -47,27 +47,6 @@ PageEventObserver::~PageEventObserver() {
 }
 
 JAVA_CALL(onLoadChanged, "(I)V", WebKitLoadEvent loadEvent, (int) loadEvent)
-
 JAVA_CALL(onLoadProgress, "(D)V", double progress, progress)
-
-// JAVA_CALL_CAST(onUriChanged, "(Ljava/lang/String;)V", const char *uri, uri, jstring, NewStringUTF)
-// JAVA_CALL_CAST(onTitleChanged, "(Ljava/lang/String;)V", const char *title, title, jstring, NewStringUTF)
-void PageEventObserver::onUriChanged(const char *uri) {
-    try {
-        JNIEnv *env = ScopedEnv(vm).getEnv();
-        jmethodID _method = env->GetMethodID(pageClass, "onUriChanged", "(Ljava/lang/String;)V");
-        if (_method == nullptr) { throw; }
-        jstring arg = env->NewStringUTF(uri);
-        env->CallVoidMethod(pageObj, _method, arg);
-    } catch (int) { ALOGE("Could not send event"); }
-}
-
-void PageEventObserver::onTitleChanged(const char *title) {
-    try {
-        JNIEnv *env = ScopedEnv(vm).getEnv();
-        jmethodID _method = env->GetMethodID(pageClass, "onTitleChanged", "(Ljava/lang/String;)V");
-        if (_method == nullptr) { throw; }
-        jstring arg = env->NewStringUTF(title);
-        env->CallVoidMethod(pageObj, _method, arg);
-    } catch (int) { ALOGE("Could not send event"); }
-}
+JAVA_CALL_CAST(onUriChanged, "(Ljava/lang/String;)V", const char *uri, uri, jstring, NewStringUTF)
+JAVA_CALL_CAST(onTitleChanged, "(Ljava/lang/String;)V", const char *title, title, jstring, NewStringUTF)
