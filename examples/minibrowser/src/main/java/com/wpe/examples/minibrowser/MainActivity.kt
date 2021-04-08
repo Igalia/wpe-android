@@ -69,6 +69,9 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
         }
         tabs.removeAt(index);
+        if (tabs.size == 0) {
+            setUrl(null)
+        }
 
         val tab = supportFragmentManager.findFragmentByTag(tab.tab.tag) ?: return
         supportFragmentManager.commit {
@@ -76,8 +79,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    fun setUrl(url: String) {
-        urlEditText.setText(url)
+    fun setUrl(url: String?) {
+        if (url != null)
+            urlEditText.setText(url)
+        else
+            urlEditText.text.clear()
     }
 
     private fun setupToolbar() {
@@ -176,6 +182,9 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     fun onCommit(text: String) {
+        if (text == null) {
+            return;
+        }
         var url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
             text
         } else {

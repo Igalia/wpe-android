@@ -16,7 +16,8 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
 
     private val tabs: ArrayList<TabSelectorItem> = tabs
 
-    private class TabsListAdapter(context: Context, tabs: ArrayList<TabSelectorItem>) : BaseAdapter() {
+    private class TabsListAdapter(parent: BottomSheetDialogFragment, context: Context, tabs: ArrayList<TabSelectorItem>) : BaseAdapter() {
+        private val bottomSheet: BottomSheetDialogFragment = parent
         private val context: Context = context
         private val tabs: ArrayList<TabSelectorItem> = tabs
 
@@ -45,6 +46,9 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
             closeButton.setOnClickListener {
                 tabs[position].close()
                 notifyDataSetChanged()
+                if (tabs.size == 0) {
+                    bottomSheet.dismiss()
+                }
             }
 
             return row
@@ -70,6 +74,6 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
-        tabsList.adapter = TabsListAdapter(requireContext(), tabs)
+        tabsList.adapter = TabsListAdapter(this, requireContext(), tabs)
     }
 }

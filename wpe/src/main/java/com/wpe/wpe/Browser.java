@@ -267,10 +267,9 @@ public final class Browser {
 
     public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
         Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
-        if (m_pages == null) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
-        assert (m_pages.containsKey(wpeView));
         if (visibility == android.view.View.VISIBLE) {
             m_activeView = wpeView;
         }
