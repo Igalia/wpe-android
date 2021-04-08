@@ -32,11 +32,10 @@
         android:layout_height="3dp"
         android:layout_alignBottom="@id/toolbar" />
 
-    <com.wpe.wpeview.WPEView
-        android:id="@+id/wpe_view"
+    <androidx.fragment.app.FragmentContainerView
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/fragment_container_view"
         android:layout_below="@id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        tools:context=".MainActivity"/>
-
+        android:layout_height="match_parent" />
 </RelativeLayout>

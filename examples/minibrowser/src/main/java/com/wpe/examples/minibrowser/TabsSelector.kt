@@ -11,13 +11,13 @@ import android.widget.TextView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.android.synthetic.main.tabs_selector.*
 
-class TabsSelector(tabs: ArrayList<Tab>) : BottomSheetDialogFragment() {
+class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment() {
 
-    private val tabs: ArrayList<Tab> = tabs
+    private val tabs: ArrayList<TabSelectorItem> = tabs
 
-    private class TabsListAdapter(context: Context, tabs: ArrayList<Tab>) : BaseAdapter() {
+    private class TabsListAdapter(context: Context, tabs: ArrayList<TabSelectorItem>) : BaseAdapter() {
         private val context: Context = context
-        private val tabs: ArrayList<Tab> = tabs
+        private val tabs: ArrayList<TabSelectorItem> = tabs
 
         override fun getCount(): Int {
             return tabs.count()
@@ -36,9 +36,9 @@ class TabsSelector(tabs: ArrayList<Tab>) : BottomSheetDialogFragment() {
             val row = layoutInflater.inflate(R.layout.tabs_selector_row, parent, false)
 
             val title = row.findViewById<TextView>(R.id.tabTitle)
-            title.text = tabs[position].view?.title
+            title.text = tabs[position].tab.view?.title
             val subtitle = row.findViewById<TextView>(R.id.tabSubtitle)
-            subtitle.text = tabs[position].view?.url
+            subtitle.text = tabs[position].tab.view?.url
 
             val closeButton = row.findViewById<ImageView>(R.id.closeButton)
             closeButton.setOnClickListener {

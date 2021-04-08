@@ -12,6 +12,9 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
+import androidx.fragment.app.add
+import androidx.fragment.app.commit
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
 import com.wpe.wpeview.WebChromeClient
@@ -19,16 +22,16 @@ import com.wpe.wpeview.WebChromeClient
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private lateinit var urlEditText: EditText
     private lateinit var progressView: ProgressBar
 
     private var activeTab: Tab? = null
-    private var tabs: ArrayList<Tab> = ArrayList()
+    private var activeTabItem: TabSelectorItem? = null
+    private var tabs: ArrayList<TabSelectorItem> = ArrayList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
         setupToolbar()
         setupUrlEditText()
@@ -37,21 +40,40 @@ class MainActivity : AppCompatActivity() {
    }
 
     private fun openTab(url: String) {
-        activeTab = Tab(this, findViewById(R.id.wpe_view), url)
-        tabs.add(activeTab!!)
+        val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
+        val tabId = (1..12)
+            .map { i -> kotlin.random.Random.nextInt(0, charPool.size) }
+            .map(charPool::get)
+            .joinToString("");
+        val bundle = bundleOf("url" to url)
+        supportFragmentManager.commit {
+            setReorderingAllowed(true)
+            add<Tab>(R.id.fragment_container_view, tag = tabId, args = bundle)
+        }
+    }
+
+    internal fun registerTab(tab: Tab) {
+        activeTab = tab
+        activeTabItem = TabSelectorItem(activeTab!!)
+        tabs.add(activeTabItem!!)
+
         setChromeClient()
         setWPEViewClient()
     }
 
-    internal fun closeTab(tab: Tab) {
+    internal fun closeTab(tab: TabSelectorItem) {
         val index = tabs.indexOf(tab);
-        if (activeTab == tab) {
+        if (activeTabItem == tab) {
             val next = (index + 1) % tabs.size;
-            activeTab = tabs[next];
+            activeTabItem = tabs[next];
 
         }
         tabs.removeAt(index);
-        // TODO Actually close tab when we have the Fragment based model.
+
+        val tab = supportFragmentManager.findFragmentByTag(tab.tab.tag) ?: return
+        supportFragmentManager.commit {
+            remove(tab)
+        }
     }
 
     fun setUrl(url: String) {
@@ -154,12 +176,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun onCommit(text: String) {
-        if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
-            activeTab?.view?.loadUrl(text)
+        var url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
+            text
         } else {
-            activeTab?.view?.loadUrl(SEARCH_URI_BASE + text)
+            SEARCH_URI_BASE + text
         }
-        activeTab?.view?.requestFocus()
+        if (activeTab != null) {
+            activeTab?.view?.loadUrl(url)
+            activeTab?.view?.requestFocus()
+        } else {
+            openTab(url)
+        }
     }
 
     private fun hideKeyboard() {
