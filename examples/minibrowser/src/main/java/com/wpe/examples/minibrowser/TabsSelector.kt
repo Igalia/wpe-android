@@ -1,10 +1,12 @@
 package com.wpe.examples.minibrowser
 
 import android.content.Context
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.widget.TextView
@@ -12,9 +14,10 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.tabs_selector.*
 
-class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment() {
+class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetDialogFragment() {
 
     private val tabs: ArrayList<TabSelectorItem> = tabs
+    internal var selected: Int = active
 
     private class TabsListAdapter(parent: BottomSheetDialogFragment, context: Context, tabs: ArrayList<TabSelectorItem>) : BaseAdapter() {
         private val bottomSheet: BottomSheetDialogFragment = parent
@@ -51,6 +54,10 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
                 }
             }
 
+            if (position == (bottomSheet as TabsSelector).selected) {
+                row.setBackgroundColor(Color.parseColor("#defaf3"))
+            }
+
             return row
         }
     }
@@ -68,6 +75,9 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
         val addButton = view.findViewById<FloatingActionButton>(R.id.newTabButton)
         addButton.setOnClickListener {
             (activity as MainActivity).newTab("about:blank")
+            (tabsList.adapter as BaseAdapter).notifyDataSetChanged()
+            selected = tabs.size
+            dismiss()
         }
     }
 
@@ -75,5 +85,13 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>) : BottomSheetDialogFragment
         super.onActivityCreated(savedInstanceState)
 
         tabsList.adapter = TabsListAdapter(this, requireContext(), tabs)
+        tabsList.onItemClickListener = AdapterView.OnItemClickListener { parent, view, position, id ->
+            selected = position
+            val adapter = (tabsList.adapter as BaseAdapter);
+            adapter.notifyDataSetChanged()
+            val item = (adapter.getItem(position) as TabSelectorItem)
+            (activity as MainActivity).setActiveTab(item);
+            dismiss()
+        };
     }
 }

@@ -14,8 +14,8 @@
         android:layout_height="match_parent"
         android:paddingBottom="100dp"
         android:clipToPadding="false"
-        android:scrollbarStyle="outsideOverlay">
-
+        android:scrollbarStyle="outsideOverlay"
+        android:drawSelectorOnTop="true">
     </ListView>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton

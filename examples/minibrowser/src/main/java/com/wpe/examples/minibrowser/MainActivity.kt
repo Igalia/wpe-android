@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     internal fun newTab(url: String?) {
         val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
         val tabId = (1..12)
-            .map { i -> kotlin.random.Random.nextInt(0, charPool.size) }
+            .map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
             .map(charPool::get)
             .joinToString("");
         val bundle = bundleOf("url" to url)
@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         if (activeTabItem == tab) {
             val next = (index + 1) % tabs.size;
             activeTabItem = tabs[next];
-
+            setActiveTab(activeTabItem!!)
         }
         tabs.removeAt(index);
         if (tabs.size == 0) {
@@ -76,6 +76,27 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         val tab = supportFragmentManager.findFragmentByTag(tab.tab.tag) ?: return
         supportFragmentManager.commit {
             remove(tab)
+        }
+    }
+
+    fun setActiveTab(item: TabSelectorItem) {
+        activeTab = item.tab
+        activeTabItem = item
+        setUrl(activeTab?.view?.url)
+        supportFragmentManager.commit {
+           for (fragment in supportFragmentManager.fragments) {
+               if (fragment == activeTab) {
+                   show(fragment)
+               } else {
+                   hide(fragment)
+               }
+           }
+        }
+    }
+
+    private fun showTabsSelector() {
+        TabsSelector(tabs, tabs.indexOf(activeTabItem)).apply {
+            show(supportFragmentManager, TabsSelector.TAG)
         }
     }
 
@@ -205,12 +226,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 Context.INPUT_METHOD_SERVICE
             ) as InputMethodManager
             manager.hideSoftInputFromWindow(view.windowToken, 0)
-        }
-    }
-
-    private fun showTabsSelector() {
-        TabsSelector(tabs).apply {
-            show(supportFragmentManager, TabsSelector.TAG)
         }
     }
 }
