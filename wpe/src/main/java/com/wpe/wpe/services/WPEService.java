@@ -114,12 +114,14 @@ public class WPEService extends Service {
     }
 
     private void provideServiceSurface(Surface surface) {
+        provideSurfaceIfAlreadyInitialized(surface);
         synchronized (m_serviceProcessThread) {
             m_serviceProcessThread.m_surface = surface;
             m_serviceProcessThread.notifyAll();
         }
     }
 
-    protected void initializeService(ParcelFileDescriptor[] fds) {
-    }
+    protected void initializeService(ParcelFileDescriptor[] fds) {}
+
+    protected void provideSurfaceIfAlreadyInitialized(Surface surface) {}
 }

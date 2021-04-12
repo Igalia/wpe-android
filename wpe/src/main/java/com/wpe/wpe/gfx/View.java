@@ -250,15 +250,15 @@ public class View extends GLSurfaceView {
                                     Log.v(LOGTAG, "new frame available for surfaceTexture " + surfaceTexture);
                                     synchronized (view) {
                                         view.m_surfaceDirty = true;
-                                        view.notifyAll();
                                     }
                                     requestRender();
                                 }
                             });
+                            view.notifyAll();
                         }
                     }
                 });
-                while (m_surfaceTexture == null && !view.m_surfaceDirty) {
+                while (m_surfaceTexture == null) {
                     view.wait();
                 }
             } catch (InterruptedException e) {

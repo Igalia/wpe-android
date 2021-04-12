@@ -34,6 +34,8 @@ public class Page {
     static public final int LOAD_COMMITTED = 2;
     static public final int LOAD_FINISHED = 3;
 
+    private final Browser m_browser;
+
     private final Context m_context;
 
     private final WPEView m_wpeView;
@@ -43,13 +45,11 @@ public class Page {
     private final int m_width;
     private final int m_height;
 
-    private WPEServiceConnection m_webProcess;
-    private WPEServiceConnection m_networkProcess;
-
     private final PageThreadMessageHandler m_handler;
     private PageThread m_thread;
 
     private View m_view;
+    private boolean m_viewReady = false;
 
     private long m_webViewRef = 0;
 
@@ -126,10 +126,12 @@ public class Page {
         }
     }
 
-    public Page(@NonNull Context context, @NonNull WPEView wpeView, @NonNull String pageId) {
+    public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, @NonNull String pageId) {
         LOGTAG = "WPE page" + pageId;
 
         Log.v(LOGTAG, "Page construction " + this);
+
+        m_browser = browser;
 
         m_context = context;
 
@@ -139,6 +141,10 @@ public class Page {
         m_height = wpeView.getMeasuredHeight();
 
         m_handler = new PageThreadMessageHandler(this);
+
+        m_view = new View(m_context);
+        m_wpeView.onViewCreated(m_view);
+        ensureSurface();
 
         ensureWebView();
     }
@@ -150,8 +156,6 @@ public class Page {
         m_closed = true;
         Log.v(LOGTAG, "Page destruction");
         m_view.releaseTexture();
-        m_context.unbindService(m_webProcess);
-        m_context.unbindService(m_networkProcess);
         BrowserGlue.destroyWebView(m_webViewRef);
         m_webViewRef = 0;
     }
@@ -165,7 +169,9 @@ public class Page {
     public void onWebViewReady(long webViewRef) {
         Log.v(LOGTAG, "WebKitWebView ready");
         m_webViewRef = webViewRef;
-        loadUrlInternal();
+        if (m_viewReady) {
+            loadUrlInternal();
+        }
     }
 
     private void ensureWebView() {
@@ -179,7 +185,13 @@ public class Page {
     }
 
     public void onViewReady() {
+        Log.d(LOGTAG, "onViewReady");
         m_wpeView.onViewReady(m_view);
+        m_browser.provideSurface();
+        m_viewReady = true;
+        if (m_webViewRef != 0) {
+            loadUrlInternal();
+        }
     }
 
     private void ensureSurface() {
@@ -202,23 +214,10 @@ public class Page {
             case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 // FIXME: we probably want to kill the current web process here if any exists when
                 //        PSON is enabled.
-                m_webProcess = serviceConnection;
-                // WebKit's PSON (Process Switch On Navigation) creates new web processes when
-                // navigating across different security origins. In these case, we may already have
-                // created a previous WebKitWebView and gfx.View that we can reuse. We still need
-                // to create a fresh Surface in all cases though.
-                // FIXME: PSON is disabled at the moment because we have no way to handle the process
-                //        pool cache yet.
-                if (m_view == null) {
-                    m_view = new View(m_context);
-                    m_wpeView.onViewCreated(m_view);
-                } else {
-                    m_view.releaseTexture();
-                }
-                ensureSurface();
+                m_browser.setWebProcess(serviceConnection);
                 break;
             case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                m_networkProcess = serviceConnection;
+                m_browser.setNetworkProcess(serviceConnection);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown process type");
@@ -231,17 +230,7 @@ public class Page {
     public void stopService(WPEServiceConnection serviceConnection) {
         Log.d(LOGTAG, "stopService type: " + serviceConnection.processType());
         // This runs in the UIProcess thread.
-        m_context.unbindService(serviceConnection);
-        switch (serviceConnection.processType()) {
-            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-                m_webProcess = null;
-                break;
-            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                m_networkProcess = null;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown process type");
-        }
+        // FIXME: Until we fully support PSON, we won't do anything here.
     }
 
     public View view() {
