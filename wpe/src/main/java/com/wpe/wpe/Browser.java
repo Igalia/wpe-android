@@ -288,6 +288,7 @@ public final class Browser {
         }
         if (visibility == android.view.View.VISIBLE) {
             m_activeView = wpeView;
+            m_webProcess.setActivePage(m_pages.get(wpeView));
         }
     }
 
