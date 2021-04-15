@@ -28,6 +28,6 @@ private:
     bool m_initialized = false;
     WebKitWebView* m_webView;
     wpe_android_view_backend_exportable* m_viewBackendExportable;
-    std::shared_ptr<PageEventObserver> m_observer;
+    std::unique_ptr<PageEventObserver> m_observer;
     std::vector<gulong> m_signalHandlers;
 };
