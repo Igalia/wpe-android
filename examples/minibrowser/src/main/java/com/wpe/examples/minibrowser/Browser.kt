@@ -87,14 +87,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
            for (fragment in supportFragmentManager.fragments) {
                if (fragment == activeTab) {
                    show(fragment)
-                   (fragment as Tab).view?.requestFocus()
                } else {
                    hide(fragment)
-                   if (fragment is Tab) {
-                       (fragment as Tab).view?.clearFocus()
-                   } else if (fragment is TabsSelector){
-                       (fragment as TabsSelector).view?.clearFocus()
-                   }
                }
            }
         }
