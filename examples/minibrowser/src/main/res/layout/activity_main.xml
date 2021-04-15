@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<RelativeLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/wpeandroid_background"
     android:orientation="vertical">
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?android:actionBarSize">
+        android:layout_height="?android:actionBarSize"
+        android:background="@color/white">
 
         <EditText
             android:id="@+id/location_view"
@@ -32,11 +33,11 @@
         android:layout_height="3dp"
         android:layout_alignBottom="@id/toolbar" />
 
-    <com.wpe.wpeview.WPEView
-        android:id="@+id/wpe_view"
-        android:layout_below="@id/toolbar"
+    <androidx.fragment.app.FragmentContainerView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/fragment_container_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        tools:context=".MainActivity"/>
-
+        android:layout_below="@id/toolbar"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
 </RelativeLayout>

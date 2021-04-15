@@ -3,4 +3,6 @@
     <string name="action_back">Back</string>
     <string name="action_forward">Forward</string>
     <string name="action_reload">Reload</string>
+    <string name="no_open_tabs_description">No open tabs</string>
+    <string name="new_tab">New tab</string>
 </resources>

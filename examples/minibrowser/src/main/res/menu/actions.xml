@@ -2,6 +2,11 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_tab"
+        android:icon="@drawable/tabs_icon_black_18"
+        android:title="Tabs"
+        app:showAsAction="always"/>
+    <item
         android:id="@+id/action_back"
         android:title="@string/action_back"
         app:showAsAction="never"/>

@@ -20,17 +20,17 @@ public class BrowserGlue {
     public static native void init(BrowserGlue self);
     public static native void deinit();
 
-    public static native void newWebView(Page page, int width, int height);
-    public static native void destroyWebView(long webView);
+    public static native void newPage(Page page, int pageId, int width, int height);
+    public static native void closePage(int pageId);
 
-    public static native void loadURL(long webView, String url);
-    public static native void goBack(long webView);
-    public static native void goForward(long webView);
-    public static native void reload(long webView);
+    public static native void loadURL(int pageId, String url);
+    public static native void goBack(int pageId);
+    public static native void goForward(int pageId);
+    public static native void reload(int pageId);
 
-    public static native void frameComplete();
+    public static native void frameComplete(int pageId);
 
-    public static native void touchEvent(long time, int type, float x, float y);
+    public static native void touchEvent(int pageId, long time, int type, float x, float y);
 
     public BrowserGlue(@NonNull Browser browser) {
         m_browser = browser;

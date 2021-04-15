@@ -27,7 +27,7 @@ import javax.microedition.khronos.opengles.GL10;
 
 @UiThread
 public class View extends GLSurfaceView {
-    private static final String LOGTAG = "WPE gfx View";
+    private String LOGTAG;
 
     private static class Renderer implements GLSurfaceView.Renderer {
         private View m_view;
@@ -96,12 +96,12 @@ public class View extends GLSurfaceView {
                 m_vertexShader = GLES20.glCreateShader(GLES20.GL_VERTEX_SHADER);
                 GLES20.glShaderSource(m_vertexShader, s_vertexShaderSource);
                 GLES20.glCompileShader(m_vertexShader);
-                Log.v(LOGTAG, "vertex shader log " + GLES20.glGetShaderInfoLog(m_vertexShader));
+                Log.v(m_view.LOGTAG, "vertex shader log " + GLES20.glGetShaderInfoLog(m_vertexShader));
 
                 m_fragmentShader = GLES20.glCreateShader(GLES20.GL_FRAGMENT_SHADER);
                 GLES20.glShaderSource(m_fragmentShader, s_fragmentShaderSource);
                 GLES20.glCompileShader(m_fragmentShader);
-                Log.v(LOGTAG, "fragment shader log " + GLES20.glGetShaderInfoLog(m_fragmentShader));
+                Log.v(m_view.LOGTAG, "fragment shader log " + GLES20.glGetShaderInfoLog(m_fragmentShader));
 
                 m_program = GLES20.glCreateProgram();
                 GLES20.glAttachShader(m_program, m_vertexShader);
@@ -112,11 +112,11 @@ public class View extends GLSurfaceView {
                 GLES20.glGetProgramiv(m_program, GLES20.GL_LINK_STATUS, status, 0);
 
                 String programLog = GLES20.glGetProgramInfoLog(m_program);
-                Log.v(LOGTAG, "program " + m_program + ", status " + status[0] + ", log " + programLog);
+                Log.v(m_view.LOGTAG, "program " + m_program + ", status " + status[0] + ", log " + programLog);
 
                 m_aPosition = GLES20.glGetAttribLocation(m_program, "pos");
                 m_aTexture = GLES20.glGetAttribLocation(m_program, "texture");
-                Log.v(LOGTAG, "attrib locations " + m_aPosition + ", " + m_aTexture);
+                Log.v(m_view.LOGTAG, "attrib locations " + m_aPosition + ", " + m_aTexture);
             }
 
             if (!surfaceDirty)
@@ -146,12 +146,12 @@ public class View extends GLSurfaceView {
             }
 
             if (surfaceDirty) {
-                BrowserGlue.frameComplete();
+                BrowserGlue.frameComplete(m_view.m_pageId);
             }
         }
 
         public void onSurfaceChanged(GL10 gl, int width, int height) {
-            Log.d(LOGTAG, "Renderer::onSurfaceChanged() (" + width + "," + height + ")");
+            Log.d(m_view.LOGTAG, "Renderer::onSurfaceChanged() (" + width + "," + height + ")");
             synchronized (m_view) {
                 m_view.m_width = width;
                 m_view.m_height = height;
@@ -159,15 +159,16 @@ public class View extends GLSurfaceView {
         }
 
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-            Log.v(LOGTAG, "Renderer::onSurfaceCreated() -- unlocked");
+            Log.v(m_view.LOGTAG, "Renderer::onSurfaceCreated() -- unlocked");
             synchronized (m_view) {
-                Log.d(LOGTAG, "Renderer::onSurfaceCreated()");
+                Log.d(m_view.LOGTAG, "Renderer::onSurfaceCreated()");
                 m_view.m_rendererSurfaceCreated = true;
                 m_view.notifyAll();
             }
         }
     }
 
+    private final int m_pageId;
     private Renderer m_renderer;
     private boolean m_rendererSurfaceCreated = false;
     private int m_textureId = 0;
@@ -177,8 +178,12 @@ public class View extends GLSurfaceView {
     private int m_width;
     private int m_height;
 
-    public View(Context context) {
+    public View(Context context, int pageId) {
         super(context);
+
+        LOGTAG = "WPE gfx.View" + pageId;
+
+        m_pageId = pageId;
 
         setEGLContextFactory(new GLSurfaceView.EGLContextFactory() {
 
@@ -250,15 +255,15 @@ public class View extends GLSurfaceView {
                                     Log.v(LOGTAG, "new frame available for surfaceTexture " + surfaceTexture);
                                     synchronized (view) {
                                         view.m_surfaceDirty = true;
-                                        view.notifyAll();
                                     }
                                     requestRender();
                                 }
                             });
+                            view.notifyAll();
                         }
                     }
                 });
-                while (m_surfaceTexture == null && !view.m_surfaceDirty) {
+                while (m_surfaceTexture == null) {
                     view.wait();
                 }
             } catch (InterruptedException e) {
@@ -309,7 +314,7 @@ public class View extends GLSurfaceView {
                 return false;
         }
 
-        BrowserGlue.touchEvent(event.getEventTime(), eventType, event.getX(0), event.getY(0));
+        BrowserGlue.touchEvent(m_pageId, event.getEventTime(), eventType, event.getX(0), event.getY(0));
         return true;
     }
 }

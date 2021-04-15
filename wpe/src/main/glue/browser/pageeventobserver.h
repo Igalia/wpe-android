@@ -1,5 +1,6 @@
 #pragma once
 
+#include <jni.h>
 #include <wpe-webkit/wpe/webkit.h>
 
 class PageEventObserver {
@@ -13,4 +14,6 @@ public:
 
     void onLoadChanged(WebKitLoadEvent);
     void onLoadProgress(double);
+    void onUriChanged(const char*);
+    void onTitleChanged(const char*);
 };

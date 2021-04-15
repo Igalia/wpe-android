@@ -60,6 +60,18 @@ public final class Browser {
      */
     private final AuxiliaryProcesses m_auxiliaryProcesses = new AuxiliaryProcesses();
 
+    /*
+     * References to the single web and web processes.
+     *
+     * FIXME: Since we do not support PSON fully yet, we cannot tie the auxiliary
+     *        processes life cycle to the Page life cycle.
+     *        We need to keep the single instance of the Web and Network processes
+     *        at the Browser level.
+     *        Once PSON is fully supported, we'll need to move this into Page.
+     */
+    private WPEServiceConnection m_webProcess;
+    private WPEServiceConnection m_networkProcess;
+
     /**
      * The active view is the last view that changed its visibility to VISIBLE.
      * <p>
@@ -250,8 +262,12 @@ public final class Browser {
             m_pages = new IdentityHashMap<>();
         }
         assert (!m_pages.containsKey(wpeView));
-        m_pages.put(wpeView, new Page(context, wpeView, String.valueOf(m_pages.size())));
+        Page page = new Page(this, context, wpeView, m_pages.size());
+        m_pages.put(wpeView, page);
         m_activeView = wpeView;
+        if (m_webProcess != null) {
+            m_webProcess.setActivePage(page);
+        }
         loadPendingUrls(wpeView);
     }
 
@@ -267,12 +283,12 @@ public final class Browser {
 
     public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
         Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
-        if (m_pages == null) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
-        assert (m_pages.containsKey(wpeView));
         if (visibility == android.view.View.VISIBLE) {
             m_activeView = wpeView;
+            m_webProcess.setActivePage(m_pages.get(wpeView));
         }
     }
 
@@ -322,6 +338,20 @@ public final class Browser {
 
     void terminateAuxiliaryProcess(long pid) {
         m_auxiliaryProcesses.unregister(pid);
+    }
+
+    public void setWebProcess(WPEServiceConnection process) {
+        m_webProcess = process;
+    }
+
+    public void setNetworkProcess(WPEServiceConnection process) {
+        m_networkProcess = process;
+    }
+
+    public void provideSurface() {
+        if (m_webProcess != null) {
+            m_webProcess.provideSurface();
+        }
     }
 
     private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad) {

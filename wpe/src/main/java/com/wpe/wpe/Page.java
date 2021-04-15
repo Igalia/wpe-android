@@ -34,8 +34,10 @@ public class Page {
     static public final int LOAD_COMMITTED = 2;
     static public final int LOAD_FINISHED = 3;
 
-    private final Context m_context;
+    private final int m_id;
 
+    private final Browser m_browser;
+    private final Context m_context;
     private final WPEView m_wpeView;
 
     private boolean m_closed = false;
@@ -43,15 +45,13 @@ public class Page {
     private final int m_width;
     private final int m_height;
 
-    private WPEServiceConnection m_webProcess;
-    private WPEServiceConnection m_networkProcess;
-
     private final PageThreadMessageHandler m_handler;
     private PageThread m_thread;
 
     private View m_view;
+    private boolean m_viewReady = false;
 
-    private long m_webViewRef = 0;
+    private boolean m_pageGlueReady = false;
 
     private String m_pendingLoad;
 
@@ -126,13 +126,15 @@ public class Page {
         }
     }
 
-    public Page(@NonNull Context context, @NonNull WPEView wpeView, @NonNull String pageId) {
+    public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId) {
         LOGTAG = "WPE page" + pageId;
 
         Log.v(LOGTAG, "Page construction " + this);
 
-        m_context = context;
+        m_id = pageId;
 
+        m_browser = browser;
+        m_context = context;
         m_wpeView = wpeView;
 
         m_width =  wpeView.getMeasuredWidth();
@@ -140,7 +142,11 @@ public class Page {
 
         m_handler = new PageThreadMessageHandler(this);
 
-        ensureWebView();
+        m_view = new View(m_context, pageId);
+        m_wpeView.onViewCreated(m_view);
+        ensureSurface();
+
+        ensurePageGlue();
     }
 
     public void close() {
@@ -150,36 +156,42 @@ public class Page {
         m_closed = true;
         Log.v(LOGTAG, "Page destruction");
         m_view.releaseTexture();
-        m_context.unbindService(m_webProcess);
-        m_context.unbindService(m_networkProcess);
-        BrowserGlue.destroyWebView(m_webViewRef);
-        m_webViewRef = 0;
+        BrowserGlue.closePage(m_id);
+        m_pageGlueReady = false;
     }
 
     /**
-     * Callback triggered when the associated WebKitWebView instance is created.
-     * This is called by the JNI layer. See `Java_com_wpe_wpe_BrowserGlue_newWebView`
-     * @param webViewRef The reference to the associated WebKitWebView instance.
+     * Callback triggered when the Page glue is ready and the associated WebKitWebView
+     * instance is created.
+     * This is called by the JNI layer. See `Java_com_wpe_wpe_BrowserGlue_newPage`
      */
     @Keep
-    public void onWebViewReady(long webViewRef) {
-        Log.v(LOGTAG, "WebKitWebView ready");
-        m_webViewRef = webViewRef;
-        loadUrlInternal();
+    public void onPageGlueReady() {
+        Log.v(LOGTAG, "WebKitWebView ready " + m_pageGlueReady);
+        m_pageGlueReady = true;
+        if (m_viewReady) {
+            loadUrlInternal();
+        }
     }
 
-    private void ensureWebView() {
-        if (m_webViewRef != 0) {
-            onWebViewReady(m_webViewRef);
+    private void ensurePageGlue() {
+        if (m_pageGlueReady) {
+            onPageGlueReady();
             return;
         }
         // Requests the creation of a new WebKitWebView. On creation, the `onWebViewReady` callback
         // is triggered.
-        BrowserGlue.newWebView(this, m_width, m_height);
+        BrowserGlue.newPage(this, m_id, m_width, m_height);
     }
 
     public void onViewReady() {
+        Log.d(LOGTAG, "onViewReady");
         m_wpeView.onViewReady(m_view);
+        m_browser.provideSurface();
+        m_viewReady = true;
+        if (m_pageGlueReady) {
+            loadUrlInternal();
+        }
     }
 
     private void ensureSurface() {
@@ -202,23 +214,10 @@ public class Page {
             case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
                 // FIXME: we probably want to kill the current web process here if any exists when
                 //        PSON is enabled.
-                m_webProcess = serviceConnection;
-                // WebKit's PSON (Process Switch On Navigation) creates new web processes when
-                // navigating across different security origins. In these case, we may already have
-                // created a previous WebKitWebView and gfx.View that we can reuse. We still need
-                // to create a fresh Surface in all cases though.
-                // FIXME: PSON is disabled at the moment because we have no way to handle the process
-                //        pool cache yet.
-                if (m_view == null) {
-                    m_view = new View(m_context);
-                    m_wpeView.onViewCreated(m_view);
-                } else {
-                    m_view.releaseTexture();
-                }
-                ensureSurface();
+                m_browser.setWebProcess(serviceConnection);
                 break;
             case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                m_networkProcess = serviceConnection;
+                m_browser.setNetworkProcess(serviceConnection);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown process type");
@@ -231,17 +230,7 @@ public class Page {
     public void stopService(WPEServiceConnection serviceConnection) {
         Log.d(LOGTAG, "stopService type: " + serviceConnection.processType());
         // This runs in the UIProcess thread.
-        m_context.unbindService(serviceConnection);
-        switch (serviceConnection.processType()) {
-            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-                m_webProcess = null;
-                break;
-            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                m_networkProcess = null;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown process type");
-        }
+        // FIXME: Until we fully support PSON, we won't do anything here.
     }
 
     public View view() {
@@ -252,14 +241,14 @@ public class Page {
         if (m_pendingLoad == null) {
             return;
         }
-        BrowserGlue.loadURL(m_webViewRef, m_pendingLoad);
+        BrowserGlue.loadURL(m_id, m_pendingLoad);
         m_pendingLoad = null;
     }
 
     public void loadUrl(@NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Queue URL load " + url);
         m_pendingLoad = url;
-        ensureWebView();
+        ensurePageGlue();
     }
 
     public void onLoadChanged(int loadEvent) {
@@ -270,31 +259,39 @@ public class Page {
         m_wpeView.onLoadProgress(progress);
     }
 
+    public void onUriChanged(String uri) {
+        m_wpeView.onUriChanged(uri);
+    }
+
+    public void onTitleChanged(String title) {
+        m_wpeView.onTitleChanged(title);
+    }
+
     public boolean canGoBack() {
-        // FIXME this value need to be properly fetched from BrowserGlue and cached locally
+        // FIXME this value needs to be properly fetched from BrowserGlue and cached locally
         return m_canGoBack;
     }
 
     public boolean canGoForward() {
-        // FIXME this value need to be properly fetched from BrowserGlue and cached locally
+        // FIXME this value needs to be properly fetched from BrowserGlue and cached locally
         return m_canGoForward;
     }
 
     public void goBack() {
-        if (m_webViewRef != 0) {
-            BrowserGlue.goBack(m_webViewRef);
+        if (m_pageGlueReady) {
+            BrowserGlue.goBack(m_id);
         }
     }
 
     public void goForward() {
-        if (m_webViewRef != 0) {
-            BrowserGlue.goForward(m_webViewRef);
+        if (m_pageGlueReady) {
+            BrowserGlue.goForward(m_id);
         }
     }
 
     public void reload() {
-        if (m_webViewRef != 0) {
-            BrowserGlue.reload(m_webViewRef);
+        if (m_pageGlueReady) {
+            BrowserGlue.reload(m_id);
         }
     }
 }

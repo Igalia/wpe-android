@@ -17,6 +17,7 @@ import java.io.OutputStream;
 
 public class WebProcessService extends WPEService {
     private static final String LOGTAG = "WPEWebProcess";
+    private boolean m_initialized = false;
 
     @Override
     public void onCreate()
@@ -79,7 +80,16 @@ public class WebProcessService extends WPEService {
 
         Log.i(LOGTAG, "about to start main(), surface " + surface);
         WebProcessGlue.provideSurface(surface);
+        m_initialized = true;
         WebProcessGlue.initializeMain(fds[0].detachFd(), /* fds[1].detachFd() */ -1);
     }
 
+    @Override
+    protected void provideSurfaceIfAlreadyInitialized(Surface surface) {
+        Log.d(LOGTAG, "provideSurfaceIfAlreadyInitialized " + m_initialized);
+        super.provideSurfaceIfAlreadyInitialized(surface);
+        if (m_initialized) {
+            WebProcessGlue.provideSurface(surface);
+        }
+    }
 }
