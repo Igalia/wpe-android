@@ -194,7 +194,7 @@ class Bootstrap:
         p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE)
         (stdout, stderr) = p.communicate()
 
-        for line in stdout.decode().split('\n'):
+        for line in stdout.decode().splitlines():
             needed = re.match("^ 0x[0-9a-f]+ \(NEEDED\)\s+Shared library: \[(.+)\]$", line)
             if needed:
                 needed_list.append(needed.group(1))
