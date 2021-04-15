@@ -1,5 +1,6 @@
 #pragma once
 
+#include <jni.h>
 #include <wpe-webkit/wpe/webkit.h>
 
 class PageEventObserver {

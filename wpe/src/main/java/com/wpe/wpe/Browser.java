@@ -262,7 +262,7 @@ public final class Browser {
             m_pages = new IdentityHashMap<>();
         }
         assert (!m_pages.containsKey(wpeView));
-        Page page = new Page(this, context, wpeView, String.valueOf(m_pages.size()));
+        Page page = new Page(this, context, wpeView, m_pages.size());
         m_pages.put(wpeView, page);
         m_activeView = wpeView;
         if (m_webProcess != null) {
