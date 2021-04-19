@@ -36,6 +36,7 @@ public:
 
     void frameComplete(int pageId);
     void onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y);
+    void setZoomLevel(int pageId, jdouble zoomLevel);
 
 private:
     Browser() {}

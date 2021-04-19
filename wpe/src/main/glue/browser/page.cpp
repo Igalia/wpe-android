@@ -109,6 +109,11 @@ void Page::onTouch(wpe_input_touch_event_raw *touchEventRaw)
     wpe_view_backend_dispatch_touch_event(viewBackend, &touchEvent);
 }
 
+void Page::setZoomLevel(double zoomLevel)
+{
+    webkit_web_view_set_zoom_level(m_webView, zoomLevel);
+}
+
 static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data) {
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {

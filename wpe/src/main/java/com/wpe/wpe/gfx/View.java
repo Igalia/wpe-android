@@ -1,7 +1,6 @@
 package com.wpe.wpe.gfx;
 
 import android.content.Context;
-import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.opengl.EGL14;
 import android.opengl.GLES11Ext;
@@ -9,6 +8,7 @@ import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.Surface;
 
 import androidx.annotation.UiThread;
@@ -28,6 +28,22 @@ import javax.microedition.khronos.opengles.GL10;
 @UiThread
 public class View extends GLSurfaceView {
     private String LOGTAG;
+
+    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+        @Override
+        public boolean onScale(ScaleGestureDetector detector) {
+            mScaleFactor *= detector.getScaleFactor();
+
+            mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 5.0f));
+
+            BrowserGlue.setZoomLevel(m_pageId, mScaleFactor);
+
+            m_ignoreTouchEvent = true;
+
+            return true;
+        }
+    }
+
 
     private static class Renderer implements GLSurfaceView.Renderer {
         private View m_view;
@@ -177,6 +193,9 @@ public class View extends GLSurfaceView {
     private boolean m_surfaceDirty = false;
     private int m_width;
     private int m_height;
+    private ScaleGestureDetector mScaleDetector;
+    private float mScaleFactor = 1.f;
+    private boolean m_ignoreTouchEvent = false;
 
     public View(Context context, int pageId) {
         super(context);
@@ -206,6 +225,9 @@ public class View extends GLSurfaceView {
         setRenderer(m_renderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
         setPreserveEGLContextOnPause(true);
+
+        mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());
+
         requestLayout();
     }
 
@@ -295,6 +317,12 @@ public class View extends GLSurfaceView {
         int pointerCount = event.getPointerCount();
         if (pointerCount < 1) {
             return false;
+        }
+
+        mScaleDetector.onTouchEvent(event);
+
+        if (m_ignoreTouchEvent) {
+            m_ignoreTouchEvent = false;
         }
 
         int eventType;
