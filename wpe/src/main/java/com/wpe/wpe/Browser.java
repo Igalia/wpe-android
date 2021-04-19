@@ -398,6 +398,10 @@ public final class Browser {
         m_pages.get(wpeView).goForward();
     }
 
+    public void stopLoading(@NonNull WPEView wpeView) {
+        m_pages.get(wpeView).stopLoading();
+    }
+
     public void reload(@NonNull WPEView wpeView) {
         m_pages.get(wpeView).reload();
     }

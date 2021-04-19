@@ -179,6 +179,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             true
         }
 
+        R.id.action_stop -> {
+            activeTab?.view?.stopLoading()
+            true
+        }
+
         R.id.action_reload -> {
             activeTab?.view?.reload()
             true

@@ -26,6 +26,7 @@ public class BrowserGlue {
     public static native void loadURL(int pageId, String url);
     public static native void goBack(int pageId);
     public static native void goForward(int pageId);
+    public static native void stopLoading(int pageId);
     public static native void reload(int pageId);
 
     public static native void frameComplete(int pageId);

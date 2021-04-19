@@ -32,6 +32,7 @@ public:
     void loadUrl(int pageId, const char *urlData, jsize urlSize);
     void goBack(int pageId);
     void goForward(int pageId);
+    void stopLoading(int pageId);
     void reload(int pageId);
 
     void frameComplete(int pageId);

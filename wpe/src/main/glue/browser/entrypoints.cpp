@@ -18,6 +18,7 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv*, jobject, jint, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv*, jobject, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv*, jobject, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv*, jobject, jint);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject, jint);
@@ -93,6 +94,11 @@ Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv* env, jobject, jint pageId)
     Browser::getInstance().goForward(pageId);
 }
 
+Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint pageId)
+{
+    Browser::getInstance().stopLoading(pageId);
+}
+
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv* env, jobject, jint pageId)
 {
@@ -116,3 +122,4 @@ Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble 
 {
     Browser::getInstance().setZoomLevel(pageId, zoomLevel);
 }
+

@@ -85,6 +85,7 @@ void Browser::newPage(int pageId, int width, int height, std::unique_ptr<PageEve
 PAGE_METHOD_PROXY(closePage, close, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(goBack, goBack, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(goForward, goForward, G_PRIORITY_DEFAULT)
+PAGE_METHOD_PROXY(stopLoading, stopLoading, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(reload, reload, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(frameComplete, frameComplete, G_PRIORITY_HIGH + 30)
 
@@ -145,7 +146,7 @@ void Browser::onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y)
     touchEventRaw->y = (int32_t) y;
 
     auto *data = new OnTouchData { m_pages[pageId].get(), touchEventRaw };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_HIGH + 30, [](gpointer data) -> gboolean {
         auto *touchData = reinterpret_cast<OnTouchData*>(data);
         if (touchData->page != nullptr) {
             touchData->page->onTouch(touchData->touchEvent);

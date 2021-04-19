@@ -15,6 +15,10 @@
         android:title="@string/action_forward"
         app:showAsAction="never"/>
     <item
+        android:id="@+id/action_stop"
+        android:title="@string/action_stop"
+        app:showAsAction="never"/>
+    <item
         android:id="@+id/action_reload"
         android:title="@string/action_reload"
         app:showAsAction="never"/>

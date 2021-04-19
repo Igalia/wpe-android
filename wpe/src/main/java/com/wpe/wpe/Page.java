@@ -289,6 +289,12 @@ public class Page {
         }
     }
 
+    public void stopLoading() {
+        if (m_pageGlueReady) {
+            BrowserGlue.stopLoading(m_id);
+        }
+    }
+
     public void reload() {
         if (m_pageGlueReady) {
             BrowserGlue.reload(m_id);

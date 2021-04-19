@@ -208,6 +208,13 @@ public class WPEView extends FrameLayout implements ViewObserver {
     }
 
     /**
+     * Stop the current load.
+     */
+    public void stopLoading() {
+        Browser.getInstance().stopLoading(this);
+    }
+
+    /**
      * Reloads the current URL.
      */
     public void reload() {

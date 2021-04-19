@@ -22,7 +22,8 @@ Page::Page(int width, int height, std::unique_ptr<PageEventObserver> observer)
     m_signalHandlers.clear();
 }
 
-void Page::init() {
+void Page::init()
+{
     if (m_initialized) {
         return;
     }
@@ -57,7 +58,8 @@ void Page::init() {
     m_initialized = true;
 }
 
-void Page::close() {
+void Page::close()
+{
     ALOGV("Page::close");
     if (!m_initialized) {
         return;
@@ -70,7 +72,8 @@ void Page::close() {
     webkit_web_view_try_close(m_webView);
 }
 
-void Page::loadUrl(const char *url) {
+void Page::loadUrl(const char *url)
+{
     ALOGV("Page::loadUrl %s %p", url, m_webView);
     webkit_web_view_load_uri(m_webView, url);
 }
@@ -83,6 +86,11 @@ void Page::goBack()
 void Page::goForward()
 {
     webkit_web_view_go_forward(m_webView);
+}
+
+void Page::stopLoading()
+{
+    webkit_web_view_stop_loading(m_webView);
 }
 
 void Page::reload()
@@ -114,14 +122,16 @@ void Page::setZoomLevel(double zoomLevel)
     webkit_web_view_set_zoom_level(m_webView, zoomLevel);
 }
 
-static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data) {
+static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data)
+{
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {
         observer->onLoadChanged(loadEvent);
     }
 }
 
-static void onLoadProgressChanged(WebKitWebView *webView, GParamSpec *, gpointer data) {
+static void onLoadProgressChanged(WebKitWebView *webView, GParamSpec *, gpointer data)
+{
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {
         gdouble progress = webkit_web_view_get_estimated_load_progress(webView);
@@ -129,7 +139,8 @@ static void onLoadProgressChanged(WebKitWebView *webView, GParamSpec *, gpointer
     }
 }
 
-static void onUriChanged(WebKitWebView *webView, GParamSpec *, gpointer data) {
+static void onUriChanged(WebKitWebView *webView, GParamSpec *, gpointer data)
+{
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {
         const char *uri = webkit_web_view_get_uri(webView);
@@ -137,7 +148,8 @@ static void onUriChanged(WebKitWebView *webView, GParamSpec *, gpointer data) {
     }
 }
 
-static void onTitleChanged(WebKitWebView *webView, GParamSpec *, gpointer data) {
+static void onTitleChanged(WebKitWebView *webView, GParamSpec *, gpointer data)
+{
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {
         const char *title = webkit_web_view_get_title(webView);

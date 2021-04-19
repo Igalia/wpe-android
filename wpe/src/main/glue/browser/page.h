@@ -17,6 +17,7 @@ public:
     void loadUrl(const char* url);
     void goBack();
     void goForward();
+    void stopLoading();
     void reload();
 
     void frameComplete();
