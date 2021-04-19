@@ -21,6 +21,7 @@ public:
 
     void frameComplete();
     void onTouch(wpe_input_touch_event_raw*);
+    void setZoomLevel(double zoomLevel);
 
 private:
     int m_width = 0;

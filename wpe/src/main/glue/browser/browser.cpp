@@ -156,3 +156,20 @@ void Browser::onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y)
         g_free(touchData->touchEvent);
     });
 }
+
+typedef struct {
+    Page* page;
+    double zoomLevel;
+} ZoomLevelData;
+
+void Browser::setZoomLevel(int pageId, jdouble zoomLevel)
+{
+    auto *data = new ZoomLevelData { m_pages[pageId].get(), zoomLevel };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto *zoomLevelData = reinterpret_cast<ZoomLevelData*>(data);
+        if (zoomLevelData->page != nullptr) {
+            zoomLevelData->page->setZoomLevel(zoomLevelData->zoomLevel);
+        }
+        return G_SOURCE_REMOVE;
+    }, data, NULL);
+}

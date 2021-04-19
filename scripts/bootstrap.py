@@ -100,9 +100,9 @@ class Bootstrap:
         if not os.path.isdir(self.__build_dir):
             os.mkdir(self.__build_dir)
         os.chdir(self.__build_dir)
-        wpewebkit = requests.get('https://cloud.igalia.com/s/oNSwxHKJ9N8WLbN/download', allow_redirects=True)
+        wpewebkit = requests.get('https://cloud.igalia.com/s/Z2atNFGGm2Yz5Yw/download', allow_redirects=True)
         open(self.__wpewebkit_binary, 'wb').write(wpewebkit.content)
-        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/QxKLCxK52W2TTps/download', allow_redirects=True)
+        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/pQHeFFdY28xBaoB/download', allow_redirects=True)
         open(self.__wpewebkit_runtime_binary, 'wb').write(wpewebkit_runtime.content)
 
     def __cerbero_command(self, args):

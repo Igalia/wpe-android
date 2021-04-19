@@ -31,6 +31,7 @@ public class BrowserGlue {
     public static native void frameComplete(int pageId);
 
     public static native void touchEvent(int pageId, long time, int type, float x, float y);
+    public static native void setZoomLevel(int pageId, double zoomLevel);
 
     public BrowserGlue(@NonNull Browser browser) {
         m_browser = browser;
