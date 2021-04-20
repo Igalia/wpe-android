@@ -94,6 +94,7 @@ Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv* env, jobject, jint pageId)
     Browser::getInstance().goForward(pageId);
 }
 
+JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint pageId)
 {
     Browser::getInstance().stopLoading(pageId);
