@@ -153,6 +153,8 @@ static void onTitleChanged(WebKitWebView *webView, GParamSpec *, gpointer data)
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
     if (observer != nullptr) {
         const char *title = webkit_web_view_get_title(webView);
-        observer->onTitleChanged(title);
+        gboolean canGoBack = webkit_web_view_can_go_back(webView);
+        gboolean canGoForward = webkit_web_view_can_go_forward(webView);
+        observer->onTitleChanged(title, canGoBack, canGoForward);
     }
 }

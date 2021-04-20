@@ -383,10 +383,16 @@ public final class Browser {
     }
 
     public boolean canGoBack(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return false;
+        }
         return m_pages.get(wpeView).canGoBack();
     }
 
     public boolean canGoForward(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return false;
+        }
         return m_pages.get(wpeView).canGoForward();
     }
 

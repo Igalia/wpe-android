@@ -49,4 +49,18 @@ PageEventObserver::~PageEventObserver() {
 JAVA_CALL(onLoadChanged, "(I)V", WebKitLoadEvent loadEvent, (int) loadEvent)
 JAVA_CALL(onLoadProgress, "(D)V", double progress, progress)
 JAVA_CALL_CAST(onUriChanged, "(Ljava/lang/String;)V", const char *uri, uri, jstring, NewStringUTF)
-JAVA_CALL_CAST(onTitleChanged, "(Ljava/lang/String;)V", const char *title, title, jstring, NewStringUTF)
+
+void PageEventObserver::onTitleChanged(const char* title, gboolean canGoBack, gboolean canGoForward) {
+    try {
+        JNIEnv *env = ScopedEnv(vm).getEnv();
+        jmethodID _method = env->GetMethodID(pageClass, "onTitleChanged", "(Ljava/lang/String;ZZ)V");
+        if (_method == nullptr) {
+            throw;
+        }
+
+        jstring jtitle = env->NewStringUTF(title);
+        env->CallVoidMethod(pageObj, _method, jtitle, (jboolean)canGoBack, (jboolean)canGoForward);
+    } catch(int) {
+      ALOGE("Could not send event");
+    }
+}

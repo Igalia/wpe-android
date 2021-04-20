@@ -163,6 +163,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
+    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
+        activeTab?.view?.canGoBack()?.let { menu?.findItem(R.id.action_back)?.setEnabled(it) }
+        activeTab?.view?.canGoForward()?.let { menu?.findItem(R.id.action_forward)?.setEnabled(it) }
+        return super.onPrepareOptionsMenu(menu)
+    }
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.actions, menu)
         return super.onCreateOptionsMenu(menu)

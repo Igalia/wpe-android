@@ -15,5 +15,5 @@ public:
     void onLoadChanged(WebKitLoadEvent);
     void onLoadProgress(double);
     void onUriChanged(const char*);
-    void onTitleChanged(const char*);
+    void onTitleChanged(const char*, gboolean canGoBack, gboolean canGoForward);
 };

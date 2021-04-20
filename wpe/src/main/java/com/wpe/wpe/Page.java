@@ -263,17 +263,17 @@ public class Page {
         m_wpeView.onUriChanged(uri);
     }
 
-    public void onTitleChanged(String title) {
+    public void onTitleChanged(String title, boolean canGoBack, boolean canGoForward) {
+        m_canGoBack = canGoBack;
+        m_canGoForward = canGoForward;
         m_wpeView.onTitleChanged(title);
     }
 
     public boolean canGoBack() {
-        // FIXME this value needs to be properly fetched from BrowserGlue and cached locally
         return m_canGoBack;
     }
 
     public boolean canGoForward() {
-        // FIXME this value needs to be properly fetched from BrowserGlue and cached locally
         return m_canGoForward;
     }
 
