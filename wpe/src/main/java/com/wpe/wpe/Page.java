@@ -311,4 +311,10 @@ public class Page {
             BrowserGlue.reload(m_id);
         }
     }
+
+    public void setInputMethodContent(char c) {
+        if (m_pageGlueReady) {
+            BrowserGlue.setInputMethodContent(m_id, c);
+        }
+    }
 }

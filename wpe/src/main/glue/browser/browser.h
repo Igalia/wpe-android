@@ -39,6 +39,8 @@ public:
     void onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y);
     void setZoomLevel(int pageId, jdouble zoomLevel);
 
+    void setInputMethodContent(int pageId, const char c);
+
 private:
     Browser() {}
 

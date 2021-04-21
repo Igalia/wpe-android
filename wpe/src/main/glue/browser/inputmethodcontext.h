@@ -16,5 +16,6 @@ struct _InputMethodContextClass {
 };
 
 WebKitInputMethodContext *input_method_context_new(std::shared_ptr<PageEventObserver>);
+void input_method_context_set_content(WebKitInputMethodContext*, const char c);
 
 G_END_DECLS

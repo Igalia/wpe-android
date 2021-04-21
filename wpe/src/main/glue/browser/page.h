@@ -26,6 +26,8 @@ public:
     void onTouch(wpe_input_touch_event_raw*);
     void setZoomLevel(double zoomLevel);
 
+    void setInputMethodContent(const char c);
+
 private:
     int m_width = 0;
     int m_height = 0;

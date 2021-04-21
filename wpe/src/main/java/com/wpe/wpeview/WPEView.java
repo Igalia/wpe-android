@@ -3,6 +3,8 @@ package com.wpe.wpeview;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.view.KeyCharacterMap;
+import android.view.KeyEvent;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -92,6 +94,14 @@ public class WPEView extends FrameLayout implements ViewObserver {
         Log.v(LOGTAG, "View ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        final KeyCharacterMap kmap = KeyCharacterMap.load(event != null ?
+                event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
+        Browser.getInstance().setInputMethodContent(this, (char)kmap.get(keyCode, event.getMetaState()));
+        return true;
     }
 
     private void runOnMainThread(Runnable runnable) {

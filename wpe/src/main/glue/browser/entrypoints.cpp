@@ -24,6 +24,8 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jint, jlong, jint, jfloat, jfloat);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint, jdouble);
+
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv*, jclass, jint, jchar);
 }
 
 std::unique_ptr<Browser> Browser::m_instance = nullptr;
@@ -124,3 +126,7 @@ Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble 
     Browser::getInstance().setZoomLevel(pageId, zoomLevel);
 }
 
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jchar c) {
+    Browser::getInstance().setInputMethodContent(pageId, c);
+}

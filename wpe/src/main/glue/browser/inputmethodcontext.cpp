@@ -18,12 +18,6 @@ G_DEFINE_TYPE_WITH_PRIVATE(InputMethodContext, input_method_context, WEBKIT_TYPE
 #define PRIV(obj)                                                       \
     ((InputMethodContextPrivate*) input_method_context_get_instance_private(WPE_ANDROID_INPUT_METHOD_CONTEXT(obj)))
 
-WebKitInputMethodContext*
-input_method_context_new(std::shared_ptr<PageEventObserver> observer)
-{
-    return WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(TYPE_INPUT_METHOD_CONTEXT, "observer", observer.get()));
-}
-
 static void
 input_method_context_notify_focus_in(WebKitInputMethodContext *context)
 {
@@ -110,4 +104,17 @@ input_method_context_class_init(InputMethodContextClass *klass)
 static void
 input_method_context_init(InputMethodContext *self)
 {
+}
+
+WebKitInputMethodContext*
+input_method_context_new(std::shared_ptr<PageEventObserver> observer)
+{
+    return WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(TYPE_INPUT_METHOD_CONTEXT, "observer", observer.get()));
+}
+
+void
+input_method_context_set_content(WebKitInputMethodContext *context, const char c)
+{
+    ALOGV("set_content %c", c);
+    g_signal_emit_by_name(context, "committed", &c);
 }

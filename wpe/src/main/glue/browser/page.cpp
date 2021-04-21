@@ -126,6 +126,10 @@ void Page::setZoomLevel(double zoomLevel)
     webkit_web_view_set_zoom_level(m_webView, zoomLevel);
 }
 
+void Page::setInputMethodContent(const char c) {
+    input_method_context_set_content(m_input_method_context, c);
+}
+
 static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data)
 {
     auto *observer = reinterpret_cast<PageEventObserver *>(data);
