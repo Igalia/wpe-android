@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Parcelable;
 import android.util.Log;
+import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -267,6 +268,16 @@ public class Page {
         m_canGoBack = canGoBack;
         m_canGoForward = canGoForward;
         m_wpeView.onTitleChanged(title);
+    }
+
+    public void onInputMethodContextIn() {
+        InputMethodManager imm = (InputMethodManager) m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+    }
+
+    public void onInputMethodContextOut() {
+        InputMethodManager imm = (InputMethodManager) m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(m_view.getWindowToken(), 0);
     }
 
     public boolean canGoBack() {

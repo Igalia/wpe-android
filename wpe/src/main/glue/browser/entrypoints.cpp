@@ -59,7 +59,7 @@ Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv *env, jobject, jobject pageObj, jint
     env->GetJavaVM(&vm);
 
     Browser::getInstance().newPage(
-            pageId, width, height, std::make_unique<PageEventObserver>(vm, _pageClass, _pageObj));
+            pageId, width, height, std::make_shared<PageEventObserver>(vm, _pageClass, _pageObj));
 
     jmethodID onReady = env->GetMethodID(pageClass, "onPageGlueReady", "()V");
     if (onReady == nullptr) {

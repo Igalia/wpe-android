@@ -26,7 +26,7 @@ public:
     void init();
     void deinit();
 
-    void newPage(int pageId, int width, int height, std::unique_ptr<PageEventObserver> observer);
+    void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
     void loadUrl(int pageId, const char *urlData, jsize urlSize);
