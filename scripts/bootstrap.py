@@ -143,7 +143,8 @@ class Bootstrap:
             subprocess.call(['git', 'pull', 'origin', branch])
             os.chdir(self.__root)
         else:
-            shutil.rmtree(self.__build_dir)
+            if os.path.isdir(self.__build_dir):
+                shutil.rmtree(self.__build_dir)
             subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
 
         self.__cerbero_command(['bootstrap'])
