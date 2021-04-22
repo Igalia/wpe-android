@@ -254,6 +254,9 @@ public class Page {
 
     public void onLoadChanged(int loadEvent) {
         m_wpeView.onLoadChanged(loadEvent);
+        if (loadEvent == Page.LOAD_STARTED) {
+            dismissKeyboard();
+        }
     }
 
     public void onLoadProgress(double progress) {
@@ -275,9 +278,13 @@ public class Page {
         imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }
 
-    public void onInputMethodContextOut() {
+    private void dismissKeyboard() {
         InputMethodManager imm = (InputMethodManager) m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.hideSoftInputFromWindow(m_view.getWindowToken(), 0);
+    }
+
+    public void onInputMethodContextOut() {
+        dismissKeyboard();
     }
 
     public boolean canGoBack() {
