@@ -27,6 +27,7 @@ public:
     void setZoomLevel(double zoomLevel);
 
     void setInputMethodContent(const char c);
+    void deleteInputMethodContent(int offset);
 
 private:
     int m_width = 0;

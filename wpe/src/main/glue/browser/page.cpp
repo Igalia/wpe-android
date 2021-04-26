@@ -126,8 +126,14 @@ void Page::setZoomLevel(double zoomLevel)
     webkit_web_view_set_zoom_level(m_webView, zoomLevel);
 }
 
-void Page::setInputMethodContent(const char c) {
+void Page::setInputMethodContent(const char c)
+{
     input_method_context_set_content(m_input_method_context, c);
+}
+
+void Page::deleteInputMethodContent(int offset)
+{
+    input_method_context_delete_content(m_input_method_context, offset);
 }
 
 static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data)

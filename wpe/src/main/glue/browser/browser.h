@@ -40,6 +40,7 @@ public:
     void setZoomLevel(int pageId, jdouble zoomLevel);
 
     void setInputMethodContent(int pageId, const char c);
+    void deleteInputMethodContent(int pageId, int offset);
 
 private:
     Browser() {}

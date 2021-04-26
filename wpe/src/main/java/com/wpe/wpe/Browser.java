@@ -416,4 +416,7 @@ public final class Browser {
         m_pages.get(wpeView).setInputMethodContent(c);
     }
 
+    public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset) {
+        m_pages.get(wpeView).deleteInputMethodContent(offset);
+    }
 }

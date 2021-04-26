@@ -98,6 +98,11 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            Browser.getInstance().deleteInputMethodContent(this, -1);
+            return true;
+        }
+
         final KeyCharacterMap kmap = KeyCharacterMap.load(event != null ?
                 event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
         Browser.getInstance().setInputMethodContent(this, (char)kmap.get(keyCode, event.getMetaState()));

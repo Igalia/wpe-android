@@ -324,4 +324,10 @@ public class Page {
             BrowserGlue.setInputMethodContent(m_id, c);
         }
     }
+
+    public void deleteInputMethodContent(int offset) {
+        if (m_pageGlueReady) {
+            BrowserGlue.deleteInputMethodContent(m_id, offset);
+        }
+    }
 }

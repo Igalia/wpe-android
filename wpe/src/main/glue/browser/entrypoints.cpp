@@ -26,7 +26,7 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint, jdouble);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv*, jclass, jint, jchar);
-}
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv*, jclass, jint, jint);
 
 std::unique_ptr<Browser> Browser::m_instance = nullptr;
 
@@ -129,4 +129,10 @@ Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble 
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jchar c) {
     Browser::getInstance().setInputMethodContent(pageId, c);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jint offset) {
+    Browser::getInstance().deleteInputMethodContent(pageId, offset);
+}
 }

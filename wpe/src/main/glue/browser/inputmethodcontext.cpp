@@ -115,6 +115,11 @@ input_method_context_new(std::shared_ptr<PageEventObserver> observer)
 void
 input_method_context_set_content(WebKitInputMethodContext *context, const char c)
 {
-    ALOGV("set_content %c", c);
     g_signal_emit_by_name(context, "committed", &c);
+}
+
+void
+input_method_context_delete_content(WebKitInputMethodContext *context, int offset)
+{
+    g_signal_emit_by_name(context, "delete-surrounding", offset, 1);
 }

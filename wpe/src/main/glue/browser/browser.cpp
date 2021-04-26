@@ -178,15 +178,31 @@ void Browser::setZoomLevel(int pageId, jdouble zoomLevel)
 typedef struct {
     Page* page;
     const char c;
+    int offset;
 } InputMethodContentData;
 
 void Browser::setInputMethodContent(int pageId, const char c) {
-    auto *data = new InputMethodContentData { m_pages[pageId].get(), c };
+    auto *data = new InputMethodContentData { m_pages[pageId].get(), c, 0 };
     g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
-        auto *data_ = reinterpret_cast<InputMethodContentData*>(data);
+        auto *data_ = static_cast<InputMethodContentData*>(data);
         if (data_->page != nullptr) {
             data_->page->setInputMethodContent(data_->c);
         }
         return G_SOURCE_REMOVE;
-    }, data, NULL);
+    }, data, [](gpointer data) {
+        delete static_cast<InputMethodContentData*>(data);
+    });
+}
+
+void Browser::deleteInputMethodContent(int pageId, int offset) {
+    auto *data = new InputMethodContentData { m_pages[pageId].get(), 0, offset };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto *data_ = static_cast<InputMethodContentData*>(data);
+        if (data_->page != nullptr) {
+            data_->page->deleteInputMethodContent(data_->offset);
+        }
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) {
+        delete static_cast<InputMethodContentData*>(data);
+    });
 }
