@@ -111,6 +111,7 @@ void Browser::loadUrl(int pageId, const char *urlData, jsize urlSize)
     }, data, [](gpointer data) -> void {
         auto *loadUrlData = reinterpret_cast<LoadUrlData*>(data);
         g_free(loadUrlData->url);
+        delete loadUrlData;
     });
 }
 
@@ -155,6 +156,7 @@ void Browser::onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y)
     }, data, [](gpointer data) -> void {
         auto *touchData = reinterpret_cast<OnTouchData*>(data);
         g_free(touchData->touchEvent);
+        delete touchData;
     });
 }
 
@@ -172,5 +174,7 @@ void Browser::setZoomLevel(int pageId, jdouble zoomLevel)
             zoomLevelData->page->setZoomLevel(zoomLevelData->zoomLevel);
         }
         return G_SOURCE_REMOVE;
-    }, data, NULL);
+    }, data, [](gpointer data) -> void {
+        delete reinterpret_cast<ZoomLevelData*>(data);
+    });
 }
