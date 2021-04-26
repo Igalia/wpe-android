@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Parcelable;
 import android.util.Log;
+import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -253,6 +254,9 @@ public class Page {
 
     public void onLoadChanged(int loadEvent) {
         m_wpeView.onLoadChanged(loadEvent);
+        if (loadEvent == Page.LOAD_STARTED) {
+            dismissKeyboard();
+        }
     }
 
     public void onLoadProgress(double progress) {
@@ -267,6 +271,20 @@ public class Page {
         m_canGoBack = canGoBack;
         m_canGoForward = canGoForward;
         m_wpeView.onTitleChanged(title);
+    }
+
+    public void onInputMethodContextIn() {
+        InputMethodManager imm = (InputMethodManager) m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+    }
+
+    private void dismissKeyboard() {
+        InputMethodManager imm = (InputMethodManager) m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(m_view.getWindowToken(), 0);
+    }
+
+    public void onInputMethodContextOut() {
+        dismissKeyboard();
     }
 
     public boolean canGoBack() {
@@ -298,6 +316,18 @@ public class Page {
     public void reload() {
         if (m_pageGlueReady) {
             BrowserGlue.reload(m_id);
+        }
+    }
+
+    public void setInputMethodContent(char c) {
+        if (m_pageGlueReady) {
+            BrowserGlue.setInputMethodContent(m_id, c);
+        }
+    }
+
+    public void deleteInputMethodContent(int offset) {
+        if (m_pageGlueReady) {
+            BrowserGlue.deleteInputMethodContent(m_id, offset);
         }
     }
 }

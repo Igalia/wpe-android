@@ -67,10 +67,10 @@ void Browser::runMainLoop() {
     m_uiProcessThreadLoop.reset(NULL);
 }
 
-void Browser::newPage(int pageId, int width, int height, std::unique_ptr<PageEventObserver> observer)
+void Browser::newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer)
 {
     ALOGV("Browser::newPage");
-    auto page = std::make_unique<Page>(Page(width, height, std::move(observer)));
+    auto page = std::make_unique<Page>(Page(width, height, observer));
     g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
         auto *page = reinterpret_cast<Page*>(data);
         if (page != nullptr) {
@@ -176,5 +176,37 @@ void Browser::setZoomLevel(int pageId, jdouble zoomLevel)
         return G_SOURCE_REMOVE;
     }, data, [](gpointer data) -> void {
         delete reinterpret_cast<ZoomLevelData*>(data);
+    });
+}
+
+typedef struct {
+    Page* page;
+    const char c;
+    int offset;
+} InputMethodContentData;
+
+void Browser::setInputMethodContent(int pageId, const char c) {
+    auto *data = new InputMethodContentData { m_pages[pageId].get(), c, 0 };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto *data_ = static_cast<InputMethodContentData*>(data);
+        if (data_->page != nullptr) {
+            data_->page->setInputMethodContent(data_->c);
+        }
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) {
+        delete static_cast<InputMethodContentData*>(data);
+    });
+}
+
+void Browser::deleteInputMethodContent(int pageId, int offset) {
+    auto *data = new InputMethodContentData { m_pages[pageId].get(), 0, offset };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto *data_ = static_cast<InputMethodContentData*>(data);
+        if (data_->page != nullptr) {
+            data_->page->deleteInputMethodContent(data_->offset);
+        }
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) {
+        delete static_cast<InputMethodContentData*>(data);
     });
 }

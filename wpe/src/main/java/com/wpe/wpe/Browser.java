@@ -411,4 +411,12 @@ public final class Browser {
     public void reload(@NonNull WPEView wpeView) {
         m_pages.get(wpeView).reload();
     }
+
+    public void setInputMethodContent(@NonNull WPEView wpeView, char c) {
+        m_pages.get(wpeView).setInputMethodContent(c);
+    }
+
+    public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset) {
+        m_pages.get(wpeView).deleteInputMethodContent(offset);
+    }
 }

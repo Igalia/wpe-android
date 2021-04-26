@@ -11,10 +11,10 @@ static void onUriChanged(WebKitWebView *, GParamSpec *, gpointer);
 
 static void onTitleChanged(WebKitWebView *, GParamSpec *, gpointer);
 
-Page::Page(int width, int height, std::unique_ptr<PageEventObserver> observer)
+Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
         : m_width(width),
           m_height(height),
-          m_observer(std::move(observer)),
+          m_observer(observer),
           m_webView(nullptr),
           m_viewBackendExportable(nullptr),
           m_initialized(false)
@@ -52,6 +52,10 @@ void Page::init()
     m_signalHandlers.push_back(
             g_signal_connect(m_webView, "notify::title", G_CALLBACK(onTitleChanged),
                              m_observer.get()));
+
+    m_input_method_context = input_method_context_new(m_observer);
+
+    webkit_web_view_set_input_method_context(m_webView, m_input_method_context);
 
     ALOGV("Created WebKitWebView %p", m_webView);
 
@@ -120,6 +124,16 @@ void Page::onTouch(wpe_input_touch_event_raw *touchEventRaw)
 void Page::setZoomLevel(double zoomLevel)
 {
     webkit_web_view_set_zoom_level(m_webView, zoomLevel);
+}
+
+void Page::setInputMethodContent(const char c)
+{
+    input_method_context_set_content(m_input_method_context, c);
+}
+
+void Page::deleteInputMethodContent(int offset)
+{
+    input_method_context_delete_content(m_input_method_context, offset);
 }
 
 static void onLoadChanged(WebKitWebView *, WebKitLoadEvent loadEvent, gpointer data)

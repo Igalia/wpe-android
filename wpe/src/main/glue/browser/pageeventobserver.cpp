@@ -28,6 +28,21 @@
     } \
 }
 
+#define JAVA_CALL_NO_PARAMS(METHOD) \
+  void PageEventObserver::METHOD() { \
+    try { \
+      JNIEnv *env = ScopedEnv(vm).getEnv(); \
+      jmethodID _method = env->GetMethodID(pageClass, #METHOD, "()V"); \
+      if (_method == nullptr) { \
+        throw; \
+      } \
+      env->CallVoidMethod(pageObj, _method); \
+    } catch(int) { \
+          ALOGE("Could not send event"); \
+        } \
+    }
+
+
 #define JAVA_CALL(METHOD, FORMAT, PARAM, ARG) \
     JAVA_CALL_START(METHOD, FORMAT, PARAM) \
     JAVA_CALL_NO_CAST(ARG) \
@@ -49,6 +64,8 @@ PageEventObserver::~PageEventObserver() {
 JAVA_CALL(onLoadChanged, "(I)V", WebKitLoadEvent loadEvent, (int) loadEvent)
 JAVA_CALL(onLoadProgress, "(D)V", double progress, progress)
 JAVA_CALL_CAST(onUriChanged, "(Ljava/lang/String;)V", const char *uri, uri, jstring, NewStringUTF)
+JAVA_CALL_NO_PARAMS(onInputMethodContextIn)
+JAVA_CALL_NO_PARAMS(onInputMethodContextOut)
 
 void PageEventObserver::onTitleChanged(const char* title, gboolean canGoBack, gboolean canGoForward) {
     try {

@@ -24,7 +24,9 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jint, jlong, jint, jfloat, jfloat);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint, jdouble);
-}
+
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv*, jclass, jint, jchar);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv*, jclass, jint, jint);
 
 std::unique_ptr<Browser> Browser::m_instance = nullptr;
 
@@ -59,7 +61,7 @@ Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv *env, jobject, jobject pageObj, jint
     env->GetJavaVM(&vm);
 
     Browser::getInstance().newPage(
-            pageId, width, height, std::make_unique<PageEventObserver>(vm, _pageClass, _pageObj));
+            pageId, width, height, std::make_shared<PageEventObserver>(vm, _pageClass, _pageObj));
 
     jmethodID onReady = env->GetMethodID(pageClass, "onPageGlueReady", "()V");
     if (onReady == nullptr) {
@@ -124,3 +126,13 @@ Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble 
     Browser::getInstance().setZoomLevel(pageId, zoomLevel);
 }
 
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jchar c) {
+    Browser::getInstance().setInputMethodContent(pageId, c);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jint offset) {
+    Browser::getInstance().deleteInputMethodContent(pageId, offset);
+}
+}

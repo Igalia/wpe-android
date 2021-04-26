@@ -55,6 +55,7 @@ add_library(WPEBrowserGlue SHARED
         src/main/glue/browser/entrypoints.cpp
         src/main/glue/browser/browser.cpp
         src/main/glue/browser/page.cpp
+        src/main/glue/browser/inputmethodcontext.cpp
         )
 
 target_link_libraries(WPEBrowserGlue

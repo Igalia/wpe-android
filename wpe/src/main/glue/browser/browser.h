@@ -26,7 +26,7 @@ public:
     void init();
     void deinit();
 
-    void newPage(int pageId, int width, int height, std::unique_ptr<PageEventObserver> observer);
+    void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
     void loadUrl(int pageId, const char *urlData, jsize urlSize);
@@ -38,6 +38,9 @@ public:
     void frameComplete(int pageId);
     void onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y);
     void setZoomLevel(int pageId, jdouble zoomLevel);
+
+    void setInputMethodContent(int pageId, const char c);
+    void deleteInputMethodContent(int pageId, int offset);
 
 private:
     Browser() {}
