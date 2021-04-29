@@ -7,7 +7,8 @@ public class WebProcessGlue {
         System.loadLibrary("WPEWebProcessGlue");
     }
 
-    public static native void initializeXdg(String xdgCachePath);
-    public static native void initializeFontconfig(String fontconfigPath);
     public static native void initializeMain(int fd1, int fd2);
+    public static native void setupEnvironment(String fontconfigPath, String gstreamerPath,
+                                               String nativeLibsPath, String cachePath,
+                                               String filesPath);
 }

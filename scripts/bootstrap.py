@@ -67,12 +67,13 @@ class Bootstrap:
         self.__root = os.getcwd()
         self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
         # These are the libraries that the glue code link with, and are required during build
-        # time. These libreries go into the `imported` folder and cannot go into the `jniFolder`
+        # time. These libraries go into the `imported` folder and cannot go into the `jniFolder`
         # to avoid a duplicated library issue.
         self.__build_libs = [
             'glib-2.0',
             'libgio-2.0.so',
             'libglib-2.0.so',
+            'libgmodule-2.0.so',
             'libgobject-2.0.so',
             'libwpe-1.0.so',
             'libWPEWebKit-1.0.so',
@@ -100,9 +101,9 @@ class Bootstrap:
         if not os.path.isdir(self.__build_dir):
             os.mkdir(self.__build_dir)
         os.chdir(self.__build_dir)
-        wpewebkit = requests.get('https://cloud.igalia.com/s/p2Zs4SfKzKx5m8w/download', allow_redirects=True)
+        wpewebkit = requests.get('https://cloud.igalia.com/s/Qiabn6YaoEXdDGk/download', allow_redirects=True)
         open(self.__wpewebkit_binary, 'wb').write(wpewebkit.content)
-        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/yPDzjxFHAi56bxx/download', allow_redirects=True)
+        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/ARniiYmDFZzQSgX/download', allow_redirects=True)
         open(self.__wpewebkit_runtime_binary, 'wb').write(wpewebkit_runtime.content)
 
     def __cerbero_command(self, args):
@@ -214,6 +215,13 @@ class Bootstrap:
         with open(lib_path, 'wb') as lib_file:
             lib_file.write(contents)
 
+    def __copy_gst_libs(self, sysroot):
+        sysroot_gst_libs = os.path.join(sysroot, 'lib', 'gstreamer-1.0')
+        assets_dir = os.path.join(self.__root, 'wpe', 'src', 'main', 'assets', 'gstreamer-1.0')
+        if os.path.exists(assets_dir):
+            shutil.rmtree(assets_dir)
+        shutil.copytree(sysroot_gst_libs, assets_dir)
+
     def __copy_libs(self, sysroot_lib, lib_dir, install_list = None):
         if install_list is None:
             if os.path.exists(lib_dir):
@@ -314,6 +322,8 @@ class Bootstrap:
                             os.path.join(lib_dir, 'glib-2.0'))
         except:
             print("Not copying existing files")
+
+        self.__copy_gst_libs(sysroot)
 
     def run(self):
         if self.__build:
