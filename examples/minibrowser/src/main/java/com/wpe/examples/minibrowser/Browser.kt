@@ -132,7 +132,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     private fun setChromeClient() {
-        activeTab?.view?.webChromeClient = object : WebChromeClient() {
+        activeTab?.view?.webChromeClient = object : WebChromeClient {
             override fun onProgressChanged(view: WPEView?, progress: Int) {
                 super.onProgressChanged(view, progress)
                 progressView.progress = progress
@@ -146,7 +146,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     private fun setWPEViewClient() {
-        activeTab?.view?.wpeViewClient = object : WPEViewClient() {
+        activeTab?.view?.wpeViewClient = object : WPEViewClient {
             override fun onPageStarted(view: WPEView?, url: String?) {
                 super.onPageStarted(view, url)
                 if (url != null) {
