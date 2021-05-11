@@ -6,10 +6,12 @@
 
 #include "browser.h"
 #include "logging.h"
+#include "looperthread.h"
 #include "pageeventobserver.h"
 
 extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_init(JNIEnv*, jobject, jobject);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv*, jobject, jobject, jint, jint, jint);
@@ -39,6 +41,13 @@ Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
     s_BrowserGlue_env = env;
     s_BrowserGlue_object = glueObj;
     Browser::getInstance().init();
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv* env, jobject)
+{
+    ALOGV("BrowserGlue.initLooperHelper()");
+    LooperThread::initialize();
 }
 
 JNIEXPORT void JNICALL

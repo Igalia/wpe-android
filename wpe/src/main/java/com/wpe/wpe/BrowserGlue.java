@@ -18,6 +18,7 @@ public class BrowserGlue {
     }
 
     public static native void init(BrowserGlue self);
+    public static native void initLooperHelper();
     public static native void deinit();
 
     public static native void newPage(Page page, int pageId, int width, int height);

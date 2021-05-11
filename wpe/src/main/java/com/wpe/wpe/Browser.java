@@ -2,6 +2,7 @@ package com.wpe.wpe;
 
 import android.content.Context;
 import android.os.LimitExceededException;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
@@ -33,6 +34,11 @@ public final class Browser {
      * Instance of the glue code exposing the JNI API to communicate with WebKit.
      */
     private final BrowserGlue m_glue;
+
+    /**
+     * A sideline thread that enables tying into Java-based Looper execution from native code.
+     */
+    private final LooperHelperThread m_looperHelperThread;
 
     /**
      * Thread where the actual WebKit's UIProcess logic runs.
@@ -188,6 +194,46 @@ public final class Browser {
     }
 
     /**
+     * A sideline thread that enables tying into Java-based Looper execution from native code.
+     */
+    private final class LooperHelperThread {
+        private final Thread m_thread;
+        boolean m_initialized;
+
+        LooperHelperThread() {
+            final LooperHelperThread self = this;
+            m_initialized = false;
+
+            m_thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Looper.prepare();
+
+                    BrowserGlue.initLooperHelper();
+
+                    synchronized (self)  {
+                        m_initialized = true;
+                        self.notifyAll();
+                    }
+
+                    Looper.loop();
+                }
+            });
+
+            m_thread.start();
+
+            synchronized (self) {
+                try {
+                    while (!m_initialized)
+                        self.wait();
+                } catch (InterruptedException e) {
+                    Log.v(LOGTAG, "Interruption in LooperHelperThread");
+                }
+            }
+        }
+    }
+
+    /**
      * Thread where the actual WebKit's UIProcess logic runs.
      * It hosts an instance of WebKitWebContext and runs the main loop.
      */
@@ -231,6 +277,7 @@ public final class Browser {
     private Browser() {
         Log.v(LOGTAG, "Browser creation");
         m_glue = new BrowserGlue(this);
+        m_looperHelperThread = new LooperHelperThread();
         m_uiProcessThread = new UIProcessThread();
         m_uiProcessThread.run(m_glue);
     }
