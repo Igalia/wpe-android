@@ -10,6 +10,10 @@ class PageEventObserver {
 
 public:
     PageEventObserver(JavaVM *vm, jclass klass, jobject obj) : vm(vm), pageClass(klass), pageObj(obj) {}
+    PageEventObserver(PageEventObserver&&) = delete;
+    PageEventObserver& operator=(PageEventObserver&&) = delete;
+    PageEventObserver(const PageEventObserver&) = delete;
+    PageEventObserver& operator=(const PageEventObserver&) = delete;
     ~PageEventObserver();
 
     void onLoadChanged(WebKitLoadEvent);

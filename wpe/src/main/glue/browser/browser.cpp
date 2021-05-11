@@ -70,7 +70,7 @@ void Browser::runMainLoop() {
 void Browser::newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer)
 {
     ALOGV("Browser::newPage");
-    auto page = std::make_unique<Page>(Page(width, height, observer));
+    auto page = std::make_unique<Page>(width, height, observer);
     g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
         auto *page = reinterpret_cast<Page*>(data);
         if (page != nullptr) {

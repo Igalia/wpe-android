@@ -19,6 +19,11 @@ public:
         return *m_instance;
     }
 
+    Browser(Browser&&) = delete;
+    Browser& operator=(Browser&&) = delete;
+    Browser(const Browser&) = delete;
+    Browser& operator=(const Browser&) = delete;
+
     ~Browser() {
         deinit();
     }
