@@ -12,7 +12,7 @@ where `<arch>` is the target architecture that you want to compile to.
 
 This script takes care of fetching, building and installing all WPE Android dependencies.
 
-The cross-compilation work is done by [Cerbero](https://gitlab.igalia.com/ferjm/cerbero)
+The cross-compilation work is done by [Cerbero](https://github.com/Igalia/cerbero)
 
 After cloning Cerbero's source through git in the `build` folder, the process starts with
 the following Cerbero command:
@@ -21,8 +21,8 @@ the following Cerbero command:
 
 where `<android_abi>` varies depending on the given architecture target.
 
-The logic for this command is in the [WPEWebKit packaging recipe in Cerbero's repo](
-https://gitlab.igalia.com/ferjm/cerbero/-/blob/b9c3b76efb1ed7e2fedfcd6838e638a194df2da8/packages/wpewebkit.package).
+The logic for this command is in the
+[WPEWebKit packaging recipe in Cerbero's repo](https://github.com/Igalia/cerbero/blob/18f3346042abfa9455bc270019a3c337fae23018/packages/wpewebkit.package).
 
 This command triggers the build for all WPEWebKit dependencies. After that WPEWebKit itself
 is built. You can find the recipes for all dependencies and WPEWebKit build in the

@@ -180,7 +180,7 @@ public class Page {
             onPageGlueReady();
             return;
         }
-        // Requests the creation of a new WebKitWebView. On creation, the `onWebViewReady` callback
+        // Requests the creation of a new WebKitWebView. On creation, the `onPageGlueReady` callback
         // is triggered.
         BrowserGlue.newPage(this, m_id, m_width, m_height);
     }

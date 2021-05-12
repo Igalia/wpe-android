@@ -4,7 +4,7 @@
 This script takes care of fetching, building and installing all WPE Android dependencies,
 including libwpe, WPEBackend-android and WPEWebKit.
 
-The cross-compilation work is done by Cerbero: https://gitlab.igalia.com/ferjm/cerbero
+The cross-compilation work is done by Cerbero: https://github.com/Igalia/cerbero.git
 
 After cloning Cerbero's source through git in the `build` folder, the process starts with
 the following Cerbero command:
@@ -14,7 +14,7 @@ the following Cerbero command:
 where `<android_abi>` varies depending on the given architecture target.
 
 The logic for this command is in the WPEWebKit packaging recipe in Cerbero's repo:
-https://gitlab.igalia.com/ferjm/cerbero/-/blob/b9c3b76efb1ed7e2fedfcd6838e638a194df2da8/packages/wpewebkit.package
+https://github.com/Igalia/cerbero/blob/18f3346042abfa9455bc270019a3c337fae23018/packages/wpewebkit.package
 
 This command triggers the build for all WPEWebKit dependencies. After that WPEWebKit itself
 is built. You can find the recipes for all dependencies and WPEWebKit build in the
@@ -132,9 +132,7 @@ class Bootstrap:
             package_file.write(package_contents)
 
     def __ensure_cerbero(self):
-        # TODO: change this to a public URL once we publish the
-        #       cerbero changes
-        origin = 'ssh://git@gitlab.igalia.com:4429/ferjm/cerbero.git'
+        origin = 'https://github.com/Igalia/cerbero.git'
         branch = 'wpe-android'
 
         if os.path.isdir(self.__build_dir) and os.path.isfile(os.path.join(self.__build_dir, 'cerbero-uninstalled')):

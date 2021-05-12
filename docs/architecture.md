@@ -42,7 +42,7 @@ processes (Web and Network processes).
 
 ### gfx.View
 [android.opengl.GLSurfaceView](https://developer.android.com/reference/android/opengl/GLSurfaceView?hl=en)
-extension in charge of managing the Surface that is handled over to WebKit to do the actual rendering.
+extension in charge of managing the Surface that is handed over to WebKit to do the actual rendering.
 
 ## WPE
 
@@ -50,45 +50,43 @@ TODO
 
 ## Boot up process
 
-Everything starts with the instanciation and inflation of a new [WPEView](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L25). 
-After construction its [onFinishInflate](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L40) 
-method is called. This queues a task to create a new [Page](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L40) 
-instance through the [Browser](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L40) 
-singleton instance. If this is the first time the Browser instance is obtained, [Browser construction](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Browser.java#L219) 
-happens, creating an instance of [BrowserGlue](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Browser.java#L219) 
-and spawning [UIProcessThread](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Browser.java#L219). 
-This is the thread where the actual WebKit's UIProcess logic runs. On execution it creates an instance of [WebKitWebContext](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/glue/browser/browser.cpp#L36) 
-and [runs the main loop](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/glue/browser/browser.cpp#L40).
+Everything starts with the instanciation of a new [WPEView](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L28).
+After construction its [onAttachedToWindow](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L51)
+method is called. This queues a task to create a new [Page](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L60)
+instance through the [Browser](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Browser.java#L28)
+singleton instance. If this is the first time the Browser instance is obtained, [Browser construction](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Browser.java#L277)
+happens, creating an instance of [BrowserGlue](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/BrowserGlue.java#L10)
+and spawning [UIProcessThread](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Browser.java#L240).
+This is the thread where the actual WebKit's UIProcess logic runs.
+On execution it creates an instance of [WebKitWebContext](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/glue/browser/browser.cpp#L78)
+and [runs the main loop](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/glue/browser/browser.cpp#L82).
 
-On [Page construction](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L121) 
-an instance of [WebKitWebView](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L173) 
-is created through [BrowserGlue](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/glue/browser/browser.cpp#L78). 
-The `Page` instance [gets and keeps a reference](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L160) 
-of the just created WebKitWebView. If no URL load has been requested, the process stops there.
+On [Page construction](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Page.java#L30)
+an instance of [gfx.View](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/gfx/View.java#L30)
+is created and [PageThread](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Page.java#L82)
+is spawned to request the creation of a [Surface Texture](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/gfx/View.java#L254).
+In addition, an instance of [WebKitWebView](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/glue/browser/page.h#L41)
+is created through [BrowserGlue](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Page.java#L185).
+The `Page` instance [gets and keeps a reference](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/glue/browser/page.h#L41)
+of the just created WebKitWebView.
 
-When a new URL load is requested through the [WPEView.loadUrl](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L70) 
-method, we ensure that there's a valid `WebKitWebView` reference. Otherwise we queue the load until we get that reference from the process described before.
+Once we have a URL to load, a valid Surface and a valid `WebKitWebView` reference, we request
+the URL load [through BrowserGlue](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Page.java#L245).
 
-Once we have a URL to load and a valid `WebKitWebView` reference, we [request](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L250) 
-the URL load [through BrowserGlue](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/glue/browser/browser.cpp#L146).
-
-Loading an URL triggers the creation of the Web and Network processes. WebKit requests the creation of its auxiliary processes through the 
-[BrowserGlue.launchProcess](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/BrowserGlue.java#L49) 
+Loading an URL triggers the creation of the Web and Network processes. WebKit requests the creation of its auxiliary processes through the
+[BrowserGlue.launchProcess](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/BrowserGlue.java#L56)
 method.
 
-The auxiliary process creation request is [handled by the Browser](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Browser.java#L273) 
+The auxiliary process creation request is
+[handled by the Browser](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Browser.java#L342)
 which picks the active Page instance to assign the process identifier given by WebKit and to request the actual process launch.
 
 The auxiliary processes are actually [Android Services](https://developer.android.com/guide/components/services)
 
-Browser [keeps a registry](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Browser.java#L106) 
+Browser [keeps a registry](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Browser.java#L67)
 with a match between process identifier, Page and ServiceConnection.
 
-The active `Page` instance is the final responsible of [spawning](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L190) 
+The active `Page` instance is the final responsible of
+[spawning](https://github.com/Igalia/wpe-android/blob/ea9529dcf183d823226721d0edf41950890b6a8f/wpe/src/main/java/com/wpe/wpe/Page.java#L208)
 the auxiliary process / Android Service.
 
-When launching the Web Process, a new [gfx.View](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/gfx/View.java) 
-is [created](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L208), 
-unless an existing instance exists, and a [new thread is spawned](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/948e2ed2f1f79cf51256a44ed93b80a10c466a2f/wpe/src/main/java/com/wpe/wpe/Page.java#L180) 
-to ensure that a valid Surface texture is available. When the `gfx.View` instance is created, the owning WPEView instance [is notified](https://gitlab.igalia.com/teams/webkit/wpe-android/-/blob/e1727079e4ea940a5c542d23b7adbff3a7eb413e/wpe/src/main/java/com/wpe/wpeview/WPEView.java#L74) 
-so it can display the View.
