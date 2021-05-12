@@ -13,6 +13,11 @@
 class Page {
 public:
     Page(int width, int height, std::shared_ptr<PageEventObserver>);
+    Page(Page&&) = delete;
+    Page& operator=(Page&&) = delete;
+    Page(const Page&) = delete;
+    Page& operator=(const Page&) = delete;
+
     void init();
     void close();
 
