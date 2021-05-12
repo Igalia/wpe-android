@@ -54,11 +54,13 @@ add_library(WPEBrowserGlue SHARED
         src/main/glue/browser/pageeventobserver.cpp
         src/main/glue/browser/entrypoints.cpp
         src/main/glue/browser/browser.cpp
+        src/main/glue/browser/looperthread.cpp
         src/main/glue/browser/page.cpp
         src/main/glue/browser/inputmethodcontext.cpp
         )
 
 target_link_libraries(WPEBrowserGlue
+        ${android-lib}
         ${log-lib}
         gio-2.0
         glib-2.0
