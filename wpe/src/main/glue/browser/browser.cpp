@@ -43,6 +43,27 @@ void Browser::deinit()
     g_main_loop_quit(*m_uiProcessThreadLoop.get());
 }
 
+typedef struct {
+    void (*callback)(void*);
+    void* callbackData;
+    void (*destroy)(void*);
+} GenericCallback;
+
+void Browser::invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*))
+{
+    auto* data = new GenericCallback { callback, callbackData, destroy };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto* genericData = reinterpret_cast<GenericCallback*>(data);
+        genericData->callback(genericData->callbackData);
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) -> void {
+        auto* genericData = reinterpret_cast<GenericCallback*>(data);
+        if (genericData->destroy)
+            genericData->destroy(genericData->callbackData);
+        delete genericData;
+    });
+}
+
 void Browser::runMainLoop() {
     pipe_stdout_to_logcat();
     enable_gst_debug();

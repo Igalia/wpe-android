@@ -31,6 +31,8 @@ public:
     void init();
     void deinit();
 
+    void invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
+
     void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
