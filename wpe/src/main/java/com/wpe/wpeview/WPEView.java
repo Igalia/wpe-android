@@ -48,8 +48,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
     }
 
     @Override
-    protected void onFinishInflate() {
-        super.onFinishInflate();
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
         WPEView self = this;
         // Queue the creation of the Page until view's measure, layout, etc.
         // so we have a known width and height to create the associated WebKitWebView
