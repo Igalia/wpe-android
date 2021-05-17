@@ -90,7 +90,12 @@ class Patch:
     def run(self):
         self.__cerbero_shell_build()
         sysroot = os.path.join(self.__build_dir, 'build', 'dist', 'android_' + self.__arch)
-        Bootstrap(self.__arch, False).install_deps(sysroot, self.__get_install_list())
+        args = type("", (), {
+          "arch": self.__arch,
+          "build": True,
+          "debug": False
+        })();
+        Bootstrap(args).install_deps(sysroot, self.__get_install_list())
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
