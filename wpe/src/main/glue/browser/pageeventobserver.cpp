@@ -1,3 +1,4 @@
+#include "exportedbuffer.h"
 #include "jnihelper.h"
 #include "logging.h"
 #include "pageeventobserver.h"

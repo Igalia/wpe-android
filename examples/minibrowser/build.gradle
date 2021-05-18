@@ -28,6 +28,18 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
+
+    flavorDimensions "api"
+    productFlavors {
+        minApi26 {
+            dimension "api"
+            minSdkVersion 26
+        }
+        minApi29 {
+            dimension "api"
+            minSdkVersion 29
+        }
+    }
 }
 
 dependencies {

@@ -57,11 +57,15 @@ add_library(WPEBrowserGlue SHARED
         src/main/glue/browser/looperthread.cpp
         src/main/glue/browser/page.cpp
         src/main/glue/browser/inputmethodcontext.cpp
+        src/main/glue/browser/renderer_asurfacetransaction.cpp
+        src/main/glue/browser/renderer_fallback.cpp
         )
 
 target_link_libraries(WPEBrowserGlue
         ${android-lib}
         ${log-lib}
+        EGL
+        GLESv2
         gio-2.0
         glib-2.0
         gobject-2.0

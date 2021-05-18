@@ -1,7 +1,9 @@
 package com.wpe.examples.minibrowser
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
+import android.util.Log
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
@@ -37,6 +39,11 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         setupUrlEditText()
 
         newTab(INITIAL_URL)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d("Browser", "onConfigurationChanged");
     }
 
     internal fun newTab(url: String?) {

@@ -395,12 +395,6 @@ public final class Browser {
         m_networkProcess = process;
     }
 
-    public void provideSurface() {
-        if (m_webProcess != null) {
-            m_webProcess.provideSurface();
-        }
-    }
-
     private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad) {
         Log.v(LOGTAG, "No available page. Queueing " + pendingLoad.m_url + " for load");
         if (m_pendingLoads == null) {

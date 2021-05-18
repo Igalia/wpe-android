@@ -7,10 +7,8 @@ import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
-import android.view.Surface;
 
 import com.wpe.wpe.IWPEService;
-import com.wpe.wpe.external.SurfaceWrapper;
 
 public class WPEService extends Service {
     private static final String LOGTAG = "WPEService";
@@ -27,12 +25,6 @@ public class WPEService extends Service {
             provideServiceFDs(fds);
             return -1;
         }
-
-        @Override
-        public void provideSurface(SurfaceWrapper surfaceWrapper) {
-            Log.v(LOGTAG, "IWPEService.Stub.provideSurface(), surface " + surfaceWrapper.getSurface());
-            provideServiceSurface(surfaceWrapper.getSurface());
-        }
     };
 
     protected class WPEServiceProcessThread {
@@ -40,7 +32,6 @@ public class WPEService extends Service {
         private Thread m_thread;
         private WPEService m_service;
         private ParcelFileDescriptor[] m_serviceFds = null;
-        public Surface m_surface = null;
 
         WPEServiceProcessThread() {
             final WPEServiceProcessThread thisObj = this;
@@ -113,15 +104,5 @@ public class WPEService extends Service {
         }
     }
 
-    private void provideServiceSurface(Surface surface) {
-        provideSurfaceIfAlreadyInitialized(surface);
-        synchronized (m_serviceProcessThread) {
-            m_serviceProcessThread.m_surface = surface;
-            m_serviceProcessThread.notifyAll();
-        }
-    }
-
     protected void initializeService(ParcelFileDescriptor[] fds) {}
-
-    protected void provideSurfaceIfAlreadyInitialized(Surface surface) {}
 }

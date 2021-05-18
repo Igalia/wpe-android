@@ -3,6 +3,8 @@
 #include <stdlib.h>
 
 #include <jni.h>
+#include <android/hardware_buffer_jni.h>
+#include <android/native_window_jni.h>
 
 #include "browser.h"
 #include "logging.h"
@@ -10,6 +12,7 @@
 #include "pageeventobserver.h"
 
 extern "C" {
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_init(JNIEnv*, jobject, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject);
@@ -23,7 +26,11 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv*, jobject, jint);
 
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceCreated(JNIEnv*, jobject, jint, jobject);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceChanged(JNIEnv*, jobject, jint, jint, jint, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceRedrawNeeded(JNIEnv*, jobject, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceDestroyed(JNIEnv*, jobject, jint);
+
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jint, jlong, jint, jfloat, jfloat);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint, jdouble);
 
@@ -118,9 +125,27 @@ Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv* env, jobject, jint pageId)
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_frameComplete(JNIEnv*, jobject, jint pageId)
+Java_com_wpe_wpe_BrowserGlue_surfaceCreated(JNIEnv* env, jobject, jint pageId, jobject jsurface)
 {
-    Browser::getInstance().frameComplete(pageId);
+    Browser::getInstance().surfaceCreated(pageId, ANativeWindow_fromSurface(env, jsurface));
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_surfaceChanged(JNIEnv*, jobject, jint pageId, jint format, jint width, jint height)
+{
+    Browser::getInstance().surfaceChanged(pageId, format, width, height);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_surfaceRedrawNeeded(JNIEnv*, jobject, jint pageId)
+{
+    Browser::getInstance().surfaceRedrawNeeded(pageId);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_surfaceDestroyed(JNIEnv*, jobject, jint pageId)
+{
+    Browser::getInstance().surfaceDestroyed(pageId);
 }
 
 JNIEXPORT void JNICALL

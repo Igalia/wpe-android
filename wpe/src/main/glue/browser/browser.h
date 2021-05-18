@@ -6,8 +6,12 @@
 #include <wpe/webkit.h>
 #include <wpe/wpe.h>
 
+#include "exportedbuffer.h"
 #include "page.h"
 #include "pageeventobserver.h"
+
+typedef struct AHardwareBuffer AHardwareBuffer;
+struct ANativeWindow;
 
 class Browser {
 public:
@@ -42,7 +46,12 @@ public:
     void stopLoading(int pageId);
     void reload(int pageId);
 
-    void frameComplete(int pageId);
+    void surfaceCreated(int pageId, ANativeWindow*);
+    void surfaceChanged(int pageId, int format, int width, int height);
+    void surfaceRedrawNeeded(int pageId);
+    void surfaceDestroyed(int pageId);
+    void handleExportedBuffer(Page&, std::shared_ptr<ExportedBuffer>&&);
+
     void onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y);
     void setZoomLevel(int pageId, jdouble zoomLevel);
 

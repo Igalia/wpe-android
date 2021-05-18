@@ -27,6 +27,18 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    flavorDimensions "api"
+    productFlavors {
+        minApi26 {
+            dimension "api"
+            minSdkVersion 26
+        }
+        minApi29 {
+            dimension "api"
+            minSdkVersion 29
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"

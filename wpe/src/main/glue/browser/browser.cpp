@@ -8,6 +8,8 @@
 #include <wpe-android/view-backend-exportable.h>
 
 #include <jni.h>
+#include <android/hardware_buffer.h>
+#include <android/surface_control.h>
 
 #include "browser.h"
 #include "logging.h"
@@ -108,7 +110,77 @@ PAGE_METHOD_PROXY(goBack, goBack, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(goForward, goForward, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(stopLoading, stopLoading, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(reload, reload, G_PRIORITY_DEFAULT)
-PAGE_METHOD_PROXY(frameComplete, frameComplete, G_PRIORITY_HIGH + 30)
+PAGE_METHOD_PROXY(surfaceRedrawNeeded, surfaceRedrawNeeded, G_PRIORITY_DEFAULT)
+PAGE_METHOD_PROXY(surfaceDestroyed, surfaceDestroyed, G_PRIORITY_DEFAULT)
+
+struct SurfaceCreatedData {
+    Page* page;
+    ANativeWindow* window;
+};
+
+void Browser::surfaceCreated(int pageId, ANativeWindow* window)
+{
+    if (m_pages.find(pageId) == m_pages.end()) {
+        return;
+    }
+
+    auto* data = new SurfaceCreatedData { m_pages[pageId].get(), window };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto* surfaceCreatedData = reinterpret_cast<SurfaceCreatedData*>(data);
+        if (surfaceCreatedData->page != nullptr)
+            surfaceCreatedData->page->surfaceCreated(surfaceCreatedData->window);
+        surfaceCreatedData->window = nullptr;
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) -> void {
+        auto* surfaceCreatedData = reinterpret_cast<SurfaceCreatedData*>(data);
+        if (surfaceCreatedData->window)
+            ANativeWindow_release(surfaceCreatedData->window);
+        delete surfaceCreatedData;
+    });
+}
+
+struct SurfaceChangedData {
+    Page* page;
+    int format;
+    int width;
+    int height;
+};
+
+void Browser::surfaceChanged(int pageId, int format, int width, int height)
+{
+    if (m_pages.find(pageId) == m_pages.end()) {
+        return;
+    }
+
+    auto* data = new SurfaceChangedData { m_pages[pageId].get(), format, width, height };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto* surfaceChangedData = reinterpret_cast<SurfaceChangedData*>(data);
+        if (surfaceChangedData->page != nullptr)
+            surfaceChangedData->page->surfaceChanged(surfaceChangedData->format, surfaceChangedData->width, surfaceChangedData->height);
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) -> void {
+        delete reinterpret_cast<SurfaceChangedData*>(data);
+    });
+}
+
+struct FrameOperation {
+    Page& page;
+    std::shared_ptr<ExportedBuffer> buffer;
+};
+
+void Browser::handleExportedBuffer(Page& page, std::shared_ptr<ExportedBuffer>&& exportedBuffer)
+{
+    ALOGV("Browser::renderFrame() page %p, exportedBuffer %p", &page, exportedBuffer.get());
+
+    auto* data = new FrameOperation { page, std::move(exportedBuffer) };
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, [](gpointer data) -> gboolean {
+        auto* frameOperation = reinterpret_cast<FrameOperation*>(data);
+        frameOperation->page.handleExportedBuffer(frameOperation->buffer);
+        return G_SOURCE_REMOVE;
+    }, data, [](gpointer data) -> void {
+        delete reinterpret_cast<FrameOperation *>(data);;
+    });
+}
 
 typedef struct {
     Page* page;
