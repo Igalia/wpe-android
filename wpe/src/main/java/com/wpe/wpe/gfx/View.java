@@ -65,6 +65,7 @@ public class View extends SurfaceView {
         public void surfaceRedrawNeeded(SurfaceHolder holder)
         {
             Log.d(m_view.LOGTAG, "HolderCallback::surfaceRedrawNeeded()");
+            BrowserGlue.surfaceRedrawNeeded(m_view.m_pageId);
         }
     }
 
