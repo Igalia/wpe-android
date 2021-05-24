@@ -1,6 +1,7 @@
 package com.wpe.wpe;
 
 import android.util.Log;
+import android.view.Surface;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -30,7 +31,9 @@ public class BrowserGlue {
     public static native void stopLoading(int pageId);
     public static native void reload(int pageId);
 
-    public static native void frameComplete(int pageId);
+    public static native void surfaceCreated(int pageId, Surface surface);
+    public static native void surfaceChanged(int pageId, int format, int width, int height);
+    public static native void surfaceDestroyed(int pageId);
 
     public static native void touchEvent(int pageId, long time, int type, float x, float y);
     public static native void setZoomLevel(int pageId, double zoomLevel);

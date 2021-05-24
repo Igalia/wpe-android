@@ -4,10 +4,6 @@ import android.content.Context;
 import android.content.res.AssetManager;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-import android.view.Surface;
-
-import com.wpe.wpe.services.WPEService;
-import com.wpe.wpe.services.WebProcessGlue;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -63,33 +59,8 @@ public class WebProcessService extends WPEService {
             Log.v(LOGTAG, " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
         }
 
-        Surface surface = null;
-
-        try {
-            synchronized (m_serviceProcessThread) {
-                while (m_serviceProcessThread.m_surface == null) {
-                    m_serviceProcessThread.wait();
-                }
-
-                surface = m_serviceProcessThread.m_surface;
-                m_serviceProcessThread.m_surface = null;
-            }
-        } catch (InterruptedException e) {
-            Log.i(LOGTAG, "failed to get the Surface object");
-        }
-
-        Log.i(LOGTAG, "about to start main(), surface " + surface);
-        WebProcessGlue.provideSurface(surface);
+        Log.i(LOGTAG, "about to start main()");
         m_initialized = true;
         WebProcessGlue.initializeMain(fds[0].detachFd(), /* fds[1].detachFd() */ -1);
-    }
-
-    @Override
-    protected void provideSurfaceIfAlreadyInitialized(Surface surface) {
-        Log.d(LOGTAG, "provideSurfaceIfAlreadyInitialized " + m_initialized);
-        super.provideSurfaceIfAlreadyInitialized(surface);
-        if (m_initialized) {
-            WebProcessGlue.provideSurface(surface);
-        }
     }
 }

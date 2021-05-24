@@ -3,6 +3,8 @@
 #include <jni.h>
 #include <wpe-webkit/wpe/webkit.h>
 
+typedef struct AHardwareBuffer AHardwareBuffer;
+
 class PageEventObserver {
     JavaVM *vm;
     jclass pageClass;

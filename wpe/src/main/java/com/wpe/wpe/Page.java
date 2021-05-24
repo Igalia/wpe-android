@@ -2,8 +2,6 @@ package com.wpe.wpe;
 
 import android.content.Context;
 import android.content.Intent;
-import android.os.Handler;
-import android.os.Message;
 import android.os.Parcelable;
 import android.util.Log;
 import android.view.inputmethod.InputMethodManager;
@@ -46,9 +44,6 @@ public class Page {
     private final int m_width;
     private final int m_height;
 
-    private final PageThreadMessageHandler m_handler;
-    private PageThread m_thread;
-
     private View m_view;
     private boolean m_viewReady = false;
 
@@ -58,74 +53,6 @@ public class Page {
 
     private boolean m_canGoBack = true;
     private boolean m_canGoForward = true;
-
-    private static class PageThreadMessageHandler extends Handler {
-        private final WeakReference<Page> m_page;
-
-        PageThreadMessageHandler(Page page) {
-            m_page = new WeakReference<>(page);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            Page page = m_page.get();
-            if (page == null) {
-                return;
-            }
-            page.onViewReady();
-        }
-    }
-
-    /**
-     * This thread is used to get a valid Surface texture from its associated gfx.View.
-     */
-    private class PageThread {
-        private Thread m_thread;
-        private View m_view;
-        private PageThreadMessageHandler m_handler;
-
-        PageThread() {
-            final PageThread self = this;
-            m_thread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    Log.i(LOGTAG, "In Page thread");
-                    while (true) {
-                        synchronized (self) {
-                            try {
-                                while (self.m_view == null) {
-                                    Log.i(LOGTAG, "Waiting");
-                                    self.wait();
-                                }
-                            } catch (InterruptedException e) {
-                                Log.v(LOGTAG, "Interruption in Page thread");
-                            }
-                        }
-                        Log.v(LOGTAG, "ensureSurfaceTexture");
-                        m_view.ensureSurfaceTexture();
-                        Log.v(LOGTAG, "Surface texture ready");
-                        // Go back to the main thread.
-                        m_handler.sendEmptyMessage(0);
-                        break;
-                    }
-                }
-            });
-            m_thread.start();
-        }
-
-        public void run(@NonNull View view, @NonNull PageThreadMessageHandler handler) {
-            final PageThread self = this;
-            synchronized (self) {
-                m_view = view;
-                m_handler = handler;
-                self.notifyAll();
-            }
-        }
-
-        public void stop() {
-            m_thread.interrupt();
-        }
-    }
 
     public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId) {
         LOGTAG = "WPE page" + pageId;
@@ -141,11 +68,9 @@ public class Page {
         m_width =  wpeView.getMeasuredWidth();
         m_height = wpeView.getMeasuredHeight();
 
-        m_handler = new PageThreadMessageHandler(this);
-
         m_view = new View(m_context, pageId);
         m_wpeView.onViewCreated(m_view);
-        ensureSurface();
+        onViewReady();
 
         ensurePageGlue();
     }
@@ -156,7 +81,6 @@ public class Page {
         }
         m_closed = true;
         Log.v(LOGTAG, "Page destruction");
-        m_view.releaseTexture();
         BrowserGlue.closePage(m_id);
         m_pageGlueReady = false;
     }
@@ -188,20 +112,10 @@ public class Page {
     public void onViewReady() {
         Log.d(LOGTAG, "onViewReady");
         m_wpeView.onViewReady(m_view);
-        m_browser.provideSurface();
         m_viewReady = true;
         if (m_pageGlueReady) {
             loadUrlInternal();
         }
-    }
-
-    private void ensureSurface() {
-        if (m_thread != null) {
-            m_thread.stop();
-            m_thread = null;
-        }
-        m_thread = new PageThread();
-        m_thread.run(m_view, m_handler);
     }
 
     @WorkerThread

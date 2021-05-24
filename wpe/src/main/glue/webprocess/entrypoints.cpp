@@ -10,8 +10,6 @@ extern "C" {
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeXdg(JNIEnv*, jobject, jstring);
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeFontconfig(JNIEnv*, jobject, jstring);
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint, jint);
-
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_provideSurface(JNIEnv*, jobject, jobject);
 }
 
 JNIEXPORT void JNICALL
@@ -62,16 +60,3 @@ Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint f
     (*entrypoint)(4, argv);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_WebProcessGlue_provideSurface(JNIEnv* env, jobject, jobject surface)
-{
-    ALOGV("Glue::provideSurface() surface object %p", surface);
-
-    using ProvideSurfaceEntryPoint = void(ANativeWindow*);
-    auto* entrypoint = reinterpret_cast<ProvideSurfaceEntryPoint*>(dlsym(RTLD_DEFAULT, "libwpe_android_provideNativeWindow"));
-
-    ANativeWindow* nativeWindow = ANativeWindow_fromSurface(env, surface);
-    ALOGV("  nativeWindow %p, entrypoint %p", nativeWindow, entrypoint);
-
-    (*entrypoint)(nativeWindow);
-}
