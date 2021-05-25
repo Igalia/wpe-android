@@ -26,7 +26,7 @@ public:
 private:
     struct TransactionContext;
     void scheduleFrame(TransactionContext*);
-    void finishFrame(const std::shared_ptr<ExportedBuffer>&, bool dispatchFrameCompleteCallback);
+    void finishFrame(const std::shared_ptr<ExportedBuffer>&);
 
     static void onTransactionComplete(void* data, ASurfaceTransactionStats* stats);
 
@@ -41,7 +41,12 @@ private:
         unsigned height;
     } m_size;
 
-    std::shared_ptr<ExportedBuffer> m_lockedBuffer;
+    struct {
+        bool dispatchFrameCompleteCallback { false };
+
+        std::shared_ptr<ExportedBuffer> exportedBuffer;
+        std::shared_ptr<ExportedBuffer> lockedBuffer;
+    } m_state;
 };
 
 #endif
