@@ -18,69 +18,7 @@ public class WebProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "v1";
-
-    private final void copyFileOrDir(String path) {
-        AssetManager assetManager = this.getAssets();
-        String assets[] = null;
-        try {
-            assets = assetManager.list(path);
-            if (assets.length == 0) {
-                copyFile(path);
-            } else {
-                String fullPath = getApplicationContext().getFilesDir() + "/" + path;
-                File dir = new File(fullPath);
-                if (!dir.exists())
-                    dir.mkdir();
-                for (int i = 0; i < assets.length; ++i) {
-                    copyFileOrDir(path + "/" + assets[i]);
-                }
-            }
-        } catch (IOException ex) {
-            Log.e("tag", "I/O Exception", ex);
-        }
-    }
-
-    private final void copyFile(String filename) {
-        AssetManager assetManager = this.getAssets();
-
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            in = assetManager.open(filename);
-            String newFileName = getApplicationContext().getFilesDir() + "/" + filename;
-            out = new FileOutputStream(newFileName);
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-            in.close();
-            out.flush();
-            out.close();
-        } catch (Exception e) {
-            Log.e("tag", e.getMessage());
-        }
-    }
-
-    // Tells whether we need to move the font config and gstreamer plugins to
-    // the files dir. This is done only the first time WPEWebKit is launched or
-    // everytime an update on these files is required
-    private final boolean needAssets() {
-        File file = new File(getApplicationContext().getFilesDir(), assetsVersion);
-        return !file.exists();
-    }
-
-    private final void saveAssetsVersion() {
-        File file = new File(getApplicationContext().getFilesDir(), assetsVersion);
-        if (!file.exists()) {
-            try {
-                file.createNewFile();
-            } catch(IOException exception) {
-                Log.e(LOGTAG, "Could not save assets version. This will affect boot up performance");
-            }
-        }
-    }
+    private static final String assetsVersion = "web_process_assets_v1";
 
     @Override
     public void onCreate()
@@ -88,13 +26,13 @@ public class WebProcessService extends WPEService {
         Log.v(LOGTAG, "onCreate");
         super.onCreate();
 
-        if (needAssets()) {
-            copyFileOrDir("gstreamer-1.0");
-            copyFileOrDir("fontconfig/fonts.conf");
-            saveAssetsVersion();
+        Context context = getApplicationContext();
+        if (ServiceUtils.needAssets(context, assetsVersion)) {
+            ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0");
+            ServiceUtils.copyFileOrDir(context, getAssets(), "fontconfig/fonts.conf");
+            ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
 
-        Context context = getApplicationContext();
         String fontConfigPath = new File(context.getFilesDir(), "fontconfig")
                 .getAbsolutePath();
         String gstreamerPath = new File(context.getFilesDir(), "gstreamer-1.0")

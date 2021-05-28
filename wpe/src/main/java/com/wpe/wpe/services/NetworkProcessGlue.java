@@ -6,7 +6,6 @@ public class NetworkProcessGlue {
         System.loadLibrary("WPENetworkProcessGlue");
     }
 
-    public static native void initializeXdg(String xdgRuntimePath);
-    public static native void initializeGioExtraModulesPath(String extraModulesPath);
     public static native void initializeMain(int fd);
+    public static native void setupEnvironment(String cachePath, String extraModulesPath);
 }

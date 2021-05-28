@@ -222,15 +222,21 @@ class Bootstrap:
             shutil.rmtree(assets_dir)
         shutil.copytree(sysroot_gst_libs, assets_dir)
 
+    def __copy_gio_modules(self, sysroot):
+        sysroot_gio_module = os.path.join(sysroot, 'lib', 'gio', 'modules', 'libgiognutls.so')
+        gio_modules_dir = os.path.join(self.__root, 'wpe', 'src', 'main', 'assets', 'gio')
+        gio_module = os.path.join(gio_modules_dir, 'libgiognutls.so')
+        if os.path.exists(gio_modules_dir):
+            shutil.rmtree(gio_modules_dir)
+        os.makedirs(gio_modules_dir)
+        shutil.copy(sysroot_gio_module, gio_module)
+
     def __copy_libs(self, sysroot_lib, lib_dir, install_list = None):
         if install_list is None:
             if os.path.exists(lib_dir):
                 shutil.rmtree(lib_dir)
             os.makedirs(lib_dir)
-
-        sysroot_gio_modules = os.path.join(sysroot_lib, 'gio', 'modules')
-        libs_paths = list(map(lambda x: str(x), Path(sysroot_lib).glob('*.so')))
-        libs_paths += list(map(lambda x: str(x), Path(sysroot_gio_modules).glob('*.so')))
+        libs_paths = Path(sysroot_lib).glob('*.so')
 
         for lib_path in libs_paths:
             soname, _ = self.__read_elf(lib_path)
@@ -308,13 +314,6 @@ class Bootstrap:
         jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
         self.__copy_jni_libs(jnilib_dir, lib_dir, libs_paths)
 
-        gio_dir = os.path.join(jnilib_dir, 'gio', 'modules')
-        if os.path.exists(gio_dir):
-            shutil.rmtree(gio_dir)
-        os.makedirs(gio_dir)
-        shutil.copy(os.path.join(sysroot_lib, 'gio', 'modules', 'libgiognutls.so'),
-                    os.path.join(gio_dir, 'libgiognutls.so'))
-
         try:
             os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
                       os.path.join(lib_dir, 'libWPEBackend-default.so'))
@@ -324,6 +323,7 @@ class Bootstrap:
             print("Not copying existing files")
 
         self.__copy_gst_libs(sysroot)
+        self.__copy_gio_modules(sysroot)
 
     def run(self):
         if self.__build:

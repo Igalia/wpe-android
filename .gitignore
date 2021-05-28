@@ -11,6 +11,7 @@ wpe/imported/
 wpe/src/main/jniLibs/
 wpe/src/main/assets/wpe-webkit-1.0
 wpe/src/main/assets/gstreamer-1.0
+wpe/src/main/assets/gio
 *.swp
 __pycache__
 /cerbero
