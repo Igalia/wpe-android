@@ -60,7 +60,7 @@ from pathlib import Path
 
 class Bootstrap:
     def __init__(self, args):
-        self.__version = '2.30.4'
+        self.__version = '2.32.1'
         self.__arch = args.arch
         self.__build = args.build
         self.__debug = args.debug

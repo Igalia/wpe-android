@@ -47,7 +47,7 @@ class Patch:
         sources_path = 'build/sources/android_{0}/'.format(self.__arch)
         if self.__recipe == Recipe.WEBKIT.value:
             # TODO figure out version
-            ninja_build_dir = sources_path + 'wpewebkit-2.30.4/_builddir'
+            ninja_build_dir = sources_path + 'wpewebkit-2.32.1/_builddir'
             command = [
                     'ninja -C ' + ninja_build_dir + '\n',
                     'ninja -C {0} install\n'.format(ninja_build_dir)
