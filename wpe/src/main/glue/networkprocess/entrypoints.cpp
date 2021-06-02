@@ -6,31 +6,8 @@
 #include "logging.h"
 
 extern "C" {
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeXdg(JNIEnv*, jobject, jstring);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeGioExtraModulesPath(JNIEnv*, jobject, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_initializeMain(JNIEnv*, jobject, jint);
-}
-
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_NetworkProcessGlue_initializeXdg(JNIEnv* env, jobject, jstring xdgRuntimePath)
-{
-    ALOGV("Glue::initializeXdg()");
-
-    const char* cachePath = env->GetStringUTFChars(xdgRuntimePath, 0);
-    ALOGV("  runtimePath %s", cachePath);
-
-    setenv("XDG_RUNTIME_DIR", cachePath, 1);
-}
-
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_NetworkProcessGlue_initializeGioExtraModulesPath(JNIEnv* env, jobject, jstring extraModulesPath)
-{
-    ALOGV("Glue::initializeGIOExtraModulesPath(), path %p", extraModulesPath);
-    jsize pathLength = env->GetStringUTFLength(extraModulesPath);
-    const char* pathChars = env->GetStringUTFChars(extraModulesPath, 0);
-    ALOGV("  pathLength %d, pathChars %s", pathLength, pathChars);
-
-    setenv("GIO_EXTRA_MODULES", pathChars, 1);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_services_NetworkProcessGlue_setupEnvironment(JNIEnv*, jobject, jstring, jstring);
 }
 
 JNIEXPORT void JNICALL
@@ -53,4 +30,17 @@ Java_com_wpe_wpe_services_NetworkProcessGlue_initializeMain(JNIEnv*, jobject, ji
     argv[1] = pidString;
     argv[2] = fdString;
     (*entrypoint)(3, argv);
+}
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_services_NetworkProcessGlue_setupEnvironment(JNIEnv* env, jobject,
+        jstring cachePath, jstring extraModulesPath)
+{
+    ALOGV("Glue::setupEnvironment()");
+
+    const char* _cachePath = env->GetStringUTFChars(cachePath, 0);
+    setenv("XDG_RUNTIME_DIR", _cachePath, 1);
+
+    const char* _extraModulesPath = env->GetStringUTFChars(extraModulesPath, 0);
+    setenv("GIO_EXTRA_MODULES", _extraModulesPath, 1);
 }

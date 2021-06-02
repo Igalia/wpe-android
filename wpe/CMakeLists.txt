@@ -21,6 +21,12 @@ set_target_properties(gobject-2.0
         ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgobject-2.0.so
         )
 
+add_library(gmodule-2.0 SHARED IMPORTED)
+set_target_properties(gmodule-2.0
+        PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgmodule-2.0.so
+        )
+
 add_library(WPEWebKit-1.0 SHARED IMPORTED)
 set_target_properties(WPEWebKit-1.0
         PROPERTIES IMPORTED_LOCATION
@@ -90,6 +96,9 @@ add_library(WPEWebProcessGlue SHARED
 target_link_libraries(WPEWebProcessGlue
         ${android-lib}
         ${log-lib}
+        gio-2.0
+        glib-2.0
+        gmodule-2.0
         WPEBackend-default
         WPEWebKit-1.0
         )

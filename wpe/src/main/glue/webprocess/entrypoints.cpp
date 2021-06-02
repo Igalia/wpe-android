@@ -1,37 +1,16 @@
 #include <jni.h>
 #include <android/native_window_jni.h>
 #include <dlfcn.h>
+#include <gio/gio.h>
+#include <glib/gtypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "logging.h"
 
 extern "C" {
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeXdg(JNIEnv*, jobject, jstring);
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeFontconfig(JNIEnv*, jobject, jstring);
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint, jint);
-}
-
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_WebProcessGlue_initializeXdg(JNIEnv* env, jobject, jstring xdgCachePath)
-{
-    ALOGV("Glue::initializeXdg()");
-
-    const char* cachePath = env->GetStringUTFChars(xdgCachePath, 0);
-    ALOGV("  cachePath %s", cachePath);
-
-    setenv("XDG_CACHE_HOME", cachePath, 1);
-}
-
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_services_WebProcessGlue_initializeFontconfig(JNIEnv* env, jobject, jstring fontconfigPath)
-{
-    ALOGV("Glue::initializeFontconfig(), path %p", fontconfigPath);
-    jsize pathLength = env->GetStringUTFLength(fontconfigPath);
-    const char* pathChars = env->GetStringUTFChars(fontconfigPath, 0);
-    ALOGV("  pathLength %d, pathChars %s", pathLength, pathChars);
-
-    setenv("FONTCONFIG_PATH", pathChars, 1);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring);
 }
 
 using WebProcessEntryPoint = int(int, char**);
@@ -60,3 +39,40 @@ Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint f
     (*entrypoint)(4, argv);
 }
 
+void Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv *env, jobject,
+                                   jstring fontconfigPath,
+                                   jstring gstreamerPath,
+                                   jstring nativeLibsPath,
+                                   jstring cachePath,
+                                   jstring filesPath) {
+    ALOGV("Glue::setupEnvironment()");
+
+    const char* _fontconfigPath = env->GetStringUTFChars(fontconfigPath, 0);
+    const char* _gstreamerPath = env->GetStringUTFChars(gstreamerPath, 0);
+    const char* _cachePath = env->GetStringUTFChars(cachePath, 0);
+    const char* _nativeLibsPath = env->GetStringUTFChars(nativeLibsPath, 0);
+    const char* _filesPath = env->GetStringUTFChars(filesPath, 0);
+
+    setenv("FONTCONFIG_PATH", _fontconfigPath, 1);
+
+    setenv("GST_PLUGIN_PATH", _gstreamerPath, 1);
+    setenv("GST_PLUGIN_SYSTEM_PATH", _gstreamerPath, 1);
+    setenv("LD_LIBRARY_PATH", _nativeLibsPath, 1);
+    setenv("LIBRARY_PATH", _nativeLibsPath, 1);
+    setenv("TMP", _cachePath, 1);
+    setenv("TEMP", _cachePath, 1);
+    setenv("TMPDIR", _cachePath, 1);
+    gchar* registry = g_build_filename(_cachePath, "registry.bin", NULL);
+    setenv("GST_REGISTRY", registry, 1);
+    g_free(registry);
+    setenv("GST_REGISTRY_UPDATE", "no", 1);
+    setenv ("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no", 1);
+
+    setenv("XDG_CACHE_HOME", _cachePath, 1);
+    setenv("XDG_RUNTIME_DIR", _cachePath, 1);
+    setenv("HOME", _filesPath, 1);
+    setenv("XDG_DATA_DIRS", _filesPath, 1);
+    setenv("XDG_CONFIG_DIRS", _filesPath, 1);
+    setenv("XDG_CONFIG_HOME", _filesPath, 1);
+    setenv("XDG_DATA_HOME", _filesPath, 1);
+}

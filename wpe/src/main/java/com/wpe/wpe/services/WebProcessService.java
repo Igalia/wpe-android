@@ -1,6 +1,7 @@
 package com.wpe.wpe.services;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.res.AssetManager;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -15,40 +16,36 @@ public class WebProcessService extends WPEService {
     private static final String LOGTAG = "WPEWebProcess";
     private boolean m_initialized = false;
 
+    // Bump this version number if you make any changes to the font config
+    // or the gstreamer plugins or else they won't be applied.
+    private static final String assetsVersion = "web_process_assets_v1";
+
     @Override
     public void onCreate()
     {
         Log.v(LOGTAG, "onCreate");
         super.onCreate();
 
-        try {
-            Context context = getBaseContext();
-            WebProcessGlue.initializeXdg(context.getCacheDir().getAbsolutePath());
-
-            AssetManager assetManager = context.getAssets();
-
-            InputStream is = assetManager.open("fontconfig/fonts.conf");
-
-            File osDir = new File(context.getFilesDir(), "fontconfig");
-            osDir.mkdirs();
-            WebProcessGlue.initializeFontconfig(osDir.getAbsolutePath());
-
-            File osFile = new File(osDir, "fonts.conf");
-            Log.v(LOGTAG, "Copying fontconfig/fonts.conf to " + osFile.getAbsolutePath());
-            OutputStream os = new FileOutputStream(osFile);
-
-            int read;
-            byte[] buffer = new byte[1024];
-            while ((read = is.read(buffer)) != -1) {
-                os.write(buffer, 0, read);
-            }
-
-            is.close();
-            os.flush();
-            os.close();
-        } catch (IOException e) {
-            Log.e(LOGTAG, "Asset load failed: " + e);
+        Context context = getApplicationContext();
+        if (ServiceUtils.needAssets(context, assetsVersion)) {
+            ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0");
+            ServiceUtils.copyFileOrDir(context, getAssets(), "fontconfig/fonts.conf");
+            ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
+
+        String fontConfigPath = new File(context.getFilesDir(), "fontconfig")
+                .getAbsolutePath();
+        String gstreamerPath = new File(context.getFilesDir(), "gstreamer-1.0")
+                .getAbsolutePath();
+        ApplicationInfo appInfo = context.getApplicationInfo();
+
+        WebProcessGlue.setupEnvironment(
+                fontConfigPath,
+                gstreamerPath,
+                appInfo.nativeLibraryDir,
+                context.getCacheDir().getAbsolutePath(),
+                context.getFilesDir().getAbsolutePath()
+        );
     }
 
     @Override
