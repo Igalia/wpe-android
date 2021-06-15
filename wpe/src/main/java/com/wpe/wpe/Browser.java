@@ -1,6 +1,7 @@
 package com.wpe.wpe;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.LimitExceededException;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
@@ -13,6 +14,7 @@ import androidx.annotation.UiThread;
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -29,6 +31,13 @@ public final class Browser {
     private static final String LOGTAG = "WPE Browser";
 
     private static Browser m_instance = null;
+
+    /**
+     * This is process-wide initialization flag that prevents multiple trips into
+     * the native glue code where extra initialization is needed. It is not tied
+     * to the Browser instance lifetime in any way.
+     */
+    private static boolean m_initialized = false;
 
     /**
      * Instance of the glue code exposing the JNI API to communicate with WebKit.
@@ -280,6 +289,16 @@ public final class Browser {
         m_looperHelperThread = new LooperHelperThread();
         m_uiProcessThread = new UIProcessThread();
         m_uiProcessThread.run(m_glue);
+    }
+
+    public static void initialize(Context context) {
+        if (m_initialized) {
+            return;
+        }
+
+        String gioPath = new File(context.getFilesDir(), "gio").getAbsolutePath();
+        BrowserGlue.setupEnvironment(gioPath);
+        m_initialized = true;
     }
 
     public static Browser getInstance() {

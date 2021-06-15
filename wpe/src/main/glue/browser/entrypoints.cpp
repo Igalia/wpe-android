@@ -12,6 +12,8 @@
 #include "pageeventobserver.h"
 
 extern "C" {
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setupEnvironment(JNIEnv*, jobject, jstring);
+
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_init(JNIEnv*, jobject, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
@@ -42,6 +44,15 @@ std::unique_ptr<Browser> Browser::m_instance = nullptr;
 // These are used by WebKit to call into the Java layer.
 JNIEXPORT JNIEnv* s_BrowserGlue_env = 0;
 JNIEXPORT jobject s_BrowserGlue_object = 0;
+
+JNIEXPORT void JNICALL
+Java_com_wpe_wpe_BrowserGlue_setupEnvironment(JNIEnv *env, jobject, jstring gioPath)
+{
+    ALOGV("BrowserGlue::setupEnvironment()");
+
+    const char* _gioPath = env->GetStringUTFChars(gioPath, 0);
+    setenv("GIO_EXTRA_MODULES", _gioPath, 1);
+}
 
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)

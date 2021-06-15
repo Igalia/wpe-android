@@ -18,6 +18,8 @@ public class BrowserGlue {
         System.loadLibrary("WPEBrowserGlue");
     }
 
+    public static native void setupEnvironment(String gioPath);
+
     public static native void init(BrowserGlue self);
     public static native void initLooperHelper();
     public static native void deinit();
