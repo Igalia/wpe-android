@@ -37,11 +37,13 @@ public class WebProcessService extends WPEService {
                 .getAbsolutePath();
         String gstreamerPath = new File(context.getFilesDir(), "gstreamer-1.0")
                 .getAbsolutePath();
+        String gioPath = new File(context.getFilesDir(), "gio").getAbsolutePath();
         ApplicationInfo appInfo = context.getApplicationInfo();
 
         WebProcessGlue.setupEnvironment(
                 fontConfigPath,
                 gstreamerPath,
+                gioPath,
                 appInfo.nativeLibraryDir,
                 context.getCacheDir().getAbsolutePath(),
                 context.getFilesDir().getAbsolutePath()

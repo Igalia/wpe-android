@@ -9,6 +9,6 @@ public class WebProcessGlue {
 
     public static native void initializeMain(int fd1, int fd2);
     public static native void setupEnvironment(String fontconfigPath, String gstreamerPath,
-                                               String nativeLibsPath, String cachePath,
-                                               String filesPath);
+                                               String gioPath, String nativeLibsPath,
+                                               String cachePath, String filesPath);
 }

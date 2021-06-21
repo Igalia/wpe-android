@@ -10,7 +10,7 @@
 
 extern "C" {
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint, jint);
-JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring);
+JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring, jstring);
 }
 
 using WebProcessEntryPoint = int(int, char**);
@@ -42,6 +42,7 @@ Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint f
 void Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv *env, jobject,
                                    jstring fontconfigPath,
                                    jstring gstreamerPath,
+                                   jstring gioPath,
                                    jstring nativeLibsPath,
                                    jstring cachePath,
                                    jstring filesPath) {
@@ -49,6 +50,7 @@ void Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv *env, jobj
 
     const char* _fontconfigPath = env->GetStringUTFChars(fontconfigPath, 0);
     const char* _gstreamerPath = env->GetStringUTFChars(gstreamerPath, 0);
+    const char* _gioPath = env->GetStringUTFChars(gioPath, 0);
     const char* _cachePath = env->GetStringUTFChars(cachePath, 0);
     const char* _nativeLibsPath = env->GetStringUTFChars(nativeLibsPath, 0);
     const char* _filesPath = env->GetStringUTFChars(filesPath, 0);
@@ -75,4 +77,6 @@ void Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv *env, jobj
     setenv("XDG_CONFIG_DIRS", _filesPath, 1);
     setenv("XDG_CONFIG_HOME", _filesPath, 1);
     setenv("XDG_DATA_HOME", _filesPath, 1);
+
+    setenv("GIO_EXTRA_MODULES", _gioPath, 1);
 }

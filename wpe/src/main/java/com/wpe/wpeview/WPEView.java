@@ -40,11 +40,15 @@ public class WPEView extends FrameLayout implements ViewObserver {
     public WPEView(final Context context) {
         super(context);
         m_context = context;
+
+        Browser.initialize(context);
     }
 
     public WPEView(final Context context, final AttributeSet attrs) {
         super(context, attrs);
         m_context = context;
+
+        Browser.initialize(context);
     }
 
     @Override
