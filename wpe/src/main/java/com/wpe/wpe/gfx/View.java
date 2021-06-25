@@ -8,9 +8,12 @@ import android.view.ScaleGestureDetector;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.BrowserGlue;
+import com.wpe.wpeview.SurfaceClient;
+import com.wpe.wpeview.WPEView;
 
 @UiThread
 public class View extends SurfaceView {
@@ -76,16 +79,20 @@ public class View extends SurfaceView {
     private float mScaleFactor = 1.f;
     private boolean m_ignoreTouchEvent = false;
 
-    public View(Context context, int pageId) {
+    public View(Context context, int pageId, WPEView wpeView) {
         super(context);
 
         LOGTAG = "WPE gfx.View" + pageId;
 
         m_pageId = pageId;
 
-        SurfaceHolder holder = getHolder();
-        Log.d(LOGTAG, "View: holder " + holder);
-        holder.addCallback(new HolderCallback(this));
+        if (wpeView.getSurfaceClient() != null) {
+            wpeView.getSurfaceClient().addCallback(wpeView, new HolderCallback(this));
+        } else {
+            SurfaceHolder holder = getHolder();
+            Log.d(LOGTAG, "View: holder " + holder);
+            holder.addCallback(new HolderCallback(this));
+        }
 
         mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());
 
