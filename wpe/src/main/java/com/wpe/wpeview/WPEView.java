@@ -32,6 +32,7 @@ public class WPEView extends FrameLayout implements ViewObserver {
 
     private WebChromeClient m_chromeClient;
     private WPEViewClient m_wpeViewClient;
+    private SurfaceClient m_surfaceClient;
     private int m_currentLoadProgress = 0;
     private String m_title = "about:blank";
     private String m_url = "about:blank";
@@ -98,6 +99,14 @@ public class WPEView extends FrameLayout implements ViewObserver {
         Log.v(LOGTAG, "View ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
+        post(new Runnable() {
+            @Override
+            public void run() {
+                if (m_wpeViewClient != null) {
+                    m_wpeViewClient.onViewReady(WPEView.this);
+                }
+            }
+        });
     }
 
     @Override
@@ -324,5 +333,25 @@ public class WPEView extends FrameLayout implements ViewObserver {
     @Nullable
     public WPEViewClient getWPEViewClient() {
         return m_wpeViewClient;
+    }
+
+    /**
+     * Set the SurfaceClient that will manage the Surface where
+     * WPEView renders it's contents to. This will replace the current handler.
+     * @param client An implementation of SurfaceClient.
+     */
+    public void setSurfaceClient(@Nullable SurfaceClient client) {
+        m_surfaceClient = client;
+    }
+
+    /**
+     * Gets the SurfaceClient.
+     *
+     * @return the SurfaceClient, or {@code null} if not yet set
+     * @see #setSurfaceClient
+     */
+    @Nullable
+    public SurfaceClient getSurfaceClient() {
+        return m_surfaceClient;
     }
 }

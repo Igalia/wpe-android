@@ -68,7 +68,7 @@ public class Page {
         m_width =  wpeView.getMeasuredWidth();
         m_height = wpeView.getMeasuredHeight();
 
-        m_view = new View(m_context, pageId);
+        m_view = new View(m_context, pageId, wpeView);
         m_wpeView.onViewCreated(m_view);
         onViewReady();
 

@@ -20,4 +20,9 @@ public interface WPEViewClient {
      * @param url The url of the page.
      */
     default void onPageFinished(WPEView view, String url) {}
+    /**
+     * Notify the host application that the internal SurfaceView has been created
+     * and it's ready to render to it's surface.
+     */
+    default void onViewReady(WPEView view) {}
 }
