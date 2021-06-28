@@ -457,26 +457,44 @@ public final class Browser {
     }
 
     public void goBack(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).goBack();
     }
 
     public void goForward(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).goForward();
     }
 
     public void stopLoading(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).stopLoading();
     }
 
     public void reload(@NonNull WPEView wpeView) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).reload();
     }
 
     public void setInputMethodContent(@NonNull WPEView wpeView, char c) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).setInputMethodContent(c);
     }
 
     public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset) {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
         m_pages.get(wpeView).deleteInputMethodContent(offset);
     }
 }
