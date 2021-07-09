@@ -38,8 +38,9 @@ public class ServiceUtils {
         OutputStream out = null;
         try {
             in = assetManager.open(filename);
-            String newFileName = context.getFilesDir() + "/" + filename;
-            out = new FileOutputStream(newFileName);
+            File newFile = new File(context.getFilesDir(), filename);
+            newFile.getParentFile().mkdirs();
+            out = new FileOutputStream(newFile, false);
             byte[] buffer = new byte[1024];
             int read;
             while ((read = in.read(buffer)) != -1) {
