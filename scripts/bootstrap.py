@@ -62,10 +62,11 @@ class Bootstrap:
     def __init__(self, args):
         self.__version = '2.32.1'
         self.__arch = args.arch
+        self.__cerbero_path = args.cerbero
         self.__build = args.build
         self.__debug = args.debug
         self.__root = os.getcwd()
-        self.__build_dir = os.path.join(os.getcwd(), 'cerbero')
+        self.__build_dir = os.path.join(os.getcwd(), 'build')
         # These are the libraries that the glue code link with, and are required during build
         # time. These libraries go into the `imported` folder and cannot go into the `jniFolder`
         # to avoid a duplicated library issue.
@@ -106,17 +107,37 @@ class Bootstrap:
         wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/KqBXFtHf9866Bzf/download', allow_redirects=True)
         open(self.__wpewebkit_runtime_binary, 'wb').write(wpewebkit_runtime.content)
 
+    def __copy_binaries_from_existing_cerbero_checkout(self):
+        assert(self.__build == False)
+        print('Copying binaries from existing Cerbero checkout at {} ...'.format(self.__cerbero_path))
+
+        if not os.path.isdir(self.__build_dir):
+            os.mkdir(self.__build_dir)
+
+        wpewebkit_path = os.path.join(self.__cerbero_path, self.__wpewebkit_binary)
+        if not os.path.exists(wpewebkit_path):
+            raise Exception('Unable to find Cerbero build product \'{}\''.format(self.__wpewebkit_binary))
+        print('Copying {} into {}'.format(self.__wpewebkit_binary, self.__build_dir))
+        shutil.copy(wpewebkit_path, os.path.join(self.__build_dir, self.__wpewebkit_binary))
+
+        wpewebkit_runtime_path = os.path.join(self.__cerbero_path, self.__wpewebkit_runtime_binary)
+        if not os.path.exists(wpewebkit_runtime_path):
+            raise Exception('Unable to find Cerbero build product \'{}\''.format(self.__wpewebkit_runtime_binary))
+        print('Copying {} into {}'.format(self.__wpewebkit_runtime_binary, self.__build_dir))
+        shutil.copy(wpewebkit_runtime_path, os.path.join(self.__build_dir, self.__wpewebkit_runtime_binary))
+
     def __cerbero_command(self, args):
-        os.chdir(self.__build_dir)
+        cerbero_path = os.path.join(self.__build_dir, 'cerbero')
+        os.chdir(cerbero_path)
         command = [
             './cerbero-uninstalled', '-c',
-            '%s/config/cross-android-%s' %(self.__build_dir, self.__arch)
+            '%s/config/cross-android-%s' %(cerbero_path, self.__arch)
         ]
         command += args
         subprocess.call(command)
 
     def __patch_wk_for_debug_build(self):
-        wk_recipe_path = os.path.join(self.__build_dir, 'recipes', 'wpewebkit.recipe')
+        wk_recipe_path = os.path.join(self.__build_dir, 'cerbero', 'recipes', 'wpewebkit.recipe')
         with open(wk_recipe_path, 'r') as recipe_file:
             recipe_contents = recipe_file.read()
         recipe_contents = recipe_contents.replace('-DLOG_DISABLED=1', '-DLOG_DISABLED=0')
@@ -125,7 +146,7 @@ class Bootstrap:
         with open(wk_recipe_path, 'w') as recipe_file:
             recipe_file.write(recipe_contents)
 
-        wk_package_path = os.path.join(self.__build_dir, 'packages', 'wpewebkit.package')
+        wk_package_path = os.path.join(self.__build_dir, 'cerbero', 'packages', 'wpewebkit.package')
         with open(wk_package_path, 'r') as package_file:
             package_contents = package_file.read()
         package_contents = package_contents.replace('strip = True', 'strip = False')
@@ -136,14 +157,17 @@ class Bootstrap:
         origin = 'https://github.com/Igalia/cerbero.git'
         branch = 'wpe-android'
 
-        if os.path.isdir(self.__build_dir) and os.path.isfile(os.path.join(self.__build_dir, 'cerbero-uninstalled')):
-            os.chdir(self.__build_dir)
+        cerbero_path = os.path.join(self.__build_dir, 'cerbero')
+        if os.path.isdir(cerbero_path) and os.path.isfile(os.path.join(cerbero_path, 'cerbero-uninstalled')):
+            os.chdir(cerbero_path)
             subprocess.call(['git', 'reset', '--hard', 'origin/' + branch])
             subprocess.call(['git', 'pull', 'origin', branch])
             os.chdir(self.__root)
         else:
             if os.path.isdir(self.__build_dir):
                 shutil.rmtree(self.__build_dir)
+            os.mkdir(self.__build_dir)
+            os.chdir(self.__build_dir)
             subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
 
         self.__cerbero_command(['bootstrap'])
@@ -152,7 +176,7 @@ class Bootstrap:
             self.__patch_wk_for_debug_build()
 
     def __build_deps(self):
-        self.__cerbero_command(['package', '-f', 'wpewebkit'])
+        self.__cerbero_command(['package', '-o', self.__build_dir, '-f', 'wpewebkit'])
 
     def __extract_deps(self):
         os.chdir(self.__build_dir)
@@ -326,7 +350,9 @@ class Bootstrap:
         self.__copy_gio_modules(sysroot)
 
     def run(self):
-        if self.__build:
+        if self.__cerbero_path:
+            self.__copy_binaries_from_existing_cerbero_checkout()
+        elif self.__build:
             self.__ensure_cerbero()
             self.__build_deps()
         else:
@@ -340,6 +366,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument('-a', '--arch', metavar='architecture', required=False, default='arm64', choices=['arm64'], help='The target architecture')
+    parser.add_argument('-c', '--cerbero', required=False, help='Path to the Cerbero checkout containing a completed build')
     parser.add_argument('-d', '--debug', required=False, action='store_true', help='Build the binaries with debug symbols')
     parser.add_argument('-b', '--build', required=False, action='store_true', help='Build dependencies instead of fetching the prebuilt binaries from the network')
 
