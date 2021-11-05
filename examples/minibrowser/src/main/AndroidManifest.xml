@@ -10,7 +10,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Minibrowser"
+        android:theme="@style/Theme.MiniBrowser"
         tools:ignore="HardcodedDebugMode">
         <activity
             android:name=".MainActivity"
