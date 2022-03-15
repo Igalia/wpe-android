@@ -48,18 +48,18 @@ location within the `wpe` project. This is done by the `__install_deps` function
 """
 
 import argparse
-import glob
 import os
 import re
-import requests
 import shutil
 import subprocess
-import sys
 
 from pathlib import Path
 
+URL_TEMPLATE = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
+
 class Bootstrap:
     def __init__(self, args):
+        # TODO: Allow passing a version string in the command line.
         self.__version = '2.32.1'
         self.__arch = args.arch
         self.__cerbero_path = args.cerbero
@@ -96,16 +96,29 @@ class Bootstrap:
         self.__wpewebkit_binary = 'wpewebkit-android-%s-%s.tar.xz' %(self.__arch, self.__version)
         self.__wpewebkit_runtime_binary = 'wpewebkit-android-%s-%s-runtime.tar.xz' %(self.__arch, self.__version)
 
+
+    def __fetch_binary(self, filename):
+        from urllib.request import urlretrieve
+
+        url = URL_TEMPLATE.format(version=self.__version, filename=filename)
+
+        def report(count, block_size, total_size):
+            size = total_size / 1024 / 1024
+            percent = int(100 * count * block_size / total_size)
+            print(f"\r  {url} [{size:.2f} MiB] {percent}% ", flush=True, end="")
+
+        print(f"  {url} ...", flush=True, end="")
+        urlretrieve(url , filename, reporthook=report)
+        print(f"\r\x1B[J  {url} - done")
+
     def __fetch_binaries(self):
         assert(self.__build == False)
         print('Fetching binaries...')
         if not os.path.isdir(self.__build_dir):
             os.mkdir(self.__build_dir)
         os.chdir(self.__build_dir)
-        wpewebkit = requests.get('https://cloud.igalia.com/s/GRqHrHEgX9wWqJ6/download', allow_redirects=True)
-        open(self.__wpewebkit_binary, 'wb').write(wpewebkit.content)
-        wpewebkit_runtime = requests.get('https://cloud.igalia.com/s/KqBXFtHf9866Bzf/download', allow_redirects=True)
-        open(self.__wpewebkit_runtime_binary, 'wb').write(wpewebkit_runtime.content)
+        self.__fetch_binary(self.__wpewebkit_binary)
+        self.__fetch_binary(self.__wpewebkit_runtime_binary)
 
     def __copy_binaries_from_existing_cerbero_checkout(self):
         assert(self.__build == False)
