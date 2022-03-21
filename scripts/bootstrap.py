@@ -60,7 +60,7 @@ URL_TEMPLATE = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
 class Bootstrap:
     def __init__(self, args):
         # TODO: Allow passing a version string in the command line.
-        self.__version = '2.32.1'
+        self.__version = '2.34.1'
         self.__arch = args.arch
         self.__cerbero_path = args.cerbero
         self.__build = args.build
