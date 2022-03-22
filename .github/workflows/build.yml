@@ -1,0 +1,37 @@
+---
+
+name: CI build
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        api_level: [26, 29]
+        build_type: [Release, Debug]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Fetch WPE Bootstrap
+        run: |
+          python3 scripts/bootstrap.py -a arm64
+      - name: Java™ Setup
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+      - name: Build Minibrowser
+        uses: gradle/gradle-build-action@v2
+        with:
+          arguments: assembleMinApi${{ matrix.api_level }}${{ matrix.build_type }}
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Save Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: minibrowser-api${{ matrix.api_level }}${{ matrix.build_type }}
+          path: examples/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}/**/*.apk
