@@ -99,13 +99,17 @@ class Bootstrap:
 
     def __fetch_binary(self, filename):
         from urllib.request import urlretrieve
+        import sys
 
         url = URL_TEMPLATE.format(version=self.__version, filename=filename)
 
-        def report(count, block_size, total_size):
-            size = total_size / 1024 / 1024
-            percent = int(100 * count * block_size / total_size)
-            print(f"\r  {url} [{size:.2f} MiB] {percent}% ", flush=True, end="")
+        if os.isatty(sys.stdout.fileno()):
+            def report(count, block_size, total_size):
+                size = total_size / 1024 / 1024
+                percent = int(100 * count * block_size / total_size)
+                print(f"\r  {url} [{size:.2f} MiB] {percent}% ", flush=True, end="")
+        else:
+            report = None
 
         print(f"  {url} ...", flush=True, end="")
         urlretrieve(url , filename, reporthook=report)
