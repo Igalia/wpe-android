@@ -91,6 +91,7 @@ class Bootstrap:
         ]
         self.__soname_replacements = [
             ('libnettle.so.6', 'libnettle_6.so'), # This entry is not retrievable from the packaged libnettle.so
+            ('libWPEWebKit-1.0.so.3', 'libWPEWebKit-1.0_3.so') # This is for libWPEInjectedBundle.so
         ]
         self.__base_needed = set(['libWPEWebKit-1.0_3.so'])
         self.__wpewebkit_binary = 'wpewebkit-android-%s-%s.tar.xz' %(self.__arch, self.__version)
@@ -298,7 +299,9 @@ class Bootstrap:
             if os.path.exists(jni_lib_dir):
                 shutil.rmtree(jni_lib_dir)
             os.makedirs(jni_lib_dir)
-            libs_paths = Path(lib_dir).glob('*.so')
+            libs_paths = list(Path(lib_dir).glob('*.so'))
+            libs_paths.extend(list(Path(os.path.join(lib_dir, 'wpe-webkit-1.0')).glob('*.so')))
+            libs_paths.extend(list(Path(os.path.join(lib_dir, 'wpe-webkit-1.0', 'injected-bundle')).glob('*.so')))
 
         for lib_path in libs_paths:
             if os.path.basename(lib_path) in self.__build_libs:
@@ -344,6 +347,7 @@ class Bootstrap:
 
         sysroot_lib = os.path.join(sysroot, 'lib')
         lib_dir = os.path.join(wpe, 'imported', 'lib', android_abi)
+
         libs_paths = None
         if install_list is not None:
             libs_paths = []
@@ -351,6 +355,12 @@ class Bootstrap:
                 libs_paths.append(os.path.join(sysroot_lib, lib))
         self.__copy_libs(sysroot_lib, lib_dir, libs_paths)
         self.__resolve_deps(lib_dir)
+
+        injected_bundle_sysroot_lib = os.path.join(sysroot_lib, 'wpe-webkit-1.0', 'injected-bundle')
+        injected_bundle_lib_dir = os.path.join(lib_dir, 'wpe-webkit-1.0', 'injected-bundle')
+        shutil.copytree(injected_bundle_sysroot_lib, injected_bundle_lib_dir)
+        for injected_bundle_lib_path in Path(injected_bundle_lib_dir).glob('*.so'):
+            self.__replace_soname_values(injected_bundle_lib_path)
 
         jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
         self.__copy_jni_libs(jnilib_dir, lib_dir, libs_paths)
