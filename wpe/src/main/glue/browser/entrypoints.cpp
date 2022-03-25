@@ -1,6 +1,7 @@
 #include <dlfcn.h>
 #include <memory>
 #include <stdlib.h>
+#include <string>
 
 #include <jni.h>
 #include <android/hardware_buffer_jni.h>
@@ -19,7 +20,7 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject);
 
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv*, jobject, jobject, jint, jint, jint);
+    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv*, jobject, jobject, jint, jint, jint, jstring);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_closePage(JNIEnv*, jobject, jint);
 
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv*, jobject, jint, jstring);
@@ -78,17 +79,26 @@ Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject)
 }
 
 JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv *env, jobject, jobject pageObj, jint pageId, jint width, jint height)
+Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv *env, jobject,
+                                    jobject pageObj,
+                                    jint pageId,
+                                    jint width,
+                                    jint height,
+                                    jstring userAgent)
 {
     ALOGV("BrowserGlue.newWebView tid %d", gettid());
     jclass pageClass = env->GetObjectClass(pageObj);
     jclass _pageClass = reinterpret_cast<jclass>(env->NewGlobalRef(pageClass));
     jobject _pageObj = reinterpret_cast<jobject>(env->NewGlobalRef(pageObj));
+    const char* utf8 = env->GetStringUTFChars(userAgent, 0); // Note! this is jni "modified" UTF-8
+    std::string _userAgent(utf8);
+    env->ReleaseStringUTFChars(userAgent, utf8);
+
     JavaVM *vm;
     env->GetJavaVM(&vm);
 
     Browser::getInstance().newPage(
-            pageId, width, height, std::make_shared<PageEventObserver>(vm, _pageClass, _pageObj));
+            pageId, width, height, _userAgent, std::make_shared<PageEventObserver>(vm, _pageClass, _pageObj));
 
     jmethodID onReady = env->GetMethodID(pageClass, "onPageGlueReady", "()V");
     if (onReady == nullptr) {

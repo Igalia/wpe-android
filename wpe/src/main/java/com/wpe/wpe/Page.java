@@ -104,9 +104,14 @@ public class Page {
             onPageGlueReady();
             return;
         }
+
+        StringBuilder userAgentBuilder = new StringBuilder();
+        userAgentBuilder.append(String.format("Mozilla/5.0 (Linux; Android %s) ", android.os.Build.VERSION.RELEASE));
+        userAgentBuilder.append("AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile Safari/605.1.15");
+
         // Requests the creation of a new WebKitWebView. On creation, the `onPageGlueReady` callback
         // is triggered.
-        BrowserGlue.newPage(this, m_id, m_width, m_height);
+        BrowserGlue.newPage(this, m_id, m_width, m_height, userAgentBuilder.toString());
     }
 
     public void onViewReady() {

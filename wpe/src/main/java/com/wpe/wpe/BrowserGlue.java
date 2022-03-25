@@ -24,7 +24,7 @@ public class BrowserGlue {
     public static native void initLooperHelper();
     public static native void deinit();
 
-    public static native void newPage(Page page, int pageId, int width, int height);
+    public static native void newPage(Page page, int pageId, int width, int height, String userAgent);
     public static native void closePage(int pageId);
 
     public static native void loadURL(int pageId, String url);

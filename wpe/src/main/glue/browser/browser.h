@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 #include <unordered_map>
 
 #include <wpe/webkit.h>
@@ -37,7 +38,7 @@ public:
 
     void invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
 
-    void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
+    void newPage(int pageId, int width, int height, const std::string& userAgent, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
     void loadUrl(int pageId, const char *urlData, jsize urlSize);
