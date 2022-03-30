@@ -53,6 +53,13 @@ android {
                 abiFilter 'arm64-v8a'
             }
         }
+
+        armv7 {
+            dimension "abi"
+            ndk {
+                abiFilter 'armeabi-v7a'
+            }
+        }
     }
 }
 

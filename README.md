@@ -75,7 +75,7 @@ python3 ./scripts/bootstrap.py --build --debug
 ```
 
 Finally, the bootstrap option accepts the `--arch` option to set the target architecture. 
-Currently supported architectures are `arm64` and `x86`.
+Currently supported architectures are `arm64`, `armv7`, and `x86`.
 
 
 ### Android Studio
@@ -84,5 +84,5 @@ Once the bootstrap process is done and all the dependencies are cross-compiled a
 you should be able to open the `launcher` demo with Android Studio and run it on a real device.
 
 ## Known issues and limitations
-* Only two architectures are supported at the moment `arm64` and `x86`.
+* The only architectures supported at the moment are `arm64`, `armv7`, and `x86`.
 * The scripts and build have only been tested in Linux.

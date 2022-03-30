@@ -13,7 +13,7 @@ jobs:
       matrix:
         api_level: [26, 29]
         build_type: [Release, Debug]
-        target_abi: [X86, Arm64]
+        target_abi: [X86, Arm64, Armv7]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
