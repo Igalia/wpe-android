@@ -40,6 +40,9 @@ extern "C" {
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv*, jclass, jint, jchar);
     JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv*, jclass, jint, jint);
 
+    jint JNI_OnLoad(JavaVM*, void *);
+}
+
 std::unique_ptr<Browser> Browser::m_instance = nullptr;
 
 // These are used by WebKit to call into the Java layer.
@@ -190,4 +193,19 @@ JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jint offset) {
     Browser::getInstance().deleteInputMethodContent(pageId, offset);
 }
+
+__attribute__((visibility("default")))
+jint JNI_OnLoad (JavaVM * vm, void *reserved)
+{
+    // VM resolves and calls JNI_OnLoad from loaded library. libWPEWebKit has dependency
+    // to libgstreamer.so which also exports JNI_OnLoad. JNI_OnLoad in libgstreamer requires
+    // GStreamer java class to be present in specific package and call fails with invalid JNI
+    // version if GStreamer java class is not found. By declaring JNI_OnLoad here we prevent
+    // JNI_OnLoad in libgstreamer.so from being called as for now we don't need GStreamer Java bindings.
+
+
+    // TODO: Instead of explicitly exporting native methods, register them using registerNativeMethods
+    //       which is recommended in https://developer.android.com/training/articles/perf-jni.html
+
+    return JNI_VERSION_1_4;
 }
