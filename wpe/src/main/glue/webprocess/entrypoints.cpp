@@ -11,6 +11,7 @@
 extern "C" {
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_initializeMain(JNIEnv*, jobject, jint, jint);
 JNIEXPORT void JNICALL Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv*, jobject, jstring, jstring, jstring, jstring, jstring, jstring);
+jint JNI_OnLoad(JavaVM*, void *);
 }
 
 using WebProcessEntryPoint = int(int, char**);
@@ -80,3 +81,20 @@ void Java_com_wpe_wpe_services_WebProcessGlue_setupEnvironment(JNIEnv *env, jobj
 
     setenv("GIO_EXTRA_MODULES", _gioPath, 1);
 }
+
+__attribute__((visibility("default")))
+jint JNI_OnLoad (JavaVM * vm, void *reserved)
+{
+    // VM resolves and calls JNI_OnLoad from loaded library. libWPEWebKit has dependency
+    // to libgstreamer.so which also exports JNI_OnLoad. JNI_OnLoad in libgstreamer requires
+    // GStreamer java class to be present in specific package and call fails with invalid JNI
+    // version if GStreamer java class is not found. By declaring JNI_OnLoad here we prevent
+    // JNI_OnLoad in libgstreamer.so from being called as for now we don't need GStreamer Java bindings.
+
+
+    // TODO: Instead of explicitly exporting native methods, register them using registerNativeMethods
+    //       which is recommended in https://developer.android.com/training/articles/perf-jni.html
+
+    return JNI_VERSION_1_4;
+}
+
