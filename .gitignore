@@ -15,3 +15,4 @@ wpe/src/main/assets/gio
 *.swp
 __pycache__
 /cerbero
+.vscode/

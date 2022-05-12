@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 
 """
 This script takes care of fetching, building and installing all WPE Android dependencies,
@@ -233,7 +233,7 @@ class Bootstrap:
         soname_list = []
         needed_list = []
 
-        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE)
+        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE, env=dict(os.environ, LC_ALL="C"))
         (stdout, stderr) = p.communicate()
 
         for line in stdout.decode().splitlines():
