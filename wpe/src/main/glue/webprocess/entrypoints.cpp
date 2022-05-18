@@ -95,6 +95,6 @@ jint JNI_OnLoad (JavaVM * vm, void *reserved)
     // TODO: Instead of explicitly exporting native methods, register them using registerNativeMethods
     //       which is recommended in https://developer.android.com/training/articles/perf-jni.html
 
-    return JNI_VERSION_1_4;
+    return JNI_VERSION_1_6;
 }
 

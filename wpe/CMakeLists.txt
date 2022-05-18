@@ -57,6 +57,7 @@ include_directories(
 
 add_library(WPEBrowserGlue SHARED
         src/main/glue/common/jnihelper.h
+        src/main/glue/common/jnihelper.cpp
         src/main/glue/browser/pageeventobserver.cpp
         src/main/glue/browser/entrypoints.cpp
         src/main/glue/browser/browser.cpp
