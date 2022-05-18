@@ -1,18 +1,39 @@
-#include <jnihelper.h>
+#include "jnihelper.h"
 
-bool getJniEnv(JNIEnv **env) {
-    bool didAttachThread = false;
-    *env = nullptr;
-    auto get_env_result = vm->GetEnv((void**)env, JNI_VERSION_1_6);
-    if (get_env_result == JNI_EDETACHED) {
-        if (vm->AttachCurrentThread(env, NULL) == JNI_OK) {
-            didAttachThread = true;
-        } else {
-            throw;
-        }
-    } else if (get_env_result == JNI_EVERSION) {
-        // Unsupported JNI version.
-        throw;
-    }
-    return didAttachThread;
+#include <sys/prctl.h>
+
+namespace wpe {
+namespace android {
+namespace {
+
+JavaVM *g_jvm = NULL;
+
 }
+
+void InitVM(JavaVM *vm) {
+    g_jvm = vm;
+}
+
+JNIEnv *AttachCurrentThread() {
+    JNIEnv *env = nullptr;
+    jint ret = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+    if (ret == JNI_EDETACHED || !env) {
+        JavaVMAttachArgs args;
+        args.version = JNI_VERSION_1_6;
+        args.group = nullptr;
+
+        char thread_name[16]; // 16 is the max size for android thread names
+        int err = prctl(PR_GET_NAME, thread_name);
+        if (err < 0) {
+            args.name = nullptr;
+        } else {
+            args.name = thread_name;
+        }
+
+        ret = g_jvm->AttachCurrentThread(&env, &args);
+    }
+    return env;
+}
+
+} // namespace android
+} // namespace wpe

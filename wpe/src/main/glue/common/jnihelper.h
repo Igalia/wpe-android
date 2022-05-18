@@ -2,6 +2,16 @@
 
 #include <jni.h>
 
+namespace wpe {
+namespace android {
+
+void InitVM(JavaVM* vm);
+
+JNIEnv* AttachCurrentThread();
+
+} // namespace android
+} // namespace wpe
+
 static bool getJniEnv(JavaVM *vm, JNIEnv **env) {
     bool didAttachThread = false;
     *env = nullptr;
@@ -42,3 +52,4 @@ private:
     JavaVM *vm;
     JNIEnv *env;
 };
+
