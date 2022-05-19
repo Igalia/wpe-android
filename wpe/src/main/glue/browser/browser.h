@@ -1,5 +1,9 @@
 #pragma once
 
+#include "exportedbuffer.h"
+#include "page.h"
+#include "pageeventobserver.h"
+
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -7,21 +11,15 @@
 #include <wpe/webkit.h>
 #include <wpe/wpe.h>
 
-#include "exportedbuffer.h"
-#include "page.h"
-#include "pageeventobserver.h"
-
-typedef struct AHardwareBuffer AHardwareBuffer;
 struct ANativeWindow;
 
-class Browser {
+class Browser final
+{
 public:
-    static Browser &getInstance()
+    static Browser& getInstance()
     {
-        if (m_instance == nullptr) {
-            m_instance.reset(new Browser());
-        }
-        return *m_instance;
+        static std::unique_ptr<Browser> singleton(new Browser());
+        return *singleton;
     }
 
     Browser(Browser&&) = delete;
@@ -29,29 +27,31 @@ public:
     Browser(const Browser&) = delete;
     Browser& operator=(const Browser&) = delete;
 
-    ~Browser() {
-        deinit();
+    ~Browser()
+    {
+        shut();
     }
 
     void init();
-    void deinit();
+    void shut();
 
-    void invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
+    void invoke(void (* callback)(void*), void* callbackData, void (* destroy)(void*));
 
-    void newPage(int pageId, int width, int height, const std::string& userAgent, std::shared_ptr<PageEventObserver> observer);
+    void newPage(int pageId, int width, int height, const std::string& userAgent,
+                 std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
-    void loadUrl(int pageId, const char *urlData, jsize urlSize);
+    void loadUrl(int pageId, const char* urlData, jsize urlSize);
     void goBack(int pageId);
     void goForward(int pageId);
     void stopLoading(int pageId);
     void reload(int pageId);
 
-    void surfaceCreated(int pageId, ANativeWindow*);
+    void surfaceCreated(int pageId, ANativeWindow* window);
     void surfaceChanged(int pageId, int format, int width, int height);
     void surfaceRedrawNeeded(int pageId);
     void surfaceDestroyed(int pageId);
-    void handleExportedBuffer(Page&, std::shared_ptr<ExportedBuffer>&&);
+    void handleExportedBuffer(Page& page, std::shared_ptr<ExportedBuffer>&& exportedBuffer);
 
     void onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y);
     void setZoomLevel(int pageId, jdouble zoomLevel);
@@ -60,9 +60,7 @@ public:
     void deleteInputMethodContent(int pageId, int offset);
 
 private:
-    Browser() {}
-
-    static std::unique_ptr<Browser> m_instance;
+    Browser() = default;
 
     std::unique_ptr<GMainContext*> m_uiProcessThreadContext;
     std::unique_ptr<GMainLoop*> m_uiProcessThreadLoop;

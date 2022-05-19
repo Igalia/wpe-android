@@ -8,7 +8,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 @UiThread
-public class BrowserGlue {
+public class BrowserGlue
+{
     private static final String LOGTAG = "BrowserGlue";
 
     private final Browser m_browser;
@@ -22,7 +23,7 @@ public class BrowserGlue {
 
     public static native void init(BrowserGlue self);
     public static native void initLooperHelper();
-    public static native void deinit();
+    public static native void shut();
 
     public static native void newPage(Page page, int pageId, int width, int height, String userAgent);
     public static native void closePage(int pageId);
@@ -44,7 +45,8 @@ public class BrowserGlue {
     public static native void setInputMethodContent(int pageId, char c);
     public static native void deleteInputMethodContent(int m_id, int offset);
 
-    public BrowserGlue(@NonNull Browser browser) {
+    public BrowserGlue(@NonNull Browser browser)
+    {
         m_browser = browser;
     }
 
@@ -59,7 +61,8 @@ public class BrowserGlue {
      * @param fds File descriptors used by WebKit for IPC.
      */
     @Keep
-    public void launchProcess(long pid, int processType, @NonNull int[] fds) {
+    public void launchProcess(long pid, int processType, @NonNull int[] fds)
+    {
         Log.d(LOGTAG, "launchProcess " + pid);
         m_browser.launchAuxiliaryProcess(pid, processType, fds);
     }
@@ -71,13 +74,15 @@ public class BrowserGlue {
      *            the actual system pid.
      */
     @Keep
-    public void terminateProcess(long pid) {
+    public void terminateProcess(long pid)
+    {
         Log.d(LOGTAG, "terminateProcess " + pid);
         m_browser.terminateAuxiliaryProcess(pid);
     }
 
     @Keep
-    public void loadProgress(double progress) {
+    public void loadProgress(double progress)
+    {
         Log.d(LOGTAG, "progress " + progress);
     }
 }

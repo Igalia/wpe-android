@@ -11,6 +11,7 @@ import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.widget.TextView
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.android.synthetic.main.tabs_selector.*
 
@@ -19,7 +20,11 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
     private val tabs: ArrayList<TabSelectorItem> = tabs
     internal var selected: Int = active
 
-    private class TabsListAdapter(parent: BottomSheetDialogFragment, context: Context, tabs: ArrayList<TabSelectorItem>) : BaseAdapter() {
+    private class TabsListAdapter(
+        parent: BottomSheetDialogFragment,
+        context: Context,
+        tabs: ArrayList<TabSelectorItem>
+    ) : BaseAdapter() {
         private val bottomSheet: BottomSheetDialogFragment = parent
         private val context: Context = context
         private val tabs: ArrayList<TabSelectorItem> = tabs
@@ -55,7 +60,7 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
             }
 
             if (position == (bottomSheet as TabsSelector).selected) {
-                row.setBackgroundColor(Color.parseColor("#defaf3"))
+                row.setBackgroundColor(MaterialColors.getColor(context, R.attr.colorSecondary, Color.GRAY))
             }
 
             return row
@@ -85,7 +90,7 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
         super.onActivityCreated(savedInstanceState)
 
         tabsList.adapter = TabsListAdapter(this, requireContext(), tabs)
-        tabsList.onItemClickListener = AdapterView.OnItemClickListener { parent, view, position, id ->
+        tabsList.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
             selected = position
             val adapter = (tabsList.adapter as BaseAdapter);
             adapter.notifyDataSetChanged()

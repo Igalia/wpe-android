@@ -1,255 +1,262 @@
-#include <dlfcn.h>
-#include <memory>
-#include <stdlib.h>
-#include <string>
-
-#include <jni.h>
-#include <android/hardware_buffer_jni.h>
-#include <android/native_window_jni.h>
-
 #include "jnihelper.h"
 #include "browser.h"
 #include "logging.h"
 #include "looperthread.h"
 #include "pageeventobserver.h"
 
+#include <android/native_window_jni.h>
+
 extern "C" {
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setupEnvironment(JNIEnv*, jobject, jstring);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_init(JNIEnv*, jobject, jobject);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv*, jobject);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv*, jobject);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv*, jobject, jobject, jint, jint, jint, jstring);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_closePage(JNIEnv*, jobject, jint);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv*, jobject, jint, jstring);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv*, jobject, jint);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv*, jobject, jint);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv*, jobject, jint);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceCreated(JNIEnv*, jobject, jint, jobject);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceChanged(JNIEnv*, jobject, jint, jint, jint, jint);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceRedrawNeeded(JNIEnv*, jobject, jint);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_surfaceDestroyed(JNIEnv*, jobject, jint);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jint, jlong, jint, jfloat, jfloat);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint, jdouble);
-
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv*, jclass, jint, jchar);
-    JNIEXPORT void JNICALL Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv*, jclass, jint, jint);
-
-    JNIEXPORT void wpe_android_launchProcess(uint64_t pid, int processType, int *fds);
-    JNIEXPORT void wpe_android_terminateProcess(uint64_t pid);
-
-    jint JNI_OnLoad(JavaVM*, void *);
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*);
+JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, int* fds);
+JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid);
 }
 
-std::unique_ptr<Browser> Browser::m_instance = nullptr;
+namespace {
+jweak s_browserGlue_object = nullptr;
 
-// These are used by WebKit to call into the Java layer.
-JNIEXPORT jweak s_BrowserGlue_object = nullptr;
-
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_setupEnvironment(JNIEnv *env, jobject, jstring gioPath)
+void setupEnvironment(JNIEnv* env, jclass, jstring gioPath)
 {
-    ALOGV("BrowserGlue::setupEnvironment()");
-
-    const char* _gioPath = env->GetStringUTFChars(gioPath, 0);
-    setenv("GIO_EXTRA_MODULES", _gioPath, 1);
+    const char* str = env->GetStringUTFChars(gioPath, nullptr);
+    ALOGV("BrowserGlue::setupEnvironment(%s) [tid %d]", str, gettid());
+    setenv("GIO_EXTRA_MODULES", str, 1);
+    env->ReleaseStringUTFChars(gioPath, str);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_init(JNIEnv* env, jobject, jobject glueObj)
+void init(JNIEnv* env, jclass, jobject glueObj)
 {
-    ALOGV("BrowserGlue.init() tid %d ", gettid());
+    ALOGV("BrowserGlue::init(%p) [tid %d]", glueObj, gettid());
 
-    s_BrowserGlue_object = env->NewWeakGlobalRef(glueObj);
+    if (s_browserGlue_object == nullptr)
+        s_browserGlue_object = env->NewWeakGlobalRef(glueObj);
+
     Browser::getInstance().init();
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_initLooperHelper(JNIEnv* env, jobject)
+void initLooperHelper(JNIEnv*, jclass)
 {
-    ALOGV("BrowserGlue.initLooperHelper() tid %d ", gettid());
+    ALOGV("BrowserGlue::initLooperHelper() [tid %d]", gettid());
 
     LooperThread::initialize();
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_deinit(JNIEnv* env, jobject)
+void shut(JNIEnv* env, jclass)
 {
-    ALOGV("BrowserGlue.deinit()");
-    Browser::getInstance().deinit();
-    env->DeleteWeakGlobalRef(s_BrowserGlue_object);
+    ALOGV("BrowserGlue::shut() [tid %d]", gettid());
+
+    Browser::getInstance().shut();
+
+    if (s_browserGlue_object != nullptr) {
+        env->DeleteWeakGlobalRef(s_browserGlue_object);
+        s_browserGlue_object = nullptr;
+    }
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_newPage(JNIEnv *env, jobject,
-                                    jobject pageObj,
-                                    jint pageId,
-                                    jint width,
-                                    jint height,
-                                    jstring userAgent)
+void newPage(JNIEnv* env, jclass, jobject pageObj, jint pageId, jint width, jint height, jstring userAgent)
 {
-    ALOGV("BrowserGlue.newWebView tid %d", gettid());
+    const char* str = env->GetStringUTFChars(userAgent, nullptr);
+    ALOGV("BrowserGlue::newPage(%p, %d, %d, %d, %s) [tid %d]", pageObj, pageId, width, height, str, gettid());
+    std::string _userAgent(str);
+    env->ReleaseStringUTFChars(userAgent, str);
+
     jclass pageClass = env->GetObjectClass(pageObj);
-    jclass _pageClass = reinterpret_cast<jclass>(env->NewGlobalRef(pageClass));
-    jobject _pageObj = reinterpret_cast<jobject>(env->NewGlobalRef(pageObj));
-    const char* utf8 = env->GetStringUTFChars(userAgent, 0); // Note! this is jni "modified" UTF-8
-    std::string _userAgent(utf8);
-    env->ReleaseStringUTFChars(userAgent, utf8);
-
-    JavaVM *vm;
-    env->GetJavaVM(&vm);
-
-    Browser::getInstance().newPage(
-            pageId, width, height, _userAgent, std::make_shared<PageEventObserver>(vm, _pageClass, _pageObj));
+    Browser::getInstance().newPage(pageId, width, height, _userAgent,
+                                   std::make_shared<PageEventObserver>(env, pageClass, pageObj));
 
     jmethodID onReady = env->GetMethodID(pageClass, "onPageGlueReady", "()V");
-    if (onReady == nullptr) {
-        return;
+    if (onReady != nullptr) {
+        env->CallVoidMethod(pageObj, onReady);
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
     }
-    env->CallVoidMethod(pageObj, onReady);
+    env->DeleteLocalRef(pageClass);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_closePage(JNIEnv*, jobject, jint pageId) {
-    ALOGV("BrowserGlue.closePage %d", pageId);
+void closePage(JNIEnv*, jclass, jint pageId)
+{
+    ALOGV("BrowserGlue::closePage(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().closePage(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_loadURL(JNIEnv* env, jobject, jint pageId, jstring url)
+void loadURL(JNIEnv* env, jclass, jint pageId, jstring url)
 {
-    const char* urlChars = env->GetStringUTFChars(url, 0);
+    const char* urlChars = env->GetStringUTFChars(url, nullptr);
+    ALOGV("BrowserGlue::loadURL(%d, %s) [tid %d]", pageId, urlChars, gettid());
     jsize urlLength = env->GetStringUTFLength(url);
     Browser::getInstance().loadUrl(pageId, urlChars, urlLength);
+    env->ReleaseStringUTFChars(url, urlChars);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_goBack(JNIEnv* env, jobject, jint pageId)
+void goBack(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::goBack(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().goBack(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_goForward(JNIEnv* env, jobject, jint pageId)
+void goForward(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::goForward(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().goForward(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_stopLoading(JNIEnv*, jclass, jint pageId)
+void stopLoading(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::stopLoading(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().stopLoading(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_reload(JNIEnv* env, jobject, jint pageId)
+void reload(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::reload(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().reload(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_surfaceCreated(JNIEnv* env, jobject, jint pageId, jobject jsurface)
+void surfaceCreated(JNIEnv* env, jclass, jint pageId, jobject jSurface)
 {
-    Browser::getInstance().surfaceCreated(pageId, ANativeWindow_fromSurface(env, jsurface));
+    ALOGV("BrowserGlue::surfaceCreated(%d, %p) [tid %d]", pageId, jSurface, gettid());
+    Browser::getInstance().surfaceCreated(pageId, ANativeWindow_fromSurface(env, jSurface));
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_surfaceChanged(JNIEnv*, jobject, jint pageId, jint format, jint width, jint height)
+void surfaceChanged(JNIEnv*, jclass, jint pageId, jint format, jint width, jint height)
 {
+    ALOGV("BrowserGlue::surfaceChanged(%d, %d, %d, %d) [tid %d]", pageId, format, width, height, gettid());
     Browser::getInstance().surfaceChanged(pageId, format, width, height);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_surfaceRedrawNeeded(JNIEnv*, jobject, jint pageId)
+void surfaceRedrawNeeded(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::surfaceRedrawNeeded(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().surfaceRedrawNeeded(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_surfaceDestroyed(JNIEnv*, jobject, jint pageId)
+void surfaceDestroyed(JNIEnv*, jclass, jint pageId)
 {
+    ALOGV("BrowserGlue::surfaceDestroyed(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().surfaceDestroyed(pageId);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_touchEvent(JNIEnv*, jobject, jint pageId, jlong time, jint type, jfloat x, jfloat y)
+void touchEvent(JNIEnv*, jclass, jint pageId, jlong time, jint type, jfloat x, jfloat y)
 {
+    ALOGV("BrowserGlue::touchEvent(%d, %ld, %d, %f, %f) [tid %d]", pageId, time, type, x, y, gettid());
     Browser::getInstance().onTouch(pageId, time, type, x, y);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble zoomLevel)
+void setZoomLevel(JNIEnv*, jclass, jint pageId, jdouble zoomLevel)
 {
+    ALOGV("BrowserGlue::setZoomLevel(%d, %f) [tid %d]", pageId, zoomLevel, gettid());
     Browser::getInstance().setZoomLevel(pageId, zoomLevel);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_setInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jchar c) {
+void setInputMethodContent(JNIEnv*, jclass, jint pageId, jchar c)
+{
+    ALOGV("BrowserGlue::setInputMethodContent(%d, %c) [tid %d]", pageId, c, gettid());
     Browser::getInstance().setInputMethodContent(pageId, c);
 }
 
-JNIEXPORT void JNICALL
-Java_com_wpe_wpe_BrowserGlue_deleteInputMethodContent(JNIEnv *env, jclass clazz, jint pageId, jint offset) {
+void deleteInputMethodContent(JNIEnv*, jclass, jint pageId, jint offset)
+{
+    ALOGV("BrowserGlue::deleteInputMethodContent(%d, %d) [tid %d]", pageId, offset, gettid());
     Browser::getInstance().deleteInputMethodContent(pageId, offset);
 }
+} // namespace
 
-JNIEXPORT void wpe_android_launchProcess(uint64_t pid, int processType, int *fds) {
-    ALOGV("BrowserGlue wpe_android_launchProcess pid: %ld processType: %d", pid, processType);
-
-    JNIEnv *env = wpe::android::AttachCurrentThread();
-    if (!env->IsSameObject(s_BrowserGlue_object, nullptr)) {
-        jobject obj = env->NewLocalRef(s_BrowserGlue_object);
-        jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
-        jmethodID jMethodID = env->GetMethodID(jClass, "launchProcess", "(JI[I)V");
-
-        jintArray fdArray = env->NewIntArray(2);
-        env->SetIntArrayRegion(fdArray, 0, 2, fds);
-
-        env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid), processType,
-                            fdArray);
-
-        env->DeleteLocalRef(fdArray);
-        env->DeleteLocalRef(jClass);
-        env->DeleteLocalRef(obj);
-    }
-}
-
-JNIEXPORT void wpe_android_terminateProcess(uint64_t pid) {
-    ALOGV("BrowserGlue wpe_android_terminateProcess pid: %ld", pid);
-
-    JNIEnv *env = wpe::android::AttachCurrentThread();
-    if (!env->IsSameObject(s_BrowserGlue_object, nullptr)) {
-        jobject obj = env->NewLocalRef(s_BrowserGlue_object);
-        jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
-        jmethodID jMethodID = env->GetMethodID(jClass, "terminateProcess", "(J)V");
-
-        env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid));
-
-        env->DeleteLocalRef(jClass);
-        env->DeleteLocalRef(obj);
-    }
-}
-
-__attribute__((visibility("default")))
-jint JNI_OnLoad (JavaVM * vm, void *reserved)
+JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, int* fds)
 {
-    // VM resolves and calls JNI_OnLoad from loaded library. libWPEWebKit has dependency
-    // to libgstreamer.so which also exports JNI_OnLoad. JNI_OnLoad in libgstreamer requires
-    // GStreamer java class to be present in specific package and call fails with invalid JNI
-    // version if GStreamer java class is not found. By declaring JNI_OnLoad here we prevent
-    // JNI_OnLoad in libgstreamer.so from being called as for now we don't need GStreamer Java bindings.
+    ALOGV("BrowserGlue wpe_android_launchProcess(%ld, %d, [%d, %d])", pid, processType, fds[0], fds[1]);
 
+    try {
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        if (!env->IsSameObject(s_browserGlue_object, nullptr)) {
+            jobject obj = env->NewLocalRef(s_browserGlue_object);
+            jclass klass = env->GetObjectClass(obj);
 
-    // TODO: Instead of explicitly exporting native methods, register them using registerNativeMethods
-    //       which is recommended in https://developer.android.com/training/articles/perf-jni.html
+            jmethodID methodID = env->GetMethodID(klass, "launchProcess", "(JI[I)V");
+            if (methodID != nullptr) {
+                jintArray fdArray = env->NewIntArray(2);
+                env->SetIntArrayRegion(fdArray, 0, 2, fds);
 
-    wpe::android::InitVM(vm);
+                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid), processType, fdArray);
+                if (env->ExceptionCheck()) {
+                    env->ExceptionDescribe();
+                    env->ExceptionClear();
+                    ALOGE("Cannot launch process (exception occurred on Java side)");
+                }
 
-    return JNI_VERSION_1_6;
+                env->DeleteLocalRef(fdArray);
+            } else
+                ALOGE("Cannot launch process (cannot find \"launchProcess\" method)");
+
+            env->DeleteLocalRef(klass);
+            env->DeleteLocalRef(obj);
+        } else
+            ALOGE("Cannot launch process (BrowserGlue has been garbage collected)");
+    } catch (...) {
+        ALOGE("Cannot launch process (JNI environment error)");
+    }
+}
+
+JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid)
+{
+    ALOGV("BrowserGlue wpe_android_terminateProcess(%ld)", pid);
+
+    try {
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        if (!env->IsSameObject(s_browserGlue_object, nullptr)) {
+            jobject obj = env->NewLocalRef(s_browserGlue_object);
+            jclass klass = env->GetObjectClass(obj);
+
+            jmethodID methodID = env->GetMethodID(klass, "terminateProcess", "(J)V");
+            if (methodID != nullptr) {
+                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid));
+                if (env->ExceptionCheck()) {
+                    env->ExceptionDescribe();
+                    env->ExceptionClear();
+                    ALOGE("Cannot terminate process (exception occurred on Java side)");
+                }
+            } else
+                ALOGE("Cannot terminate process (cannot find \"terminateProcess\" method)");
+
+            env->DeleteLocalRef(klass);
+            env->DeleteLocalRef(obj);
+        } else
+            ALOGE("Cannot terminate process (BrowserGlue has been garbage collected)");
+    } catch (...) {
+        ALOGE("Cannot terminate process (JNI environment error)");
+    }
+}
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+{
+    JNIEnv* env = wpe::android::initVM(vm);
+    jclass klass = env->FindClass("com/wpe/wpe/BrowserGlue");
+    if (klass == nullptr)
+        return JNI_ERR;
+
+    static const JNINativeMethod methods[] = {
+            { "setupEnvironment",         "(Ljava/lang/String;)V",                      reinterpret_cast<void*>(setupEnvironment) },
+            { "init",                     "(Lcom/wpe/wpe/BrowserGlue;)V",               reinterpret_cast<void*>(init) },
+            { "initLooperHelper",         "()V",                                        reinterpret_cast<void*>(initLooperHelper) },
+            { "shut",                     "()V",                                        reinterpret_cast<void*>(shut) },
+            { "newPage",                  "(Lcom/wpe/wpe/Page;IIILjava/lang/String;)V", reinterpret_cast<void*>(newPage) },
+            { "closePage",                "(I)V",                                       reinterpret_cast<void*>(closePage) },
+            { "loadURL",                  "(ILjava/lang/String;)V",                     reinterpret_cast<void*>(loadURL) },
+            { "goBack",                   "(I)V",                                       reinterpret_cast<void*>(goBack) },
+            { "goForward",                "(I)V",                                       reinterpret_cast<void*>(goForward) },
+            { "stopLoading",              "(I)V",                                       reinterpret_cast<void*>(stopLoading) },
+            { "reload",                   "(I)V",                                       reinterpret_cast<void*>(reload) },
+            { "surfaceCreated",           "(ILandroid/view/Surface;)V",                 reinterpret_cast<void*>(surfaceCreated) },
+            { "surfaceChanged",           "(IIII)V",                                    reinterpret_cast<void*>(surfaceChanged) },
+            { "surfaceRedrawNeeded",      "(I)V",                                       reinterpret_cast<void*>(surfaceRedrawNeeded) },
+            { "surfaceDestroyed",         "(I)V",                                       reinterpret_cast<void*>(surfaceDestroyed) },
+            { "touchEvent",               "(IJIFF)V",                                   reinterpret_cast<void*>(touchEvent) },
+            { "setZoomLevel",             "(ID)V",                                      reinterpret_cast<void*>(setZoomLevel) },
+            { "setInputMethodContent",    "(IC)V",                                      reinterpret_cast<void*>(setInputMethodContent) },
+            { "deleteInputMethodContent", "(II)V",                                      reinterpret_cast<void*>(deleteInputMethodContent) }
+    };
+    int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
+    env->DeleteLocalRef(klass);
+
+    return (result != JNI_OK) ? result : wpe::android::JNI_VERSION;
 }

@@ -1,84 +1,122 @@
-#include "exportedbuffer.h"
-#include "jnihelper.h"
-#include "logging.h"
 #include "pageeventobserver.h"
 
-// FIXME: these macros only work for single argument functions, which is what we have so far.
+#include "jnihelper.h"
+#include "logging.h"
 
-#define VA_LIST(...) __VA_ARGS__
+#include <stdexcept>
 
-#define JAVA_CALL_START(METHOD, FORMAT, PARAM) \
-  void PageEventObserver::METHOD(PARAM) { \
-    try { \
-      JNIEnv *env = ScopedEnv(vm).getEnv(); \
-      jmethodID _method = env->GetMethodID(pageClass, #METHOD, FORMAT); \
-      if (_method == nullptr) { \
-        throw; \
-      }
+namespace {
+enum class JavaMethodTag : int
+{
+    ON_LOAD_CHANGED = 0,
+    ON_LOAD_PROGRESS,
+    ON_URI_CHANGED,
+    ON_TITLE_CHANGED,
+    ON_INPUT_METHOD_CONTEXT_IN,
+    ON_INPUT_METHOD_CONTEXT_OUT
+};
 
-#define JAVA_CALL_NO_CAST(ARG) \
-    env->CallVoidMethod(pageObj, _method, ARG);
+struct JavaMethodDesc
+{
+    const char* name;
+    const char* signature;
+};
 
-#define JAVA_CALL_WITH_CAST(ARG, TYPE, CASTFUN) \
-    TYPE arg = env->CASTFUN(ARG); \
-    env->CallVoidMethod(pageObj, _method, arg);
+constexpr JavaMethodDesc javaMethods[PageEventObserver::NB_JAVA_METHODS] = {
+        { "onLoadChanged",           "(I)V" },
+        { "onLoadProgress",          "(D)V" },
+        { "onUriChanged",            "(Ljava/lang/String;)V" },
+        { "onTitleChanged",          "(Ljava/lang/String;ZZ)V" },
+        { "onInputMethodContextIn",  "()V" },
+        { "onInputMethodContextOut", "()V" }
+};
+}; // namespace
 
-#define JAVA_CALL_END() \
-    } catch(int) { \
-      ALOGE("Could not send event"); \
-    } \
-}
+PageEventObserver::PageEventObserver(JNIEnv* env, jclass klass, jobject obj)
+{
+    m_pageClass = reinterpret_cast<jclass>(env->NewGlobalRef(klass));
+    m_pageObj = env->NewGlobalRef(obj);
 
-#define JAVA_CALL_NO_PARAMS(METHOD) \
-  void PageEventObserver::METHOD() { \
-    try { \
-      JNIEnv *env = ScopedEnv(vm).getEnv(); \
-      jmethodID _method = env->GetMethodID(pageClass, #METHOD, "()V"); \
-      if (_method == nullptr) { \
-        throw; \
-      } \
-      env->CallVoidMethod(pageObj, _method); \
-    } catch(int) { \
-          ALOGE("Could not send event"); \
-        } \
+    for (int i = 0; i < NB_JAVA_METHODS; ++i) {
+        auto& methodDesc = javaMethods[i];
+        m_javaMethodIDs[i] = env->GetMethodID(klass, methodDesc.name, methodDesc.signature);
+        if (m_javaMethodIDs[i] == nullptr)
+            ALOGE("Cannot find Java method \"%s\" in provided Java class", methodDesc.name);
     }
-
-
-#define JAVA_CALL(METHOD, FORMAT, PARAM, ARG) \
-    JAVA_CALL_START(METHOD, FORMAT, PARAM) \
-    JAVA_CALL_NO_CAST(ARG) \
-    JAVA_CALL_END()
-
-#define JAVA_CALL_CAST(METHOD, FORMAT, PARAM, ARG, TYPE, CASTFUN) \
-    JAVA_CALL_START(METHOD, FORMAT, PARAM) \
-    JAVA_CALL_WITH_CAST(ARG, TYPE, CASTFUN) \
-    JAVA_CALL_END()
-
-PageEventObserver::~PageEventObserver() {
-    try {
-        JNIEnv *env = ScopedEnv(vm).getEnv();
-        env->DeleteGlobalRef(pageClass);
-        env->DeleteGlobalRef(pageObj);
-    } catch (int) {}
 }
 
-JAVA_CALL(onLoadChanged, "(I)V", WebKitLoadEvent loadEvent, (int) loadEvent)
-JAVA_CALL(onLoadProgress, "(D)V", double progress, progress)
-JAVA_CALL_CAST(onUriChanged, "(Ljava/lang/String;)V", const char *uri, uri, jstring, NewStringUTF)
-JAVA_CALL_NO_PARAMS(onInputMethodContextIn)
-JAVA_CALL_NO_PARAMS(onInputMethodContextOut)
-
-void PageEventObserver::onTitleChanged(const char* title, gboolean canGoBack, gboolean canGoForward) {
+PageEventObserver::~PageEventObserver()
+{
     try {
-        JNIEnv *env = ScopedEnv(vm).getEnv();
-        jmethodID _method = env->GetMethodID(pageClass, "onTitleChanged", "(Ljava/lang/String;ZZ)V");
-        if (_method == nullptr) {
-            throw;
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        env->DeleteGlobalRef(m_pageObj);
+        env->DeleteGlobalRef(m_pageClass);
+    } catch (...) {
+        ALOGE("Memory leak: cannot release page instance and class Java global references");
+    }
+}
+
+template<typename... Args>
+void PageEventObserver::callJavaVoidMethod(int methodIdx, Args&& ... args)
+{
+    try {
+        jmethodID methodID = m_javaMethodIDs[methodIdx];
+        if (methodID == nullptr)
+            throw std::runtime_error("Invalid Java method ID");
+
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        env->CallVoidMethod(m_pageObj, methodID, args...);
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+            throw std::runtime_error("Java exception from JNI call");
         }
-
-        jstring jtitle = env->NewStringUTF(title);
-        env->CallVoidMethod(pageObj, _method, jtitle, (jboolean)canGoBack, (jboolean)canGoForward);
-    } catch(int) {
-      ALOGE("Could not send event");
+    } catch (...) {
+        ALOGE("Cannot send \"%s\" page event", javaMethods[methodIdx].name);
     }
+}
+
+void PageEventObserver::onLoadChanged(WebKitLoadEvent loadEvent)
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_LOAD_CHANGED), static_cast<jint>(loadEvent));
+}
+
+void PageEventObserver::onLoadProgress(double progress)
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_LOAD_PROGRESS), static_cast<jdouble>(progress));
+}
+
+void PageEventObserver::onUriChanged(const char* uri)
+{
+    try {
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        jstring jstr = env->NewStringUTF(uri);
+        callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_URI_CHANGED), jstr);
+        env->DeleteLocalRef(jstr);
+    } catch (...) {
+        ALOGE("Cannot send \"onUriChanged\" page event");
+    }
+}
+
+void PageEventObserver::onTitleChanged(const char* title, gboolean canGoBack, gboolean canGoForward)
+{
+    try {
+        JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
+        jstring jstr = env->NewStringUTF(title);
+        callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_TITLE_CHANGED), jstr, static_cast<jboolean>(canGoBack),
+                           static_cast<jboolean>(canGoForward));
+        env->DeleteLocalRef(jstr);
+    } catch (...) {
+        ALOGE("Cannot send \"onTitleChanged\" page event");
+    }
+}
+
+void PageEventObserver::onInputMethodContextIn()
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_INPUT_METHOD_CONTEXT_IN));
+}
+
+void PageEventObserver::onInputMethodContextOut()
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_INPUT_METHOD_CONTEXT_OUT));
 }

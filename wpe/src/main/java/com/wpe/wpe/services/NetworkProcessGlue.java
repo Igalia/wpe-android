@@ -1,6 +1,7 @@
 package com.wpe.wpe.services;
 
-public class NetworkProcessGlue {
+public class NetworkProcessGlue
+{
 
     static {
         System.loadLibrary("WPENetworkProcessGlue");

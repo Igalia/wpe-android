@@ -10,12 +10,15 @@ import android.util.Log;
 
 import com.wpe.wpe.IWPEService;
 
-public class WPEService extends Service {
+public class WPEService extends Service
+{
     private static final String LOGTAG = "WPEService";
 
-    public final IWPEService.Stub m_binder = new IWPEService.Stub() {
+    public final IWPEService.Stub m_binder = new IWPEService.Stub()
+    {
         @Override
-        public int connect(Bundle args) {
+        public int connect(Bundle args)
+        {
             Log.v(LOGTAG, "IWPEService.Stub connect()");
 
             Parcelable[] fdParcelables = args.getParcelableArray("fds");
@@ -27,17 +30,21 @@ public class WPEService extends Service {
         }
     };
 
-    protected class WPEServiceProcessThread {
+    protected class WPEServiceProcessThread
+    {
         private static final String LOGTAG = "WPEServiceProcessThread";
         private Thread m_thread;
         private WPEService m_service;
         private ParcelFileDescriptor[] m_serviceFds = null;
 
-        WPEServiceProcessThread() {
+        WPEServiceProcessThread()
+        {
             final WPEServiceProcessThread thisObj = this;
-            m_thread = new Thread(new Runnable() {
+            m_thread = new Thread(new Runnable()
+            {
                 @Override
-                public void run() {
+                public void run()
+                {
                     Log.v(LOGTAG, "Running");
 
                     while (true) {
@@ -71,7 +78,8 @@ public class WPEService extends Service {
     static protected WPEServiceProcessThread m_serviceProcessThread;
 
     @Override
-    public void onCreate() {
+    public void onCreate()
+    {
         Log.i(LOGTAG, "onCreate()");
         super.onCreate();
 
@@ -86,18 +94,21 @@ public class WPEService extends Service {
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
+    public IBinder onBind(Intent intent)
+    {
         Log.i(LOGTAG, "onBind()");
         return m_binder;
     }
 
     @Override
-    public void onDestroy() {
+    public void onDestroy()
+    {
         Log.i(LOGTAG, "onDestroy()");
         super.onDestroy();
     }
 
-    private void provideServiceFDs(ParcelFileDescriptor[] fds) {
+    private void provideServiceFDs(ParcelFileDescriptor[] fds)
+    {
         synchronized (m_serviceProcessThread) {
             m_serviceProcessThread.m_serviceFds = fds;
             m_serviceProcessThread.notifyAll();

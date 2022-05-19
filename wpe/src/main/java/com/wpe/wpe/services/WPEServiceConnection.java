@@ -10,7 +10,8 @@ import android.util.Log;
 import com.wpe.wpe.IWPEService;
 import com.wpe.wpe.Page;
 
-public class WPEServiceConnection implements ServiceConnection {
+public class WPEServiceConnection implements ServiceConnection
+{
     private static final String LOGTAG = "WPEServiceConnection";
 
     private final int m_processType;
@@ -33,7 +34,8 @@ public class WPEServiceConnection implements ServiceConnection {
      *        among Page instances. We need to set the Page instance this
      *        auxiliary process is working for.
      */
-    public void setActivePage(Page page) {
+    public void setActivePage(Page page)
+    {
         m_page = page;
     }
 
@@ -63,7 +65,8 @@ public class WPEServiceConnection implements ServiceConnection {
         m_page.stopService(this);
     }
 
-    public int processType() {
+    public int processType()
+    {
         return m_processType;
     }
 }

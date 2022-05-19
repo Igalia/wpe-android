@@ -2,14 +2,15 @@
 
 #if __ANDROID_API__ >= 29
 
-#include "exportedbuffer.h"
 #include "logging.h"
 #include "browser.h"
+
 #include <android/hardware_buffer.h>
 #include <android/surface_control.h>
 #include <wpe-android/view-backend-exportable.h>
 
-struct RendererASurfaceTransaction::TransactionContext {
+struct RendererASurfaceTransaction::TransactionContext
+{
     RendererASurfaceTransaction& renderer;
     std::shared_ptr<ExportedBuffer> buffer;
 };
@@ -17,12 +18,11 @@ struct RendererASurfaceTransaction::TransactionContext {
 static void releaseBuffer(struct wpe_android_view_backend_exportable* exportable, const ExportedBuffer& buffer)
 {
     wpe_android_view_backend_exportable_dispatch_release_buffer(exportable,
-            buffer.buffer, buffer.poolID, buffer.bufferID);
+                                                                buffer.buffer, buffer.poolID, buffer.bufferID);
 }
 
 RendererASurfaceTransaction::RendererASurfaceTransaction(Page& page, unsigned width, unsigned height)
-    : m_page(page)
-    , m_size({ width, height })
+        : m_page(page), m_size({ width, height })
 {
     ALOGV("RendererASurfaceTransaction() page %p", &m_page);
 }
@@ -41,7 +41,7 @@ RendererASurfaceTransaction::~RendererASurfaceTransaction()
     // If locked buffer still exists, release it.
     if (m_state.lockedBuffer)
         releaseBuffer(m_page.exportable(), *m_state.lockedBuffer);
-    m_state = { };
+    m_state = {};
 }
 
 void RendererASurfaceTransaction::surfaceCreated(ANativeWindow* window)

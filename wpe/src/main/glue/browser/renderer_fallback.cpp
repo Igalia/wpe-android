@@ -3,26 +3,27 @@
 #include "logging.h"
 #include "looperthread.h"
 #include "browser.h"
+
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <android/choreographer.h>
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
 #include <android/looper.h>
-#include <stdint.h>
+#include <cstdint>
 #include <sys/eventfd.h>
 #include <vector>
 #include <wpe-android/view-backend-exportable.h>
 
-struct RendererFallback::FrameContext {
+struct RendererFallback::FrameContext
+{
     RendererFallback& renderer;
     std::shared_ptr<ExportedBuffer> buffer;
     bool dispatchFrameCompleteCallback;
 };
 
 RendererFallback::RendererFallback(Page& page, unsigned width, unsigned height)
-    : m_page(page)
-    , m_size({ width, height })
+        : m_page(page), m_size({ width, height })
 {
     m_egl.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     eglInitialize(m_egl.display, nullptr, nullptr);
@@ -166,7 +167,7 @@ void RendererFallback::surfaceDestroyed()
     eglMakeCurrent(m_egl.display, m_egl.surface, m_egl.surface, m_egl.context);
 
     if (m_egl.context != EGL_NO_CONTEXT) {
-        if (eglDestroyContext(m_egl.display,  m_egl.context) == EGL_FALSE) {
+        if (eglDestroyContext(m_egl.display, m_egl.context) == EGL_FALSE) {
             ALOGE("eglDestroyContext() failed: %d", eglGetError());
         }
         m_egl.context = EGL_NO_CONTEXT;
@@ -204,9 +205,9 @@ void RendererFallback::renderFrame(const std::shared_ptr<ExportedBuffer>& buffer
     {
         if (m_lockedBuffer) {
             wpe_android_view_backend_exportable_dispatch_release_buffer(m_page.exportable(),
-                    m_lockedBuffer->buffer,
-                    m_lockedBuffer->poolID,
-                    m_lockedBuffer->bufferID);
+                                                                        m_lockedBuffer->buffer,
+                                                                        m_lockedBuffer->poolID,
+                                                                        m_lockedBuffer->bufferID);
 
             m_lockedBuffer = nullptr;
         }
@@ -226,7 +227,7 @@ void RendererFallback::renderFrame(const std::shared_ptr<ExportedBuffer>& buffer
         EGLImageKHR image = m_egl.createImageKHR(m_egl.display, EGL_NO_CONTEXT,
                                                  EGL_NATIVE_BUFFER_ANDROID, clientBuffer, nullptr);
         ALOGV("RendererFallback: clientBuffer %p => image %p, err %x, size (%u,%u)",
-                clientBuffer, image, eglGetError(), m_size.width, m_size.height);
+              clientBuffer, image, eglGetError(), m_size.width, m_size.height);
 
         glUseProgram(m_gl.program);
 
@@ -236,10 +237,10 @@ void RendererFallback::renderFrame(const std::shared_ptr<ExportedBuffer>& buffer
         glUniform1i(m_gl.uniform_texture, 0);
 
         static float positionCoords[] = {
-                -1,1,  1,1,  -1,-1,  1,-1,
+                -1, 1, 1, 1, -1, -1, 1, -1,
         };
         static float textureCoords[] = {
-                0,0,  1,0,  0,1,  1,1,
+                0, 0, 1, 0, 0, 1, 1, 1,
         };
 
         glVertexAttribPointer(m_gl.attr_pos, 2, GL_FLOAT, GL_FALSE, 0, positionCoords);

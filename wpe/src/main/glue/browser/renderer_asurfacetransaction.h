@@ -1,6 +1,7 @@
 #pragma once
 
 #include "renderer.h"
+
 #include <android/api-level.h>
 
 #if __ANDROID_API__ >= 29
@@ -11,7 +12,8 @@ struct ASurfaceTransactionStats;
 
 class Page;
 
-class RendererASurfaceTransaction final : public Renderer {
+class RendererASurfaceTransaction final : public Renderer
+{
 public:
     RendererASurfaceTransaction(Page&, unsigned width, unsigned height);
     virtual ~RendererASurfaceTransaction();
@@ -31,17 +33,20 @@ private:
     static void onTransactionComplete(void* data, ASurfaceTransactionStats* stats);
 
     Page& m_page;
-    struct {
+    struct
+    {
         ANativeWindow* window { nullptr };
         ASurfaceControl* control { nullptr };
     } m_surface;
 
-    struct {
+    struct
+    {
         unsigned width;
         unsigned height;
     } m_size;
 
-    struct {
+    struct
+    {
         bool dispatchFrameCompleteCallback { false };
 
         std::shared_ptr<ExportedBuffer> exportedBuffer;

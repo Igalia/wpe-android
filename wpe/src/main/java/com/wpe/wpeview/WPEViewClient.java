@@ -1,6 +1,7 @@
 package com.wpe.wpeview;
 
-public interface WPEViewClient {
+public interface WPEViewClient
+{
     /**
      * Notify the host application that a page has started loading. This method
      * is called once for each main frame load so a page with iframes or

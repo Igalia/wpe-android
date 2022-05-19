@@ -10,10 +10,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class ServiceUtils {
+public class ServiceUtils
+{
     private static final String LOGTAG = "ServiceUtils";
 
-    public static void copyFileOrDir(Context context, AssetManager assetManager, String path) {
+    public static void copyFileOrDir(Context context, AssetManager assetManager, String path)
+    {
         String assets[] = null;
         try {
             assets = assetManager.list(path);
@@ -33,7 +35,8 @@ public class ServiceUtils {
         }
     }
 
-    private static void copyFile(Context context, AssetManager assetManager, String filename) {
+    private static void copyFile(Context context, AssetManager assetManager, String filename)
+    {
         InputStream in = null;
         OutputStream out = null;
         try {
@@ -57,17 +60,19 @@ public class ServiceUtils {
     // Tells whether we need to move the font config and gstreamer plugins to
     // the files dir. This is done only the first time WPEWebKit is launched or
     // everytime an update on these files is required
-    public static boolean needAssets(Context context, String assetsVersion) {
+    public static boolean needAssets(Context context, String assetsVersion)
+    {
         File file = new File(context.getFilesDir(), assetsVersion);
         return !file.exists();
     }
 
-    public static void saveAssetsVersion(Context context, String assetsVersion) {
+    public static void saveAssetsVersion(Context context, String assetsVersion)
+    {
         File file = new File(context.getFilesDir(), assetsVersion);
         if (!file.exists()) {
             try {
                 file.createNewFile();
-            } catch(IOException exception) {
+            } catch (IOException exception) {
                 Log.e(LOGTAG, "Could not save assets version. This will affect boot up performance");
             }
         }

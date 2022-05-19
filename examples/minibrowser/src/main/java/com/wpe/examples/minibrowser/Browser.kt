@@ -2,6 +2,7 @@ package com.wpe.examples.minibrowser
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -17,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.os.bundleOf
 import androidx.fragment.app.add
 import androidx.fragment.app.commit
+import com.google.android.material.color.MaterialColors
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
 import com.wpe.wpeview.WebChromeClient
@@ -47,7 +49,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     internal fun newTab(url: String?) {
-        val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
+        val charPool: List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
         val tabId = (1..12)
             .map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
             .map(charPool::get)
@@ -80,9 +82,9 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
             setUrl(null)
         }
 
-        val tab = supportFragmentManager.findFragmentByTag(tab.tab.tag) ?: return
+        val tab2 = supportFragmentManager.findFragmentByTag(tab.tab.tag) ?: return
         supportFragmentManager.commit {
-            remove(tab)
+            remove(tab2)
         }
     }
 
@@ -91,13 +93,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         activeTabItem = item
         setUrl(activeTab?.view?.url)
         supportFragmentManager.commit {
-           for (fragment in supportFragmentManager.fragments) {
-               if (fragment == activeTab) {
-                   show(fragment)
-               } else {
-                   hide(fragment)
-               }
-           }
+            for (fragment in supportFragmentManager.fragments) {
+                if (fragment == activeTab) {
+                    show(fragment)
+                } else {
+                    hide(fragment)
+                }
+            }
         }
     }
 
@@ -175,8 +177,19 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         activeTab?.view?.canGoForward()?.let { menu?.findItem(R.id.action_forward)?.setEnabled(it) }
         return super.onPrepareOptionsMenu(menu)
     }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.actions, menu)
+
+        // FIXME: There is a bug with androidx.appcompat 1.2.0 that doesn't take into account
+        // the android:iconTint attribute in actions.xml menu description. So, we need to force
+        // the tint color here by code to apply it visually. Normally this bug should be fixed
+        // by upgrading the androidx.appcompat dependency, then this block of code should be removed.
+        val item = menu?.findItem(R.id.action_tab)
+        val icon = item?.icon
+        icon?.setTint(MaterialColors.getColor(this, R.attr.colorOnPrimary, Color.BLACK))
+        item?.icon = icon
+
         return super.onCreateOptionsMenu(menu)
     }
 
@@ -220,9 +233,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     fun onCommit(text: String) {
-        if (text == null) {
-            return;
-        }
         var url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
             text
         } else {

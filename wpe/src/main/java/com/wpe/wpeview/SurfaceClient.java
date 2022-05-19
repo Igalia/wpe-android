@@ -2,7 +2,8 @@ package com.wpe.wpeview;
 
 import android.view.SurfaceHolder;
 
-public interface SurfaceClient {
+public interface SurfaceClient
+{
     /**
      * Notify the host application to add a callback used to process Surface creation and update events.
      * @param view The WPEView that initiated the callback.

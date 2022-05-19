@@ -25,7 +25,8 @@ import com.wpe.wpe.gfx.ViewObserver;
  * The WPEView class is the main API entry point.
  */
 @UiThread
-public class WPEView extends FrameLayout implements ViewObserver {
+public class WPEView extends FrameLayout implements ViewObserver
+{
     private static final String LOGTAG = "WPEView";
 
     private final Context m_context;
@@ -38,14 +39,16 @@ public class WPEView extends FrameLayout implements ViewObserver {
     private String m_url = "about:blank";
     private String m_originalUrl = "about:blank";
 
-    public WPEView(final Context context) {
+    public WPEView(final Context context)
+    {
         super(context);
         m_context = context;
 
         Browser.initialize(context);
     }
 
-    public WPEView(final Context context, final AttributeSet attrs) {
+    public WPEView(final Context context, final AttributeSet attrs)
+    {
         super(context, attrs);
         m_context = context;
 
@@ -53,55 +56,68 @@ public class WPEView extends FrameLayout implements ViewObserver {
     }
 
     @Override
-    protected void onAttachedToWindow() {
+    protected void onAttachedToWindow()
+    {
         super.onAttachedToWindow();
         WPEView self = this;
         // Queue the creation of the Page until view's measure, layout, etc.
         // so we have a known width and height to create the associated WebKitWebView
         // before having the Surface texture.
-        post(new Runnable() {
+        post(new Runnable()
+        {
             @Override
-            public void run() {
+            public void run()
+            {
                 Browser.getInstance().createPage(self, m_context);
             }
         });
     }
 
     @Override
-    protected void onDetachedFromWindow() {
+    protected void onDetachedFromWindow()
+    {
         super.onDetachedFromWindow();
         Browser.getInstance().destroyPage(this);
     }
 
     @Override
-    protected void onWindowVisibilityChanged(int visibility) {
+    protected void onWindowVisibilityChanged(int visibility)
+    {
         super.onWindowVisibilityChanged(visibility);
         Browser.getInstance().onVisibilityChanged(this, visibility);
     }
 
-    @Override @WorkerThread
-    public void onViewCreated(View view) {
+    @Override
+    @WorkerThread
+    public void onViewCreated(View view)
+    {
         Log.v(LOGTAG, "View created " + view + " number of views " + getChildCount());
-        post(new Runnable() {
-            public void run() {
+        post(new Runnable()
+        {
+            public void run()
+            {
                 // Run on the main thread
                 try {
                     addView(view);
-                } catch(Exception e) {
+                } catch (Exception e) {
                     Log.e(LOGTAG, "Error setting view " + e.toString());
                 }
             }
         });
     }
 
-    @Override @WorkerThread
-    public void onViewReady(View view) {
+    @Override
+    @WorkerThread
+    public void onViewReady(View view)
+    {
         Log.v(LOGTAG, "View ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
-        post(new Runnable() {
+        post(new Runnable()
+        {
             @Override
-            public void run() {
+            public void run()
+            {
                 if (m_wpeViewClient != null) {
                     m_wpeViewClient.onViewReady(WPEView.this);
                 }
@@ -110,83 +126,98 @@ public class WPEView extends FrameLayout implements ViewObserver {
     }
 
     @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
+    public boolean onKeyUp(int keyCode, KeyEvent event)
+    {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             Browser.getInstance().deleteInputMethodContent(this, -1);
             return true;
         }
 
         final KeyCharacterMap kmap = KeyCharacterMap.load(event != null ?
-                event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
+            event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
         Browser.getInstance().setInputMethodContent(this, (char)kmap.get(keyCode, event.getMetaState()));
         return true;
     }
 
-    private void runOnMainThread(Runnable runnable) {
+    private void runOnMainThread(Runnable runnable)
+    {
         try {
             post(runnable);
-        } catch(Exception e) {
+        } catch (Exception e) {
             Log.e(LOGTAG, e.toString());
         }
     }
 
-    public void onLoadChanged(int loadEvent) {
+    public void onLoadChanged(int loadEvent)
+    {
         WPEView self = this;
         switch (loadEvent) {
-            case Page.LOAD_STARTED:
-                if (m_wpeViewClient == null) {
-                    return;
+        case Page.LOAD_STARTED:
+            if (m_wpeViewClient == null) {
+                return;
+            }
+            runOnMainThread(new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    m_wpeViewClient.onPageStarted(self, m_url);
                 }
-                runOnMainThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        m_wpeViewClient.onPageStarted(self, m_url);
-                    }
-                });
-                break;
-            case Page.LOAD_FINISHED:
-                onLoadProgress(100);
-                if (m_wpeViewClient == null) {
-                    return;
+            });
+            break;
+        case Page.LOAD_FINISHED:
+            onLoadProgress(100);
+            if (m_wpeViewClient == null) {
+                return;
+            }
+            runOnMainThread(new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    m_wpeViewClient.onPageFinished(self, m_url);
                 }
-                runOnMainThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        m_wpeViewClient.onPageFinished(self, m_url);
-                    }
-                });
-                break;
-            default: return;
+            });
+            break;
+        default:
+            return;
         }
     }
 
-    public void onLoadProgress(double progress) {
-        m_currentLoadProgress = (int) (progress * 100);
+    public void onLoadProgress(double progress)
+    {
+        m_currentLoadProgress = (int)(progress * 100);
         if (m_chromeClient == null) {
             return;
         }
         WPEView self = this;
-        runOnMainThread(new Runnable() {
+        runOnMainThread(new Runnable()
+        {
             @Override
-            public void run() {
+            public void run()
+            {
                 m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
             }
         });
     }
 
-    public void onUriChanged(String uri) {
+    public void onUriChanged(String uri)
+    {
         m_url = uri;
     }
 
-    public void onTitleChanged(String title) {
+    public void onTitleChanged(String title)
+    {
         m_title = title;
         if (m_chromeClient == null) {
             return;
         }
         WPEView self = this;
-        runOnMainThread(new Runnable() {
+        runOnMainThread(new Runnable()
+        {
             @Override
-            public void run() {
+            public void run()
+            {
                 m_chromeClient.onReceivedTitle(self, m_title);
             }
         });
@@ -198,7 +229,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * Loads the given URL.
      * @param url The URL of the resource to be loaded.
      */
-    public void loadUrl(@NonNull String url) {
+    public void loadUrl(@NonNull String url)
+    {
         m_originalUrl = url;
         Browser.getInstance().loadUrl(this, m_context, url);
     }
@@ -208,7 +240,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return true if this WPEView has a back history item.
      */
-    public boolean canGoBack() {
+    public boolean canGoBack()
+    {
         return Browser.getInstance().canGoBack(this);
     }
 
@@ -217,35 +250,40 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return true if this WPEView has a forward history item.
      */
-    public boolean canGoForward() {
+    public boolean canGoForward()
+    {
         return Browser.getInstance().canGoForward(this);
     }
 
     /**
      * Goes back in the history of this WPEView.
      */
-    public void goBack() {
+    public void goBack()
+    {
         Browser.getInstance().goBack(this);
     }
 
     /**
      * Goes forward in the history of this WPEView.
      */
-    public void goForward() {
+    public void goForward()
+    {
         Browser.getInstance().goForward(this);
     }
 
     /**
      * Stop the current load.
      */
-    public void stopLoading() {
+    public void stopLoading()
+    {
         Browser.getInstance().stopLoading(this);
     }
 
     /**
      * Reloads the current URL.
      */
-    public void reload() {
+    public void reload()
+    {
         Browser.getInstance().reload(this);
     }
 
@@ -254,7 +292,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return the progress for the current page between 0 and 100
      */
-    public int getProgress() {
+    public int getProgress()
+    {
         return m_currentLoadProgress;
     }
 
@@ -264,7 +303,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return the title for the current page or null
      */
-    public String getTitle() {
+    public String getTitle()
+    {
         return m_title;
     }
 
@@ -275,7 +315,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return The url for the current page.
      */
-    public String getUrl() {
+    public String getUrl()
+    {
         return m_url;
     }
 
@@ -288,7 +329,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      *
      * @return The url that was originally requested for the current page.
      */
-    public String getOriginalUrl() {
+    public String getOriginalUrl()
+    {
         return m_originalUrl;
     }
 
@@ -300,7 +342,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * @param client an implementation of WebChromeClient
      * @see #getWebChromeClient
      */
-    public void setWebChromeClient(@Nullable WebChromeClient client) {
+    public void setWebChromeClient(@Nullable WebChromeClient client)
+    {
         m_chromeClient = client;
     }
 
@@ -311,7 +354,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * @see #setWebChromeClient
      */
     @Nullable
-    public WebChromeClient getWebChromeClient() {
+    public WebChromeClient getWebChromeClient()
+    {
         return m_chromeClient;
     }
 
@@ -320,7 +364,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * requests. This will replace the current handler.
      * @param client An implementation of WPEViewClient.
      */
-    public void setWPEViewClient(@Nullable WPEViewClient client) {
+    public void setWPEViewClient(@Nullable WPEViewClient client)
+    {
         m_wpeViewClient = client;
     }
 
@@ -331,7 +376,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * @see #setWPEViewClient
      */
     @Nullable
-    public WPEViewClient getWPEViewClient() {
+    public WPEViewClient getWPEViewClient()
+    {
         return m_wpeViewClient;
     }
 
@@ -340,7 +386,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * WPEView renders it's contents to. This will replace the current handler.
      * @param client An implementation of SurfaceClient.
      */
-    public void setSurfaceClient(@Nullable SurfaceClient client) {
+    public void setSurfaceClient(@Nullable SurfaceClient client)
+    {
         m_surfaceClient = client;
     }
 
@@ -351,7 +398,8 @@ public class WPEView extends FrameLayout implements ViewObserver {
      * @see #setSurfaceClient
      */
     @Nullable
-    public SurfaceClient getSurfaceClient() {
+    public SurfaceClient getSurfaceClient()
+    {
         return m_surfaceClient;
     }
 }

@@ -1,7 +1,6 @@
 package com.wpe.wpe;
 
 import android.content.Context;
-import android.content.pm.ApplicationInfo;
 import android.os.LimitExceededException;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
@@ -27,7 +26,8 @@ import java.util.Map;
  * - manages the Android Services equivalent to WebKit's auxiliary processes.
  */
 @UiThread
-public final class Browser {
+public final class Browser
+{
     private static final String LOGTAG = "WPE Browser";
 
     private static Browser m_instance = null;
@@ -130,20 +130,24 @@ public final class Browser {
      * FIXME: except for the case where Android decides to kill a Service. In that case we need to
      * notify WebKit. And? wait for WebKit to spawn the Service again?
      */
-    private final class AuxiliaryProcesses {
-        private final class AuxiliaryProcess {
+    private final class AuxiliaryProcesses
+    {
+        private final class AuxiliaryProcess
+        {
             public final long m_pid;
 
             private final Page m_page;
             private final WPEServiceConnection m_serviceConnection;
 
-            AuxiliaryProcess(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection) {
+            AuxiliaryProcess(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection)
+            {
                 m_pid = pid;
                 m_page = page;
                 m_serviceConnection = connection;
             }
 
-            void terminate() {
+            void terminate()
+            {
                 m_page.stopService(m_serviceConnection);
             }
         }
@@ -152,7 +156,8 @@ public final class Browser {
         private final Map<Long, Integer> m_processIndexes = new HashMap<>();
         private int m_firstAvailableIndex = 0;
 
-        void register(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection) {
+        void register(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection)
+        {
             if (m_firstAvailableIndex >= MAX_AUX_PROCESSES) {
                 throw new LimitExceededException("Limit exceeded spawning a new auxiliary process");
             }
@@ -168,7 +173,8 @@ public final class Browser {
             }
         }
 
-        void unregister(long pid) {
+        void unregister(long pid)
+        {
             if (!m_processIndexes.containsKey(pid)) {
                 Log.w(LOGTAG, "Cannot unregister unregistered process " + pid);
                 return;
@@ -182,7 +188,8 @@ public final class Browser {
             m_firstAvailableIndex = Math.min(index, m_firstAvailableIndex);
         }
 
-        public int getFirstAvailableIndex() {
+        public int getFirstAvailableIndex()
+        {
             return m_firstAvailableIndex;
         }
     }
@@ -192,11 +199,13 @@ public final class Browser {
      * We queue an URL load if a `WPEView.loadURL` call is made while the Page associated to the
      * WPEView instance is not being initialized.
      */
-    private final class PendingLoad {
+    private final class PendingLoad
+    {
         public final String m_url;
         public final Context m_context;
 
-        PendingLoad(Context context, String url) {
+        PendingLoad(Context context, String url)
+        {
             m_url = url;
             m_context = context;
         }
@@ -205,22 +214,26 @@ public final class Browser {
     /**
      * A sideline thread that enables tying into Java-based Looper execution from native code.
      */
-    private final class LooperHelperThread {
+    private final class LooperHelperThread
+    {
         private final Thread m_thread;
         boolean m_initialized;
 
-        LooperHelperThread() {
+        LooperHelperThread()
+        {
             final LooperHelperThread self = this;
             m_initialized = false;
 
-            m_thread = new Thread(new Runnable() {
+            m_thread = new Thread(new Runnable()
+            {
                 @Override
-                public void run() {
+                public void run()
+                {
                     Looper.prepare();
 
                     BrowserGlue.initLooperHelper();
 
-                    synchronized (self)  {
+                    synchronized (self) {
                         m_initialized = true;
                         self.notifyAll();
                     }
@@ -246,16 +259,20 @@ public final class Browser {
      * Thread where the actual WebKit's UIProcess logic runs.
      * It hosts an instance of WebKitWebContext and runs the main loop.
      */
-    private final class UIProcessThread {
+    private final class UIProcessThread
+    {
         private final Thread m_thread;
         private BrowserGlue m_glueRef;
 
-        UIProcessThread() {
+        UIProcessThread()
+        {
             final UIProcessThread self = this;
 
-            m_thread = new Thread(new Runnable() {
+            m_thread = new Thread(new Runnable()
+            {
                 @Override
-                public void run() {
+                public void run()
+                {
                     Log.i(LOGTAG, "In UIProcess thread");
                     while (true) {
                         try {
@@ -274,7 +291,8 @@ public final class Browser {
             m_thread.start();
         }
 
-        public void run(@NonNull BrowserGlue glue) {
+        public void run(@NonNull BrowserGlue glue)
+        {
             final UIProcessThread self = this;
             synchronized (self) {
                 m_glueRef = glue;
@@ -283,7 +301,8 @@ public final class Browser {
         }
     }
 
-    private Browser() {
+    private Browser()
+    {
         Log.v(LOGTAG, "Browser creation");
         m_glue = new BrowserGlue(this);
         m_looperHelperThread = new LooperHelperThread();
@@ -291,7 +310,8 @@ public final class Browser {
         m_uiProcessThread.run(m_glue);
     }
 
-    public static void initialize(Context context) {
+    public static void initialize(Context context)
+    {
         if (m_initialized) {
             return;
         }
@@ -301,7 +321,8 @@ public final class Browser {
         m_initialized = true;
     }
 
-    public static Browser getInstance() {
+    public static Browser getInstance()
+    {
         if (m_instance == null) {
             m_instance = new Browser();
         }
@@ -309,9 +330,10 @@ public final class Browser {
     }
 
     @Override
-    protected void finalize() throws Throwable {
+    protected void finalize() throws Throwable
+    {
         super.finalize();
-        m_glue.deinit();
+        m_glue.shut();
     }
 
     /**
@@ -322,7 +344,8 @@ public final class Browser {
      *                There is a 1:1 relation between WPEView and Page instances.
      * @param context The Context this Page is created in.
      */
-    public void createPage(@NonNull WPEView wpeView, @NonNull Context context) {
+    public void createPage(@NonNull WPEView wpeView, @NonNull Context context)
+    {
         Log.d(LOGTAG, "Create new Page instance for view " + wpeView);
         if (m_pages == null) {
             m_pages = new IdentityHashMap<>();
@@ -337,7 +360,8 @@ public final class Browser {
         loadPendingUrls(wpeView);
     }
 
-    public void destroyPage(@NonNull WPEView wpeView) {
+    public void destroyPage(@NonNull WPEView wpeView)
+    {
         Log.d(LOGTAG, "Unregister Page for view");
         assert (m_pages.containsKey(wpeView));
         Page page = m_pages.remove(wpeView);
@@ -347,7 +371,8 @@ public final class Browser {
         }
     }
 
-    public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
+    public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility)
+    {
         Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
@@ -358,7 +383,8 @@ public final class Browser {
         }
     }
 
-    void launchAuxiliaryProcess(long pid, int processType, @NonNull int[] fds) {
+    void launchAuxiliaryProcess(long pid, int processType, @NonNull int[] fds)
+    {
         Log.d(LOGTAG, "launchProcess of type " + processType + " pid " + pid);
         Log.v(LOGTAG, "Got " + fds.length + " fds");
         for (int i = 0; i < fds.length; ++i) {
@@ -370,17 +396,17 @@ public final class Browser {
 
         try {
             switch (processType) {
-                case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-                    Log.v(LOGTAG, "Should launch WebProcess");
-                    cls = Class.forName("com.wpe.wpe.services.WPEServices$WebProcessService" + processSlot);
-                    break;
-                case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                    Log.v(LOGTAG, "Should launch NetworkProcess");
-                    cls = Class.forName("com.wpe.wpe.services.WPEServices$NetworkProcessService" + processSlot);
-                    break;
-                default:
-                    Log.v(LOGTAG, "Invalid process type");
-                    return;
+            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
+                Log.v(LOGTAG, "Should launch WebProcess");
+                cls = Class.forName("com.wpe.wpe.services.WPEServices$WebProcessService" + processSlot);
+                break;
+            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
+                Log.v(LOGTAG, "Should launch NetworkProcess");
+                cls = Class.forName("com.wpe.wpe.services.WPEServices$NetworkProcessService" + processSlot);
+                break;
+            default:
+                Log.v(LOGTAG, "Invalid process type");
+                return;
             }
         } catch (ClassNotFoundException e) {
             Log.e(LOGTAG, "Could not launch auxiliary process " + e);
@@ -402,19 +428,23 @@ public final class Browser {
         m_auxiliaryProcesses.register(pid, page, connection);
     }
 
-    void terminateAuxiliaryProcess(long pid) {
+    void terminateAuxiliaryProcess(long pid)
+    {
         m_auxiliaryProcesses.unregister(pid);
     }
 
-    public void setWebProcess(WPEServiceConnection process) {
+    public void setWebProcess(WPEServiceConnection process)
+    {
         m_webProcess = process;
     }
 
-    public void setNetworkProcess(WPEServiceConnection process) {
+    public void setNetworkProcess(WPEServiceConnection process)
+    {
         m_networkProcess = process;
     }
 
-    private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad) {
+    private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad)
+    {
         Log.v(LOGTAG, "No available page. Queueing " + pendingLoad.m_url + " for load");
         if (m_pendingLoads == null) {
             m_pendingLoads = new IdentityHashMap<>();
@@ -423,7 +453,8 @@ public final class Browser {
         m_pendingLoads.put(wpeView, pendingLoad);
     }
 
-    private void loadPendingUrls(@NonNull WPEView wpeView) {
+    private void loadPendingUrls(@NonNull WPEView wpeView)
+    {
         if (m_pendingLoads == null) {
             return;
         }
@@ -433,7 +464,8 @@ public final class Browser {
         }
     }
 
-    public void loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url) {
+    public void loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url)
+    {
         Log.d(LOGTAG, "Load URL " + url);
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             queuePendingLoad(wpeView, new PendingLoad(context, url));
@@ -442,56 +474,64 @@ public final class Browser {
         m_pages.get(wpeView).loadUrl(context, url);
     }
 
-    public boolean canGoBack(@NonNull WPEView wpeView) {
+    public boolean canGoBack(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return false;
         }
         return m_pages.get(wpeView).canGoBack();
     }
 
-    public boolean canGoForward(@NonNull WPEView wpeView) {
+    public boolean canGoForward(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return false;
         }
         return m_pages.get(wpeView).canGoForward();
     }
 
-    public void goBack(@NonNull WPEView wpeView) {
+    public void goBack(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
         m_pages.get(wpeView).goBack();
     }
 
-    public void goForward(@NonNull WPEView wpeView) {
+    public void goForward(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
         m_pages.get(wpeView).goForward();
     }
 
-    public void stopLoading(@NonNull WPEView wpeView) {
+    public void stopLoading(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
         m_pages.get(wpeView).stopLoading();
     }
 
-    public void reload(@NonNull WPEView wpeView) {
+    public void reload(@NonNull WPEView wpeView)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
         m_pages.get(wpeView).reload();
     }
 
-    public void setInputMethodContent(@NonNull WPEView wpeView, char c) {
+    public void setInputMethodContent(@NonNull WPEView wpeView, char c)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }
         m_pages.get(wpeView).setInputMethodContent(c);
     }
 
-    public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset) {
+    public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset)
+    {
         if (m_pages == null || !m_pages.containsKey(wpeView)) {
             return;
         }

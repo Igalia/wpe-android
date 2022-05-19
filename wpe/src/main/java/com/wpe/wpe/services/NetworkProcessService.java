@@ -6,7 +6,8 @@ import android.util.Log;
 
 import java.io.File;
 
-public class NetworkProcessService extends WPEService {
+public class NetworkProcessService extends WPEService
+{
     private static final String LOGTAG = "WPENetworkProcess";
 
     // Bump this version number if you make any changes to the gio

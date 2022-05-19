@@ -55,9 +55,17 @@ include_directories(
         src/main/glue/common
 )
 
-add_library(WPEBrowserGlue SHARED
-        src/main/glue/common/jnihelper.h
+add_library(WPECommonGlue SHARED
         src/main/glue/common/jnihelper.cpp
+        src/main/glue/common/logging.cpp
+        )
+
+target_link_libraries(WPECommonGlue
+        ${android-lib}
+        ${log-lib}
+        )
+
+add_library(WPEBrowserGlue SHARED
         src/main/glue/browser/pageeventobserver.cpp
         src/main/glue/browser/entrypoints.cpp
         src/main/glue/browser/browser.cpp
@@ -79,6 +87,7 @@ target_link_libraries(WPEBrowserGlue
         libwpe-1.0
         WPEBackend-default
         WPEWebKit-1.0
+        WPECommonGlue
         )
 
 add_library(WPENetworkProcessGlue SHARED
@@ -88,6 +97,7 @@ add_library(WPENetworkProcessGlue SHARED
 target_link_libraries(WPENetworkProcessGlue
         ${log-lib}
         WPEWebKit-1.0
+        WPECommonGlue
         )
 
 add_library(WPEWebProcessGlue SHARED
@@ -102,4 +112,5 @@ target_link_libraries(WPEWebProcessGlue
         gmodule-2.0
         WPEBackend-default
         WPEWebKit-1.0
+        WPECommonGlue
         )
