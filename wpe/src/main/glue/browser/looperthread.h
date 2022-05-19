@@ -2,15 +2,17 @@
 
 struct ALooper;
 
-class LooperThread {
+class LooperThread final
+{
 public:
     static void initialize();
     static LooperThread& instance();
 
     ~LooperThread();
 
-    ALooper* looper() const { return m_looper; }
+    ALooper* looper() const
+    { return m_looper; }
 
 private:
-    ALooper* m_looper { nullptr };
+    ALooper* m_looper = nullptr;
 };

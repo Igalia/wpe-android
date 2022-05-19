@@ -4,7 +4,8 @@
 
 struct ANativeWindow;
 
-class Renderer {
+class Renderer
+{
 public:
     virtual ~Renderer() = default;
 

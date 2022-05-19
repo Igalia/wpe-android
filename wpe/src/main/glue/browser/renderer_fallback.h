@@ -1,6 +1,7 @@
 #pragma once
 
 #include "renderer.h"
+
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -8,7 +9,8 @@
 
 class Page;
 
-class RendererFallback final : public Renderer {
+class RendererFallback final : public Renderer
+{
 public:
     RendererFallback(Page&, unsigned width, unsigned height);
     virtual ~RendererFallback();
@@ -22,6 +24,7 @@ public:
 
 private:
     struct FrameContext;
+
     void scheduleFrame(FrameContext*);
     void renderFrame(const std::shared_ptr<ExportedBuffer>&, bool dispatchFrameCompleteCallback);
 
@@ -30,12 +33,14 @@ private:
 
     Page& m_page;
 
-    struct {
+    struct
+    {
         unsigned width { 0 };
         unsigned height { 0 };
     } m_size;
 
-    struct {
+    struct
+    {
         EGLDisplay display { EGL_NO_DISPLAY };
 
         EGLConfig config { 0 };
@@ -48,7 +53,8 @@ private:
         PFNGLEGLIMAGETARGETTEXTURE2DOESPROC imageTargetTexture2DOES;
     } m_egl;
 
-    struct {
+    struct
+    {
         GLint vertexShader { 0 };
         GLint fragmentShader { 0 };
         GLint program { 0 };
@@ -59,7 +65,8 @@ private:
         GLint uniform_texture;
     } m_gl;
 
-    struct {
+    struct
+    {
         int fd { -1 };
     } m_update;
 

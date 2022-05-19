@@ -2,26 +2,26 @@ package com.wpe.wpe.gfx;
 
 import android.content.Context;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.BrowserGlue;
-import com.wpe.wpeview.SurfaceClient;
 import com.wpe.wpeview.WPEView;
 
 @UiThread
-public class View extends SurfaceView {
+public class View extends SurfaceView
+{
     private String LOGTAG;
 
-    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
+    private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener
+    {
         @Override
-        public boolean onScale(ScaleGestureDetector detector) {
+        public boolean onScale(ScaleGestureDetector detector)
+        {
             mScaleFactor *= detector.getScaleFactor();
 
             mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 5.0f));
@@ -34,7 +34,8 @@ public class View extends SurfaceView {
         }
     }
 
-    private static class HolderCallback implements SurfaceHolder.Callback2 {
+    private static class HolderCallback implements SurfaceHolder.Callback2
+    {
         private View m_view;
 
         HolderCallback(View view)
@@ -79,7 +80,8 @@ public class View extends SurfaceView {
     private float mScaleFactor = 1.f;
     private boolean m_ignoreTouchEvent = false;
 
-    public View(Context context, int pageId, WPEView wpeView) {
+    public View(Context context, int pageId, WPEView wpeView)
+    {
         super(context);
 
         LOGTAG = "WPE gfx.View" + pageId;
@@ -99,16 +101,19 @@ public class View extends SurfaceView {
         requestLayout();
     }
 
-    public int width() {
+    public int width()
+    {
         return m_width;
     }
 
-    public int height() {
+    public int height()
+    {
         return m_height;
     }
 
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
+    public boolean onTouchEvent(MotionEvent event)
+    {
         int pointerCount = event.getPointerCount();
         if (pointerCount < 1) {
             return false;
@@ -124,17 +129,17 @@ public class View extends SurfaceView {
 
         int eventAction = event.getActionMasked();
         switch (eventAction) {
-            case MotionEvent.ACTION_DOWN:
-                eventType = 0;
-                break;
-            case MotionEvent.ACTION_MOVE:
-                eventType = 1;
-                break;
-            case MotionEvent.ACTION_UP:
-                eventType = 2;
-                break;
-            default:
-                return false;
+        case MotionEvent.ACTION_DOWN:
+            eventType = 0;
+            break;
+        case MotionEvent.ACTION_MOVE:
+            eventType = 1;
+            break;
+        case MotionEvent.ACTION_UP:
+            eventType = 2;
+            break;
+        default:
+            return false;
         }
 
         BrowserGlue.touchEvent(m_pageId, event.getEventTime(), eventType, event.getX(0), event.getY(0));

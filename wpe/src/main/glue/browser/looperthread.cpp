@@ -3,7 +3,7 @@
 #include "logging.h"
 #include <android/looper.h>
 
-static LooperThread* s_looperThread;
+static LooperThread* s_looperThread = nullptr;
 
 LooperThread::~LooperThread()
 {

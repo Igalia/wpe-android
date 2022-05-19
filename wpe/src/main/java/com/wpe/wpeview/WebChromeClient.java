@@ -1,6 +1,7 @@
 package com.wpe.wpeview;
 
-public interface WebChromeClient {
+public interface WebChromeClient
+{
     /**
      * Tell the host application the current progress of loading a page.
      * @param view The WPEView that initiated the callback.

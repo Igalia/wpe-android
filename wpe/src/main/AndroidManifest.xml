@@ -3,8 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.wpe.wpe">
 
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <application android:extractNativeLibs="true" android:debuggable="true"
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:debuggable="true"
+        android:extractNativeLibs="true"
         tools:ignore="HardcodedDebugMode">
 
         <!-- Do not remove this section. Service definition is generated at build time -->

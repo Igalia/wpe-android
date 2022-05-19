@@ -2,17 +2,13 @@ package com.wpe.wpe.services;
 
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
-import android.content.res.AssetManager;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 
-public class WebProcessService extends WPEService {
+public class WebProcessService extends WPEService
+{
     private static final String LOGTAG = "WPEWebProcess";
     private boolean m_initialized = false;
 
@@ -34,19 +30,19 @@ public class WebProcessService extends WPEService {
         }
 
         String fontConfigPath = new File(context.getFilesDir(), "fontconfig")
-                .getAbsolutePath();
+            .getAbsolutePath();
         String gstreamerPath = new File(context.getFilesDir(), "gstreamer-1.0")
-                .getAbsolutePath();
+            .getAbsolutePath();
         String gioPath = new File(context.getFilesDir(), "gio").getAbsolutePath();
         ApplicationInfo appInfo = context.getApplicationInfo();
 
         WebProcessGlue.setupEnvironment(
-                fontConfigPath,
-                gstreamerPath,
-                gioPath,
-                appInfo.nativeLibraryDir,
-                context.getCacheDir().getAbsolutePath(),
-                context.getFilesDir().getAbsolutePath()
+            fontConfigPath,
+            gstreamerPath,
+            gioPath,
+            appInfo.nativeLibraryDir,
+            context.getCacheDir().getAbsolutePath(),
+            context.getFilesDir().getAbsolutePath()
         );
     }
 

@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -12,7 +10,7 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?android:actionBarSize"
-        android:background="@color/white">
+        android:background="?android:statusBarColor">
 
         <EditText
             android:id="@+id/location_view"
@@ -33,11 +31,12 @@
         android:layout_height="3dp"
         android:layout_alignBottom="@id/toolbar" />
 
-    <androidx.fragment.app.FragmentContainerView xmlns:android="http://schemas.android.com/apk/res/android"
+    <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/toolbar"
         android:focusable="true"
         android:focusableInTouchMode="true" />
+
 </RelativeLayout>
