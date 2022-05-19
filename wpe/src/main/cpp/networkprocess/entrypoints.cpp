@@ -1,5 +1,6 @@
 #include "logging.h"
 #include "jnihelper.h"
+#include "environment.h"
 
 #include <dlfcn.h>
 #include <unistd.h>
@@ -32,17 +33,10 @@ void initializeMain(JNIEnv*, jclass, jint fd)
     (*entrypoint)(3, argv);
 }
 
-void setupEnvironment(JNIEnv* env, jclass, jstring cachePath, jstring extraModulesPath)
+void setupEnvironment(JNIEnv*, jclass, jobjectArray envStringsArray)
 {
     ALOGV("Glue::setupEnvironment()");
-
-    const char* str = env->GetStringUTFChars(cachePath, nullptr);
-    setenv("XDG_RUNTIME_DIR", str, 1);
-    env->ReleaseStringUTFChars(cachePath, str);
-
-    str = env->GetStringUTFChars(extraModulesPath, nullptr);
-    setenv("GIO_EXTRA_MODULES", str, 1);
-    env->ReleaseStringUTFChars(extraModulesPath, str);
+    wpe::android::configureEnvironment(envStringsArray);
 }
 } // namespace
 
@@ -54,8 +48,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
         return JNI_ERR;
 
     static const JNINativeMethod methods[] = {
-            { "initializeMain",   "(I)V",                                    reinterpret_cast<void*>(initializeMain) },
-            { "setupEnvironment", "(Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void*>(setupEnvironment) }
+            { "initializeMain",   "(I)V",                   reinterpret_cast<void*>(initializeMain) },
+            { "setupEnvironment", "([Ljava/lang/String;)V", reinterpret_cast<void*>(setupEnvironment) }
     };
     int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
     env->DeleteLocalRef(klass);

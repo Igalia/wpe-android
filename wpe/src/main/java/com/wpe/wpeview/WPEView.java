@@ -105,7 +105,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
                 try {
                     addView(view);
                 } catch (Exception e) {
-                    Log.e(LOGTAG, "Error setting view " + e.toString());
+                    Log.e(LOGTAG, "Error setting view", e);
                 }
             }
         });
@@ -149,7 +149,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         try {
             post(runnable);
         } catch (Exception e) {
-            Log.e(LOGTAG, e.toString());
+            Log.e(LOGTAG, "Cannot run main thread", e);
         }
     }
 

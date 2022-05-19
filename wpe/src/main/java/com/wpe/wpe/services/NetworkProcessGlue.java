@@ -16,5 +16,5 @@ public class NetworkProcessGlue
     }
 
     public static native void initializeMain(int fd);
-    public static native void setupEnvironment(String cachePath, String extraModulesPath);
+    public static native void setupEnvironment(String[] envStringsArray);
 }

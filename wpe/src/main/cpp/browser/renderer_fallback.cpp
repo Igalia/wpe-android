@@ -72,7 +72,7 @@ void RendererFallback::surfaceCreated(ANativeWindow* window)
         surfaceDestroyed();
     }
 
-    ALOGV("RendererFallback::surfaceCreated() window %p size (%u,%u)", window, m_size.width, m_size.height);
+    ALOGV("RendererFallback::surfaceCreated() window %p size (%ux%u)", window, m_size.width, m_size.height);
 
     static const EGLint configAttributes[] = {
             EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
@@ -226,7 +226,7 @@ void RendererFallback::renderFrame(const std::shared_ptr<ExportedBuffer>& buffer
         EGLClientBuffer clientBuffer = m_egl.getNativeClientBufferANDROID(buffer->buffer);
         EGLImageKHR image = m_egl.createImageKHR(m_egl.display, EGL_NO_CONTEXT,
                                                  EGL_NATIVE_BUFFER_ANDROID, clientBuffer, nullptr);
-        ALOGV("RendererFallback: clientBuffer %p => image %p, err %x, size (%u,%u)",
+        ALOGV("RendererFallback: clientBuffer %p => image %p, err %x, size (%ux%u)",
               clientBuffer, image, eglGetError(), m_size.width, m_size.height);
 
         glUseProgram(m_gl.program);

@@ -188,7 +188,7 @@ void Page::surfaceChanged(int format, int width, int height)
 {
     uint32_t uWidth = uint32_t(std::max(0, width));
     uint32_t uHeight = uint32_t(std::max(0, height));
-    ALOGV("Page::surfaceChanged() format %d size (%u,%u)", format, uWidth, uHeight);
+    ALOGV("Page::surfaceChanged() format %d size (%ux%u)", format, uWidth, uHeight);
     struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(
             m_viewBackendExportable);
     wpe_view_backend_dispatch_set_size(viewBackend, uWidth, uHeight);
@@ -207,7 +207,7 @@ void Page::surfaceDestroyed()
 
 void Page::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
 {
-    ALOGV("Page::renderFrame() %p exportedBuffer %p size (%u,%u)", this, exportedBuffer.get(),
+    ALOGV("Page::renderFrame() %p exportedBuffer %p size (%ux%u)", this, exportedBuffer.get(),
           exportedBuffer->size.width, exportedBuffer->size.height);
     m_renderer->handleExportedBuffer(exportedBuffer);
 

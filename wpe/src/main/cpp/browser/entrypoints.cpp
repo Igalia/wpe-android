@@ -3,6 +3,7 @@
 #include "logging.h"
 #include "looperthread.h"
 #include "pageeventobserver.h"
+#include "environment.h"
 
 #include <android/native_window_jni.h>
 
@@ -15,12 +16,11 @@ JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid);
 namespace {
 jweak s_browserGlue_object = nullptr;
 
-void setupEnvironment(JNIEnv* env, jclass, jstring gioPath)
+void setupEnvironment(JNIEnv*, jclass, jobjectArray envStringsArray)
 {
-    const char* str = env->GetStringUTFChars(gioPath, nullptr);
-    ALOGV("BrowserGlue::setupEnvironment(%s) [tid %d]", str, gettid());
-    setenv("GIO_EXTRA_MODULES", str, 1);
-    env->ReleaseStringUTFChars(gioPath, str);
+    ALOGV("BrowserGlue::setupEnvironment() [tid %d]", gettid());
+    wpe::android::pipeStdoutToLogcat();
+    wpe::android::configureEnvironment(envStringsArray);
 }
 
 void init(JNIEnv* env, jclass, jobject glueObj)
@@ -241,7 +241,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
         return JNI_ERR;
 
     static const JNINativeMethod methods[] = {
-            { "setupEnvironment",          "(Ljava/lang/String;)V",                      reinterpret_cast<void*>(setupEnvironment) },
+            { "setupEnvironment",          "([Ljava/lang/String;)V",                     reinterpret_cast<void*>(setupEnvironment) },
             { "init",                      "(Lcom/wpe/wpe/BrowserGlue;)V",               reinterpret_cast<void*>(init) },
             { "initLooperHelper",          "()V",                                        reinterpret_cast<void*>(initLooperHelper) },
             { "shut",                      "()V",                                        reinterpret_cast<void*>(shut) },
