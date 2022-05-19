@@ -53,6 +53,7 @@ set_target_properties(WPEBackend-default PROPERTIES
 
 # libWPECommonGlue
 add_library(WPECommonGlue SHARED
+        common/environment.cpp
         common/jnihelper.cpp
         common/logging.cpp)
 target_include_directories(WPECommonGlue INTERFACE common)

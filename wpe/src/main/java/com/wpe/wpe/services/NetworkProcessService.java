@@ -26,8 +26,11 @@ public class NetworkProcessService extends WPEService
             ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
 
-        String gioPath = new File(context.getFilesDir(), "gio").getAbsolutePath();
-        NetworkProcessGlue.setupEnvironment(context.getCacheDir().getAbsolutePath(), gioPath);
+        String[] envStringsArray = {
+            "XDG_RUNTIME_DIR", context.getCacheDir().getAbsolutePath(),
+            "GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()
+        };
+        NetworkProcessGlue.setupEnvironment(envStringsArray);
     }
 
     @Override
@@ -39,5 +42,4 @@ public class NetworkProcessService extends WPEService
         }
         NetworkProcessGlue.initializeMain(fds[0].detachFd());
     }
-
 }

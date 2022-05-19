@@ -66,25 +66,17 @@ void Browser::invoke(void (* callback)(void*), void* callbackData, void (* destr
 
 void Browser::runMainLoop()
 {
-    wpe::android::pipeStdoutToLogcat();
-    wpe::android::enableGstDebug();
-
-    ALOGV("ui_process_thread_entry -- entered, g_main_context_default() %p",
-          g_main_context_default());
-
+    ALOGV("ui_process_thread_entry -- entered, g_main_context_default() %p", g_main_context_default());
     m_uiProcessThreadLoop = std::make_unique<GMainLoop*>(g_main_loop_new(*m_uiProcessThreadContext.get(), FALSE));
-
     g_main_context_push_thread_default(*m_uiProcessThreadContext.get());
-
     webkit_web_context_new();
 
-    ALOGV("ui_process_thread_entry -- running via GMainLoop %p for GMainContext %p",
-          m_uiProcessThreadLoop.get(), m_uiProcessThreadContext.get());
+    ALOGV("ui_process_thread_entry -- running via GMainLoop %p for GMainContext %p", m_uiProcessThreadLoop.get(),
+          m_uiProcessThreadContext.get());
     g_main_loop_run(*m_uiProcessThreadLoop.get());
+
     ALOGV("ui_process_thread_entry -- quitting");
-
     g_main_context_pop_thread_default(*m_uiProcessThreadContext.get());
-
     g_main_loop_unref(*m_uiProcessThreadLoop.get());
     m_uiProcessThreadLoop.reset(nullptr);
 }

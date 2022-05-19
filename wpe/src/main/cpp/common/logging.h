@@ -8,6 +8,5 @@
 namespace wpe { namespace android {
 
 bool pipeStdoutToLogcat();
-void enableGstDebug();
 
 }} // namespace wpe::android

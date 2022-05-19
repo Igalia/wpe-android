@@ -1,9 +1,11 @@
 # Tips & tricks
 
 ## Patching WPEWebKit for debugging purposes
-The fastest way to patch WPEWebKit is to add your modifications directly to the
-WPEWebKit's source cloned by Cerbero in the `cerbero/build/sources/android_<arch>/wpewebkit-<version>`
+
+The fastest way to patch WPEWebKit is to add your modifications directly to the WPEWebKit's source cloned by Cerbero in
+the `cerbero/build/sources/android_<arch>/wpewebkit-<version>`
 folder. Once you are done adding your changes, execute the following command from the root of this repo:
+
 ```bash
 python3 ./scripts/patch.py <arch> wpewebkit
 ```
@@ -52,10 +54,12 @@ When a native crash occurs running WPE Android the adb logcat prints something l
  03-12 12:20:39.515  F  [30472/30472] DEBUG          #12 pc 0000000000043220  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEPageGlue.so (BuildId: f7e820673ca7de23f522c1742eca350cbb41d82d)
 ```
 
-This is not specially helpful, as it shows shared library addresses instead of the usual `<source-file>:<line-number`. To turn this output into something more readable you need to make use of the `ndk-stack` tool. Luckily we have all that we need with Cerbero. Run this command from the WPE Android root path:
+This is not specially helpful, as it shows shared library addresses instead of the usual `<source-file>:<line-number`.
+To turn this output into something more readable you need to make use of the `ndk-stack` tool. Luckily we have all that
+we need with Cerbero. Run this command from the WPE Android root path:
 
 ```ssh
-adb logcat | cerbero/build/android-ndk-21/ndk-stack -sym wpe/imported/lib/arm64-v8a
+adb logcat | cerbero/build/android-ndk-23/ndk-stack -sym wpe/src/main/cpp/imported/lib/arm64-v8a
 ```
 
 You should see something like:
@@ -101,7 +105,8 @@ g_object_new_internal
 
 ## Add color to adb logcat
 
-[logcat-colorize](https://github.com/carlonluca/logcat-colorize) is a helpful tool to add some color to the adb logcat output.
+[logcat-colorize](https://github.com/carlonluca/logcat-colorize) is a helpful tool to add some color to the adb logcat
+output.
 
 To get a nicer logcat with WPE Android you can run the following command:
 
@@ -166,3 +171,55 @@ public class com.wpe.wpe.Page {
 ```
 
 where the different `descriptor` values contain the strings you are looking for.
+
+## Debugging Java and native code from WPEWebProcess and/or WPENetworkProcess
+
+The procedure is for the [Android Studio](https://developer.android.com/studio) official IDE.
+
+1- Uncomment the `android.os.Debug.waitForDebugger();` instruction in the `static` block of the corresponding service
+Java glue code. That is to say:
+
+- wpe/src/main/java/com/wpe/wpe/services/WebProcessGlue for the WPEWebProcess service
+- wpe/src/main/java/com/wpe/wpe/services/NetworkProcessGlue for the WPENetworkProcess service
+
+This instruction will wait for the Android debugger when the service class is loaded by the Java classloader at the
+moment the corresponding process is attached to the JVM.
+
+2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work). You can do
+so by clicking on the combo-box on the upper menu bar, showing the name of the executed activity (like
+`tools.minibrowser` for example). When selected, this combo-box shows an `Edit configurations...` entry which opens a
+window where you can configure the `Debugger`. Select `Dual (Java + Native)`, as the main application process doesn't
+use native code, the IDE cannot auto-detect the dual debugger.
+
+3- Install and launch the main application on an emulator or a real device (you can do all at once by clicking on the
+*Play* icon on the upper menu bar, or by hitting *Ctrl+F5*).
+
+4- Click on `Attach Debugger to Android Process` from the upper menu bar. It will open a small tool window with the list
+of running processes on the Android emulator or real device. Then select the process you want to debug when it appears
+in this list.
+
+## Configure GStreamer debugging logs and pipelines graphs dumping
+
+This only works with debuggable builds of wpe-android. This feature is disabled in release builds.
+
+You need to launch the application at least once to create the application persistent folder on your real device or
+emulator. This folder will be accessible in `Android/data/[your application id]/files` when activating files transfer
+through USB. Then, just create a property file called `gstreamer.props` in this folder.
+
+Configurable properties are:
+
+- *debugLevels*: configure GStreamer debugging levels, same as the value passed to GST_DEBUG. Default value if omitted
+  is "*:FIXME".
+- *dumpDotDir*: configure the folder to which GStreamer will dump the pipelines graphs when gst_debug_bin_to_dot_file()
+  is called. Configured folder will be created under `Android/data/[your application id]/files` root directory. Default
+  value if omitted is "" (no dumps).
+- *noColor*: set to "true" to disable GStreamer logs coloring (can remove noise with logcat when not using
+  *logcat-colorize*). Default value if omitted is "false" (logs will use colors).
+
+Example of `gstreamer.props` file:
+
+```
+debugLevels = *:INFO,decodebin:LOG
+dumpDotDir = gst/dot
+noColor = true
+```

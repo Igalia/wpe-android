@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <cstdio>
 #include <unistd.h>
-#include <cstdlib>
 
 bool wpe::android::pipeStdoutToLogcat()
 {
@@ -36,9 +35,4 @@ bool wpe::android::pipeStdoutToLogcat()
 
     pthread_detach(logging_thread);
     return true;
-}
-
-void wpe::android::enableGstDebug()
-{
-    setenv("GST_DEBUG", "3", 1);
 }

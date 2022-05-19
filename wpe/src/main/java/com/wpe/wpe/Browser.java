@@ -316,8 +316,10 @@ public final class Browser
             return;
         }
 
-        String gioPath = new File(context.getFilesDir(), "gio").getAbsolutePath();
-        BrowserGlue.setupEnvironment(gioPath);
+        String[] envStringsArray = {
+            "GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()
+        };
+        BrowserGlue.setupEnvironment(envStringsArray);
         m_initialized = true;
     }
 
@@ -409,7 +411,7 @@ public final class Browser
                 return;
             }
         } catch (ClassNotFoundException e) {
-            Log.e(LOGTAG, "Could not launch auxiliary process " + e);
+            Log.e(LOGTAG, "Could not launch auxiliary process", e);
             return;
         }
 

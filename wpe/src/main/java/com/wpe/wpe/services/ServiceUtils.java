@@ -6,7 +6,6 @@ import android.util.Log;
 
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -30,8 +29,8 @@ public class ServiceUtils
                     copyFileOrDir(context, assetManager, path + "/" + assets[i]);
                 }
             }
-        } catch (IOException ex) {
-            Log.e(LOGTAG, "I/O Exception", ex);
+        } catch (Exception e) {
+            Log.e(LOGTAG, "I/O Exception", e);
         }
     }
 
@@ -53,7 +52,7 @@ public class ServiceUtils
             out.flush();
             out.close();
         } catch (Exception e) {
-            Log.e(LOGTAG, e.getMessage());
+            Log.e(LOGTAG, "Cannot copy file", e);
         }
     }
 
@@ -72,8 +71,8 @@ public class ServiceUtils
         if (!file.exists()) {
             try {
                 file.createNewFile();
-            } catch (IOException exception) {
-                Log.e(LOGTAG, "Could not save assets version. This will affect boot up performance");
+            } catch (Exception e) {
+                Log.e(LOGTAG, "Could not save assets version. This will affect boot up performance", e);
             }
         }
     }
