@@ -1,6 +1,9 @@
 #include "jnihelper.h"
 
+#include <cstdlib>
 #include <sys/prctl.h>
+
+#include "logging.h"
 
 namespace wpe {
 namespace android {
@@ -18,19 +21,18 @@ JNIEnv *AttachCurrentThread() {
     JNIEnv *env = nullptr;
     jint ret = g_jvm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
     if (ret == JNI_EDETACHED || !env) {
-        JavaVMAttachArgs args;
-        args.version = JNI_VERSION_1_6;
-        args.group = nullptr;
+        JavaVMAttachArgs args = { JNI_VERSION_1_6, nullptr, nullptr };
 
         char thread_name[16]; // 16 is the max size for android thread names
         int err = prctl(PR_GET_NAME, thread_name);
-        if (err < 0) {
-            args.name = nullptr;
-        } else {
+        if (err >= 0) {
             args.name = thread_name;
         }
 
-        ret = g_jvm->AttachCurrentThread(&env, &args);
+        if (g_jvm->AttachCurrentThread(&env, &args) != JNI_OK) {
+            ALOGE("Failed to attach thread");
+            std::abort();
+        }
     }
     return env;
 }
