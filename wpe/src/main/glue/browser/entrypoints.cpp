@@ -50,7 +50,7 @@ extern "C" {
 std::unique_ptr<Browser> Browser::m_instance = nullptr;
 
 // These are used by WebKit to call into the Java layer.
-JNIEXPORT jobject s_BrowserGlue_object = 0;
+JNIEXPORT jweak s_BrowserGlue_object = nullptr;
 
 JNIEXPORT void JNICALL
 Java_com_wpe_wpe_BrowserGlue_setupEnvironment(JNIEnv *env, jobject, jstring gioPath)
@@ -203,28 +203,37 @@ JNIEXPORT void wpe_android_launchProcess(uint64_t pid, int processType, int *fds
     ALOGV("BrowserGlue wpe_android_launchProcess pid: %ld processType: %d", pid, processType);
 
     JNIEnv *env = wpe::android::AttachCurrentThread();
-    jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
-    jmethodID jMethodID = env->GetMethodID(jClass, "launchProcess", "(JI[I)V");
+    if (!env->IsSameObject(s_BrowserGlue_object, nullptr)) {
+        jobject obj = env->NewLocalRef(s_BrowserGlue_object);
+        jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
+        jmethodID jMethodID = env->GetMethodID(jClass, "launchProcess", "(JI[I)V");
 
-    jintArray fdArray = env->NewIntArray(2);
-    env->SetIntArrayRegion(fdArray, 0, 2, fds);
+        jintArray fdArray = env->NewIntArray(2);
+        env->SetIntArrayRegion(fdArray, 0, 2, fds);
 
-    env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid),  processType, fdArray);
+        env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid), processType,
+                            fdArray);
 
-    env->DeleteLocalRef(fdArray);
-    env->DeleteLocalRef(jClass);
+        env->DeleteLocalRef(fdArray);
+        env->DeleteLocalRef(jClass);
+        env->DeleteLocalRef(obj);
+    }
 }
 
 JNIEXPORT void wpe_android_terminateProcess(uint64_t pid) {
     ALOGV("BrowserGlue wpe_android_terminateProcess pid: %ld", pid);
 
     JNIEnv *env = wpe::android::AttachCurrentThread();
-    jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
-    jmethodID jMethodID = env->GetMethodID(jClass, "terminateProcess", "(J)V");
+    if (!env->IsSameObject(s_BrowserGlue_object, nullptr)) {
+        jobject obj = env->NewLocalRef(s_BrowserGlue_object);
+        jclass jClass = env->GetObjectClass(s_BrowserGlue_object);
+        jmethodID jMethodID = env->GetMethodID(jClass, "terminateProcess", "(J)V");
 
-    env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid));
+        env->CallVoidMethod(s_BrowserGlue_object, jMethodID, static_cast<jlong>(pid));
 
-    env->DeleteLocalRef(jClass);
+        env->DeleteLocalRef(jClass);
+        env->DeleteLocalRef(obj);
+    }
 }
 
 __attribute__((visibility("default")))
