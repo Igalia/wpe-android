@@ -27,7 +27,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    flavorDimensions "api"
+    flavorDimensions "api", "abi"
     productFlavors {
         minApi26 {
             dimension "api"
@@ -36,6 +36,20 @@ android {
         minApi29 {
             dimension "api"
             minSdkVersion 29
+        }
+
+        x86 {
+            dimension "abi"
+            ndk {
+                abiFilter 'x86'
+            }
+        }
+
+        arm64 {
+            dimension "abi"
+            ndk {
+                abiFilter 'arm64-v8a'
+            }
         }
     }
 
@@ -49,7 +63,8 @@ android {
         abi {
             enable true
             reset()
-            include "arm64-v8a"
+            include "x86", "arm64-v8a"
+            universalApk false
         }
     }
 
