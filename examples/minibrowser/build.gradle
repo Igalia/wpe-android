@@ -51,6 +51,13 @@ android {
             }
         }
 
+        x86_64 {
+            dimension 'abi'
+            ndk {
+                abiFilters 'x86_64'
+            }
+        }
+
         arm64 {
             dimension 'abi'
             ndk {
