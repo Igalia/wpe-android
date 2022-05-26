@@ -22,7 +22,7 @@ jobs:
         env:
           TARGET_ABI: '${{ matrix.target_abi }}'
         run: |
-          python3 scripts/bootstrap.py -a ${TARGET_ABI,,}
+          python3 tools/scripts/bootstrap.py -a ${TARGET_ABI,,}
       - name: Java™ Setup
         uses: actions/setup-java@v2
         with:
@@ -37,4 +37,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: minibrowser-api${{ matrix.api_level }}${{ matrix.target_abi }}${{ matrix.build_type }}
-          path: examples/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}${{ matrix.target_abi }}/**/*.apk
+          path: tools/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}${{ matrix.target_abi }}/**/*.apk
