@@ -6,14 +6,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.BaseAdapter
-import android.widget.ImageView
-import android.widget.TextView
+import android.widget.*
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import kotlinx.android.synthetic.main.tabs_selector.*
 
 class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetDialogFragment() {
 
@@ -60,7 +56,13 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
             }
 
             if (position == (bottomSheet as TabsSelector).selected) {
-                row.setBackgroundColor(MaterialColors.getColor(context, R.attr.colorSecondary, Color.GRAY))
+                row.setBackgroundColor(
+                    MaterialColors.getColor(
+                        context,
+                        com.google.android.material.R.attr.colorSecondary,
+                        Color.GRAY
+                    )
+                )
             }
 
             return row
@@ -77,6 +79,9 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        val tabsList = view.findViewById<ListView>(R.id.tabsList)
+
         val addButton = view.findViewById<FloatingActionButton>(R.id.newTabButton)
         addButton.setOnClickListener {
             (activity as MainActivity).newTab("about:blank")
@@ -84,10 +89,6 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
             selected = tabs.size
             dismiss()
         }
-    }
-
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
 
         tabsList.adapter = TabsListAdapter(this, requireContext(), tabs)
         tabsList.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->

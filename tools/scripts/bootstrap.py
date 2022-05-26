@@ -336,7 +336,7 @@ class Bootstrap:
     def install_deps(self, sysroot, install_list = None):
         wpe = os.path.join(self.__root, 'wpe')
 
-        self.__copy_headers(sysroot, os.path.join(wpe, 'imported', 'include'))
+        self.__copy_headers(sysroot, os.path.join(wpe, 'src', 'main', 'cpp', 'imported', 'include'))
 
         if self.__arch == 'arm64':
             android_abi = 'arm64-v8a'
@@ -350,7 +350,7 @@ class Bootstrap:
             raise Exception('Architecture not supported')
 
         sysroot_lib = os.path.join(sysroot, 'lib')
-        lib_dir = os.path.join(wpe, 'imported', 'lib', android_abi)
+        lib_dir = os.path.join(wpe, 'src', 'main', 'cpp', 'imported', 'lib', android_abi)
 
         libs_paths = None
         if install_list is not None:
