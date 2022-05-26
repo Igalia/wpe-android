@@ -9,7 +9,7 @@ android {
     buildToolsVersion '30.0.3'
 
     defaultConfig {
-        applicationId 'com.wpe.examples.minibrowser'
+        applicationId 'com.wpe.tools.minibrowser'
         minSdkVersion 26
         targetSdkVersion 30
         versionCode 1

@@ -1,4 +1,4 @@
-package com.wpe.examples.minibrowser
+package com.wpe.tools.minibrowser
 
 class TabSelectorItem(tab: Tab) {
     internal val tab: Tab = tab

@@ -71,11 +71,11 @@ to cross-compile WPE Android dependencies. The process takes a significant amoun
 You can optionally create a debug build of WPEWebKit passing the `--debug` option to the bootstrap command:
 
 ```bash
-python3 ./scripts/bootstrap.py --build --debug
+python3 ./tools/scripts/bootstrap.py --build --debug
 ```
 
 Finally, the bootstrap option accepts the `--arch` option to set the target architecture. 
-Currently supported architectures are `arm64`, `armv7`, and `x86`.
+Currently supported architectures are `arm64`, `armv7`, `x86` and `x86_64`.
 
 
 ### Android Studio
@@ -84,5 +84,5 @@ Once the bootstrap process is done and all the dependencies are cross-compiled a
 you should be able to open the `launcher` demo with Android Studio and run it on a real device.
 
 ## Known issues and limitations
-* The only architectures supported at the moment are `arm64`, `armv7`, and `x86`.
+* The universal wpewebkit bootstrap package is not yet supported.
 * The scripts and build have only been tested in Linux.

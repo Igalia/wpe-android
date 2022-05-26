@@ -1,4 +1,4 @@
-package com.wpe.examples.minibrowser
+package com.wpe.tools.minibrowser
 
 import android.content.Context
 import android.graphics.Color

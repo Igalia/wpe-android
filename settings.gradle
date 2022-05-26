@@ -1,2 +1,2 @@
 include ':wpe'
-include ':examples:minibrowser'
+include ':tools:minibrowser'
