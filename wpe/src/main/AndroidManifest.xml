@@ -4,14 +4,10 @@
     package="com.wpe.wpe">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <application
-        android:debuggable="true"
-        android:extractNativeLibs="true"
-        tools:ignore="HardcodedDebugMode">
 
+    <application android:extractNativeLibs="true">
         <!-- Do not remove this section. Service definition is generated at build time -->
         <!-- SERVICES PLACEHOLDER -->
-
     </application>
 
 </manifest>

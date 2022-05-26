@@ -8,7 +8,7 @@
 /captures
 .externalNativeBuild
 wpe/.cxx
-wpe/imported/
+wpe/src/main/cpp/imported/
 wpe/src/main/jniLibs/
 wpe/src/main/assets/wpe-webkit-1.0
 wpe/src/main/assets/gstreamer-1.0

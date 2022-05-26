@@ -29,7 +29,12 @@ private:
     void renderFrame(const std::shared_ptr<ExportedBuffer>&, bool dispatchFrameCompleteCallback);
 
     static int s_updateCallback(int, int, void*);
+
+#if __ANDROID_API__ >= 29
+    static void s_frameCallback64(int64_t, void*);
+#else
     static void s_frameCallback(long, void*);
+#endif
 
     Page& m_page;
 

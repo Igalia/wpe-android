@@ -187,7 +187,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         // by upgrading the androidx.appcompat dependency, then this block of code should be removed.
         val item = menu?.findItem(R.id.action_tab)
         val icon = item?.icon
-        icon?.setTint(MaterialColors.getColor(this, R.attr.colorOnPrimary, Color.BLACK))
+        icon?.setTint(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnPrimary, Color.BLACK))
         item?.icon = icon
 
         return super.onCreateOptionsMenu(menu)

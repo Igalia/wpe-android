@@ -269,11 +269,20 @@ int RendererFallback::s_updateCallback(int fd, int events, void* data)
 
     ALOGV("RendererFallback::s_updateCallback() fd %d events %d data %p", fd, events, data);
     ALOGV("RendererFallback::s_updateCallback() AChoreographer %p", AChoreographer_getInstance());
+
+#if __ANDROID_API__ >= 29
+    AChoreographer_postFrameCallback64(AChoreographer_getInstance(), s_frameCallback64, data);
+#else
     AChoreographer_postFrameCallback(AChoreographer_getInstance(), s_frameCallback, data);
+#endif
     return 1;
 }
 
+#if __ANDROID_API__ >= 29
+void RendererFallback::s_frameCallback64(int64_t, void* data)
+#else
 void RendererFallback::s_frameCallback(long, void* data)
+#endif
 {
     ALOGV("RendererFallback::s_frameCallback() data %p", data);
     auto* context = static_cast<FrameContext*>(data);
