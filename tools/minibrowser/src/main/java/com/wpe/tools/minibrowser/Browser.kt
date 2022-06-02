@@ -5,12 +5,10 @@ import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
-import android.view.KeyEvent
-import android.view.Menu
-import android.view.MenuItem
-import android.view.View
+import android.view.*
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.ActionBar
@@ -33,6 +31,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     private var activeTab: Tab? = null
     private var activeTabItem: TabSelectorItem? = null
     private var tabs: ArrayList<TabSelectorItem> = ArrayList()
+
+    private var fullscreenView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -150,6 +150,30 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 } else {
                     progressView.visibility = View.GONE
                 }
+            }
+
+            override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+                fullscreenView?.let {
+                    (it.parent as ViewGroup).removeView(it)
+                }
+                fullscreenView = view
+                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                window.addContentView(
+                    fullscreenView,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
+                    )
+                )
+                callback?.onCustomViewHidden()
+            }
+
+            override fun onHideCustomView() {
+                fullscreenView?.let {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    (it.parent as ViewGroup).removeView(it)
+                }
+                fullscreenView = null
             }
         };
     }

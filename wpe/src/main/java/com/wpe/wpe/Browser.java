@@ -537,4 +537,12 @@ public final class Browser
         }
         m_pages.get(wpeView).deleteInputMethodContent(offset);
     }
+
+    public void requestExitFullscreenMode(@NonNull WPEView wpeView)
+    {
+        if (m_pages == null || !m_pages.containsKey(wpeView)) {
+            return;
+        }
+        m_pages.get(wpeView).requestExitFullscreenMode();
+    }
 }

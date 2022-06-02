@@ -46,6 +46,17 @@ void onTitleChanged(WebKitWebView* webView, GParamSpec*, gpointer data)
         observer->onTitleChanged(title, canGoBack, canGoForward);
     }
 }
+
+bool onDomFullscreenRequest(void* data, bool fullscreen)
+{
+    ALOGV("onDomFullscreenRequest() fullscreen: %s", fullscreen ? "true" : "false");
+    auto* page = reinterpret_cast<Page*>(data);
+    if (page != nullptr) {
+        page->domFullscreenRequest(fullscreen);
+    }
+
+    return true;
+}
 } // namespace
 
 struct wpe_android_view_backend_exportable_client Page::s_exportableClient = {
@@ -117,6 +128,10 @@ void Page::init()
     auto* settings = webkit_web_view_get_settings(m_webView);
     webkit_settings_set_user_agent(settings, m_userAgent.c_str());
     webkit_web_view_set_settings(m_webView, settings);
+
+    wpe_view_backend_set_fullscreen_handler(
+            webkit_web_view_backend_get_wpe_backend(viewBackend),
+            onDomFullscreenRequest, this);
 
     ALOGV("Created WebKitWebView %p", m_webView);
 
@@ -192,8 +207,15 @@ void Page::surfaceDestroyed()
 
 void Page::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
 {
-    ALOGV("Page::renderFrame() %p exportedBuffer %p", this, exportedBuffer.get());
+    ALOGV("Page::renderFrame() %p exportedBuffer %p size (%u,%u)", this, exportedBuffer.get(),
+          exportedBuffer->size.width, exportedBuffer->size.height);
     m_renderer->handleExportedBuffer(exportedBuffer);
+
+    if (m_resizing_fullscreen &&
+        exportedBuffer->size.width == m_renderer->width() &&
+        exportedBuffer->size.height == m_renderer->height()) {
+        fullscreenImageReady();
+    }
 }
 
 void Page::onTouch(wpe_input_touch_event_raw* touchEventRaw)
@@ -223,4 +245,35 @@ void Page::setInputMethodContent(const char c)
 void Page::deleteInputMethodContent(int offset)
 {
     input_method_context_delete_content(m_input_method_context, offset);
+}
+
+void Page::domFullscreenRequest(bool fullscreen)
+{
+    ALOGV("Page::domFullscreenRequest()");
+    m_resizing_fullscreen = fullscreen;
+    if (fullscreen) {
+        m_observer->enterFullscreenMode();
+    } else {
+        m_observer->exitFullscreenMode();
+
+        struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(
+                m_viewBackendExportable);
+        wpe_view_backend_dispatch_did_exit_fullscreen(viewBackend);
+    }
+}
+
+void Page::requestExitFullscreen()
+{
+    struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(
+            m_viewBackendExportable);
+    wpe_view_backend_dispatch_request_exit_fullscreen(viewBackend);
+}
+
+void Page::fullscreenImageReady()
+{
+    ALOGV("Page::fullscreenImageReady()");
+    m_resizing_fullscreen = false;
+    struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(
+            m_viewBackendExportable);
+    wpe_view_backend_dispatch_did_enter_fullscreen(viewBackend);
 }

@@ -18,6 +18,9 @@ public:
     RendererASurfaceTransaction(Page&, unsigned width, unsigned height);
     virtual ~RendererASurfaceTransaction();
 
+    int width() const override { return m_size.width; }
+    int height() const override { return m_size.height; }
+
     virtual void surfaceCreated(ANativeWindow*) override;
     virtual void surfaceChanged(int format, unsigned width, unsigned height) override;
     virtual void surfaceRedrawNeeded() override;

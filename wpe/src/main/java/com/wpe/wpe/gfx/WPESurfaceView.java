@@ -13,7 +13,7 @@ import com.wpe.wpe.BrowserGlue;
 import com.wpe.wpeview.WPEView;
 
 @UiThread
-public class View extends SurfaceView
+public class WPESurfaceView extends SurfaceView
 {
     private String LOGTAG;
 
@@ -34,18 +34,18 @@ public class View extends SurfaceView
         }
     }
 
-    private static class HolderCallback implements SurfaceHolder.Callback2
+    private static class SurfaceHolderCallback implements SurfaceHolder.Callback2
     {
-        private View m_view;
+        private WPESurfaceView m_view;
 
-        HolderCallback(View view)
+        SurfaceHolderCallback(WPESurfaceView view)
         {
             m_view = view;
         }
 
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height)
         {
-            Log.d(m_view.LOGTAG, "HolderCallback::surfaceChanged() format " + format + " (" + width + "," + height + ")");
+            Log.d(m_view.LOGTAG, "SurfaceHolderCallback::surfaceChanged() format " + format + " (" + width + "," + height + ")");
             synchronized (m_view) {
                 m_view.m_width = width;
                 m_view.m_height = height;
@@ -56,19 +56,19 @@ public class View extends SurfaceView
 
         public void surfaceCreated(SurfaceHolder holder)
         {
-            Log.d(m_view.LOGTAG, "HolderCallback::surfaceCreated()");
+            Log.d(m_view.LOGTAG, "SurfaceHolderCallback::surfaceCreated()");
             BrowserGlue.surfaceCreated(m_view.m_pageId, holder.getSurface());
         }
 
         public void surfaceDestroyed(SurfaceHolder holder)
         {
-            Log.d(m_view.LOGTAG, "HolderCallback::surfaceDestroyed()");
+            Log.d(m_view.LOGTAG, "SurfaceHolderCallback::surfaceDestroyed()");
             BrowserGlue.surfaceDestroyed(m_view.m_pageId);
         }
 
         public void surfaceRedrawNeeded(SurfaceHolder holder)
         {
-            Log.d(m_view.LOGTAG, "HolderCallback::surfaceRedrawNeeded()");
+            Log.d(m_view.LOGTAG, "SurfaceHolderCallback::surfaceRedrawNeeded()");
             BrowserGlue.surfaceRedrawNeeded(m_view.m_pageId);
         }
     }
@@ -80,20 +80,20 @@ public class View extends SurfaceView
     private float mScaleFactor = 1.f;
     private boolean m_ignoreTouchEvent = false;
 
-    public View(Context context, int pageId, WPEView wpeView)
+    public WPESurfaceView(Context context, int pageId, WPEView wpeView)
     {
         super(context);
 
-        LOGTAG = "WPE gfx.View" + pageId;
+        LOGTAG = "WPE gfx.WPESurfaceView" + pageId;
 
         m_pageId = pageId;
 
         if (wpeView.getSurfaceClient() != null) {
-            wpeView.getSurfaceClient().addCallback(wpeView, new HolderCallback(this));
+            wpeView.getSurfaceClient().addCallback(wpeView, new SurfaceHolderCallback(this));
         } else {
             SurfaceHolder holder = getHolder();
-            Log.d(LOGTAG, "View: holder " + holder);
-            holder.addCallback(new HolderCallback(this));
+            Log.d(LOGTAG, "WPESurfaceView: holder " + holder);
+            holder.addCallback(new SurfaceHolderCallback(this));
         }
 
         mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());

@@ -45,6 +45,8 @@ public class BrowserGlue
     public static native void setInputMethodContent(int pageId, char c);
     public static native void deleteInputMethodContent(int m_id, int offset);
 
+    public static native void requestExitFullscreenMode(int pageId);
+
     public BrowserGlue(@NonNull Browser browser)
     {
         m_browser = browser;

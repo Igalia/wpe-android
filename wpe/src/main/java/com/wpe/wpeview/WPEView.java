@@ -14,8 +14,8 @@ import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.Browser;
 import com.wpe.wpe.Page;
-import com.wpe.wpe.gfx.View;
-import com.wpe.wpe.gfx.ViewObserver;
+import com.wpe.wpe.gfx.WPESurfaceView;
+import com.wpe.wpe.gfx.WPESurfaceViewObserver;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
@@ -25,7 +25,7 @@ import com.wpe.wpe.gfx.ViewObserver;
  * The WPEView class is the main API entry point.
  */
 @UiThread
-public class WPEView extends FrameLayout implements ViewObserver
+public class WPEView extends FrameLayout implements WPESurfaceViewObserver
 {
     private static final String LOGTAG = "WPEView";
 
@@ -38,6 +38,9 @@ public class WPEView extends FrameLayout implements ViewObserver
     private String m_title = "about:blank";
     private String m_url = "about:blank";
     private String m_originalUrl = "about:blank";
+
+    private WPESurfaceView m_wpeSurfaceView;
+    private FrameLayout m_customView;
 
     public WPEView(final Context context)
     {
@@ -89,9 +92,11 @@ public class WPEView extends FrameLayout implements ViewObserver
 
     @Override
     @WorkerThread
-    public void onViewCreated(View view)
+    public void onSurfaceViewCreated(WPESurfaceView view)
     {
-        Log.v(LOGTAG, "View created " + view + " number of views " + getChildCount());
+        Log.v(LOGTAG, "WPESurfaceView created " + view + " number of views " + getChildCount());
+        m_wpeSurfaceView = view;
+
         post(new Runnable()
         {
             public void run()
@@ -108,9 +113,9 @@ public class WPEView extends FrameLayout implements ViewObserver
 
     @Override
     @WorkerThread
-    public void onViewReady(View view)
+    public void onSurfaceViewReady(WPESurfaceView view)
     {
-        Log.v(LOGTAG, "View ready " + getChildCount());
+        Log.v(LOGTAG, "WPESurfaceView ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
         post(new Runnable()
@@ -219,6 +224,49 @@ public class WPEView extends FrameLayout implements ViewObserver
             public void run()
             {
                 m_chromeClient.onReceivedTitle(self, m_title);
+            }
+        });
+    }
+
+    public void enterFullScreen()
+    {
+        runOnMainThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                removeView(m_wpeSurfaceView);
+
+                m_customView = new FrameLayout(m_context);
+                m_customView.addView(m_wpeSurfaceView);
+                m_customView.setFocusable(true);
+                m_customView.setFocusableInTouchMode(true);
+
+                WebChromeClient.CustomViewCallback cb = () -> {
+                    if (m_customView != null) {
+                        Browser.getInstance().requestExitFullscreenMode(WPEView.this);
+                    }
+                };
+
+                m_chromeClient.onShowCustomView(m_customView, () -> cb.onCustomViewHidden());
+            }
+        });
+    }
+
+    public void exitFullScreen()
+    {
+        runOnMainThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if (m_customView != null)  {
+                    m_customView.removeView(m_wpeSurfaceView);
+                    addView(m_wpeSurfaceView);
+                    m_customView = null;
+
+                    m_chromeClient.onHideCustomView();
+                }
             }
         });
     }

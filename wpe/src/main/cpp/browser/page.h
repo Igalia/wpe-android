@@ -46,6 +46,10 @@ public:
     void setInputMethodContent(const char c);
     void deleteInputMethodContent(int offset);
 
+    void domFullscreenRequest(bool fullscreen);
+    void requestExitFullscreen();
+    void fullscreenImageReady();
+
     struct wpe_android_view_backend_exportable* exportable()
     { return m_viewBackendExportable; }
 
@@ -56,6 +60,7 @@ private:
     int m_height = 0;
     std::string m_userAgent;
     bool m_initialized = false;
+    bool m_resizing_fullscreen = false;
     WebKitWebView* m_webView = nullptr;
     struct wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
     std::unique_ptr<Renderer> m_renderer;
