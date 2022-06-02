@@ -4,12 +4,13 @@
 #include "looperthread.h"
 #include "pageeventobserver.h"
 #include "environment.h"
+#include "service.h"
 
 #include <android/native_window_jni.h>
 
 extern "C" {
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*);
-JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, int* fds);
+JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::ProcessType processType, int* fds);
 JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid);
 }
 
@@ -168,9 +169,19 @@ void requestExitFullscreenMode(JNIEnv*, jclass, jint pageId)
 }
 } // namespace
 
-JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, int* fds)
+JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::ProcessType processType, int* fd)
 {
-    ALOGV("BrowserGlue wpe_android_launchProcess(%ld, %d, [%d, %d])", pid, processType, fds[0], fds[1]);
+    if (fd == nullptr) {
+        ALOGE("Cannot launch process (invalid file descriptor)");
+        return;
+    }
+
+    if (processType < wpe::android::ProcessType::FirstType || processType >= wpe::android::ProcessType::TypesCount) {
+        ALOGE("Cannot launch process (invalid process type: %d)", static_cast<int>(processType));
+        return;
+    }
+
+    ALOGV("BrowserGlue wpe_android_launchProcess(%ld, %d, %d)", pid, static_cast<int>(processType), *fd);
 
     try {
         JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
@@ -178,19 +189,14 @@ JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, 
             jobject obj = env->NewLocalRef(s_browserGlue_object);
             jclass klass = env->GetObjectClass(obj);
 
-            jmethodID methodID = env->GetMethodID(klass, "launchProcess", "(JI[I)V");
+            jmethodID methodID = env->GetMethodID(klass, "launchProcess", "(JII)V");
             if (methodID != nullptr) {
-                jintArray fdArray = env->NewIntArray(2);
-                env->SetIntArrayRegion(fdArray, 0, 2, fds);
-
-                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid), processType, fdArray);
+                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid), static_cast<jint>(processType), *fd);
                 if (env->ExceptionCheck()) {
                     env->ExceptionDescribe();
                     env->ExceptionClear();
                     ALOGE("Cannot launch process (exception occurred on Java side)");
                 }
-
-                env->DeleteLocalRef(fdArray);
             } else
                 ALOGE("Cannot launch process (cannot find \"launchProcess\" method)");
 

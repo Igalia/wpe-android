@@ -1,14 +1,13 @@
 package com.wpe.wpe;
 
 import android.content.Context;
-import android.os.LimitExceededException;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
-import android.os.Parcelable;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
+import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
@@ -130,67 +129,73 @@ public final class Browser
      * FIXME: except for the case where Android decides to kill a Service. In that case we need to
      * notify WebKit. And? wait for WebKit to spawn the Service again?
      */
-    private final class AuxiliaryProcesses
+    private static final class AuxiliaryProcesses
     {
-        private final class AuxiliaryProcess
+        private static final class AuxiliaryProcess
         {
-            public final long m_pid;
-
-            private final Page m_page;
+            private final int m_processSlot;
             private final WPEServiceConnection m_serviceConnection;
 
-            AuxiliaryProcess(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection)
+            public AuxiliaryProcess(int processSlot, @NonNull WPEServiceConnection connection)
             {
-                m_pid = pid;
-                m_page = page;
+                m_processSlot = processSlot;
                 m_serviceConnection = connection;
             }
 
-            void terminate()
+            public int getProcessSlot()
             {
-                m_page.stopService(m_serviceConnection);
+                return m_processSlot;
+            }
+
+            public ProcessType getProcessType()
+            {
+                return m_serviceConnection.getProcessType();
+            }
+
+            public void terminate()
+            {
+                m_serviceConnection.getActivePage().stopService(m_serviceConnection);
             }
         }
 
-        private final AuxiliaryProcess[] m_processes = new AuxiliaryProcess[MAX_AUX_PROCESSES];
-        private final Map<Long, Integer> m_processIndexes = new HashMap<>();
-        private int m_firstAvailableIndex = 0;
+        private final AuxiliaryProcess[][] m_processes = new AuxiliaryProcess[ProcessType.values().length][MAX_AUX_PROCESSES];
+        private final Map<Long, AuxiliaryProcess> m_pidToProcessMap = new HashMap<>();
+        private final int[] m_firstAvailableSlot = new int[ProcessType.values().length];
 
-        void register(long pid, @NonNull Page page, @NonNull WPEServiceConnection connection)
+        public int getFirstAvailableSlot(@NonNull ProcessType processType)
         {
-            if (m_firstAvailableIndex >= MAX_AUX_PROCESSES) {
-                throw new LimitExceededException("Limit exceeded spawning a new auxiliary process");
-            }
-            assert (m_processes[m_firstAvailableIndex] == null);
-            m_processes[m_firstAvailableIndex] = new AuxiliaryProcess(pid, page, connection);
-            m_processIndexes.put(pid, m_firstAvailableIndex);
-            m_firstAvailableIndex++;
-            while (m_firstAvailableIndex < MAX_AUX_PROCESSES) {
-                if (m_processes[m_firstAvailableIndex] == null) {
+            return m_firstAvailableSlot[processType.getValue()];
+        }
+
+        public void register(long pid, @NonNull WPEServiceConnection connection)
+        {
+            int typeIdx = connection.getProcessType().getValue();
+            int slot = m_firstAvailableSlot[typeIdx];
+            if (slot >= MAX_AUX_PROCESSES)
+                throw new IllegalStateException(
+                    "Limit exceeded spawning a new auxiliary process for " + connection.getProcessType().name());
+
+            assert (m_processes[typeIdx][slot] == null);
+            m_processes[typeIdx][slot] = new AuxiliaryProcess(slot, connection);
+            m_pidToProcessMap.put(pid, m_processes[typeIdx][slot]);
+
+            while (++m_firstAvailableSlot[typeIdx] < MAX_AUX_PROCESSES) {
+                if (m_processes[typeIdx][m_firstAvailableSlot[typeIdx]] == null)
                     break;
-                }
-                m_firstAvailableIndex++;
             }
         }
 
-        void unregister(long pid)
+        public void unregister(long pid)
         {
-            if (!m_processIndexes.containsKey(pid)) {
-                Log.w(LOGTAG, "Cannot unregister unregistered process " + pid);
+            AuxiliaryProcess process = m_pidToProcessMap.remove(pid);
+            if (process == null)
                 return;
-            }
-            int index = m_processIndexes.get(pid);
-            if (m_processes[index] == null) {
-                return;
-            }
-            m_processes[index].terminate();
-            m_processes[index] = null;
-            m_firstAvailableIndex = Math.min(index, m_firstAvailableIndex);
-        }
 
-        public int getFirstAvailableIndex()
-        {
-            return m_firstAvailableIndex;
+            process.terminate();
+
+            int typeIdx = process.getProcessType().getValue();
+            m_processes[typeIdx][process.getProcessSlot()] = null;
+            m_firstAvailableSlot[typeIdx] = Math.min(process.getProcessSlot(), m_firstAvailableSlot[typeIdx]);
         }
     }
 
@@ -385,49 +390,29 @@ public final class Browser
         }
     }
 
-    void launchAuxiliaryProcess(long pid, int processType, @NonNull int[] fds)
+    @WorkerThread
+    void launchAuxiliaryProcess(long pid, @NonNull ProcessType processType, int fd)
     {
-        Log.d(LOGTAG, "launchProcess of type " + processType + " pid " + pid);
-        Log.v(LOGTAG, "Got " + fds.length + " fds");
-        for (int i = 0; i < fds.length; ++i) {
-            Log.v(LOGTAG, "  [" + i + "] " + fds[i]);
-        }
-
-        int processSlot = m_auxiliaryProcesses.getFirstAvailableIndex();
-        Class cls;
-
-        try {
-            switch (processType) {
-            case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-                Log.v(LOGTAG, "Should launch WebProcess");
-                cls = Class.forName("com.wpe.wpe.services.WPEServices$WebProcessService" + processSlot);
-                break;
-            case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
-                Log.v(LOGTAG, "Should launch NetworkProcess");
-                cls = Class.forName("com.wpe.wpe.services.WPEServices$NetworkProcessService" + processSlot);
-                break;
-            default:
-                Log.v(LOGTAG, "Invalid process type");
-                return;
-            }
-        } catch (ClassNotFoundException e) {
-            Log.e(LOGTAG, "Could not launch auxiliary process", e);
-            return;
-        }
-
-        Parcelable[] parcelFds = new Parcelable[ /* fds.length */ 1];
-        for (int i = 0; i < parcelFds.length; ++i) {
-            parcelFds[i] = ParcelFileDescriptor.adoptFd(fds[i]);
-        }
+        Log.d(LOGTAG, "launch " + processType.name() + ", pid: " + pid + ", fd: " + fd);
 
         Page page = m_pages.get(m_activeView);
         if (page == null) {
-            Log.e(LOGTAG, "No active page. Cannot launch auxiliary process");
+            Log.e(LOGTAG, "Cannot launch auxiliary process (no active page)");
             return;
         }
 
-        WPEServiceConnection connection = page.launchService(processType, parcelFds, cls);
-        m_auxiliaryProcesses.register(pid, page, connection);
+        int processSlot = m_auxiliaryProcesses.getFirstAvailableSlot(processType);
+        Log.v(LOGTAG, "Should launch " + processType.name());
+
+        try {
+            Class<?> serviceClass = Class.forName("com.wpe.wpe.services.WPEServices$" + processType.name() + "Service" + processSlot);
+            ParcelFileDescriptor parcelFd = ParcelFileDescriptor.adoptFd(fd);
+
+            WPEServiceConnection connection = page.launchService(processType, parcelFd, serviceClass);
+            m_auxiliaryProcesses.register(pid, connection);
+        } catch (Exception e) {
+            Log.e(LOGTAG, "Cannot launch auxiliary process", e);
+        }
     }
 
     void terminateAuxiliaryProcess(long pid)
@@ -435,11 +420,13 @@ public final class Browser
         m_auxiliaryProcesses.unregister(pid);
     }
 
+    @WorkerThread
     public void setWebProcess(WPEServiceConnection process)
     {
         m_webProcess = process;
     }
 
+    @WorkerThread
     public void setNetworkProcess(WPEServiceConnection process)
     {
         m_networkProcess = process;
