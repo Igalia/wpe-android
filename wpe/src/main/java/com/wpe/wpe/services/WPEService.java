@@ -5,92 +5,46 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
-import android.os.Parcelable;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.wpe.wpe.IWPEService;
 
-public class WPEService extends Service
+public abstract class WPEService extends Service
 {
     private static final String LOGTAG = "WPEService";
 
-    public final IWPEService.Stub m_binder = new IWPEService.Stub()
+    protected abstract void setupServiceEnvironment();
+    protected abstract void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd);
+
+    private final IWPEService.Stub m_binder = new IWPEService.Stub()
     {
         @Override
-        public int connect(Bundle args)
+        public int connect(@NonNull Bundle args)
         {
             Log.v(LOGTAG, "IWPEService.Stub connect()");
+            final ParcelFileDescriptor parcelFd = args.getParcelable("fd");
 
-            Parcelable[] fdParcelables = args.getParcelableArray("fds");
-            ParcelFileDescriptor[] fds = new ParcelFileDescriptor[fdParcelables.length];
-            System.arraycopy(fdParcelables, 0, fds, 0, fdParcelables.length);
-
-            provideServiceFDs(fds);
-            return -1;
-        }
-    };
-
-    protected class WPEServiceProcessThread
-    {
-        private static final String LOGTAG = "WPEServiceProcessThread";
-        private Thread m_thread;
-        private WPEService m_service;
-        private ParcelFileDescriptor[] m_serviceFds = null;
-
-        WPEServiceProcessThread()
-        {
-            final WPEServiceProcessThread thisObj = this;
-            m_thread = new Thread(new Runnable()
+            new Thread(new Runnable()
             {
                 @Override
                 public void run()
                 {
-                    Log.v(LOGTAG, "Running");
-
-                    while (true) {
-                        ParcelFileDescriptor[] fds = null;
-
-                        synchronized (thisObj) {
-                            try {
-                                while (m_service == null) {
-                                    thisObj.wait();
-                                }
-                                while (m_serviceFds == null) {
-                                    thisObj.wait();
-                                }
-                            } catch (InterruptedException e) {
-                                Log.i(LOGTAG, "Interruption in WPEServiceProcessThread");
-                                break;
-                            }
-
-                            fds = m_serviceFds;
-                            m_serviceFds = null;
-                        }
-
-                        m_service.initializeService(fds);
-                    }
+                    WPEService.this.initializeServiceMain(parcelFd);
                 }
-            });
-            m_thread.start();
-        }
-    }
+            }).start();
 
-    static protected WPEServiceProcessThread m_serviceProcessThread;
+            return -1;
+        }
+    };
 
     @Override
     public void onCreate()
     {
         Log.i(LOGTAG, "onCreate()");
         super.onCreate();
-
-        if (m_serviceProcessThread == null) {
-            m_serviceProcessThread = new WPEServiceProcessThread();
-        }
-
-        synchronized (m_serviceProcessThread) {
-            m_serviceProcessThread.m_service = this;
-            m_serviceProcessThread.notifyAll();
-        }
+        setupServiceEnvironment();
     }
 
     @Override
@@ -106,14 +60,4 @@ public class WPEService extends Service
         Log.i(LOGTAG, "onDestroy()");
         super.onDestroy();
     }
-
-    private void provideServiceFDs(ParcelFileDescriptor[] fds)
-    {
-        synchronized (m_serviceProcessThread) {
-            m_serviceProcessThread.m_serviceFds = fds;
-            m_serviceProcessThread.notifyAll();
-        }
-    }
-
-    protected void initializeService(ParcelFileDescriptor[] fds) {}
 }

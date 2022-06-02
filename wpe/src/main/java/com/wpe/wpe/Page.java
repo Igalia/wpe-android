@@ -2,6 +2,7 @@ package com.wpe.wpe;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
 import android.util.Log;
 import android.view.inputmethod.InputMethodManager;
@@ -163,34 +164,34 @@ public class Page
     }
 
     @WorkerThread
-    public WPEServiceConnection launchService(int processType, Parcelable[] fds, Class cls)
+    public WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd, @NonNull Class<?> serviceClass)
     {
-        // This runs in the UIProcess thread.
-        Log.v(LOGTAG, "launchService type: " + processType);
-        Intent intent = new Intent(m_context, cls);
+        Log.v(LOGTAG, "launchService type: " + processType.name());
+        Intent intent = new Intent(m_context, serviceClass);
 
-        WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, fds);
+        WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, parcelFd);
         switch (processType) {
-        case WPEServiceConnection.PROCESS_TYPE_WEBPROCESS:
-            // FIXME: we probably want to kill the current web process here if any exists when
-            //        PSON is enabled.
+        case WebProcess:
+            // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.
             m_browser.setWebProcess(serviceConnection);
             break;
-        case WPEServiceConnection.PROCESS_TYPE_NETWORKPROCESS:
+
+        case NetworkProcess:
             m_browser.setNetworkProcess(serviceConnection);
             break;
+
         default:
             throw new IllegalArgumentException("Unknown process type");
         }
+
         m_context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
         return serviceConnection;
     }
 
     @WorkerThread
-    public void stopService(WPEServiceConnection serviceConnection)
+    public void stopService(@NonNull WPEServiceConnection serviceConnection)
     {
-        Log.d(LOGTAG, "stopService type: " + serviceConnection.processType());
-        // This runs in the UIProcess thread.
+        Log.v(LOGTAG, "stopService type: " + serviceConnection.getProcessType().name());
         // FIXME: Until we fully support PSON, we won't do anything here.
     }
 

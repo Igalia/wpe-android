@@ -6,6 +6,10 @@ import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
+import com.wpe.wpe.ProcessType;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
@@ -21,11 +25,8 @@ public class WebProcessService extends WPEService
     private static final String assetsVersion = "web_process_assets_v1";
 
     @Override
-    public void onCreate()
+    protected void setupServiceEnvironment()
     {
-        Log.v(LOGTAG, "onCreate");
-        super.onCreate();
-
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0");
@@ -128,14 +129,9 @@ public class WebProcessService extends WPEService
     }
 
     @Override
-    protected void initializeService(ParcelFileDescriptor[] fds)
+    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd)
     {
-        Log.v(LOGTAG, "initializeService(), got " + fds.length + " fds");
-        for (int i = 0; i < fds.length; ++i) {
-            Log.v(LOGTAG, " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
-        }
-
-        Log.i(LOGTAG, "about to start main()");
-        WebProcessGlue.initializeMain(fds[0].detachFd(), /* fds[1].detachFd() */ -1);
+        Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
+        WebProcessGlue.initializeMain(ProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
 }

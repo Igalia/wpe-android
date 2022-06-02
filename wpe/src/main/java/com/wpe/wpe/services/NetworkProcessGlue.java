@@ -1,8 +1,7 @@
 package com.wpe.wpe.services;
 
-public class NetworkProcessGlue
+public final class NetworkProcessGlue
 {
-
     static {
         // To debug the sub-process with Android Studio (Java and native code), you must:
         // 1- Uncomment the following instruction to wait for the debugger when class is loaded.
@@ -15,6 +14,6 @@ public class NetworkProcessGlue
         System.loadLibrary("WPENetworkProcessGlue");
     }
 
-    public static native void initializeMain(int fd);
     public static native void setupEnvironment(String[] envStringsArray);
+    public static native void initializeMain(int processType, int fd);
 }

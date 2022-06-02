@@ -1,6 +1,6 @@
 package com.wpe.wpe.services;
 
-public class WebProcessGlue
+public final class WebProcessGlue
 {
     static {
         // To debug the sub-process with Android Studio (Java and native code), you must:
@@ -15,6 +15,6 @@ public class WebProcessGlue
         System.loadLibrary("WPEWebProcessGlue");
     }
 
-    public static native void initializeMain(int fd1, int fd2);
     public static native void setupEnvironment(String[] envStringsArray);
+    public static native void initializeMain(int processType, int fd);
 }

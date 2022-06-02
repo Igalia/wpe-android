@@ -4,6 +4,10 @@ import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
+import com.wpe.wpe.ProcessType;
+
 import java.io.File;
 
 public class NetworkProcessService extends WPEService
@@ -15,12 +19,9 @@ public class NetworkProcessService extends WPEService
     private static final String assetsVersion = "network_process_assets_v1";
 
     @Override
-    public void onCreate()
+    protected void setupServiceEnvironment()
     {
-        super.onCreate();
-
         Context context = getApplicationContext();
-
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gio");
             ServiceUtils.saveAssetsVersion(context, assetsVersion);
@@ -34,12 +35,9 @@ public class NetworkProcessService extends WPEService
     }
 
     @Override
-    protected void initializeService(ParcelFileDescriptor[] fds)
+    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd)
     {
-        Log.v(LOGTAG, "initializeService(), got " + fds.length + " fds");
-        for (int i = 0; i < fds.length; ++i) {
-            Log.v(LOGTAG, " [" + i + "] fd " + fds[i].toString() + " native value " + fds[i].getFd());
-        }
-        NetworkProcessGlue.initializeMain(fds[0].detachFd());
+        Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
+        NetworkProcessGlue.initializeMain(ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }
