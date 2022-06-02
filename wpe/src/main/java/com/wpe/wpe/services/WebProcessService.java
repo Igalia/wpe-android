@@ -34,7 +34,7 @@ public class WebProcessService extends WPEService
             ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
 
-        List<String> envStrings = new ArrayList<>(44);
+        List<String> envStrings = new ArrayList<>(46);
         envStrings.add("FONTCONFIG_PATH");
         envStrings.add(new File(context.getFilesDir(), "fontconfig").getAbsolutePath());
 
@@ -59,6 +59,8 @@ public class WebProcessService extends WPEService
         envStrings.add("TEMP");
         envStrings.add(cachePath);
         envStrings.add("TMPDIR");
+        envStrings.add(cachePath);
+        envStrings.add("WPE_SHELL_MEDIA_DISK_CACHE_PATH");
         envStrings.add(cachePath);
         envStrings.add("XDG_CACHE_HOME");
         envStrings.add(cachePath);
