@@ -14,7 +14,7 @@ public:
     PageEventObserver(const PageEventObserver&) = delete;
     PageEventObserver& operator=(const PageEventObserver&) = delete;
 
-    static constexpr int NB_JAVA_METHODS = 6;
+    static constexpr int NB_JAVA_METHODS = 8;
 
     void onLoadChanged(WebKitLoadEvent loadEvent);
     void onLoadProgress(double progress);
@@ -23,6 +23,9 @@ public:
 
     void onInputMethodContextIn();
     void onInputMethodContextOut();
+
+    void enterFullscreenMode();
+    void exitFullscreenMode();
 
 private:
     template<typename... Args>

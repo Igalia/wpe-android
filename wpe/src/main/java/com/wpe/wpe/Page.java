@@ -11,7 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
-import com.wpe.wpe.gfx.View;
+import com.wpe.wpe.gfx.WPESurfaceView;
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
 
@@ -46,7 +46,7 @@ public class Page
     private final int m_width;
     private final int m_height;
 
-    private View m_view;
+    private WPESurfaceView m_view;
     private boolean m_viewReady = false;
 
     private boolean m_pageGlueReady = false;
@@ -103,8 +103,8 @@ public class Page
         m_width = wpeView.getMeasuredWidth();
         m_height = wpeView.getMeasuredHeight();
 
-        m_view = new View(m_context, pageId, wpeView);
-        m_wpeView.onViewCreated(m_view);
+        m_view = new WPESurfaceView(m_context, pageId, wpeView);
+        m_wpeView.onSurfaceViewCreated(m_view);
         onViewReady();
 
         ensurePageGlue();
@@ -155,7 +155,7 @@ public class Page
     public void onViewReady()
     {
         Log.d(LOGTAG, "onViewReady");
-        m_wpeView.onViewReady(m_view);
+        m_wpeView.onSurfaceViewReady(m_view);
         m_viewReady = true;
         if (m_pageGlueReady) {
             loadUrlInternal();
@@ -194,7 +194,7 @@ public class Page
         // FIXME: Until we fully support PSON, we won't do anything here.
     }
 
-    public View view()
+    public WPESurfaceView view()
     {
         return m_view;
     }
@@ -255,6 +255,25 @@ public class Page
     public void onInputMethodContextOut()
     {
         dismissKeyboard();
+    }
+
+    public void enterFullscreenMode()
+    {
+        Log.v(LOGTAG, "enterFullscreenMode");
+        m_wpeView.enterFullScreen();
+    }
+
+    public void exitFullscreenMode()
+    {
+        Log.v(LOGTAG, "exitFullscreenMode");
+        m_wpeView.exitFullScreen();
+    }
+
+    public void requestExitFullscreenMode()
+    {
+        if (m_pageGlueReady) {
+            BrowserGlue.requestExitFullscreenMode(m_id);
+        }
     }
 
     public boolean canGoBack()

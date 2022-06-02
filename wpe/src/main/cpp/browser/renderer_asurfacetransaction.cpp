@@ -54,8 +54,6 @@ void RendererASurfaceTransaction::surfaceCreated(ANativeWindow* window)
 void RendererASurfaceTransaction::surfaceChanged(int format, unsigned width, unsigned height)
 {
     // Update the size.
-    // FIXME: currently neither the format nor the stored size are used anywhere.
-    // https://github.com/Igalia/wpe-android/issues/36
     m_size.width = width;
     m_size.height = height;
 }

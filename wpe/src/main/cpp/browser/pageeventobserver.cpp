@@ -13,7 +13,9 @@ enum class JavaMethodTag : int
     ON_URI_CHANGED,
     ON_TITLE_CHANGED,
     ON_INPUT_METHOD_CONTEXT_IN,
-    ON_INPUT_METHOD_CONTEXT_OUT
+    ON_INPUT_METHOD_CONTEXT_OUT,
+    ENTER_FULLSCREEN_MODE,
+    EXIT_FULLSCREEN_MODE
 };
 
 struct JavaMethodDesc
@@ -28,7 +30,9 @@ constexpr JavaMethodDesc javaMethods[PageEventObserver::NB_JAVA_METHODS] = {
         { "onUriChanged",            "(Ljava/lang/String;)V" },
         { "onTitleChanged",          "(Ljava/lang/String;ZZ)V" },
         { "onInputMethodContextIn",  "()V" },
-        { "onInputMethodContextOut", "()V" }
+        { "onInputMethodContextOut", "()V" },
+        { "enterFullscreenMode",     "()V" },
+        { "exitFullscreenMode",      "()V" }
 };
 }; // namespace
 
@@ -119,4 +123,14 @@ void PageEventObserver::onInputMethodContextIn()
 void PageEventObserver::onInputMethodContextOut()
 {
     callJavaVoidMethod(static_cast<int>(JavaMethodTag::ON_INPUT_METHOD_CONTEXT_OUT));
+}
+
+void PageEventObserver::enterFullscreenMode()
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::ENTER_FULLSCREEN_MODE));
+}
+
+void PageEventObserver::exitFullscreenMode()
+{
+    callJavaVoidMethod(static_cast<int>(JavaMethodTag::EXIT_FULLSCREEN_MODE));
 }

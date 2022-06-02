@@ -160,6 +160,12 @@ void deleteInputMethodContent(JNIEnv*, jclass, jint pageId, jint offset)
     ALOGV("BrowserGlue::deleteInputMethodContent(%d, %d) [tid %d]", pageId, offset, gettid());
     Browser::getInstance().deleteInputMethodContent(pageId, offset);
 }
+
+void requestExitFullscreenMode(JNIEnv*, jclass, jint pageId)
+{
+    ALOGV("BrowserGlue::requestExitFullscreen(%d) [tid %d]", pageId, gettid());
+    Browser::getInstance().requestExitFullscreen(pageId);
+}
 } // namespace
 
 JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, int processType, int* fds)
@@ -235,25 +241,26 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
         return JNI_ERR;
 
     static const JNINativeMethod methods[] = {
-            { "setupEnvironment",         "(Ljava/lang/String;)V",                      reinterpret_cast<void*>(setupEnvironment) },
-            { "init",                     "(Lcom/wpe/wpe/BrowserGlue;)V",               reinterpret_cast<void*>(init) },
-            { "initLooperHelper",         "()V",                                        reinterpret_cast<void*>(initLooperHelper) },
-            { "shut",                     "()V",                                        reinterpret_cast<void*>(shut) },
-            { "newPage",                  "(Lcom/wpe/wpe/Page;IIILjava/lang/String;)V", reinterpret_cast<void*>(newPage) },
-            { "closePage",                "(I)V",                                       reinterpret_cast<void*>(closePage) },
-            { "loadURL",                  "(ILjava/lang/String;)V",                     reinterpret_cast<void*>(loadURL) },
-            { "goBack",                   "(I)V",                                       reinterpret_cast<void*>(goBack) },
-            { "goForward",                "(I)V",                                       reinterpret_cast<void*>(goForward) },
-            { "stopLoading",              "(I)V",                                       reinterpret_cast<void*>(stopLoading) },
-            { "reload",                   "(I)V",                                       reinterpret_cast<void*>(reload) },
-            { "surfaceCreated",           "(ILandroid/view/Surface;)V",                 reinterpret_cast<void*>(surfaceCreated) },
-            { "surfaceChanged",           "(IIII)V",                                    reinterpret_cast<void*>(surfaceChanged) },
-            { "surfaceRedrawNeeded",      "(I)V",                                       reinterpret_cast<void*>(surfaceRedrawNeeded) },
-            { "surfaceDestroyed",         "(I)V",                                       reinterpret_cast<void*>(surfaceDestroyed) },
-            { "touchEvent",               "(IJIFF)V",                                   reinterpret_cast<void*>(touchEvent) },
-            { "setZoomLevel",             "(ID)V",                                      reinterpret_cast<void*>(setZoomLevel) },
-            { "setInputMethodContent",    "(IC)V",                                      reinterpret_cast<void*>(setInputMethodContent) },
-            { "deleteInputMethodContent", "(II)V",                                      reinterpret_cast<void*>(deleteInputMethodContent) }
+            { "setupEnvironment",          "(Ljava/lang/String;)V",                      reinterpret_cast<void*>(setupEnvironment) },
+            { "init",                      "(Lcom/wpe/wpe/BrowserGlue;)V",               reinterpret_cast<void*>(init) },
+            { "initLooperHelper",          "()V",                                        reinterpret_cast<void*>(initLooperHelper) },
+            { "shut",                      "()V",                                        reinterpret_cast<void*>(shut) },
+            { "newPage",                   "(Lcom/wpe/wpe/Page;IIILjava/lang/String;)V", reinterpret_cast<void*>(newPage) },
+            { "closePage",                 "(I)V",                                       reinterpret_cast<void*>(closePage) },
+            { "loadURL",                   "(ILjava/lang/String;)V",                     reinterpret_cast<void*>(loadURL) },
+            { "goBack",                    "(I)V",                                       reinterpret_cast<void*>(goBack) },
+            { "goForward",                 "(I)V",                                       reinterpret_cast<void*>(goForward) },
+            { "stopLoading",               "(I)V",                                       reinterpret_cast<void*>(stopLoading) },
+            { "reload",                    "(I)V",                                       reinterpret_cast<void*>(reload) },
+            { "surfaceCreated",            "(ILandroid/view/Surface;)V",                 reinterpret_cast<void*>(surfaceCreated) },
+            { "surfaceChanged",            "(IIII)V",                                    reinterpret_cast<void*>(surfaceChanged) },
+            { "surfaceRedrawNeeded",       "(I)V",                                       reinterpret_cast<void*>(surfaceRedrawNeeded) },
+            { "surfaceDestroyed",          "(I)V",                                       reinterpret_cast<void*>(surfaceDestroyed) },
+            { "touchEvent",                "(IJIFF)V",                                   reinterpret_cast<void*>(touchEvent) },
+            { "setZoomLevel",              "(ID)V",                                      reinterpret_cast<void*>(setZoomLevel) },
+            { "setInputMethodContent",     "(IC)V",                                      reinterpret_cast<void*>(setInputMethodContent) },
+            { "deleteInputMethodContent",  "(II)V",                                      reinterpret_cast<void*>(deleteInputMethodContent) },
+            { "requestExitFullscreenMode", "(I)V",                                       reinterpret_cast<void*>(requestExitFullscreenMode) }
     };
     int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
     env->DeleteLocalRef(klass);

@@ -112,6 +112,7 @@ PAGE_METHOD_PROXY(stopLoading, stopLoading, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(reload, reload, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(surfaceRedrawNeeded, surfaceRedrawNeeded, G_PRIORITY_DEFAULT)
 PAGE_METHOD_PROXY(surfaceDestroyed, surfaceDestroyed, G_PRIORITY_DEFAULT)
+PAGE_METHOD_PROXY(requestExitFullscreen, requestExitFullscreen, G_PRIORITY_DEFAULT)
 
 void Browser::surfaceCreated(int pageId, ANativeWindow* window)
 {

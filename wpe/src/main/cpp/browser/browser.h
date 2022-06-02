@@ -59,6 +59,8 @@ public:
     void setInputMethodContent(int pageId, const char c);
     void deleteInputMethodContent(int pageId, int offset);
 
+    void requestExitFullscreen(int pageId);
+
 private:
     Browser() = default;
 

@@ -132,7 +132,7 @@ public class com.wpe.wpe.Page {
     descriptor: Ljava/lang/String;
   private final com.wpe.wpe.BrowserGlue m_glue;
     descriptor: Lcom/wpe/wpe/BrowserGlue;
-  private final com.wpe.wpe.gfx.View m_view;
+  private final com.wpe.wpe.gfx.WPESurfaceView m_view;
     descriptor: Lcom/wpe/wpe/gfx/View;
   private final android.content.Context m_context;
     descriptor: Landroid/content/Context;
@@ -140,7 +140,7 @@ public class com.wpe.wpe.Page {
     descriptor: Ljava/util/ArrayList;
   private long m_webViewRef;
     descriptor: J
-  public com.wpe.wpe.Page(android.content.Context, java.lang.String, com.wpe.wpe.gfx.View, com.wpe.wpe.BrowserGlue);
+  public com.wpe.wpe.Page(android.content.Context, java.lang.String, com.wpe.wpe.gfx.WPESurfaceView, com.wpe.wpe.BrowserGlue);
     descriptor: (Landroid/content/Context;Ljava/lang/String;Lcom/wpe/wpe/gfx/View;Lcom/wpe/wpe/BrowserGlue;)V
 
   public void close();
@@ -158,7 +158,7 @@ public class com.wpe.wpe.Page {
   public void dropService(com.wpe.wpe.services.WPEServiceConnection);
     descriptor: (Lcom/wpe/wpe/services/WPEServiceConnection;)V
 
-  public com.wpe.wpe.gfx.View view();
+  public com.wpe.wpe.gfx.WPESurfaceView view();
     descriptor: ()Lcom/wpe/wpe/gfx/View;
 
   public void loadUrl(java.lang.String);
