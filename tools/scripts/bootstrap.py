@@ -14,7 +14,7 @@ the following Cerbero command:
 where `<android_abi>` varies depending on the given architecture target.
 
 The logic for this command is in the WPEWebKit packaging recipe in Cerbero's repo:
-https://github.com/Igalia/cerbero/blob/18f3346042abfa9455bc270019a3c337fae23018/packages/wpewebkit.package
+https://github.com/Igalia/cerbero/blob/wpe-android/packages/wpewebkit.package
 
 This command triggers the build for all WPEWebKit dependencies. After that WPEWebKit itself
 is built. You can find the recipes for all dependencies and WPEWebKit build in the
@@ -22,7 +22,7 @@ is built. You can find the recipes for all dependencies and WPEWebKit build in t
 
 Once WPEWebKit and all dependencies are built, the packaging step starts.
 The list of assets that are packaged is defined by the `files` variable in the packaging recipe.
-The syntax `wpeandroid:libs:stl` means 'from the recipe wpeandroid, include the libraries
+The syntax `wpeandroid:libs:stl` means from the recipe wpeandroid, include the libraries
 (`files_libs` in the recipe) and the STL lib (`files_stl` in the recipe).
 You can think of the `:` separating the file types as commas in a list. For most recipes
 we only care about the libraries, except for WPEWebKit from which we want everything.
@@ -41,10 +41,8 @@ become libfoo_1.so. Apart from renaming the actual library files, we need to twe
 SONAME and NEEDED values as well to reflect the name changes. We also need to take care of
 the symbolic links to reflect the naming changes.
 
-
 The final step is to copy the needed headers and processed libraries into its corresponding
-location within the `wpe` project. This is done by the `__install_deps` function.
-
+location within the `wpe` project. This is done by the `install_deps()` function.
 """
 
 import argparse
@@ -52,57 +50,88 @@ import os
 import re
 import shutil
 import subprocess
-
+import sys
+import fileinput
 from pathlib import Path
+from urllib.request import urlretrieve
 
-URL_TEMPLATE = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
 
 class Bootstrap:
-    def __init__(self, args):
-        # TODO: Allow passing a version string in the command line.
-        self.__version = '2.34.6'
-        self.__arch = args.arch
-        self.__cerbero_path = args.cerbero
-        self.__build = args.build
-        self.__debug = args.debug
-        self.__root = os.getcwd()
-        self.__build_dir = os.path.join(os.getcwd(), 'build')
-        # These are the libraries that the glue code link with, and are required during build
-        # time. These libraries go into the `imported` folder and cannot go into the `jniFolder`
-        # to avoid a duplicated library issue.
-        self.__build_libs = [
-            'glib-2.0',
-            'libgio-2.0.so',
-            'libglib-2.0.so',
-            'libgmodule-2.0.so',
-            'libgobject-2.0.so',
-            'libwpe-1.0.so',
-            'libWPEWebKit-1.0.so',
-            'libWPEWebKit-1.0_3.so',
-            'libWPEWebKit-1.0_3.11.7.so'
-        ]
-        self.__build_includes = [
-            ['glib-2.0', 'glib-2.0'],
-            ['libsoup-2.4', 'libsoup-2.4'],
-            ['wpe-1.0', 'wpe'],
-            ['wpe-android', 'wpe-android'],
-            ['wpe-webkit-1.0', 'wpe-webkit'],
-            ['xkbcommon', 'xkbcommon']
-        ]
-        self.__soname_replacements = [
-            ('libnettle.so.6', 'libnettle_6.so'), # This entry is not retrievable from the packaged libnettle.so
-            ('libWPEWebKit-1.0.so.3', 'libWPEWebKit-1.0_3.so') # This is for libWPEInjectedBundle.so
-        ]
-        self.__base_needed = set(['libWPEWebKit-1.0_3.so'])
-        self.__wpewebkit_binary = 'wpewebkit-android-%s-%s.tar.xz' %(self.__arch, self.__version)
-        self.__wpewebkit_runtime_binary = 'wpewebkit-android-%s-%s-runtime.tar.xz' %(self.__arch, self.__version)
+    default_arch = "arm64"
+    default_version = "2.34.6"
 
+    _cerbero_origin = "https://github.com/Igalia/cerbero.git"
+    _cerbero_branch = "wpe-android"
 
-    def __fetch_binary(self, filename):
-        from urllib.request import urlretrieve
-        import sys
+    _packages_url_template = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
+    _devel_package_name_template = "wpewebkit-android-{arch}-{version}.tar.xz"
+    _runtime_package_name_template = "wpewebkit-android-{arch}-{version}-runtime.tar.xz"
 
-        url = URL_TEMPLATE.format(version=self.__version, filename=filename)
+    # These are the libraries that the glue code link with and that are required during build
+    # time. These libraries go into the `imported` folder and cannot go into the `jniLibs`
+    # folder to avoid duplicated libraries.
+    _build_libs = [
+        "glib-2.0",
+        "libgio-2.0.so",
+        "libglib-2.0.so",
+        "libgmodule-2.0.so",
+        "libgobject-2.0.so",
+        "libwpe-1.0.so",
+        "libWPEWebKit-1.0.so",
+        "libWPEWebKit-1.0_3.so",
+        "libWPEWebKit-1.0_3.11.7.so"
+    ]
+    _build_includes = [
+        ("glib-2.0", "glib-2.0"),
+        ("libsoup-2.4", "libsoup-2.4"),
+        ("wpe-1.0", "wpe"),
+        ("wpe-android", "wpe-android"),
+        ("wpe-webkit-1.0", "wpe-webkit"),
+        ("xkbcommon", "xkbcommon")
+    ]
+    _soname_replacements = [
+        ("libnettle.so.6", "libnettle_6.so"),  # This entry is not retrievable from the packaged libnettle.so
+        ("libWPEWebKit-1.0.so.3", "libWPEWebKit-1.0_3.so")  # This is for libWPEInjectedBundle.so
+    ]
+    _base_needed = ["libWPEWebKit-1.0_3.so"]
+
+    def __init__(self, args=None):
+        args = args or {}
+        if not isinstance(args, dict):
+            args = vars(args)
+
+        self._arch = args["arch"] if "arch" in args else self.default_arch
+        self.default_version = args["version"] if "version" in args else self.default_version
+        self._external_cerbero_build_path = args["cerbero"] if "cerbero" in args else None
+        self._build = args["build"] if "build" in args else False
+        self._debug = args["debug"] if "debug" in args else False
+
+        if self._external_cerbero_build_path:
+            self._build = False
+
+        self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+        self._project_build_dir = os.path.join(self._project_root_dir, "build")
+        self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot")
+        self._cerbero_root_dir = os.path.join(self._external_cerbero_build_path or self._project_build_dir, "cerbero")
+
+        self._cerbero_command_args = [
+            os.path.join(self._cerbero_root_dir, "cerbero-uninstalled"),
+            "-c",
+            os.path.join(self._cerbero_root_dir, "config", f"cross-android-{self._arch}")
+        ]
+
+    def _get_package_version(self, package_name):
+        output = subprocess.check_output(self._cerbero_command_args + ["packageinfo", package_name], encoding="utf-8")
+        m = re.search(r"Version:\s+([0-9.]+)", output)
+        if m:
+            return m.group(1)
+        else:
+            raise Exception(f"Cannot find version for package {package_name}")
+
+    def _download_package(self, version, filename):
+        url = self._packages_url_template.format(version=version, filename=filename)
+        target = os.path.join(self._project_build_dir, filename)
+        os.makedirs(self._project_build_dir, exist_ok=True)
 
         if os.isatty(sys.stdout.fileno()):
             def report(count, block_size, total_size):
@@ -112,208 +141,204 @@ class Bootstrap:
         else:
             report = None
 
-        print(f"  {url} ...", flush=True, end="")
-        urlretrieve(url , filename, reporthook=report)
+        print(f"  {url} ... ", flush=True, end="")
+        urlretrieve(url, target, report)
         print(f"\r\x1B[J  {url} - done")
 
-    def __fetch_binaries(self):
-        assert(self.__build == False)
-        print('Fetching binaries...')
-        if not os.path.isdir(self.__build_dir):
-            os.mkdir(self.__build_dir)
-        os.chdir(self.__build_dir)
-        self.__fetch_binary(self.__wpewebkit_binary)
-        self.__fetch_binary(self.__wpewebkit_runtime_binary)
+    def download_all_packages(self, version):
+        print("Downloading packages...")
+        self._download_package(version, self._devel_package_name_template.format(arch=self._arch, version=version))
+        self._download_package(version, self._runtime_package_name_template.format(arch=self._arch, version=version))
 
-    def __copy_binaries_from_existing_cerbero_checkout(self):
-        assert(self.__build == False)
-        print('Copying binaries from existing Cerbero checkout at {} ...'.format(self.__cerbero_path))
+    def copy_all_packages_from_external_cerbero_build(self):
+        if not self._external_cerbero_build_path:
+            raise Exception("Illegal configuration: Cerbero external build path is not specified")
 
-        if not os.path.isdir(self.__build_dir):
-            os.mkdir(self.__build_dir)
+        print(f"Copying packages from existing Cerbero build at {self._external_cerbero_build_path} ...")
 
-        wpewebkit_path = os.path.join(self.__cerbero_path, self.__wpewebkit_binary)
-        if not os.path.exists(wpewebkit_path):
-            raise Exception('Unable to find Cerbero build product \'{}\''.format(self.__wpewebkit_binary))
-        print('Copying {} into {}'.format(self.__wpewebkit_binary, self.__build_dir))
-        shutil.copy(wpewebkit_path, os.path.join(self.__build_dir, self.__wpewebkit_binary))
-
-        wpewebkit_runtime_path = os.path.join(self.__cerbero_path, self.__wpewebkit_runtime_binary)
-        if not os.path.exists(wpewebkit_runtime_path):
-            raise Exception('Unable to find Cerbero build product \'{}\''.format(self.__wpewebkit_runtime_binary))
-        print('Copying {} into {}'.format(self.__wpewebkit_runtime_binary, self.__build_dir))
-        shutil.copy(wpewebkit_runtime_path, os.path.join(self.__build_dir, self.__wpewebkit_runtime_binary))
-
-    def __cerbero_command(self, args):
-        cerbero_path = os.path.join(self.__build_dir, 'cerbero')
-        os.chdir(cerbero_path)
-        command = [
-            './cerbero-uninstalled', '-c',
-            '%s/config/cross-android-%s' %(cerbero_path, self.__arch)
+        version = self._get_package_version("wpewebkit")
+        filenames = [
+            self._devel_package_name_template.format(arch=self._arch, version=version),
+            self._runtime_package_name_template.format(arch=self._arch, version=version)
         ]
-        command += args
-        subprocess.call(command)
 
-    def __patch_wk_for_debug_build(self):
-        wk_recipe_path = os.path.join(self.__build_dir, 'cerbero', 'recipes', 'wpewebkit.recipe')
-        with open(wk_recipe_path, 'r') as recipe_file:
-            recipe_contents = recipe_file.read()
-        recipe_contents = recipe_contents.replace('-DLOG_DISABLED=1', '-DLOG_DISABLED=0')
-        recipe_contents = recipe_contents.replace('-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_BUILD_TYPE=Debug')
-        recipe_contents = recipe_contents.replace('self.append_env(\'WEBKIT_DEBUG\', \'\')', 'self.append_env(\'WEBKIT_DEBUG\', \'all\')')
-        with open(wk_recipe_path, 'w') as recipe_file:
-            recipe_file.write(recipe_contents)
+        os.makedirs(self._project_build_dir, exist_ok=True)
+        for filename in filenames:
+            src = os.path.join(self._external_cerbero_build_path, filename)
+            dest = os.path.join(self._project_build_dir, filename)
 
-        wk_package_path = os.path.join(self.__build_dir, 'cerbero', 'packages', 'wpewebkit.package')
-        with open(wk_package_path, 'r') as package_file:
-            package_contents = package_file.read()
-        package_contents = package_contents.replace('strip = True', 'strip = False')
-        with open(wk_package_path, 'w') as package_file:
-            package_file.write(package_contents)
+            if not os.path.exists(src):
+                raise Exception(f"Unable to find package {src}")
 
-    def __ensure_cerbero(self):
-        origin = 'https://github.com/Igalia/cerbero.git'
-        branch = 'wpe-android'
+            print(f"Copying {src} into {dest}")
+            shutil.copyfile(src, dest)
 
-        cerbero_path = os.path.join(self.__build_dir, 'cerbero')
-        if os.path.isdir(cerbero_path) and os.path.isfile(os.path.join(cerbero_path, 'cerbero-uninstalled')):
-            os.chdir(cerbero_path)
-            subprocess.call(['git', 'reset', '--hard', 'origin/' + branch])
-            subprocess.call(['git', 'pull', 'origin', branch])
-            os.chdir(self.__root)
+        return version
+
+    def _patch_wpewebkit_recipe_for_debug_build(self):
+        assert self._build, "build mode should be activated"
+        assert self._debug, "debug mode should be activated"
+
+        recipe_path = os.path.join(self._cerbero_root_dir, "recipes", "wpewebkit.recipe")
+        with fileinput.FileInput(recipe_path, inplace=True) as file:
+            for line in file:
+                line = line.replace("-DLOG_DISABLED=1", "-DLOG_DISABLED=0")
+                line = line.replace("-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_BUILD_TYPE=Debug")
+                line = line.replace("self.append_env('WEBKIT_DEBUG', '')", "self.append_env('WEBKIT_DEBUG', 'all')")
+                print(line, end="")
+
+        package_path = os.path.join(self._cerbero_root_dir, "packages", "wpewebkit.package")
+        with fileinput.FileInput(package_path, inplace=True) as file:
+            for line in file:
+                line = line.replace("strip = True", "strip = False")
+                print(line, end="")
+
+    def ensure_cerbero(self):
+        if not self._build:
+            raise Exception("Illegal configuration: build mode is not specified")
+
+        if os.path.isdir(self._cerbero_root_dir):
+            print("Updating Cerbero git repository...")
+            subprocess.check_call(
+                ["git", "reset", "--hard", f"origin/{self._cerbero_branch}"], cwd=self._cerbero_root_dir)
+            subprocess.check_call(["git", "pull", "origin", self._cerbero_branch], cwd=self._cerbero_root_dir)
         else:
-            if os.path.isdir(self.__build_dir):
-                shutil.rmtree(self.__build_dir)
-            os.mkdir(self.__build_dir)
-            os.chdir(self.__build_dir)
-            subprocess.call(['git', 'clone', '--branch', branch, origin, 'cerbero'])
+            print("Cloning Cerbero git repository...")
+            os.makedirs(self._project_build_dir, exist_ok=True)
+            subprocess.check_call(["git", "clone", "--branch", self._cerbero_branch,
+                                  self._cerbero_origin, "cerbero"], cwd=self._project_build_dir)
 
-        self.__cerbero_command(['bootstrap'])
+        subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+        if self._debug:
+            self._patch_wpewebkit_recipe_for_debug_build()
 
-        if self.__debug:
-            self.__patch_wk_for_debug_build()
+    def build_deps(self):
+        if not self._build:
+            raise Exception("Illegal configuration: build mode is not specified")
 
-    def __build_deps(self):
-        self.__cerbero_command(['package', '-o', self.__build_dir, '-f', 'wpewebkit'])
+        print("Building dependencies with Cerbero...")
 
-    def __extract_deps(self):
-        os.chdir(self.__build_dir)
-        sysroot = os.path.join(self.__build_dir, 'sysroot')
-        if os.path.isdir(sysroot):
-            shutil.rmtree(sysroot)
-        os.mkdir(sysroot)
+        os.makedirs(self._project_build_dir, exist_ok=True)
+        subprocess.check_call(self._cerbero_command_args +
+                              ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+        return self._get_package_version("wpewebkit")
 
-        devel_file_path = os.path.join(self.__build_dir, self.__wpewebkit_binary)
-        subprocess.call(['tar', 'xf', devel_file_path, '-C', sysroot, 'include', 'lib/glib-2.0'])
+    def extract_deps(self, version):
+        print("Extracting dependencies packages...")
 
-        runtime_file_path = os.path.join(self.__build_dir, self.__wpewebkit_runtime_binary)
-        subprocess.call(['tar', 'xf', runtime_file_path, '-C', sysroot, 'lib'])
+        shutil.rmtree(self._sysroot_dir, True)
+        os.makedirs(self._sysroot_dir)
 
-    def __copy_headers(self, sysroot_dir, include_dir):
-        if os.path.exists(include_dir):
-            shutil.rmtree(include_dir)
-        os.makedirs(include_dir)
+        devel_file_path = os.path.join(self._project_build_dir,
+                                       self._devel_package_name_template.format(arch=self._arch, version=version))
+        subprocess.check_call(["tar", "xf", devel_file_path, "-C", self._sysroot_dir, "include", "lib/glib-2.0"])
 
-        for header in self.__build_includes:
-            shutil.copytree(os.path.join(sysroot_dir, 'include', header[0]),
-                            os.path.join(include_dir, header[1]))
+        runtime_file_path = os.path.join(self._project_build_dir,
+                                         self._runtime_package_name_template.format(arch=self._arch, version=version))
+        subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib"])
 
-    def __adjust_soname(self, initial):
-        if initial.endswith('.so'):
-            return initial
+    def _copy_headers(self, target_include_dir):
+        shutil.rmtree(target_include_dir, True)
+        os.makedirs(target_include_dir)
 
-        split = initial.split('.')
-        assert len(split) > 2
-        if split[-2] == 'so':
-            return '.'.join(split[:-2]) + '_' + split[-1] + '.so'
-        elif split[-3] == 'so':
-            return '.'.join(split[:-3]) + '_' + split[-2] + '_' + split[-1] + '.so'
+        for header in self._build_includes:
+            shutil.copytree(os.path.join(self._sysroot_dir, "include", header[0]),
+                            os.path.join(target_include_dir, header[1]))
 
-    def __read_elf(self, lib_path):
+    def _adjust_soname(self, original_soname):
+        if original_soname.endswith(".so"):
+            return original_soname
+
+        split_name = original_soname.split(".")
+        if len(split_name) > 2:
+            if split_name[-2] == "so":
+                return ".".join(split_name[:-2]) + "_" + split_name[-1] + ".so"
+            elif split_name[-3] == "so":
+                return ".".join(split_name[:-3]) + "_" + split_name[-2] + "_" + split_name[-1] + ".so"
+
+        raise Exception(f"Invalid soname: {original_soname}")
+
+    def _read_elf(self, lib_path):
         soname_list = []
         needed_list = []
 
-        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE, env=dict(os.environ, LC_ALL="C"))
-        (stdout, stderr) = p.communicate()
+        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE,
+                             env=dict(os.environ, LC_ALL="C"), encoding="utf-8")
+        (stdout, _) = p.communicate()
 
-        for line in stdout.decode().splitlines():
-            needed = re.match("^ 0x[0-9a-f]+ \(NEEDED\)\s+Shared library: \[(.+)\]$", line)
+        for line in stdout.splitlines():
+            needed = re.match(r"^ 0x[0-9a-f]+ \(NEEDED\)\s+Shared library: \[(.+)\]$", line)
             if needed:
                 needed_list.append(needed.group(1))
-            soname = re.match("^ 0x[0-9a-f]+ \(SONAME\)\s+Library soname: \[(.+)\]$", line)
+            soname = re.match(r"^ 0x[0-9a-f]+ \(SONAME\)\s+Library soname: \[(.+)\]$", line)
             if soname:
                 soname_list.append(soname.group(1))
 
-        assert len(soname_list) == 1
-        return soname_list[0], needed_list
+        assert len(soname_list) == 1, f"we should have only 1 soname in {lib_path} (but we got {len(soname_list)})"
+        return (soname_list[0], needed_list)
 
-    def __replace_soname_values(self, lib_path):
-        with open(lib_path, 'rb') as lib_file:
-            contents = lib_file.read()
+    def _replace_soname_values(self, lib_path):
+        with open(lib_path, "rb") as lib_file:
+            content = lib_file.read()
 
-        for pair in self.__soname_replacements:
-            contents = contents.replace(bytes(pair[0], encoding='utf8'), bytes(pair[1], encoding='utf8'))
+        for pair in self._soname_replacements:
+            content = content.replace(bytes(pair[0], encoding="utf8"), bytes(pair[1], encoding="utf8"))
 
-        with open(lib_path, 'wb') as lib_file:
-            lib_file.write(contents)
+        with open(lib_path, "wb") as lib_file:
+            lib_file.write(content)
 
-    def __copy_gst_libs(self, sysroot):
-        sysroot_gst_libs = os.path.join(sysroot, 'lib', 'gstreamer-1.0')
-        assets_dir = os.path.join(self.__root, 'wpe', 'src', 'main', 'assets', 'gstreamer-1.0')
-        if os.path.exists(assets_dir):
-            shutil.rmtree(assets_dir)
+    def _copy_gst_libs(self):
+        sysroot_gst_libs = os.path.join(self._sysroot_dir, "lib", "gstreamer-1.0")
+        assets_dir = os.path.join(self._project_root_dir, "wpe", "src", "main", "assets", "gstreamer-1.0")
+        shutil.rmtree(assets_dir, True)
         shutil.copytree(sysroot_gst_libs, assets_dir)
 
-    def __copy_gio_modules(self, sysroot):
-        sysroot_gio_module = os.path.join(sysroot, 'lib', 'gio', 'modules', 'libgiognutls.so')
-        gio_modules_dir = os.path.join(self.__root, 'wpe', 'src', 'main', 'assets', 'gio')
-        gio_module = os.path.join(gio_modules_dir, 'libgiognutls.so')
-        if os.path.exists(gio_modules_dir):
-            shutil.rmtree(gio_modules_dir)
+    def _copy_gio_modules(self):
+        sysroot_gio_module = os.path.join(self._sysroot_dir, "lib", "gio", "modules", "libgiognutls.so")
+        gio_modules_dir = os.path.join(self._project_root_dir, "wpe", "src", "main", "assets", "gio")
+        gio_module = os.path.join(gio_modules_dir, "libgiognutls.so")
+        shutil.rmtree(gio_modules_dir, True)
         os.makedirs(gio_modules_dir)
-        shutil.copy(sysroot_gio_module, gio_module)
+        shutil.copyfile(sysroot_gio_module, gio_module)
 
-    def __copy_libs(self, sysroot_lib, lib_dir, install_list = None):
-        if install_list is None:
-            if os.path.exists(lib_dir):
-                shutil.rmtree(lib_dir)
-            os.makedirs(lib_dir)
-        libs_paths = Path(sysroot_lib).glob('*.so')
+    def _copy_libs(self, src_lib_dir, target_lib_dir):
+        shutil.rmtree(target_lib_dir, True)
+        os.makedirs(target_lib_dir)
 
-        for lib_path in libs_paths:
-            soname, _ = self.__read_elf(lib_path)
-            adjusted_soname = self.__adjust_soname(soname)
-            if (adjusted_soname != soname):
-                self.__soname_replacements.append((soname, adjusted_soname))
-            if not install_list or lib_path in install_list:
-                shutil.copy(lib_path, os.path.join(lib_dir, adjusted_soname))
-
-        for pair in self.__soname_replacements:
-            assert len(pair[0]) == len(pair[1])
-
-        for lib_path in Path(lib_dir).glob('*.so'):
-            self.__replace_soname_values(lib_path)
-
-    def __copy_jni_libs(self, jni_lib_dir, lib_dir, libs_paths = None):
-        if libs_paths is None:
-            if os.path.exists(jni_lib_dir):
-                shutil.rmtree(jni_lib_dir)
-            os.makedirs(jni_lib_dir)
-            libs_paths = list(Path(lib_dir).glob('*.so'))
-            libs_paths.extend(list(Path(os.path.join(lib_dir, 'wpe-webkit-1.0')).glob('*.so')))
-            libs_paths.extend(list(Path(os.path.join(lib_dir, 'wpe-webkit-1.0', 'injected-bundle')).glob('*.so')))
+        libs_paths = Path(src_lib_dir).glob("*.so")
+        self._soname_replacements = Bootstrap._soname_replacements.copy()
 
         for lib_path in libs_paths:
-            if os.path.basename(lib_path) in self.__build_libs:
-                continue
-            shutil.copy(lib_path, os.path.join(jni_lib_dir, os.path.basename(lib_path)))
+            soname, _ = self._read_elf(lib_path)
+            adjusted_soname = self._adjust_soname(soname)
+            if adjusted_soname != soname:
+                self._soname_replacements.append((soname, adjusted_soname))
+            shutil.copyfile(lib_path, os.path.join(target_lib_dir, adjusted_soname))
 
-    def __resolve_deps(self, lib_dir):
+        for pair in self._soname_replacements:
+            assert len(pair[0]) == len(pair[1]), f"sonames {pair[0]} and {pair[1]} don't have the same length"
+
+        for lib_path in Path(target_lib_dir).glob("*.so"):
+            self._replace_soname_values(lib_path)
+
+    def _copy_jni_libs(self, src_lib_dir, target_jni_lib_dir):
+        shutil.rmtree(target_jni_lib_dir, True)
+        os.makedirs(target_jni_lib_dir)
+
+        libs_paths = list(Path(src_lib_dir).glob("*.so"))
+        libs_paths.extend(list(Path(os.path.join(src_lib_dir, "wpe-webkit-1.0")).glob("*.so")))
+        libs_paths.extend(list(Path(os.path.join(src_lib_dir, "wpe-webkit-1.0", "injected-bundle")).glob("*.so")))
+
+        for lib_path in libs_paths:
+            if os.path.basename(lib_path) not in self._build_libs:
+                shutil.copyfile(lib_path, os.path.join(target_jni_lib_dir, os.path.basename(lib_path)))
+
+    def _resolve_deps(self, lib_dir):
         soname_set = set()
-        needed_set = self.__base_needed
+        needed_set = set(self._base_needed)
 
-        for lib_path in Path(lib_dir).glob('*.so'):
-            soname, needed_list = self.__read_elf(lib_path)
+        for lib_path in Path(lib_dir).glob("*.so"):
+            soname, needed_list = self._read_elf(lib_path)
             soname_set.update([soname])
             needed_set.update(needed_list)
 
@@ -333,77 +358,78 @@ class Bootstrap:
             for entry in provided_diff:
                 print("    ", entry)
 
-    def install_deps(self, sysroot, install_list = None):
-        wpe = os.path.join(self.__root, 'wpe')
+    def install_deps(self):
+        print("Installing dependencies into wpe-android project...")
 
-        self.__copy_headers(sysroot, os.path.join(wpe, 'src', 'main', 'cpp', 'imported', 'include'))
+        wpe_dir = os.path.join(self._project_root_dir, "wpe")
+        self._copy_headers(os.path.join(wpe_dir, "src", "main", "cpp", "imported", "include"))
 
-        if self.__arch == 'arm64':
-            android_abi = 'arm64-v8a'
-        elif self.__arch == 'armv7':
-            android_abi = 'armeabi-v7a'
-        elif self.__arch == 'x86':
-            android_abi = 'x86'
-        elif self.__arch == 'x86_64':
-            android_abi = 'x86_64'
+        if self._arch == "arm64":
+            android_abi = "arm64-v8a"
+        elif self._arch == "armv7":
+            android_abi = "armeabi-v7a"
+        elif self._arch == "x86":
+            android_abi = "x86"
+        elif self._arch == "x86_64":
+            android_abi = "x86_64"
         else:
-            raise Exception('Architecture not supported')
+            raise Exception("Architecture not supported")
 
-        sysroot_lib = os.path.join(sysroot, 'lib')
-        lib_dir = os.path.join(wpe, 'src', 'main', 'cpp', 'imported', 'lib', android_abi)
+        sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
+        target_imported_lib_dir = os.path.join(wpe_dir, "src", "main", "cpp", "imported", "lib", android_abi)
 
-        libs_paths = None
-        if install_list is not None:
-            libs_paths = []
-            for lib in install_list:
-                libs_paths.append(os.path.join(sysroot_lib, lib))
-        self.__copy_libs(sysroot_lib, lib_dir, libs_paths)
-        self.__resolve_deps(lib_dir)
+        self._copy_libs(sysroot_lib_dir, target_imported_lib_dir)
+        self._resolve_deps(target_imported_lib_dir)
 
-        injected_bundle_sysroot_lib = os.path.join(sysroot_lib, 'wpe-webkit-1.0', 'injected-bundle')
-        injected_bundle_lib_dir = os.path.join(lib_dir, 'wpe-webkit-1.0', 'injected-bundle')
-        shutil.copytree(injected_bundle_sysroot_lib, injected_bundle_lib_dir)
-        for injected_bundle_lib_path in Path(injected_bundle_lib_dir).glob('*.so'):
-            self.__replace_soname_values(injected_bundle_lib_path)
+        injected_bundle_sysroot_lib_dir = os.path.join(sysroot_lib_dir, "wpe-webkit-1.0", "injected-bundle")
+        injected_bundle_target_lib_dir = os.path.join(target_imported_lib_dir, "wpe-webkit-1.0", "injected-bundle")
+        shutil.copytree(injected_bundle_sysroot_lib_dir, injected_bundle_target_lib_dir)
+        for injected_bundle_lib_path in Path(injected_bundle_target_lib_dir).glob("*.so"):
+            self._replace_soname_values(injected_bundle_lib_path)
 
-        jnilib_dir = os.path.join(wpe, 'src', 'main', 'jniLibs', android_abi)
-        self.__copy_jni_libs(jnilib_dir, lib_dir, libs_paths)
+        target_jni_lib_dir = os.path.join(wpe_dir, "src", "main", "jniLibs", android_abi)
+        self._copy_jni_libs(target_imported_lib_dir, target_jni_lib_dir)
 
         try:
-            os.symlink(os.path.join(lib_dir, 'libWPEBackend-android.so'),
-                      os.path.join(lib_dir, 'libWPEBackend-default.so'))
-            shutil.copytree(os.path.join(sysroot_lib, 'glib-2.0'),
-                            os.path.join(lib_dir, 'glib-2.0'))
+            os.symlink("libWPEBackend-android.so", os.path.join(target_imported_lib_dir, "libWPEBackend-default.so"))
+            shutil.copytree(os.path.join(sysroot_lib_dir, "glib-2.0"),
+                            os.path.join(target_imported_lib_dir, "glib-2.0"))
         except:
             print("Not copying existing files")
 
-        self.__copy_gst_libs(sysroot)
-        self.__copy_gio_modules(sysroot)
+        self._copy_gst_libs()
+        self._copy_gio_modules()
 
     def run(self):
-        if self.__cerbero_path:
-            self.__copy_binaries_from_existing_cerbero_checkout()
-        elif self.__build:
-            self.__ensure_cerbero()
-            self.__build_deps()
+        version = self.default_version
+        if self._external_cerbero_build_path:
+            version = self.copy_all_packages_from_external_cerbero_build()
+        elif self._build:
+            self.ensure_cerbero()
+            version = self.build_deps()
         else:
-            self.__fetch_binaries()
-        self.__extract_deps()
-        self.install_deps(os.path.join(self.__build_dir, 'sysroot'))
+            self.download_all_packages(version)
+        self.extract_deps(version)
+        self.install_deps()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='This script sets the dev environment up'
+        description="This script fetches or builds the dependencies needed by wpe-android"
     )
 
-    parser.add_argument('-a', '--arch', metavar='architecture', required=False, default='arm64', choices=['arm64', 'armv7', 'x86', 'x86_64'], help='The target architecture')
-    parser.add_argument('-c', '--cerbero', required=False, help='Path to the Cerbero checkout containing a completed build')
-    parser.add_argument('-d', '--debug', required=False, action='store_true', help='Build the binaries with debug symbols')
-    parser.add_argument('-b', '--build', required=False, action='store_true', help='Build dependencies instead of fetching the prebuilt binaries from the network')
+    parser.add_argument("-a", "--arch", metavar="architecture", required=False, default=Bootstrap.default_arch,
+                        choices=["arm64", "armv7", "x86", "x86_64"], help="The target architecture")
+    parser.add_argument("-v", "--version", metavar="version", required=False, default=Bootstrap.default_version,
+                        help="Specify the wpewebkit version to use (ignored if using --cerbero or --build, "
+                             "in these cases the version is taken from the Cerbero build)")
+    parser.add_argument("-c", "--cerbero", metavar="path", required=False,
+                        help="Path to an external Cerbero build containing already built packages")
+    parser.add_argument("-b", "--build", required=False, action="store_true",
+                        help="Build dependencies from sources using Cerbero (ignored if --cerbero is specified)")
+    parser.add_argument("-d", "--debug", required=False, action="store_true",
+                        help="Build the binaries with debug symbols (ignored if --build is not specified)")
 
     args = parser.parse_args()
-
     print(args)
-
     Bootstrap(args).run()
-

@@ -1,14 +1,20 @@
 # Tips & tricks
 
-## Patching WPEWebKit for debugging purposes
+## Building a patched version of WPEWebKit for debugging purposes
 
-The fastest way to patch WPEWebKit is to add your modifications directly to the WPEWebKit's source cloned by Cerbero in
-the `cerbero/build/sources/android_<arch>/wpewebkit-<version>`
-folder. Once you are done adding your changes, execute the following command from the root of this repo:
+The fastest way of building WPEWebKit with modifications is to add your modifications
+directly to the WPEWebKit source code cloned by Cerbero in
+`[project root]/build/cerbero/build/sources/android_<arch>/wpewebkit-<version>`
+folder.
+
+Once your modifications are ready, execute the following command from the root of this repo:
 
 ```bash
-python3 ./scripts/patch.py <arch> wpewebkit
+./tools/scripts/build-patch.py --arch <arch>
 ```
+
+You can use the same command with any recipe, just add `--recipe <recipe name>` at the
+end of the commane line.
 
 ## Making sense of logcat stack traces
 

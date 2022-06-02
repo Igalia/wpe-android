@@ -1,12 +1,12 @@
 #  Bootstrap process
 
-WPE Android depends on a considerable amount of libraries, 
-including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and 
+WPE Android depends on a considerable amount of libraries,
+including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and
 [WPEWebKit](https://github.com/WebPlatformForEmbedded/WPEWebKit). To ease
 the process of building and installing these dependencies we have a
-[bootstrap script](../bootstrap.py) that can be run with the following command:
+[bootstrap script](../tools/scripts/bootstrap.py) that can be run with the following command:
 
-`python3 ./bootstrap.py --arch <arch> --build`
+`./tools/scripts/bootstrap.py --arch <arch> --build`
 
 where `<arch>` is the target architecture that you want to compile to.
 
@@ -22,7 +22,7 @@ the following Cerbero command:
 where `<android_abi>` varies depending on the given architecture target.
 
 The logic for this command is in the
-[WPEWebKit packaging recipe in Cerbero's repo](https://github.com/Igalia/cerbero/blob/18f3346042abfa9455bc270019a3c337fae23018/packages/wpewebkit.package).
+[WPEWebKit packaging recipe in Cerbero's repo](https://github.com/Igalia/cerbero/blob/wpe-android/packages/wpewebkit.package).
 
 This command triggers the build for all WPEWebKit dependencies. After that WPEWebKit itself
 is built. You can find the recipes for all dependencies and WPEWebKit build in the
@@ -49,7 +49,5 @@ become libfoo_1.so. Apart from renaming the actual library files, we need to twe
 SONAME and NEEDED values as well to reflect the name changes. We also need to take care of
 the symbolic links to reflect the naming changes.
 
-
 The final step is to copy the needed headers and processed libraries into its corresponding
-location within the `wpe` project. This is done by the `__install_deps` function.
-
+location within the `wpe` project. This is done by the `install_deps()` function.
