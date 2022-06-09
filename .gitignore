@@ -13,6 +13,7 @@ wpe/src/main/jniLibs/
 wpe/src/main/assets/wpe-webkit-1.0
 wpe/src/main/assets/gstreamer-1.0
 wpe/src/main/assets/gio
+wpe/src/main/java/org/freedesktop/gstreamer
 *.swp
 __pycache__
 /cerbero
