@@ -71,15 +71,14 @@ class Bootstrap:
     # time. These libraries go into the `imported` folder and cannot go into the `jniLibs`
     # folder to avoid duplicated libraries.
     _build_libs = [
-        "glib-2.0",
         "libgio-2.0.so",
         "libglib-2.0.so",
         "libgmodule-2.0.so",
         "libgobject-2.0.so",
         "libwpe-1.0.so",
-        "libWPEWebKit-1.0.so",
-        "libWPEWebKit-1.0_3.so",
-        "libWPEWebKit-1.0_3.11.7.so"
+        "libWPEBackend-default.so",
+        "libWPEBackend-android.so",
+        "libWPEWebKit-1.0_3.so"
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
@@ -90,7 +89,7 @@ class Bootstrap:
         ("xkbcommon", "xkbcommon")
     ]
     _soname_replacements = [
-        ("libnettle.so.6", "libnettle_6.so"),  # This entry is not retrievable from the packaged libnettle.so
+        ("libnettle.so.8", "libnettle_8.so"),  # This entry is not retrievable from the packaged libnettle.so
         ("libWPEWebKit-1.0.so.3", "libWPEWebKit-1.0_3.so")  # This is for libWPEInjectedBundle.so
     ]
     _base_needed = ["libWPEWebKit-1.0_3.so"]
@@ -107,6 +106,7 @@ class Bootstrap:
         self._debug = args["debug"] if "debug" in args else False
 
         if self._external_cerbero_build_path:
+            self._external_cerbero_build_path = os.path.realpath(self._external_cerbero_build_path)
             self._build = False
 
         self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -237,19 +237,19 @@ class Bootstrap:
 
         devel_file_path = os.path.join(self._project_build_dir,
                                        self._devel_package_name_template.format(arch=self._arch, version=version))
-        subprocess.check_call(["tar", "xf", devel_file_path, "-C", self._sysroot_dir, "include", "lib/glib-2.0"])
+        subprocess.check_call(["tar", "xf", devel_file_path, "-C", self._sysroot_dir, "include", "lib/glib-2.0",
+                              "share/gst-android/ndk-build/GStreamer.java", "share/gst-android/ndk-build/androidmedia"])
 
         runtime_file_path = os.path.join(self._project_build_dir,
                                          self._runtime_package_name_template.format(arch=self._arch, version=version))
         subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib"])
 
-    def _copy_headers(self, target_include_dir):
-        shutil.rmtree(target_include_dir, True)
-        os.makedirs(target_include_dir)
+    def _copy_headers(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
 
         for header in self._build_includes:
-            shutil.copytree(os.path.join(self._sysroot_dir, "include", header[0]),
-                            os.path.join(target_include_dir, header[1]))
+            shutil.copytree(os.path.join(self._sysroot_dir, "include", header[0]), os.path.join(target_dir, header[1]))
 
     def _adjust_soname(self, original_soname):
         if original_soname.endswith(".so"):
@@ -280,6 +280,9 @@ class Bootstrap:
             if soname:
                 soname_list.append(soname.group(1))
 
+        if len(soname_list) == 0:
+            soname_list = [os.path.basename(lib_path)]
+
         assert len(soname_list) == 1, f"we should have only 1 soname in {lib_path} (but we got {len(soname_list)})"
         return (soname_list[0], needed_list)
 
@@ -293,25 +296,37 @@ class Bootstrap:
         with open(lib_path, "wb") as lib_file:
             lib_file.write(content)
 
-    def _copy_gst_libs(self):
-        sysroot_gst_libs = os.path.join(self._sysroot_dir, "lib", "gstreamer-1.0")
-        assets_dir = os.path.join(self._project_root_dir, "wpe", "src", "main", "assets", "gstreamer-1.0")
-        shutil.rmtree(assets_dir, True)
-        shutil.copytree(sysroot_gst_libs, assets_dir)
+    def _copy_gst_plugins(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        shutil.copytree(os.path.join(self._sysroot_dir, "lib", "gstreamer-1.0"), target_dir)
+        for plugin_path in Path(target_dir).rglob("*.so"):
+            self._replace_soname_values(plugin_path)
 
-    def _copy_gio_modules(self):
-        sysroot_gio_module = os.path.join(self._sysroot_dir, "lib", "gio", "modules", "libgiognutls.so")
-        gio_modules_dir = os.path.join(self._project_root_dir, "wpe", "src", "main", "assets", "gio")
-        gio_module = os.path.join(gio_modules_dir, "libgiognutls.so")
-        shutil.rmtree(gio_modules_dir, True)
-        os.makedirs(gio_modules_dir)
-        shutil.copyfile(sysroot_gio_module, gio_module)
+    def _copy_gio_modules(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
+        sysroot_gio_module_file = os.path.join(self._sysroot_dir, "lib", "gio", "modules", "libgiognutls.so")
+        shutil.copy(sysroot_gio_module_file, target_dir)
+        for plugin_path in Path(target_dir).rglob("*.so"):
+            self._replace_soname_values(plugin_path)
 
-    def _copy_libs(self, src_lib_dir, target_lib_dir):
-        shutil.rmtree(target_lib_dir, True)
-        os.makedirs(target_lib_dir)
+    def _copy_gst_android_classes(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
+        sysroot_android_classes_dir = os.path.join(self._sysroot_dir, "share", "gst-android", "ndk-build")
+        shutil.copy(os.path.join(sysroot_android_classes_dir, "GStreamer.java"), target_dir)
+        shutil.copytree(os.path.join(sysroot_android_classes_dir, "androidmedia"),
+                        os.path.join(target_dir, "androidmedia"))
 
-        libs_paths = Path(src_lib_dir).glob("*.so")
+    def _copy_system_libs(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
+
+        sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
+
+        libs_paths = list(Path(sysroot_lib_dir).glob("*.so"))
+        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-1.0", "injected-bundle")).glob("*.so")))
+
         self._soname_replacements = Bootstrap._soname_replacements.copy()
 
         for lib_path in libs_paths:
@@ -319,34 +334,43 @@ class Bootstrap:
             adjusted_soname = self._adjust_soname(soname)
             if adjusted_soname != soname:
                 self._soname_replacements.append((soname, adjusted_soname))
-            shutil.copyfile(lib_path, os.path.join(target_lib_dir, adjusted_soname))
+            target_file = os.path.join(target_dir, os.path.relpath(
+                os.path.dirname(lib_path), sysroot_lib_dir), adjusted_soname)
+            os.makedirs(os.path.dirname(target_file), exist_ok=True)
+            shutil.copyfile(lib_path, target_file)
 
         for pair in self._soname_replacements:
             assert len(pair[0]) == len(pair[1]), f"sonames {pair[0]} and {pair[1]} don't have the same length"
 
-        for lib_path in Path(target_lib_dir).glob("*.so"):
+        for lib_path in Path(target_dir).rglob("*.so"):
             self._replace_soname_values(lib_path)
 
-    def _copy_jni_libs(self, src_lib_dir, target_jni_lib_dir):
-        shutil.rmtree(target_jni_lib_dir, True)
-        os.makedirs(target_jni_lib_dir)
+        os.symlink("libWPEBackend-android.so", os.path.join(target_dir, "libWPEBackend-default.so"))
+        shutil.copytree(os.path.join(sysroot_lib_dir, "glib-2.0"), os.path.join(target_dir, "glib-2.0"))
 
-        libs_paths = list(Path(src_lib_dir).glob("*.so"))
-        libs_paths.extend(list(Path(os.path.join(src_lib_dir, "wpe-webkit-1.0")).glob("*.so")))
-        libs_paths.extend(list(Path(os.path.join(src_lib_dir, "wpe-webkit-1.0", "injected-bundle")).glob("*.so")))
+    def _copy_jni_libs(self, src_dir, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
 
+        libs_paths = Path(src_dir).rglob("*.so")
         for lib_path in libs_paths:
-            if os.path.basename(lib_path) not in self._build_libs:
-                shutil.copyfile(lib_path, os.path.join(target_jni_lib_dir, os.path.basename(lib_path)))
+            filename = os.path.basename(lib_path)
+            if filename not in self._build_libs:
+                shutil.copyfile(lib_path, os.path.join(target_dir, filename), follow_symlinks=False)
 
-    def _resolve_deps(self, lib_dir):
+    def _resolve_deps(self, system_lib_dir, plugins_dir_list):
         soname_set = set()
         needed_set = set(self._base_needed)
 
-        for lib_path in Path(lib_dir).glob("*.so"):
+        for lib_path in Path(system_lib_dir).rglob("*.so"):
             soname, needed_list = self._read_elf(lib_path)
             soname_set.update([soname])
             needed_set.update(needed_list)
+
+        for plugins_dir in plugins_dir_list:
+            for lib_path in Path(plugins_dir).rglob("*.so"):
+                _, needed_list = self._read_elf(lib_path)
+                needed_set.update(needed_list)
 
         print("NEEDED but not provided:")
         needed_diff = needed_set - soname_set
@@ -367,8 +391,8 @@ class Bootstrap:
     def install_deps(self):
         print("Installing dependencies into wpe-android project...")
 
-        wpe_dir = os.path.join(self._project_root_dir, "wpe")
-        self._copy_headers(os.path.join(wpe_dir, "src", "main", "cpp", "imported", "include"))
+        wpe_src_main_dir = os.path.join(self._project_root_dir, "wpe", "src", "main")
+        self._copy_headers(os.path.join(wpe_src_main_dir, "cpp", "imported", "include"))
 
         if self._arch == "arm64":
             android_abi = "arm64-v8a"
@@ -381,30 +405,18 @@ class Bootstrap:
         else:
             raise Exception("Architecture not supported")
 
-        sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
-        target_imported_lib_dir = os.path.join(wpe_dir, "src", "main", "cpp", "imported", "lib", android_abi)
+        wpe_imported_lib_dir = os.path.join(wpe_src_main_dir, "cpp", "imported", "lib", android_abi)
+        self._copy_system_libs(wpe_imported_lib_dir)
+        self._copy_jni_libs(wpe_imported_lib_dir, os.path.join(wpe_src_main_dir, "jniLibs", android_abi))
 
-        self._copy_libs(sysroot_lib_dir, target_imported_lib_dir)
-        self._resolve_deps(target_imported_lib_dir)
+        wpe_assets_gst_dir = os.path.join(wpe_src_main_dir, "assets", "gstreamer-1.0")
+        self._copy_gst_plugins(wpe_assets_gst_dir)
 
-        injected_bundle_sysroot_lib_dir = os.path.join(sysroot_lib_dir, "wpe-webkit-1.0", "injected-bundle")
-        injected_bundle_target_lib_dir = os.path.join(target_imported_lib_dir, "wpe-webkit-1.0", "injected-bundle")
-        shutil.copytree(injected_bundle_sysroot_lib_dir, injected_bundle_target_lib_dir)
-        for injected_bundle_lib_path in Path(injected_bundle_target_lib_dir).glob("*.so"):
-            self._replace_soname_values(injected_bundle_lib_path)
+        wpe_assets_gio_dir = os.path.join(wpe_src_main_dir, "assets", "gio")
+        self._copy_gio_modules(wpe_assets_gio_dir)
 
-        target_jni_lib_dir = os.path.join(wpe_dir, "src", "main", "jniLibs", android_abi)
-        self._copy_jni_libs(target_imported_lib_dir, target_jni_lib_dir)
-
-        try:
-            os.symlink("libWPEBackend-android.so", os.path.join(target_imported_lib_dir, "libWPEBackend-default.so"))
-            shutil.copytree(os.path.join(sysroot_lib_dir, "glib-2.0"),
-                            os.path.join(target_imported_lib_dir, "glib-2.0"))
-        except:
-            print("Not copying existing files")
-
-        self._copy_gst_libs()
-        self._copy_gio_modules()
+        self._copy_gst_android_classes(os.path.join(wpe_src_main_dir, "java", "org", "freedesktop", "gstreamer"))
+        self._resolve_deps(wpe_imported_lib_dir, [wpe_assets_gst_dir, wpe_assets_gio_dir])
 
     def run(self):
         version = self.default_version
