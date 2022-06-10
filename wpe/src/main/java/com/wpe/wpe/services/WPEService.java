@@ -15,6 +15,10 @@ public abstract class WPEService extends Service
 {
     private static final String LOGTAG = "WPEService";
 
+    protected static native void setupEnvironment(String[] envStringsArray);
+    protected static native void initializeMain(int processType, int fd);
+
+    protected abstract void loadNativeLibraries();
     protected abstract void setupServiceEnvironment();
     protected abstract void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd);
 
@@ -44,6 +48,7 @@ public abstract class WPEService extends Service
     {
         Log.i(LOGTAG, "onCreate()");
         super.onCreate();
+        loadNativeLibraries();
         setupServiceEnvironment();
     }
 

@@ -182,14 +182,14 @@ where the different `descriptor` values contain the strings you are looking for.
 
 The procedure is for the [Android Studio](https://developer.android.com/studio) official IDE.
 
-1- Uncomment the `android.os.Debug.waitForDebugger();` instruction in the `static` block of the corresponding service
-Java glue code. That is to say:
+1- Uncomment the `android.os.Debug.waitForDebugger();` instruction in the `loadNativeLibraries()` method of the
+corresponding service Java code. That is to say:
 
-- wpe/src/main/java/com/wpe/wpe/services/WebProcessGlue for the WPEWebProcess service
-- wpe/src/main/java/com/wpe/wpe/services/NetworkProcessGlue for the WPENetworkProcess service
+- wpe/src/main/java/com/wpe/wpe/services/WebProcessService, or
+- wpe/src/main/java/com/wpe/wpe/services/NetworkProcessService
 
-This instruction will wait for the Android debugger when the service class is loaded by the Java classloader at the
-moment the corresponding process is attached to the JVM.
+This instruction will wait for the Android debugger when the service native code is loaded at the moment the
+corresponding process is attached to the JVM.
 
 2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work). You can do
 so by clicking on the combo-box on the upper menu bar, showing the name of the executed activity (like

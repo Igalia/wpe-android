@@ -10,6 +10,8 @@ import androidx.annotation.NonNull;
 
 import com.wpe.wpe.ProcessType;
 
+import org.freedesktop.gstreamer.GStreamer;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.util.ArrayList;
@@ -23,6 +25,22 @@ public class WebProcessService extends WPEService
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
     private static final String assetsVersion = "web_process_assets_v1";
+
+    @Override
+    protected void loadNativeLibraries()
+    {
+        // To debug the sub-process with Android Studio (Java and native code), you must:
+        // 1- Uncomment the following instruction to wait for the debugger before loading native code.
+        // 2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work).
+        // 3- Launch the application (:tools:minibrowser for example).
+        // 4- Click on "Attach Debugger to Android Process" and select this service process from the list.
+
+        // android.os.Debug.waitForDebugger();
+
+        System.loadLibrary("gstreamer-1.0");
+        System.loadLibrary("WPEBackend-default");
+        System.loadLibrary("WPEWebProcessGlue");
+    }
 
     @Override
     protected void setupServiceEnvironment()
@@ -127,13 +145,20 @@ public class WebProcessService extends WPEService
             envStrings.add(gstDebugLevels);
         }
 
-        WebProcessGlue.setupEnvironment(envStrings.toArray(new String[envStrings.size()]));
+        setupEnvironment(envStrings.toArray(new String[envStrings.size()]));
+
+        try {
+            GStreamer.init(getApplicationContext());
+        } catch (Exception e) {
+            Log.w(LOGTAG,
+                "Cannot initialize GStreamer JNI interface, multimedia hardware acceleration will be disabled", e);
+        }
     }
 
     @Override
     protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd)
     {
         Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        WebProcessGlue.initializeMain(ProcessType.WebProcess.getValue(), parcelFd.detachFd());
+        initializeMain(ProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
 }
