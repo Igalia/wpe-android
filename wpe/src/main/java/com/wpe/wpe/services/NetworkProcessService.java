@@ -19,6 +19,20 @@ public class NetworkProcessService extends WPEService
     private static final String assetsVersion = "network_process_assets_v1";
 
     @Override
+    protected void loadNativeLibraries()
+    {
+        // To debug the sub-process with Android Studio (Java and native code), you must:
+        // 1- Uncomment the following instruction to wait for the debugger before loading native code.
+        // 2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work).
+        // 3- Launch the application (:tools:minibrowser for example).
+        // 4- Click on "Attach Debugger to Android Process" and select this service process from the list.
+
+        // android.os.Debug.waitForDebugger();
+
+        System.loadLibrary("WPENetworkProcessGlue");
+    }
+
+    @Override
     protected void setupServiceEnvironment()
     {
         Context context = getApplicationContext();
@@ -31,13 +45,13 @@ public class NetworkProcessService extends WPEService
             "XDG_RUNTIME_DIR", context.getCacheDir().getAbsolutePath(),
             "GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()
         };
-        NetworkProcessGlue.setupEnvironment(envStringsArray);
+        setupEnvironment(envStringsArray);
     }
 
     @Override
     protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd)
     {
         Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        NetworkProcessGlue.initializeMain(ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
+        initializeMain(ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }
