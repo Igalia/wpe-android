@@ -112,7 +112,7 @@ class Bootstrap:
         self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         self._project_build_dir = os.path.join(self._project_root_dir, "build")
         self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot")
-        self._cerbero_root_dir = os.path.join(self._external_cerbero_build_path or self._project_build_dir, "cerbero")
+        self._cerbero_root_dir = self._external_cerbero_build_path or os.path.join(self._project_build_dir, "cerbero")
 
         self._cerbero_command_args = [
             os.path.join(self._cerbero_root_dir, "cerbero-uninstalled"),
@@ -157,6 +157,12 @@ class Bootstrap:
         print(f"Copying packages from existing Cerbero build at {self._external_cerbero_build_path} ...")
 
         version = self._get_package_version("wpewebkit")
+
+        # Don't do copy if given external cerbero path points to internal cerbero clone.
+        # In that case internally built packages are already placed to self._project_build_dir
+        if os.path.commonprefix([self._external_cerbero_build_path, self._project_build_dir]) == self._project_build_dir:
+            return version
+
         filenames = [
             self._devel_package_name_template.format(arch=self._arch, version=version),
             self._runtime_package_name_template.format(arch=self._arch, version=version)
