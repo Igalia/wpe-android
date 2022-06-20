@@ -13,28 +13,24 @@ jobs:
       matrix:
         api_level: [26, 29]
         build_type: [Release, Debug]
-        target_abi: [X86, X86_64, Arm64, Armv7]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Fetch WPE Bootstrap
-        env:
-          TARGET_ABI: '${{ matrix.target_abi }}'
-        run: |
-          python3 tools/scripts/bootstrap.py -a ${TARGET_ABI,,}
+        run: python3 tools/scripts/bootstrap.py -a all
       - name: Java™ Setup
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: 11
       - name: Build Minibrowser
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: assembleMinApi${{ matrix.api_level }}${{ matrix.target_abi }}${{ matrix.build_type }}
+          arguments: assembleMinApi${{ matrix.api_level }}${{ matrix.build_type }}
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - name: Save Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: minibrowser-api${{ matrix.api_level }}${{ matrix.target_abi }}${{ matrix.build_type }}
-          path: tools/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}${{ matrix.target_abi }}/**/*.apk
+          name: minibrowser-api${{ matrix.api_level }}${{ matrix.build_type }}
+          path: tools/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}/**/*.apk

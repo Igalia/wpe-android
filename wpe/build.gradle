@@ -26,7 +26,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    flavorDimensions 'api', 'abi'
+    flavorDimensions 'api'
     productFlavors {
         minApi26 {
             dimension 'api'
@@ -37,48 +37,11 @@ android {
             dimension 'api'
             minSdkVersion 29
         }
-
-        x86 {
-            dimension 'abi'
-            ndk {
-                abiFilters 'x86'
-            }
-        }
-
-        x86_64 {
-            dimension 'abi'
-            ndk {
-                abiFilters 'x86_64'
-            }
-        }
-
-        arm64 {
-            dimension 'abi'
-            ndk {
-                abiFilters 'arm64-v8a'
-            }
-        }
-
-        armv7 {
-            dimension 'abi'
-            ndk {
-                abiFilters 'armeabi-v7a'
-            }
-        }
     }
 
     externalNativeBuild {
         cmake {
             path file('src/main/cpp/CMakeLists.txt')
-        }
-    }
-
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'x86_64', 'x86', 'arm64-v8a', 'armeabi-v7a'
-            universalApk false
         }
     }
 
@@ -133,5 +96,22 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.3.0'
+    implementation 'androidx.annotation:annotation:1.4.0'
+}
+
+gradle.afterProject { project ->
+    if (project == getProject()) {
+        def abiList = []
+        for (abi in ['x86_64', 'x86', 'arm64-v8a', 'armeabi-v7a']) {
+            if (file("src/main/jniLibs/$abi").isDirectory())
+                abiList.add(abi)
+        }
+
+        if (abiList.isEmpty())
+            throw new GradleException("Cannot find ABI dependencies, please call ./tools/scripts/bootstrap.py first")
+
+        println("Detected ABI: $abiList")
+        println("Use ./tools/scripts/bootstrap.py to install dependencies for more ABIs")
+        project.android.defaultConfig.ndk.abiFilters = abiList
+    }
 }

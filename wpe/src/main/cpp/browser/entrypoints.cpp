@@ -140,7 +140,8 @@ void surfaceDestroyed(JNIEnv*, jclass, jint pageId)
 
 void touchEvent(JNIEnv*, jclass, jint pageId, jlong time, jint type, jfloat x, jfloat y)
 {
-    ALOGV("BrowserGlue::touchEvent(%d, %ld, %d, %f, %f) [tid %d]", pageId, time, type, x, y, gettid());
+    ALOGV("BrowserGlue::touchEvent(%d, %ld, %d, %f, %f) [tid %d]", pageId, static_cast<long>(time), type, x, y,
+          gettid());
     Browser::getInstance().onTouch(pageId, time, type, x, y);
 }
 
@@ -181,7 +182,8 @@ JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::Pro
         return;
     }
 
-    ALOGV("BrowserGlue wpe_android_launchProcess(%ld, %d, %d)", pid, static_cast<int>(processType), *fd);
+    ALOGV("BrowserGlue wpe_android_launchProcess(%lu, %d, %d)", static_cast<unsigned long>(pid),
+          static_cast<int>(processType), *fd);
 
     try {
         JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
@@ -211,7 +213,7 @@ JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::Pro
 
 JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid)
 {
-    ALOGV("BrowserGlue wpe_android_terminateProcess(%ld)", pid);
+    ALOGV("BrowserGlue wpe_android_terminateProcess(%lu)", static_cast<unsigned long>(pid));
 
     try {
         JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();

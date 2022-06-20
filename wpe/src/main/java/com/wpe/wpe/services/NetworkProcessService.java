@@ -37,7 +37,7 @@ public class NetworkProcessService extends WPEService
     {
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
-            ServiceUtils.copyFileOrDir(context, getAssets(), "gio");
+            ServiceUtils.copyFileOrDir(context, getAssets(), "gio", true);
             ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
 

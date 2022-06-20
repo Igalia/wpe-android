@@ -8,7 +8,7 @@ the process of building and installing these dependencies we have a
 
 `./tools/scripts/bootstrap.py --arch <arch> --build`
 
-where `<arch>` is the target architecture that you want to compile to.
+where `<arch>` is the target architecture that you want to compile to (pass `all` for universal build).
 
 This script takes care of fetching, building and installing all WPE Android dependencies.
 
@@ -17,9 +17,7 @@ The cross-compilation work is done by [Cerbero](https://github.com/Igalia/cerber
 After cloning Cerbero's source through git in the `build` folder, the process starts with
 the following Cerbero command:
 
-`./cerbero-uninstalled -c config/cross-android-<android_abi> -f wpewebkit`
-
-where `<android_abi>` varies depending on the given architecture target.
+`./cerbero-uninstalled -c config/cross-android-<arch> package -f wpewebkit`
 
 The logic for this command is in the
 [WPEWebKit packaging recipe in Cerbero's repo](https://github.com/Igalia/cerbero/blob/wpe-android/packages/wpewebkit.package).
@@ -37,7 +35,7 @@ we only care about the libraries, except for WPEWebKit from which we want everyt
 
 The packaging step results in two different tar files. One containing the runtime assets
 and another one with the development assets. The content of these tar files is extracted
-in the `build/sysroot` folder.
+in the `build/sysroot/<arch>` folder.
 
 After that we are done with Cerbero and back into the bootstrap script.
 

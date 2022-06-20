@@ -47,8 +47,8 @@ public class WebProcessService extends WPEService
     {
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
-            ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0");
-            ServiceUtils.copyFileOrDir(context, getAssets(), "fontconfig/fonts.conf");
+            ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0", true);
+            ServiceUtils.copyFileOrDir(context, getAssets(), "fontconfig/fonts.conf", false);
             ServiceUtils.saveAssetsVersion(context, assetsVersion);
         }
 

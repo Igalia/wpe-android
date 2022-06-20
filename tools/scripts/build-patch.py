@@ -39,14 +39,15 @@ class BuildPatch:
 
         self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         self._project_build_dir = os.path.join(self._project_root_dir, "build")
-        self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot")
+        self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot", self._arch)
         self._cerbero_root_dir = os.path.join(self._project_build_dir, "cerbero")
         self._cerbero_dist_dir = os.path.join(self._cerbero_root_dir, "build", "dist", f"android_{self._arch}")
 
+        cerbero_arch_suffix = self._arch.replace("_", "-")
         self._cerbero_command_args = [
             os.path.join(self._cerbero_root_dir, "cerbero-uninstalled"),
             "-c",
-            os.path.join(self._cerbero_root_dir, "config", f"cross-android-{self._arch}")
+            os.path.join(self._cerbero_root_dir, "config", f"cross-android-{cerbero_arch_suffix}")
         ]
 
     def build_recipe(self):
