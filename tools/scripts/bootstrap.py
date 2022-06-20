@@ -9,9 +9,7 @@ The cross-compilation work is done by Cerbero: https://github.com/Igalia/cerbero
 After cloning Cerbero's source through git in the `build` folder, the process starts with
 the following Cerbero command:
 
-`./cerbero-uninstalled -c config/cross-android-<android_abi> -f wpewebkit`
-
-where `<android_abi>` varies depending on the given architecture target.
+`./cerbero-uninstalled -c config/cross-android-<arch> package -f wpewebkit`
 
 The logic for this command is in the WPEWebKit packaging recipe in Cerbero's repo:
 https://github.com/Igalia/cerbero/blob/wpe-android/packages/wpewebkit.package
@@ -29,7 +27,7 @@ we only care about the libraries, except for WPEWebKit from which we want everyt
 
 The packaging step results in two different tar files. One containing the runtime assets
 and another one with the development assets. The content of these tar files is extracted
-in the `cerbero/sysroot` folder.
+in the `build/sysroot/<arch>` folder.
 
 After that we are done with Cerbero and back into the bootstrap script.
 
@@ -53,6 +51,7 @@ import subprocess
 import sys
 import fileinput
 from pathlib import Path
+from textwrap import dedent
 from urllib.request import urlretrieve
 
 
@@ -104,6 +103,7 @@ class Bootstrap:
         self._external_cerbero_build_path = args["cerbero"] if "cerbero" in args else None
         self._build = args["build"] if "build" in args else False
         self._debug = args["debug"] if "debug" in args else False
+        self._wrapper = args["wrapper"] if "wrapper" in args else False
 
         if self._external_cerbero_build_path:
             self._external_cerbero_build_path = os.path.realpath(self._external_cerbero_build_path)
@@ -111,13 +111,14 @@ class Bootstrap:
 
         self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         self._project_build_dir = os.path.join(self._project_root_dir, "build")
-        self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot")
+        self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot", self._arch)
         self._cerbero_root_dir = self._external_cerbero_build_path or os.path.join(self._project_build_dir, "cerbero")
 
+        cerbero_arch_suffix = self._arch.replace("_", "-")
         self._cerbero_command_args = [
             os.path.join(self._cerbero_root_dir, "cerbero-uninstalled"),
             "-c",
-            os.path.join(self._cerbero_root_dir, "config", f"cross-android-{self._arch}")
+            os.path.join(self._cerbero_root_dir, "config", f"cross-android-{cerbero_arch_suffix}")
         ]
 
     def _get_package_version(self, package_name):
@@ -137,11 +138,11 @@ class Bootstrap:
             def report(count, block_size, total_size):
                 size = total_size / 1024 / 1024
                 percent = int(100 * count * block_size / total_size)
-                print(f"\r  {url} [{size:.2f} MiB] {percent}% ", flush=True, end="")
+                print(f"\r\x1B[J  {url} [{size:.2f} MiB] {percent}% ", flush=True, end="")
         else:
             report = None
 
-        print(f"  {url} ... ", flush=True, end="")
+        print(f"  {url}... ", flush=True, end="")
         urlretrieve(url, target, report)
         print(f"\r\x1B[J  {url} - done")
 
@@ -154,7 +155,7 @@ class Bootstrap:
         if not self._external_cerbero_build_path:
             raise Exception("Illegal configuration: Cerbero external build path is not specified")
 
-        print(f"Copying packages from existing Cerbero build at {self._external_cerbero_build_path} ...")
+        print(f"Copying packages from existing Cerbero build at {self._external_cerbero_build_path}...")
 
         version = self._get_package_version("wpewebkit")
 
@@ -388,6 +389,32 @@ class Bootstrap:
             for entry in provided_diff:
                 print("    ", entry)
 
+    def _create_android_wrapper_script(self, target_dir):
+        assert self._wrapper, "wrapper mode should be activated"
+
+        os.makedirs(target_dir, exist_ok=True)
+        target_script_file = os.path.join(target_dir, "wrap.sh")
+        with open(target_script_file, "wt", encoding="utf-8", newline="\n") as file:
+            file.write(dedent("""\
+                #!/system/bin/sh
+
+                cmd=$1
+                shift
+
+                os_version=$(getprop ro.build.version.sdk)
+
+                if [ "$os_version" -eq "27" ]; then
+                    cmd="$cmd -Xrunjdwp:transport=dt_android_adb,suspend=n,server=y -Xcompiler-option --debuggable $@"
+                elif [ "$os_version" -eq "28" ]; then
+                    cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y -Xcompiler-option --debuggable $@"
+                else
+                    cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y $@"
+                fi
+
+                exec $cmd
+            """))
+        os.chmod(target_script_file, 0o755)
+
     def install_deps(self):
         print("Installing dependencies into wpe-android project...")
 
@@ -409,14 +436,18 @@ class Bootstrap:
         self._copy_system_libs(wpe_imported_lib_dir)
         self._copy_jni_libs(wpe_imported_lib_dir, os.path.join(wpe_src_main_dir, "jniLibs", android_abi))
 
-        wpe_assets_gst_dir = os.path.join(wpe_src_main_dir, "assets", "gstreamer-1.0")
+        wpe_assets_gst_dir = os.path.join(wpe_src_main_dir, "assets", "gstreamer-1.0", android_abi)
         self._copy_gst_plugins(wpe_assets_gst_dir)
 
-        wpe_assets_gio_dir = os.path.join(wpe_src_main_dir, "assets", "gio")
+        wpe_assets_gio_dir = os.path.join(wpe_src_main_dir, "assets", "gio", android_abi)
         self._copy_gio_modules(wpe_assets_gio_dir)
 
         self._copy_gst_android_classes(os.path.join(wpe_src_main_dir, "java", "org", "freedesktop", "gstreamer"))
         self._resolve_deps(wpe_imported_lib_dir, [wpe_assets_gst_dir, wpe_assets_gio_dir])
+
+        if self._wrapper:
+            self._create_android_wrapper_script(os.path.join(
+                self._project_root_dir, "tools", "minibrowser", "src", "main", "resources", "lib", android_abi))
 
     def run(self):
         version = self.default_version
@@ -437,7 +468,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-a", "--arch", metavar="architecture", required=False, default=Bootstrap.default_arch,
-                        choices=["arm64", "armv7", "x86", "x86_64"], help="The target architecture")
+                        choices=["arm64", "armv7", "x86", "x86_64", "all"], help="The target architecture")
     parser.add_argument("-v", "--version", metavar="version", required=False, default=Bootstrap.default_version,
                         help="Specify the wpewebkit version to use (ignored if using --cerbero or --build, "
                              "in these cases the version is taken from the Cerbero build)")
@@ -447,7 +478,17 @@ if __name__ == "__main__":
                         help="Build dependencies from sources using Cerbero (ignored if --cerbero is specified)")
     parser.add_argument("-d", "--debug", required=False, action="store_true",
                         help="Build the binaries with debug symbols (ignored if --build is not specified)")
+    parser.add_argument("-w", "--wrapper", required=False, action="store_true",
+                        help="Create Android wrapper script "
+                             "(see: https://developer.android.com/ndk/guides/wrap-script, "
+                             "not compatible with Bundle creation)")
 
     args = parser.parse_args()
-    print(args)
-    Bootstrap(args).run()
+    if args.arch == "all":
+        for arch in ["arm64", "armv7", "x86", "x86_64"]:
+            args.arch = arch
+            print(args)
+            Bootstrap(args).run()
+    else:
+        print(args)
+        Bootstrap(args).run()
