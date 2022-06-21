@@ -19,7 +19,7 @@ import com.wpe.wpe.gfx.WPESurfaceViewObserver;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
- * WPEView serves a similar purpose to Android's built-in WebView and tries to mimick
+ * WPEView serves a similar purpose to Android's built-in WebView and tries to mimic
  * its API aiming to be an easy to use drop-in replacement with extended functionality.
  *
  * The WPEView class is the main API entry point.
@@ -66,14 +66,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         // Queue the creation of the Page until view's measure, layout, etc.
         // so we have a known width and height to create the associated WebKitWebView
         // before having the Surface texture.
-        post(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                Browser.getInstance().createPage(self, m_context);
-            }
-        });
+        post(() -> Browser.getInstance().createPage(self, m_context));
     }
 
     @Override
@@ -97,16 +90,12 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         Log.v(LOGTAG, "WPESurfaceView created " + view + " number of views " + getChildCount());
         m_wpeSurfaceView = view;
 
-        post(new Runnable()
-        {
-            public void run()
-            {
-                // Run on the main thread
-                try {
-                    addView(view);
-                } catch (Exception e) {
-                    Log.e(LOGTAG, "Error setting view", e);
-                }
+        post(() -> {
+            // Run on the main thread
+            try {
+                addView(view);
+            } catch (Exception e) {
+                Log.e(LOGTAG, "Error setting view", e);
             }
         });
     }
@@ -118,14 +107,9 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         Log.v(LOGTAG, "WPESurfaceView ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
-        post(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if (m_wpeViewClient != null) {
-                    m_wpeViewClient.onViewReady(WPEView.this);
-                }
+        post(() -> {
+            if (m_wpeViewClient != null) {
+                m_wpeViewClient.onViewReady(WPEView.this);
             }
         });
     }
@@ -161,31 +145,15 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             if (m_wpeViewClient == null) {
                 return;
             }
-            runOnMainThread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    m_wpeViewClient.onPageStarted(self, m_url);
-                }
-            });
+            runOnMainThread(() -> m_wpeViewClient.onPageStarted(self, m_url));
             break;
         case Page.LOAD_FINISHED:
             onLoadProgress(100);
             if (m_wpeViewClient == null) {
                 return;
             }
-            runOnMainThread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    m_wpeViewClient.onPageFinished(self, m_url);
-                }
-            });
+            runOnMainThread(() -> m_wpeViewClient.onPageFinished(self, m_url));
             break;
-        default:
-            return;
         }
     }
 
@@ -196,14 +164,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             return;
         }
         WPEView self = this;
-        runOnMainThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
-            }
-        });
+        runOnMainThread(() -> m_chromeClient.onProgressChanged(self, m_currentLoadProgress));
     }
 
     public void onUriChanged(String uri)
@@ -218,55 +179,36 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             return;
         }
         WPEView self = this;
-        runOnMainThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                m_chromeClient.onReceivedTitle(self, m_title);
-            }
-        });
+        runOnMainThread(() -> m_chromeClient.onReceivedTitle(self, m_title));
     }
 
     public void enterFullScreen()
     {
-        runOnMainThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                removeView(m_wpeSurfaceView);
+        runOnMainThread(() -> {
+            removeView(m_wpeSurfaceView);
 
-                m_customView = new FrameLayout(m_context);
-                m_customView.addView(m_wpeSurfaceView);
-                m_customView.setFocusable(true);
-                m_customView.setFocusableInTouchMode(true);
+            m_customView = new FrameLayout(m_context);
+            m_customView.addView(m_wpeSurfaceView);
+            m_customView.setFocusable(true);
+            m_customView.setFocusableInTouchMode(true);
 
-                WebChromeClient.CustomViewCallback cb = () -> {
-                    if (m_customView != null) {
-                        Browser.getInstance().requestExitFullscreenMode(WPEView.this);
-                    }
-                };
-
-                m_chromeClient.onShowCustomView(m_customView, () -> cb.onCustomViewHidden());
-            }
+            m_chromeClient.onShowCustomView(m_customView, () -> {
+                if (m_customView != null) {
+                    Browser.getInstance().requestExitFullscreenMode(WPEView.this);
+                }
+            });
         });
     }
 
     public void exitFullScreen()
     {
-        runOnMainThread(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if (m_customView != null)  {
-                    m_customView.removeView(m_wpeSurfaceView);
-                    addView(m_wpeSurfaceView);
-                    m_customView = null;
+        runOnMainThread(() -> {
+            if (m_customView != null)  {
+                m_customView.removeView(m_wpeSurfaceView);
+                addView(m_wpeSurfaceView);
+                m_customView = null;
 
-                    m_chromeClient.onHideCustomView();
-                }
+                m_chromeClient.onHideCustomView();
             }
         });
     }
