@@ -45,15 +45,15 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        Log.d("Browser", "onConfigurationChanged");
+        Log.d("Browser", "onConfigurationChanged")
     }
 
     internal fun newTab(url: String?) {
         val charPool: List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
         val tabId = (1..12)
-            .map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
+            .map { kotlin.random.Random.nextInt(0, charPool.size) }
             .map(charPool::get)
-            .joinToString("");
+            .joinToString("")
         val bundle = bundleOf("url" to url)
         supportFragmentManager.commit {
             setReorderingAllowed(true)
@@ -71,13 +71,13 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     internal fun closeTab(tab: TabSelectorItem) {
-        val index = tabs.indexOf(tab);
+        val index = tabs.indexOf(tab)
         if (activeTabItem == tab) {
-            val next = (index + 1) % tabs.size;
-            activeTabItem = tabs[next];
+            val next = (index + 1) % tabs.size
+            activeTabItem = tabs[next]
             setActiveTab(activeTabItem!!)
         }
-        tabs.removeAt(index);
+        tabs.removeAt(index)
         if (tabs.size == 0) {
             setUrl(null)
         }
@@ -165,7 +165,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                         ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
                     )
                 )
-                callback?.onCustomViewHidden()
             }
 
             override fun onHideCustomView() {
@@ -175,7 +174,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
                 fullscreenView = null
             }
-        };
+        }
     }
 
     private fun setWPEViewClient() {
@@ -257,7 +256,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     fun onCommit(text: String) {
-        var url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
+        val url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
             text
         } else {
             SEARCH_URI_BASE + text
