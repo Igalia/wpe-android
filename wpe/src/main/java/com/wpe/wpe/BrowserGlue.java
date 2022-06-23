@@ -26,7 +26,7 @@ public class BrowserGlue
     public static native void initLooperHelper();
     public static native void shut();
 
-    public static native void newPage(Page page, int pageId, int width, int height, String userAgent);
+    public static native void newPage(Page page, int pageId, int width, int height);
     public static native void closePage(int pageId);
 
     public static native void loadURL(int pageId, String url);
@@ -47,6 +47,8 @@ public class BrowserGlue
     public static native void deleteInputMethodContent(int m_id, int offset);
 
     public static native void requestExitFullscreenMode(int pageId);
+
+    public static native void updateAllPageSettings(int pageId, PageSettings settings);
 
     public BrowserGlue(@NonNull Browser browser)
     {

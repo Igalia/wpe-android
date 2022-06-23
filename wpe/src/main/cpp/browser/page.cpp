@@ -70,10 +70,9 @@ struct wpe_android_view_backend_exportable_client Page::s_exportableClient = {
         }
 };
 
-Page::Page(int width, int height, const std::string& userAgent, std::shared_ptr<PageEventObserver> observer)
+Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
         : m_width(width),
           m_height(height),
-          m_userAgent(userAgent),
           m_observer(observer),
           m_webView(nullptr),
           m_viewBackendExportable(nullptr),
@@ -124,10 +123,6 @@ void Page::init()
     m_input_method_context = input_method_context_new(m_observer);
 
     webkit_web_view_set_input_method_context(m_webView, m_input_method_context);
-
-    auto* settings = webkit_web_view_get_settings(m_webView);
-    webkit_settings_set_user_agent(settings, m_userAgent.c_str());
-    webkit_web_view_set_settings(m_webView, settings);
 
     wpe_view_backend_set_fullscreen_handler(
             webkit_web_view_backend_get_wpe_backend(viewBackend),
@@ -276,4 +271,14 @@ void Page::fullscreenImageReady()
     struct wpe_view_backend* viewBackend = wpe_android_view_backend_exportable_get_view_backend(
             m_viewBackendExportable);
     wpe_view_backend_dispatch_did_enter_fullscreen(viewBackend);
+}
+
+void Page::updateAllSettings(const PageSettings& settings)
+{
+    ALOGV("Page::updateAllSettings()");
+
+    auto* webViewSettings = webkit_web_view_get_settings(m_webView);
+    webkit_settings_set_user_agent(webViewSettings, settings.userAgent().c_str());
+    webkit_settings_set_media_playback_requires_user_gesture(webViewSettings, settings.mediaPlayerRequiresUserGesture());
+    webkit_web_view_set_settings(m_webView, webViewSettings);
 }

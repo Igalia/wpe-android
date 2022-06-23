@@ -81,11 +81,10 @@ void Browser::runMainLoop()
     m_uiProcessThreadLoop.reset(nullptr);
 }
 
-void Browser::newPage(int pageId, int width, int height, const std::string& userAgent,
-                      std::shared_ptr<PageEventObserver> observer)
+void Browser::newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer)
 {
     ALOGV("Browser::newPage");
-    auto page = std::make_unique<Page>(width, height, userAgent, observer);
+    auto page = std::make_unique<Page>(width, height, observer);
     g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
         auto* page = reinterpret_cast<Page*>(data);
         if (page != nullptr)
@@ -295,5 +294,26 @@ void Browser::deleteInputMethodContent(int pageId, int offset)
         return G_SOURCE_REMOVE;
     }, data, +[](gpointer data) {
         delete static_cast<InputMethodContentData*>(data);
+    });
+}
+
+void Browser::updateAllPageSettings(int pageId, const PageSettings& settings)
+{
+    if (m_pages.find(pageId) == m_pages.end())
+        return;
+
+    struct PageSettingsData
+    {
+        Page* page;
+        PageSettings settings;
+    };
+
+    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
+        auto* pageSettingData = static_cast<PageSettingsData*>(data);
+        if (pageSettingData->page != nullptr)
+            pageSettingData->page->updateAllSettings(pageSettingData->settings);
+        return G_SOURCE_REMOVE;
+    }, new PageSettingsData { m_pages[pageId].get(), settings }, +[](gpointer data) {
+        delete static_cast<PageSettingsData*>(data);
     });
 }

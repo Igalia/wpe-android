@@ -42,6 +42,8 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
     private WPESurfaceView m_wpeSurfaceView;
     private FrameLayout m_customView;
 
+    private WPESettings m_settings = new WPESettings();
+
     public WPEView(final Context context)
     {
         super(context);
@@ -214,6 +216,14 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
     }
 
     /************** PUBLIC WPEView API *******************/
+
+    /**
+     * Gets the WPESettings object used to control the settings for this WPEView.
+     */
+    public WPESettings getSettings()
+    {
+        return m_settings;
+    }
 
     /**
      * Loads the given URL.

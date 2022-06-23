@@ -3,6 +3,7 @@
 #include "exportedbuffer.h"
 #include "page.h"
 #include "pageeventobserver.h"
+#include "pagesettings.h"
 
 #include <functional>
 #include <string>
@@ -37,8 +38,7 @@ public:
 
     void invoke(void (* callback)(void*), void* callbackData, void (* destroy)(void*));
 
-    void newPage(int pageId, int width, int height, const std::string& userAgent,
-                 std::shared_ptr<PageEventObserver> observer);
+    void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
 
     void loadUrl(int pageId, const char* urlData, jsize urlSize);
@@ -60,6 +60,8 @@ public:
     void deleteInputMethodContent(int pageId, int offset);
 
     void requestExitFullscreen(int pageId);
+
+    void updateAllPageSettings(int pageId, const PageSettings& settings);
 
 private:
     Browser() = default;
