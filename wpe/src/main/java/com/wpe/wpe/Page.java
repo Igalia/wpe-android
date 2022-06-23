@@ -57,38 +57,6 @@ public class Page
     private boolean m_canGoBack = true;
     private boolean m_canGoForward = true;
 
-    private static final int DefaultMajorVersion = 12;
-    private static final int DefaultMinorVersion = 0;
-    private static final int DefaultBugfixVersion = 0;
-    private static String sOsVersion;
-
-    private String getOsVersion()
-    {
-        if (sOsVersion == null) {
-            String releaseVersion = android.os.Build.VERSION.RELEASE;
-            boolean validReleaseVersion = false;
-            try {
-                Pattern versionPattern = Pattern.compile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)");
-                Matcher matcher = versionPattern.matcher(releaseVersion);
-                // Check if major version is found
-                String majorVersionString = matcher.group(1);
-                if (majorVersionString != null && !majorVersionString.isEmpty()) {
-                    validReleaseVersion = true;
-                }
-            } catch (Exception e) {}
-
-            if (validReleaseVersion) {
-                sOsVersion = releaseVersion;
-            } else {
-                sOsVersion = String.format("%d.%d.%d",
-                    DefaultMajorVersion,
-                    DefaultMinorVersion,
-                    DefaultBugfixVersion);
-            }
-        }
-        return sOsVersion;
-    }
-
     public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId)
     {
         LOGTAG = "WPE page" + pageId;
@@ -132,6 +100,10 @@ public class Page
     {
         Log.v(LOGTAG, "WebKitWebView ready " + m_pageGlueReady);
         m_pageGlueReady = true;
+
+        updateAllSettings();
+        m_wpeView.getSettings().getPageSettings().setPage(this);
+
         if (m_viewReady) {
             loadUrlInternal();
         }
@@ -144,13 +116,9 @@ public class Page
             return;
         }
 
-        StringBuilder userAgentBuilder = new StringBuilder();
-        userAgentBuilder.append(String.format("Mozilla/5.0 (Linux; Android %s) ", getOsVersion()));
-        userAgentBuilder.append("AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile Safari/605.1.15");
-
         // Requests the creation of a new WebKitWebView. On creation, the `onPageGlueReady` callback
         // is triggered.
-        BrowserGlue.newPage(this, m_id, m_width, m_height, userAgentBuilder.toString());
+        BrowserGlue.newPage(this, m_id, m_width, m_height);
     }
 
     public void onViewReady()
@@ -327,5 +295,10 @@ public class Page
         if (m_pageGlueReady) {
             BrowserGlue.deleteInputMethodContent(m_id, offset);
         }
+    }
+
+    void updateAllSettings()
+    {
+        BrowserGlue.updateAllPageSettings(m_id, m_wpeView.getSettings().getPageSettings());
     }
 }

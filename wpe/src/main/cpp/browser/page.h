@@ -2,6 +2,7 @@
 
 #include "inputmethodcontext.h"
 #include "pageeventobserver.h"
+#include "pagesettings.h"
 #include "renderer.h"
 
 #include <wpe/webkit.h>
@@ -18,7 +19,7 @@ struct ExportedBuffer;
 class Page
 {
 public:
-    Page(int width, int height, const std::string& userAgent, std::shared_ptr<PageEventObserver> observer);
+    Page(int width, int height, std::shared_ptr<PageEventObserver> observer);
 
     Page(Page&&) = delete;
     Page& operator=(Page&&) = delete;
@@ -53,12 +54,13 @@ public:
     struct wpe_android_view_backend_exportable* exportable()
     { return m_viewBackendExportable; }
 
+    void updateAllSettings(const PageSettings& settings);
+
 private:
     static struct wpe_android_view_backend_exportable_client s_exportableClient;
 
     int m_width = 0;
     int m_height = 0;
-    std::string m_userAgent;
     bool m_initialized = false;
     bool m_resizing_fullscreen = false;
     WebKitWebView* m_webView = nullptr;

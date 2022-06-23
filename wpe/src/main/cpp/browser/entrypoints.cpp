@@ -53,16 +53,12 @@ void shut(JNIEnv* env, jclass)
     }
 }
 
-void newPage(JNIEnv* env, jclass, jobject pageObj, jint pageId, jint width, jint height, jstring userAgent)
+void newPage(JNIEnv* env, jclass, jobject pageObj, jint pageId, jint width, jint height)
 {
-    const char* str = env->GetStringUTFChars(userAgent, nullptr);
-    ALOGV("BrowserGlue::newPage(%p, %d, %d, %d, %s) [tid %d]", pageObj, pageId, width, height, str, gettid());
-    std::string _userAgent(str);
-    env->ReleaseStringUTFChars(userAgent, str);
+    ALOGV("BrowserGlue::newPage(%p, %d, %d, %d) [tid %d]", pageObj, pageId, width, height, gettid());
 
     jclass pageClass = env->GetObjectClass(pageObj);
-    Browser::getInstance().newPage(pageId, width, height, _userAgent,
-                                   std::make_shared<PageEventObserver>(env, pageClass, pageObj));
+    Browser::getInstance().newPage(pageId, width, height, std::make_shared<PageEventObserver>(env, pageClass, pageObj));
 
     jmethodID onReady = env->GetMethodID(pageClass, "onPageGlueReady", "()V");
     if (onReady != nullptr) {
@@ -168,6 +164,35 @@ void requestExitFullscreenMode(JNIEnv*, jclass, jint pageId)
     ALOGV("BrowserGlue::requestExitFullscreen(%d) [tid %d]", pageId, gettid());
     Browser::getInstance().requestExitFullscreen(pageId);
 }
+
+void updateAllPageSettings(JNIEnv* env, jclass, jint pageId, jobject jPageSettings)
+{
+    ALOGV("BrowserGlue::updateAllPageSettings(%d) [tid %d]", pageId, gettid());
+
+    PageSettings settings;
+
+    jclass jPageSettingsClass = env->GetObjectClass(jPageSettings);
+
+    jmethodID methodID = env->GetMethodID(jPageSettingsClass, "getUserAgentString", "()Ljava/lang/String;");
+    if (methodID != nullptr) {
+        jstring jniString = reinterpret_cast<jstring>(env->CallObjectMethod(jPageSettings, methodID));
+        const char* str = env->GetStringUTFChars(jniString, nullptr);
+        settings.setUserAgent(str);
+        env->ReleaseStringUTFChars(jniString, str);
+    } else
+        ALOGE("Cannot update user agent setting (cannot find \"getUserAgentString\" method)");
+
+    methodID = env->GetMethodID(jPageSettingsClass, "getMediaPlaybackRequiresUserGesture", "()Z");
+    if (methodID != nullptr) {
+        jboolean require = env->CallBooleanMethod(jPageSettings, methodID);
+        settings.setMediaPlayerRequiresUserGesture(require);
+    } else
+        ALOGE("Cannot update media playback requires user gesture setting (cannot find \"getUserAgentString\" method)");
+
+    env->DeleteLocalRef(jPageSettingsClass);
+
+    Browser::getInstance().updateAllPageSettings(pageId, settings);
+}
 } // namespace
 
 JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::ProcessType processType, int* fd)
@@ -253,7 +278,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
             { "init",                      "(Lcom/wpe/wpe/BrowserGlue;)V",               reinterpret_cast<void*>(init) },
             { "initLooperHelper",          "()V",                                        reinterpret_cast<void*>(initLooperHelper) },
             { "shut",                      "()V",                                        reinterpret_cast<void*>(shut) },
-            { "newPage",                   "(Lcom/wpe/wpe/Page;IIILjava/lang/String;)V", reinterpret_cast<void*>(newPage) },
+            { "newPage",                   "(Lcom/wpe/wpe/Page;III)V",                   reinterpret_cast<void*>(newPage) },
             { "closePage",                 "(I)V",                                       reinterpret_cast<void*>(closePage) },
             { "loadURL",                   "(ILjava/lang/String;)V",                     reinterpret_cast<void*>(loadURL) },
             { "goBack",                    "(I)V",                                       reinterpret_cast<void*>(goBack) },
@@ -268,7 +293,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
             { "setZoomLevel",              "(ID)V",                                      reinterpret_cast<void*>(setZoomLevel) },
             { "setInputMethodContent",     "(IC)V",                                      reinterpret_cast<void*>(setInputMethodContent) },
             { "deleteInputMethodContent",  "(II)V",                                      reinterpret_cast<void*>(deleteInputMethodContent) },
-            { "requestExitFullscreenMode", "(I)V",                                       reinterpret_cast<void*>(requestExitFullscreenMode) }
+            { "requestExitFullscreenMode", "(I)V",                                       reinterpret_cast<void*>(requestExitFullscreenMode) },
+            { "updateAllPageSettings",         "(ILcom/wpe/wpe/PageSettings;)V",         reinterpret_cast<void*>(updateAllPageSettings) }
     };
     int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
     env->DeleteLocalRef(klass);
