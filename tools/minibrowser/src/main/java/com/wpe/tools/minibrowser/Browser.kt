@@ -3,6 +3,7 @@ package com.wpe.tools.minibrowser
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.*
@@ -157,7 +158,15 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                     (it.parent as ViewGroup).removeView(it)
                 }
                 fullscreenView = view
-                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    window.setFlags(
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN
+                    )
+                }
                 window.addContentView(
                     fullscreenView,
                     FrameLayout.LayoutParams(
@@ -169,7 +178,12 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
             override fun onHideCustomView() {
                 fullscreenView?.let {
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                    } else {
+                        @Suppress("DEPRECATION")
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    }
                     (it.parent as ViewGroup).removeView(it)
                 }
                 fullscreenView = null
