@@ -1,6 +1,7 @@
 #include "browser.h"
 
 #include "logging.h"
+#include "messagepump.h"
 
 #include <algorithm>
 #include <gio/gio.h>
@@ -14,85 +15,39 @@
 #include <android/surface_control.h>
 
 #define PAGE_METHOD_PROXY(BROWSER_METHOD, PAGE_METHOD, PRIORITY) \
-    void Browser::BROWSER_METHOD(int pageId) \
-    { \
-        if (m_pages.find(pageId) == m_pages.end()) \
-            return; \
-        g_main_context_invoke_full(*m_uiProcessThreadContext, PRIORITY, +[](gpointer data) -> gboolean { \
-            auto* page = reinterpret_cast<Page*>(data); \
-            if (page != nullptr) page->PAGE_METHOD(); \
-            return G_SOURCE_REMOVE; \
-        }, m_pages[pageId].get(), nullptr); \
+    void Browser::BROWSER_METHOD(int pageId)                     \
+    {                                                            \
+        auto it = m_pages.find(pageId);                          \
+        if (it == m_pages.end())                                 \
+            return;                                              \
+                                                                 \
+        auto* page = it->second.get();                           \
+        if (page != nullptr) page->PAGE_METHOD();                \
     }
 
 void Browser::init()
 {
-    ALOGV("Browser::init");
-
-    if (!m_uiProcessThreadContext)
-        m_uiProcessThreadContext = std::make_unique<GMainContext*>(g_main_context_new());
-
-    runMainLoop();
+    ALOGV("Browser::init - tid: %d", gettid());
+    m_messagePump = std::make_unique<MessagePump>();
+    webkit_web_context_new();
 }
 
 void Browser::shut()
 {
-    ALOGV("Browser::shut");
-
-    g_main_loop_quit(*m_uiProcessThreadLoop.get());
+    ALOGV("Browser::shut - tid: %d", gettid());
+    m_messagePump->quit();
 }
 
-void Browser::invoke(void (* callback)(void*), void* callbackData, void (* destroy)(void*))
+void Browser::invokeOnUiThread(void (* callback)(void*), void* callbackData, void (* destroy)(void*))
 {
-    struct GenericCallback
-    {
-        void (* callback)(void*);
-        void* callbackData;
-        void (* destroy)(void*);
-    };
-
-    auto* data = new GenericCallback { callback, callbackData, destroy };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* genericData = reinterpret_cast<GenericCallback*>(data);
-        genericData->callback(genericData->callbackData);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        auto* genericData = reinterpret_cast<GenericCallback*>(data);
-        if (genericData->destroy)
-            genericData->destroy(genericData->callbackData);
-        delete genericData;
-    });
-}
-
-void Browser::runMainLoop()
-{
-    ALOGV("ui_process_thread_entry -- entered, g_main_context_default() %p", g_main_context_default());
-    m_uiProcessThreadLoop = std::make_unique<GMainLoop*>(g_main_loop_new(*m_uiProcessThreadContext.get(), FALSE));
-    g_main_context_push_thread_default(*m_uiProcessThreadContext.get());
-    webkit_web_context_new();
-
-    ALOGV("ui_process_thread_entry -- running via GMainLoop %p for GMainContext %p", m_uiProcessThreadLoop.get(),
-          m_uiProcessThreadContext.get());
-    g_main_loop_run(*m_uiProcessThreadLoop.get());
-
-    ALOGV("ui_process_thread_entry -- quitting");
-    g_main_context_pop_thread_default(*m_uiProcessThreadContext.get());
-    g_main_loop_unref(*m_uiProcessThreadLoop.get());
-    m_uiProcessThreadLoop.reset(nullptr);
+    m_messagePump->invoke(callback, callbackData, destroy);
 }
 
 void Browser::newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer)
 {
-    ALOGV("Browser::newPage");
+    ALOGV("Browser::newPage - tid: %d", gettid());
     auto page = std::make_unique<Page>(width, height, observer);
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* page = reinterpret_cast<Page*>(data);
-        if (page != nullptr)
-            page->init();
-
-        return G_SOURCE_REMOVE;
-    }, page.get(), nullptr);
-
+    page->init();
     m_pages.insert(std::make_pair(pageId, std::move(page)));
 }
 
@@ -107,105 +62,50 @@ PAGE_METHOD_PROXY(requestExitFullscreen, requestExitFullscreen, G_PRIORITY_DEFAU
 
 void Browser::surfaceCreated(int pageId, ANativeWindow* window)
 {
-    if (m_pages.find(pageId) == m_pages.end())
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
         return;
 
-    struct SurfaceCreatedData
-    {
-        Page* page;
-        ANativeWindow* window;
-    };
-
-    auto* data = new SurfaceCreatedData { m_pages[pageId].get(), window };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* surfaceCreatedData = reinterpret_cast<SurfaceCreatedData*>(data);
-        if (surfaceCreatedData->page != nullptr)
-            surfaceCreatedData->page->surfaceCreated(surfaceCreatedData->window);
-        surfaceCreatedData->window = nullptr;
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        auto* surfaceCreatedData = reinterpret_cast<SurfaceCreatedData*>(data);
-        if (surfaceCreatedData->window)
-            ANativeWindow_release(surfaceCreatedData->window);
-        delete surfaceCreatedData;
-    });
+    auto* page = it->second.get();
+    page->surfaceCreated(window);
 }
 
 void Browser::surfaceChanged(int pageId, int format, int width, int height)
 {
-    if (m_pages.find(pageId) == m_pages.end())
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
         return;
 
-    struct SurfaceChangedData
-    {
-        Page* page;
-        int format;
-        int width;
-        int height;
-    };
-
-    auto* data = new SurfaceChangedData { m_pages[pageId].get(), format, width, height };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* surfaceChangedData = reinterpret_cast<SurfaceChangedData*>(data);
-        if (surfaceChangedData->page != nullptr)
-            surfaceChangedData->page->surfaceChanged(surfaceChangedData->format, surfaceChangedData->width,
-                                                     surfaceChangedData->height);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        delete reinterpret_cast<SurfaceChangedData*>(data);
-    });
+    auto* page = it->second.get();
+    page->surfaceChanged(format, width, height);
 }
 
 void Browser::handleExportedBuffer(Page& page, std::shared_ptr<ExportedBuffer>&& exportedBuffer)
 {
-    ALOGV("Browser::renderFrame() page %p, exportedBuffer %p", &page, exportedBuffer.get());
+    ALOGV("Browser::renderFrame() page %p, exportedBuffer %p tid: %d", &page, exportedBuffer.get(), gettid());
 
-    struct FrameOperation
-    {
-        Page& page;
-        std::shared_ptr<ExportedBuffer> buffer;
-    };
-
-    auto* data = new FrameOperation { page, std::move(exportedBuffer) };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* frameOperation = reinterpret_cast<FrameOperation*>(data);
-        frameOperation->page.handleExportedBuffer(frameOperation->buffer);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        delete reinterpret_cast<FrameOperation*>(data);
-    });
+    page.handleExportedBuffer(std::move(exportedBuffer));
 }
 
 void Browser::loadUrl(int pageId, const char* urlData, jsize urlSize)
 {
-    if (m_pages.find(pageId) == m_pages.end())
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
         return;
 
-    struct LoadUrlData
-    {
-        Page* page;
-        char* url;
-    };
-
+    auto* page = it->second.get();
     char* url = g_strndup(urlData, urlSize);
-    auto* data = new LoadUrlData { m_pages[pageId].get(), url };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* loadUrlData = reinterpret_cast<LoadUrlData*>(data);
-        if (loadUrlData->page != nullptr)
-            loadUrlData->page->loadUrl(loadUrlData->url);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        auto* loadUrlData = reinterpret_cast<LoadUrlData*>(data);
-        g_free(loadUrlData->url);
-        delete loadUrlData;
-    });
+    page->loadUrl(url);
+    g_free(url);
 }
 
 void Browser::onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y)
 {
-    if (m_pages.find(pageId) == m_pages.end())
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
         return;
 
+    auto* page = it->second.get();
     wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
     switch (type) {
     case 0:
@@ -219,101 +119,52 @@ void Browser::onTouch(int pageId, jlong time, jint type, jfloat x, jfloat y)
         break;
     }
 
-    struct wpe_input_touch_event_raw* touchEventRaw = g_new0(struct wpe_input_touch_event_raw, 1);
-    touchEventRaw->type = touchEventType;
-    touchEventRaw->time = (uint32_t)time;
-    touchEventRaw->id = 0;
-    touchEventRaw->x = (int32_t)x;
-    touchEventRaw->y = (int32_t)y;
+    struct wpe_input_touch_event_raw touchEventRaw;
+    touchEventRaw.type = touchEventType;
+    touchEventRaw.time = (uint32_t)time;
+    touchEventRaw.id = 0;
+    touchEventRaw.x = (int32_t)x;
+    touchEventRaw.y = (int32_t)y;
 
-    struct OnTouchData
-    {
-        Page* page;
-        wpe_input_touch_event_raw* touchEvent;
-    };
-
-    auto* data = new OnTouchData { m_pages[pageId].get(), touchEventRaw };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* touchData = reinterpret_cast<OnTouchData*>(data);
-        if (touchData->page != nullptr)
-            touchData->page->onTouch(touchData->touchEvent);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        auto* touchData = reinterpret_cast<OnTouchData*>(data);
-        g_free(touchData->touchEvent);
-        delete touchData;
-    });
+    page->onTouch(&touchEventRaw);
 }
 
 void Browser::setZoomLevel(int pageId, jdouble zoomLevel)
 {
-    struct ZoomLevelData
-    {
-        Page* page;
-        double zoomLevel;
-    };
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
+        return;
 
-    auto* data = new ZoomLevelData { m_pages[pageId].get(), zoomLevel };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* zoomLevelData = reinterpret_cast<ZoomLevelData*>(data);
-        if (zoomLevelData->page != nullptr)
-            zoomLevelData->page->setZoomLevel(zoomLevelData->zoomLevel);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) -> void {
-        delete reinterpret_cast<ZoomLevelData*>(data);
-    });
+    auto* page = it->second.get();
+    page->setZoomLevel(zoomLevel);
 }
-
-struct InputMethodContentData
-{
-    Page* page;
-    const char c;
-    int offset;
-};
 
 void Browser::setInputMethodContent(int pageId, const char c)
 {
-    auto* data = new InputMethodContentData { m_pages[pageId].get(), c, 0 };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* data_ = static_cast<InputMethodContentData*>(data);
-        if (data_->page != nullptr)
-            data_->page->setInputMethodContent(data_->c);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) {
-        delete static_cast<InputMethodContentData*>(data);
-    });
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
+        return;
+
+    auto* page = it->second.get();
+    page->setInputMethodContent(c);
 }
 
 void Browser::deleteInputMethodContent(int pageId, int offset)
 {
-    auto* data = new InputMethodContentData { m_pages[pageId].get(), 0, offset };
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* data_ = static_cast<InputMethodContentData*>(data);
-        if (data_->page != nullptr)
-            data_->page->deleteInputMethodContent(data_->offset);
-        return G_SOURCE_REMOVE;
-    }, data, +[](gpointer data) {
-        delete static_cast<InputMethodContentData*>(data);
-    });
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
+        return;
+
+    auto* page = it->second.get();
+    page->deleteInputMethodContent(offset);
 }
 
 void Browser::updateAllPageSettings(int pageId, const PageSettings& settings)
 {
-    if (m_pages.find(pageId) == m_pages.end())
+    auto it = m_pages.find(pageId);
+    if (it == m_pages.end())
         return;
 
-    struct PageSettingsData
-    {
-        Page* page;
-        PageSettings settings;
-    };
-
-    g_main_context_invoke_full(*m_uiProcessThreadContext, G_PRIORITY_DEFAULT, +[](gpointer data) -> gboolean {
-        auto* pageSettingData = static_cast<PageSettingsData*>(data);
-        if (pageSettingData->page != nullptr)
-            pageSettingData->page->updateAllSettings(pageSettingData->settings);
-        return G_SOURCE_REMOVE;
-    }, new PageSettingsData { m_pages[pageId].get(), settings }, +[](gpointer data) {
-        delete static_cast<PageSettingsData*>(data);
-    });
+    auto* page = it->second.get();
+    page->updateAllSettings(settings);
 }

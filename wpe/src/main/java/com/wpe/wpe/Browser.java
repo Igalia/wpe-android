@@ -49,12 +49,6 @@ public final class Browser
     private final LooperHelperThread m_looperHelperThread;
 
     /**
-     * Thread where the actual WebKit's UIProcess logic runs.
-     * It hosts an instance of WebKitWebContext and runs the main loop.
-     */
-    private final UIProcessThread m_uiProcessThread;
-
-    /**
      * List of active Pages.
      * A page corresponds to a tab in regular browser's UI.
      */
@@ -260,59 +254,14 @@ public final class Browser
         }
     }
 
-    /**
-     * Thread where the actual WebKit's UIProcess logic runs.
-     * It hosts an instance of WebKitWebContext and runs the main loop.
-     */
-    private final class UIProcessThread
-    {
-        private final Thread m_thread;
-        private BrowserGlue m_glueRef;
-
-        UIProcessThread()
-        {
-            final UIProcessThread self = this;
-
-            m_thread = new Thread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    Log.i(LOGTAG, "In UIProcess thread");
-                    while (true) {
-                        try {
-                            while (self.m_glueRef == null) {
-                                self.wait();
-                            }
-                        } catch (InterruptedException e) {
-                            Log.v(LOGTAG, "Interruption in UIProcess thread");
-                        }
-                        // Create a WebKitWebContext and run the main loop.
-                        BrowserGlue.init(m_glueRef);
-                    }
-                }
-            });
-
-            m_thread.start();
-        }
-
-        public void run(@NonNull BrowserGlue glue)
-        {
-            final UIProcessThread self = this;
-            synchronized (self) {
-                m_glueRef = glue;
-                self.notifyAll();
-            }
-        }
-    }
-
     private Browser()
     {
         Log.v(LOGTAG, "Browser creation");
         m_glue = new BrowserGlue(this);
         m_looperHelperThread = new LooperHelperThread();
-        m_uiProcessThread = new UIProcessThread();
-        m_uiProcessThread.run(m_glue);
+
+        // Create a WebKitWebContext and integrate webkit main loop with Android looper
+        BrowserGlue.init(m_glue);
     }
 
     public static void initialize(Context context)

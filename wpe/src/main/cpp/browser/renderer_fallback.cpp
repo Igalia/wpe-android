@@ -288,7 +288,7 @@ void RendererFallback::s_frameCallback(long, void* data)
     auto* context = static_cast<FrameContext*>(data);
     ALOGV("RendererFallback::s_frameCallback() renderer %p buffer %p", &context->renderer, context->buffer.get());
 
-    Browser::getInstance().invoke(
+    Browser::getInstance().invokeOnUiThread(
             [](void* data) {
                 auto* context = static_cast<FrameContext*>(data);
                 context->renderer.renderFrame(context->buffer, context->dispatchFrameCompleteCallback);

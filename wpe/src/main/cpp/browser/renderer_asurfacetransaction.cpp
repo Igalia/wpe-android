@@ -111,14 +111,14 @@ void RendererASurfaceTransaction::scheduleFrame(TransactionContext* transactionC
 
     ASurfaceTransaction_setBuffer(transaction, m_surface.control, transactionContext->buffer->buffer, -1);
 
-    ASurfaceTransaction_setOnComplete(transaction, transactionContext, onTransactionComplete);
+    ASurfaceTransaction_setOnComplete(transaction, transactionContext, onTransactionCompleteOnAnyThread);
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
 }
 
 void RendererASurfaceTransaction::finishFrame(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
 {
-    ALOGV("RendererASurfaceTransaction::finishFrame() exportedBuffer %p", exportedBuffer.get());
+    ALOGV("RendererASurfaceTransaction::finishFrame() exportedBuffer %p tid: %d", exportedBuffer.get(), gettid());
 
     // If the current locked buffer is different from the current exported one, it should be released here.
     if (m_state.lockedBuffer && m_state.exportedBuffer != m_state.lockedBuffer)
@@ -133,12 +133,13 @@ void RendererASurfaceTransaction::finishFrame(const std::shared_ptr<ExportedBuff
     m_state.dispatchFrameCompleteCallback = false;
 }
 
-void RendererASurfaceTransaction::onTransactionComplete(void* data, ASurfaceTransactionStats* stats)
+// API documentation states that this callback can be dispatched on any thread.
+void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(void* data, ASurfaceTransactionStats* stats)
 {
-    ALOGV("RendererASurfaceTransaction::onTransactionComplete() context %p", data);
+    ALOGV("RendererASurfaceTransaction::onTransactionCompleteOnAnyThread() context %p tid: %d", data, gettid());
 
-    // Relay the transaction completion to the browser thread.
-    Browser::getInstance().invoke(
+    // Relay the transaction completion to the webkit ui thread.
+    Browser::getInstance().invokeOnUiThread(
             [](void* data) {
                 auto* context = static_cast<TransactionContext*>(data);
                 context->renderer.finishFrame(context->buffer);
