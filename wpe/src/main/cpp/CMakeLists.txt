@@ -68,6 +68,7 @@ add_library(WPEBrowserGlue SHARED
         browser/entrypoints.cpp
         browser/browser.cpp
         browser/looperthread.cpp
+        browser/messagepump.cpp
         browser/page.cpp
         browser/inputmethodcontext.cpp
         browser/renderer_asurfacetransaction.cpp

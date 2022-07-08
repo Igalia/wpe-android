@@ -1,6 +1,7 @@
 #pragma once
 
 #include "exportedbuffer.h"
+#include "messagepump.h"
 #include "page.h"
 #include "pageeventobserver.h"
 #include "pagesettings.h"
@@ -36,7 +37,7 @@ public:
     void init();
     void shut();
 
-    void invoke(void (* callback)(void*), void* callbackData, void (* destroy)(void*));
+    void invokeOnUiThread(void (* callback)(void*), void* callbackData, void (* destroy)(void*));
 
     void newPage(int pageId, int width, int height, std::shared_ptr<PageEventObserver> observer);
     void closePage(int pageId);
@@ -66,10 +67,7 @@ public:
 private:
     Browser() = default;
 
-    std::unique_ptr<GMainContext*> m_uiProcessThreadContext;
-    std::unique_ptr<GMainLoop*> m_uiProcessThreadLoop;
+    std::unique_ptr<MessagePump> m_messagePump;
 
     std::unordered_map<int, std::unique_ptr<Page>> m_pages;
-
-    void runMainLoop();
 };

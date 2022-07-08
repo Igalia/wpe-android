@@ -93,7 +93,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         m_wpeSurfaceView = view;
 
         post(() -> {
-            // Run on the main thread
+            // Delay adding view a bit to next run cycle
             try {
                 addView(view);
             } catch (Exception e) {
@@ -130,15 +130,6 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
         return true;
     }
 
-    private void runOnMainThread(Runnable runnable)
-    {
-        try {
-            post(runnable);
-        } catch (Exception e) {
-            Log.e(LOGTAG, "Cannot run main thread", e);
-        }
-    }
-
     public void onLoadChanged(int loadEvent)
     {
         WPEView self = this;
@@ -147,14 +138,14 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             if (m_wpeViewClient == null) {
                 return;
             }
-            runOnMainThread(() -> m_wpeViewClient.onPageStarted(self, m_url));
+            m_wpeViewClient.onPageStarted(self, m_url);
             break;
         case Page.LOAD_FINISHED:
             onLoadProgress(100);
             if (m_wpeViewClient == null) {
                 return;
             }
-            runOnMainThread(() -> m_wpeViewClient.onPageFinished(self, m_url));
+            m_wpeViewClient.onPageFinished(self, m_url);
             break;
         }
     }
@@ -166,7 +157,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             return;
         }
         WPEView self = this;
-        runOnMainThread(() -> m_chromeClient.onProgressChanged(self, m_currentLoadProgress));
+        m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
     }
 
     public void onUriChanged(String uri)
@@ -181,38 +172,34 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
             return;
         }
         WPEView self = this;
-        runOnMainThread(() -> m_chromeClient.onReceivedTitle(self, m_title));
+        m_chromeClient.onReceivedTitle(self, m_title);
     }
 
     public void enterFullScreen()
     {
-        runOnMainThread(() -> {
-            removeView(m_wpeSurfaceView);
+        removeView(m_wpeSurfaceView);
 
-            m_customView = new FrameLayout(m_context);
-            m_customView.addView(m_wpeSurfaceView);
-            m_customView.setFocusable(true);
-            m_customView.setFocusableInTouchMode(true);
+        m_customView = new FrameLayout(m_context);
+        m_customView.addView(m_wpeSurfaceView);
+        m_customView.setFocusable(true);
+        m_customView.setFocusableInTouchMode(true);
 
-            m_chromeClient.onShowCustomView(m_customView, () -> {
-                if (m_customView != null) {
-                    Browser.getInstance().requestExitFullscreenMode(WPEView.this);
-                }
-            });
+        m_chromeClient.onShowCustomView(m_customView, () -> {
+            if (m_customView != null) {
+                Browser.getInstance().requestExitFullscreenMode(WPEView.this);
+            }
         });
     }
 
     public void exitFullScreen()
     {
-        runOnMainThread(() -> {
-            if (m_customView != null)  {
-                m_customView.removeView(m_wpeSurfaceView);
-                addView(m_wpeSurfaceView);
-                m_customView = null;
+        if (m_customView != null)  {
+            m_customView.removeView(m_wpeSurfaceView);
+            addView(m_wpeSurfaceView);
+            m_customView = null;
 
-                m_chromeClient.onHideCustomView();
-            }
-        });
+            m_chromeClient.onHideCustomView();
+        }
     }
 
     /************** PUBLIC WPEView API *******************/

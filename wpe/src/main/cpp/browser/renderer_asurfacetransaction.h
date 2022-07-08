@@ -33,7 +33,7 @@ private:
     void scheduleFrame(TransactionContext*);
     void finishFrame(const std::shared_ptr<ExportedBuffer>&);
 
-    static void onTransactionComplete(void* data, ASurfaceTransactionStats* stats);
+    static void onTransactionCompleteOnAnyThread(void* data, ASurfaceTransactionStats* stats);
 
     Page& m_page;
     struct
