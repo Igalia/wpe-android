@@ -28,6 +28,7 @@
 void Browser::init()
 {
     ALOGV("Browser::init - tid: %d", gettid());
+
     m_messagePump = std::make_unique<MessagePump>();
     webkit_web_context_new();
 }
