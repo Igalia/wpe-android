@@ -7,11 +7,10 @@
 #include "service.h"
 
 #include <android/native_window_jni.h>
+#include <wpe/wpe.h>
 
 extern "C" {
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM*, void*);
-JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::ProcessType processType, int* fds);
-JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid);
 }
 
 namespace {
@@ -193,22 +192,60 @@ void updateAllPageSettings(JNIEnv* env, jclass, jint pageId, jobject jPageSettin
 
     Browser::getInstance().updateAllPageSettings(pageId, settings);
 }
-} // namespace
 
-JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::ProcessType processType, int* fd)
+// Process management API
+
+struct AndroidProcessProvider {
+    struct wpe_process_provider *wpe_provider;
+};
+
+void* createProcessProvider(struct wpe_process_provider *process_provider)
 {
-    if (fd == nullptr) {
-        ALOGE("Cannot launch process (invalid file descriptor)");
-        return;
-    }
+    ALOGV("BrowserGlue createProcessProvider()");
+    return new AndroidProcessProvider { process_provider };
+}
 
+void destroyProcessProvider(void* data)
+{
+    ALOGV("BrowserGlue destroyProcessProvider()");
+    delete reinterpret_cast<AndroidProcessProvider*>(data);
+}
+
+int32_t launchProcess(void* data, enum wpe_process_type wpeProcessType, void* options)
+{
+    ALOGV("BrowserGlue launchProcess()");
+    auto *provider = reinterpret_cast<AndroidProcessProvider*>(data);
+    if (!provider)
+        return -1;
+
+    auto **argv = reinterpret_cast<char**>(options);
+    if (!argv)
+        return -1;
+
+    uint64_t pid =  std::strtoll(argv[0], nullptr, 10);
+    int32_t fd =  std::stoi(argv[1]);
+
+    static auto processTypeToAndroidProcessType = [] (enum wpe_process_type wpeProcessType)
+    {
+        switch (wpeProcessType) {
+        case WPE_PROCESS_TYPE_WEB:
+            return wpe::android::ProcessType::WebProcess;
+        case WPE_PROCESS_TYPE_NETWORK:
+            return wpe::android::ProcessType::NetworkProcess;
+        case WPE_PROCESS_TYPE_GPU:
+        case WPE_PROCESS_TYPE_WEB_AUTHN:
+        default:
+            return wpe::android::ProcessType::TypesCount;
+        }
+    };
+
+    auto processType = processTypeToAndroidProcessType(wpeProcessType);
     if (processType < wpe::android::ProcessType::FirstType || processType >= wpe::android::ProcessType::TypesCount) {
         ALOGE("Cannot launch process (invalid process type: %d)", static_cast<int>(processType));
-        return;
+        return -1;
     }
 
-    ALOGV("BrowserGlue wpe_android_launchProcess(%lu, %d, %d)", static_cast<unsigned long>(pid),
-          static_cast<int>(processType), *fd);
+    ALOGV("BrowserGlue launchProcess - pid: %llu, processType: %d, fd: %d)", pid, static_cast<int>(processType), fd);
 
     try {
         JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
@@ -218,7 +255,7 @@ JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::Pro
 
             jmethodID methodID = env->GetMethodID(klass, "launchProcess", "(JII)V");
             if (methodID != nullptr) {
-                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid), static_cast<jint>(processType), *fd);
+                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid), static_cast<jint>(processType), fd);
                 if (env->ExceptionCheck()) {
                     env->ExceptionDescribe();
                     env->ExceptionClear();
@@ -234,11 +271,20 @@ JNIEXPORT void JNICALL wpe_android_launchProcess(uint64_t pid, wpe::android::Pro
     } catch (...) {
         ALOGE("Cannot launch process (JNI environment error)");
     }
+
+    return 0;
 }
 
-JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid)
+void terminateProcess(void* data, int32_t pid)
 {
-    ALOGV("BrowserGlue wpe_android_terminateProcess(%lu)", static_cast<unsigned long>(pid));
+    ALOGV("BrowserGlue terminateProcess()");
+    auto *provider = reinterpret_cast<AndroidProcessProvider*>(data);
+    if (!provider)
+        return;
+
+    uint64_t pid64 = pid;
+
+    ALOGV("BrowserGlue terminateProcess - pid: %llu)", pid64);
 
     try {
         JNIEnv* env = wpe::android::getCurrentThreadJNIEnv();
@@ -248,7 +294,7 @@ JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid)
 
             jmethodID methodID = env->GetMethodID(klass, "terminateProcess", "(J)V");
             if (methodID != nullptr) {
-                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid));
+                env->CallVoidMethod(obj, methodID, static_cast<jlong>(pid64));
                 if (env->ExceptionCheck()) {
                     env->ExceptionDescribe();
                     env->ExceptionClear();
@@ -265,6 +311,15 @@ JNIEXPORT void JNICALL wpe_android_terminateProcess(uint64_t pid)
         ALOGE("Cannot terminate process (JNI environment error)");
     }
 }
+
+struct wpe_process_provider_interface processProviderInterface = {
+        .create = createProcessProvider,
+        .destroy = destroyProcessProvider,
+        .launch = launchProcess,
+        .terminate = terminateProcess,
+};
+
+} // namespace
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 {
@@ -298,6 +353,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
     };
     int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
     env->DeleteLocalRef(klass);
+
+    wpe_process_provider_register_interface(&processProviderInterface);
 
     return (result != JNI_OK) ? result : wpe::android::JNI_VERSION;
 }

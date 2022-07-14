@@ -9,6 +9,9 @@ endif ()
 find_library(android-lib android REQUIRED)
 find_library(log-lib log REQUIRED)
 
+set(WPE_ENABLE_PROCESS  TRUE)
+add_definitions(-DWPE_ENABLE_PROCESS)
+
 #################################################
 # Imported external libraries
 #################################################
