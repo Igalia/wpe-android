@@ -1,19 +1,132 @@
-*.swp
-*.iml
-__pycache__
-.gradle
-.DS_Store
-.vscode/
+# Project artifacts
 /.idea/*
 !/.idea/codeStyles/
-/local.properties
-build/
-captures/
-.externalNativeBuild/
-.cxx/
 /wpe/src/main/cpp/imported/
 /wpe/src/main/jniLibs/
 /wpe/src/main/assets/gstreamer-1.0
 /wpe/src/main/assets/gio
 /wpe/src/main/java/org/freedesktop/gstreamer
 /tools/minibrowser/src/main/resources/
+
+# Gradle artifacts
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# CMake artifacts
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+.cache/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+build*/
+obj/
+bin/
+Debug/
+Release/
+Properties/
+*.pdb
+
+# IDE auto-generated files
+cmake-*/
+.vs/
+.vscode/
+ipch/
+nbproject/
+nbbuild/
+nbdist/
+DerivedData/
+xcuserdata/
+~*
+*.booproj
+*.log
+*.opensdf
+*.pidb
+*.projitems
+*.sdf
+*.shproj
+*.suo
+*.svd
+*.tmp
+*.user
+*.userprefs
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+*.iml
+*.db
+*.opendb
+*.sln
+*.vcxproj*
+
+# Vim artifacts
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
+Session.vim
+.netrwhist
+tags
+
+# Patch/diff artifacts
+*.diff
+*.orig
+*.patch
+*.rej
+interdiff*.txt
+
+# Linux artifacts
+\#*\#
+*~
+*.swo
+*.swp
+core
+
+# Mac artifacts
+._*
+.DS*
+*.DS_Store
+.AppleDouble
+.LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.project
+.Spotlight-V100
+.Trashes
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows artifacts
+$RECYCLE.BIN/
+*.lnk
+*.cab
+*.msi
+*.msm
+*.msp
+ehthumbs.db
+ehthumbs_vista.db
+[Tt]humbs.db
+*.stackdump
+Desktop.ini

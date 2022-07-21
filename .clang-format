@@ -1,0 +1,16 @@
+---
+Language: Cpp
+Standard: Latest
+BasedOnStyle: WebKit
+ColumnLimit: 120
+AllowShortEnumsOnASingleLine: false
+Cpp11BracedListStyle: true
+SpaceInEmptyBlock: false
+---
+Language: Java
+IndentWidth: 4
+BreakAfterJavaFieldAnnotations: true
+JavaImportGroups: ['android', 'androidx', 'com.wpe', 'org', 'java']
+SortJavaStaticImport: After
+ColumnLimit: 120
+...
