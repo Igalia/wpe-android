@@ -1,15 +1,24 @@
 <component name="ProjectCodeStyleConfiguration">
   <code_scheme name="Project" version="173">
-    <option name="AUTODETECT_INDENTS" value="false" />
     <option name="LINE_SEPARATOR" value="&#10;" />
     <option name="RIGHT_MARGIN" value="120" />
+    <option name="WRAP_WHEN_TYPING_REACHES_RIGHT_MARGIN" value="true" />
     <option name="SOFT_MARGINS" value="120" />
+    <option name="DO_NOT_FORMAT">
+      <list>
+        <fileSet type="globPattern" pattern="*.md" />
+        <fileSet type="globPattern" pattern="gradlew" />
+        <fileSet type="globPattern" pattern="gradlew.bat" />
+      </list>
+    </option>
     <JavaCodeStyleSettings>
-      <option name="BLANK_LINES_AROUND_INITIALIZER" value="0" />
-      <option name="ENABLE_JAVADOC_FORMATTING" value="false" />
+      <option name="ALIGN_MULTILINE_ANNOTATION_PARAMETERS" value="true" />
+      <option name="ALIGN_MULTILINE_TEXT_BLOCKS" value="true" />
       <option name="JD_ALIGN_PARAM_COMMENTS" value="false" />
       <option name="JD_ALIGN_EXCEPTION_COMMENTS" value="false" />
-      <option name="JD_DO_NOT_WRAP_ONE_LINE_COMMENTS" value="true" />
+      <option name="JD_P_AT_EMPTY_LINES" value="false" />
+      <option name="JD_KEEP_INVALID_TAGS" value="false" />
+      <option name="JD_KEEP_EMPTY_RETURN" value="false" />
     </JavaCodeStyleSettings>
     <JetCodeStyleSettings>
       <option name="CODE_STYLE_DEFAULTS" value="KOTLIN_OFFICIAL" />
@@ -18,7 +27,14 @@
       <option name="INDENT_NAMESPACE_MEMBERS" value="0" />
       <option name="KEEP_STRUCTURES_IN_ONE_LINE" value="true" />
       <option name="KEEP_NESTED_NAMESPACES_IN_ONE_LINE" value="true" />
+      <option name="KEEP_DIRECTIVE_AT_FIRST_COLUMN" value="false" />
       <option name="FUNCTION_BRACE_PLACEMENT" value="2" />
+      <option name="FUNCTION_PARAMETERS_ALIGN_MULTILINE" value="false" />
+      <option name="FUNCTION_CALL_ARGUMENTS_ALIGN_MULTILINE" value="false" />
+      <option name="SHIFT_OPERATION_ALIGN_MULTILINE" value="false" />
+      <option name="CLASS_CONSTRUCTOR_INIT_LIST_COMMA_ON_NEXT_LINE" value="true" />
+      <option name="CLASS_CONSTRUCTOR_INIT_LIST_NEW_LINE_BEFORE_COLON" value="1" />
+      <option name="SUPERCLASS_LIST_ALIGN_MULTILINE" value="false" />
       <option name="SPACE_WITHIN_TEMPLATE_DOUBLE_GT" value="false" />
       <option name="SPACE_BEFORE_INIT_LIST" value="true" />
       <option name="SPACE_BEFORE_POINTER_IN_DECLARATION" value="false" />
@@ -26,51 +42,86 @@
       <option name="SPACE_BEFORE_REFERENCE_IN_DECLARATION" value="false" />
       <option name="SPACE_AFTER_REFERENCE_IN_DECLARATION" value="true" />
       <option name="SPACE_AFTER_DICTIONARY_LITERAL_COLON" value="false" />
+      <option name="HEADER_GUARD_STYLE_PATTERN" value="_${FILE_NAME}_${EXT}_" />
     </Objective-C>
+    <Objective-C-extensions>
+      <rules>
+        <rule entity="NAMESPACE" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="MACRO" visibility="ANY" specifier="ANY" prefix="" style="SCREAMING_SNAKE_CASE" suffix="" />
+        <rule entity="CLASS" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="STRUCT" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="ENUM" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="ENUMERATOR" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="TYPEDEF" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="UNION" visibility="ANY" specifier="ANY" prefix="" style="PASCAL_CASE" suffix="" />
+        <rule entity="CLASS_MEMBER_FUNCTION" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="STRUCT_MEMBER_FUNCTION" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="CLASS_MEMBER_FIELD" visibility="ANY" specifier="ANY" prefix="m_" style="CAMEL_CASE" suffix="" />
+        <rule entity="STRUCT_MEMBER_FIELD" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="GLOBAL_FUNCTION" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="GLOBAL_VARIABLE" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="PARAMETER" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+        <rule entity="LOCAL_VARIABLE" visibility="ANY" specifier="ANY" prefix="" style="CAMEL_CASE" suffix="" />
+      </rules>
+    </Objective-C-extensions>
+    <Properties>
+      <option name="KEEP_BLANK_LINES" value="true" />
+    </Properties>
     <codeStyleSettings language="CMake">
       <option name="KEEP_BLANK_LINES_IN_CODE" value="1" />
-    </codeStyleSettings>
-    <codeStyleSettings language="Groovy">
-      <option name="KEEP_BLANK_LINES_IN_DECLARATIONS" value="1" />
-      <option name="KEEP_BLANK_LINES_IN_CODE" value="1" />
-      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
-      <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="0" />
-      <option name="CLASS_BRACE_STYLE" value="2" />
-      <option name="METHOD_BRACE_STYLE" value="2" />
-      <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
-      <option name="SPACE_AFTER_TYPE_CAST" value="false" />
-      <option name="SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE" value="true" />
-      <option name="KEEP_SIMPLE_BLOCKS_IN_ONE_LINE" value="true" />
+      <option name="SPACE_BEFORE_IF_PARENTHESES" value="false" />
+      <option name="SPACE_BEFORE_WHILE_PARENTHESES" value="false" />
+      <option name="SPACE_BEFORE_FOR_PARENTHESES" value="false" />
+      <indentOptions>
+        <option name="CONTINUATION_INDENT_SIZE" value="4" />
+      </indentOptions>
     </codeStyleSettings>
     <codeStyleSettings language="JAVA">
+      <option name="KEEP_FIRST_COLUMN_COMMENT" value="false" />
       <option name="KEEP_BLANK_LINES_IN_DECLARATIONS" value="1" />
       <option name="KEEP_BLANK_LINES_IN_CODE" value="1" />
       <option name="KEEP_BLANK_LINES_BETWEEN_PACKAGE_DECLARATION_AND_HEADER" value="1" />
-      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
+      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="0" />
       <option name="BLANK_LINES_AROUND_METHOD" value="0" />
       <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="0" />
-      <option name="CLASS_BRACE_STYLE" value="2" />
-      <option name="METHOD_BRACE_STYLE" value="2" />
       <option name="INDENT_CASE_FROM_SWITCH" value="false" />
-      <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
+      <option name="ALIGN_MULTILINE_CHAINED_METHODS" value="true" />
+      <option name="ALIGN_MULTILINE_PARAMETERS_IN_CALLS" value="true" />
+      <option name="ALIGN_MULTILINE_BINARY_OPERATION" value="true" />
+      <option name="ALIGN_MULTILINE_ASSIGNMENT" value="true" />
+      <option name="ALIGN_MULTILINE_TERNARY_OPERATION" value="true" />
+      <option name="ALIGN_MULTILINE_THROWS_LIST" value="true" />
+      <option name="ALIGN_MULTILINE_EXTENDS_LIST" value="true" />
+      <option name="ALIGN_MULTILINE_METHOD_BRACKETS" value="true" />
+      <option name="ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION" value="true" />
+      <option name="SPACE_WITHIN_BRACES" value="true" />
       <option name="SPACE_AFTER_TYPE_CAST" value="false" />
-      <option name="SPACE_BEFORE_ARRAY_INITIALIZER_LBRACE" value="true" />
-      <option name="KEEP_SIMPLE_BLOCKS_IN_ONE_LINE" value="true" />
       <option name="KEEP_SIMPLE_METHODS_IN_ONE_LINE" value="true" />
       <option name="KEEP_SIMPLE_LAMBDAS_IN_ONE_LINE" value="true" />
       <option name="KEEP_SIMPLE_CLASSES_IN_ONE_LINE" value="true" />
-      <option name="WRAP_COMMENTS" value="true" />
+      <option name="WRAP_LONG_LINES" value="true" />
     </codeStyleSettings>
     <codeStyleSettings language="ObjectiveC">
+      <option name="KEEP_FIRST_COLUMN_COMMENT" value="false" />
+      <option name="KEEP_CONTROL_STATEMENT_IN_ONE_LINE" value="false" />
       <option name="KEEP_BLANK_LINES_IN_DECLARATIONS" value="1" />
       <option name="KEEP_BLANK_LINES_IN_CODE" value="1" />
-      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
+      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="0" />
       <option name="BLANK_LINES_AROUND_METHOD" value="0" />
       <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="0" />
-      <option name="CLASS_BRACE_STYLE" value="2" />
       <option name="INDENT_CASE_FROM_SWITCH" value="false" />
-      <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
+      <option name="ALIGN_MULTILINE_FOR" value="false" />
+      <option name="ALIGN_MULTILINE_BINARY_OPERATION" value="false" />
+      <option name="ALIGN_MULTILINE_ASSIGNMENT" value="false" />
+      <option name="ALIGN_MULTILINE_TERNARY_OPERATION" value="false" />
+      <option name="ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION" value="false" />
+      <option name="SPACE_BEFORE_SEMICOLON" value="true" />
       <option name="SPACE_AFTER_TYPE_CAST" value="false" />
+      <option name="ARRAY_INITIALIZER_LBRACE_ON_NEXT_LINE" value="true" />
+      <option name="ARRAY_INITIALIZER_RBRACE_ON_NEXT_LINE" value="true" />
+      <indentOptions>
+        <option name="CONTINUATION_INDENT_SIZE" value="4" />
+      </indentOptions>
     </codeStyleSettings>
     <codeStyleSettings language="XML">
       <option name="FORCE_REARRANGE_MODE" value="1" />
@@ -187,9 +238,9 @@
     </codeStyleSettings>
     <codeStyleSettings language="kotlin">
       <option name="CODE_STYLE_DEFAULTS" value="KOTLIN_OFFICIAL" />
-      <option name="KEEP_BLANK_LINES_IN_DECLARATIONS" value="1" />
-      <option name="KEEP_BLANK_LINES_IN_CODE" value="1" />
-      <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
+    </codeStyleSettings>
+    <codeStyleSettings language="yaml">
+      <option name="SPACE_WITHIN_BRACKETS" value="false" />
     </codeStyleSettings>
   </code_scheme>
 </component>

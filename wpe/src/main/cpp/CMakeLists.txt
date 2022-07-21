@@ -6,11 +6,33 @@ if (NOT EXISTS "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}")
     message(FATAL_ERROR "Native dependencies not installed for ${ANDROID_ABI}")
 endif ()
 
+option(USE_CODE_TIDY "Use code static analysis on build" OFF)
+option(USE_CODE_WARNINGS_AS_ERRORS "Use code warnings as errors" OFF)
+
+if (USE_CODE_TIDY)
+    find_program(CLANG_TIDY_EXE
+        NAMES clang-tidy-14 clang-tidy-13 clang-tidy-12 clang-tidy
+        DOC "Path to clang-tidy executable")
+    if (CLANG_TIDY_EXE)
+        message(STATUS "Using clang-tidy from ${CLANG_TIDY_EXE}")
+    else ()
+        message(FATAL_ERROR "clang-tidy not found, please install tool and relaunch configuration")
+    endif ()
+endif ()
+
+function(target_configure_quality TARGET_NAME)
+    set_target_properties(${TARGET_NAME} PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
+    if (CLANG_TIDY_EXE)
+        set_target_properties(${TARGET_NAME} PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+    endif ()
+
+    if (USE_CODE_WARNINGS_AS_ERRORS)
+        target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Werror)
+    endif ()
+endfunction()
+
 find_library(android-lib android REQUIRED)
 find_library(log-lib log REQUIRED)
-
-set(WPE_ENABLE_PROCESS  TRUE)
-add_definitions(-DWPE_ENABLE_PROCESS)
 
 #################################################
 # Imported external libraries
@@ -60,10 +82,9 @@ add_library(WPECommonGlue SHARED
         common/jnihelper.cpp
         common/logging.cpp
         common/service.cpp)
-target_include_directories(WPECommonGlue INTERFACE common)
-target_link_libraries(WPECommonGlue
-        ${android-lib}
-        ${log-lib})
+target_configure_quality(WPECommonGlue)
+target_include_directories(WPECommonGlue INTERFACE Common)
+target_link_libraries(WPECommonGlue ${android-lib} ${log-lib})
 
 # libWPEBrowserGlue
 add_library(WPEBrowserGlue SHARED
@@ -76,6 +97,8 @@ add_library(WPEBrowserGlue SHARED
         browser/inputmethodcontext.cpp
         browser/renderer_asurfacetransaction.cpp
         browser/renderer_fallback.cpp)
+target_configure_quality(WPEBrowserGlue)
+target_compile_definitions(WPEBrowserGlue PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(WPEBrowserGlue
         EGL
         GLESv2
@@ -90,6 +113,7 @@ target_link_libraries(WPEBrowserGlue
 # libWPENetworkProcessGlue
 add_library(WPENetworkProcessGlue SHARED
         networkprocess/entrypoints.cpp)
+target_configure_quality(WPENetworkProcessGlue)
 target_link_libraries(WPENetworkProcessGlue
         WPEWebKit-1.0
         WPECommonGlue)
@@ -97,6 +121,7 @@ target_link_libraries(WPENetworkProcessGlue
 # libWPEWebProcessGlue
 add_library(WPEWebProcessGlue SHARED
         webprocess/entrypoints.cpp)
+target_configure_quality(WPEWebProcessGlue)
 target_link_libraries(WPEWebProcessGlue
         gio-2.0
         glib-2.0

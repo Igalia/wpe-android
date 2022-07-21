@@ -106,12 +106,14 @@ gradle.afterProject { project ->
             if (file("src/main/jniLibs/$abi").isDirectory())
                 abiList.add(abi)
         }
-
-        if (abiList.isEmpty())
-            throw new GradleException("Cannot find ABI dependencies, please call ./tools/scripts/bootstrap.py first")
-
-        println("Detected ABI: $abiList")
-        println("Use ./tools/scripts/bootstrap.py to install dependencies for more ABIs")
         project.android.defaultConfig.ndk.abiFilters = abiList
+
+        if (abiList.isEmpty()) {
+            println("Cannot find ABI dependencies")
+            println("Please call ./tools/scripts/bootstrap.py before build")
+        } else {
+            println("Detected ABI: $abiList")
+            println("Use ./tools/scripts/bootstrap.py to install dependencies for more ABIs")
+        }
     }
 }

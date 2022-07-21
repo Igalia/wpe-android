@@ -4,6 +4,47 @@ plugins {
     id 'org.jetbrains.kotlin.android' version '1.6.21' apply false
 }
 
-task clean(type: Delete) {
+tasks.register("clean", Delete) {
     delete rootProject.buildDir
+    delete file(".git/hooks/pre-commit")
+}
+
+def installQATools = tasks.register("installQATools", Exec) {
+    def cacheFile = new File(rootProject.buildDir, ".qaToolsInstalled")
+    outputs.file(cacheFile)
+    commandLine "python3", "-m", "pip", "install", "--user", "--upgrade", "editorconfig-checker", "pycodestyle", "cmakelang"
+    doLast {
+        cacheFile.createNewFile()
+    }
+}
+
+tasks.register("checkFormat", Exec) {
+    dependsOn installQATools
+    group "Verification"
+    description "Checks code format and names"
+    commandLine "python3", file("tools/scripts/check-format.py")
+}
+
+def installGitHook = tasks.register("installGitHook") {
+    dependsOn installQATools
+    def hookFile = file(".git/hooks/pre-commit")
+    outputs.file(hookFile)
+    doLast {
+        def scriptFile = file("tools/scripts/check-format.py")
+        hookFile.text = "#!/bin/sh\npython3 ${scriptFile} --hook\n"
+        hookFile.setExecutable(true)
+    }
+}
+
+gradle.afterProject { project ->
+    project.tasks.all { task ->
+        def lowerName = task.name.toLowerCase()
+        if ((task.group != "help") &&
+            (lowerName.indexOf("clean") < 0) &&
+            (lowerName != "wrapper") &&
+            (lowerName != "installqatools") &&
+            (lowerName != "installgithook")) {
+            task.dependsOn(installGitHook)
+        }
+    }
 }
