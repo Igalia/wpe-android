@@ -209,20 +209,20 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         }
     }
 
-    override fun onPrepareOptionsMenu(menu: Menu?): Boolean {
-        activeTab?.view?.canGoBack()?.let { menu?.findItem(R.id.action_back)?.setEnabled(it) }
-        activeTab?.view?.canGoForward()?.let { menu?.findItem(R.id.action_forward)?.setEnabled(it) }
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        activeTab?.view?.canGoBack()?.let { menu.findItem(R.id.action_back)?.setEnabled(it) }
+        activeTab?.view?.canGoForward()?.let { menu.findItem(R.id.action_forward)?.setEnabled(it) }
         return super.onPrepareOptionsMenu(menu)
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.actions, menu)
 
         // FIXME: There is a bug with androidx.appcompat 1.2.0 that doesn't take into account
         // the android:iconTint attribute in actions.xml menu description. So, we need to force
         // the tint color here by code to apply it visually. Normally this bug should be fixed
         // by upgrading the androidx.appcompat dependency, then this block of code should be removed.
-        val item = menu?.findItem(R.id.action_tab)
+        val item = menu.findItem(R.id.action_tab)
         val icon = item?.icon
         icon?.setTint(MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnPrimary, Color.BLACK))
         item?.icon = icon
@@ -262,7 +262,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     override fun onBackPressed() {
-        if (activeTab?.view?.canGoBack()!!) {
+        if (activeTab?.view?.canGoBack() == true) {
             activeTab?.view?.goBack()
         } else {
             super.onBackPressed()

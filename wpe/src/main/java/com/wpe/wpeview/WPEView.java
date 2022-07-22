@@ -25,72 +25,62 @@ import com.wpe.wpe.gfx.WPESurfaceViewObserver;
  * The WPEView class is the main API entry point.
  */
 @UiThread
-public class WPEView extends FrameLayout implements WPESurfaceViewObserver
-{
+public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     private static final String LOGTAG = "WPEView";
 
-    private final Context m_context;
+    private final Context context;
+    private final WPESettings settings = new WPESettings();
 
-    private WebChromeClient m_chromeClient;
-    private WPEViewClient m_wpeViewClient;
-    private SurfaceClient m_surfaceClient;
-    private int m_currentLoadProgress = 0;
-    private String m_title = "about:blank";
-    private String m_url = "about:blank";
-    private String m_originalUrl = "about:blank";
+    private WebChromeClient chromeClient;
+    private WPEViewClient wpeViewClient;
+    private SurfaceClient surfaceClient;
+    private int currentLoadProgress = 0;
+    private String title = "about:blank";
+    private String url = "about:blank";
+    private String originalUrl = "about:blank";
+    private WPESurfaceView wpeSurfaceView;
+    private FrameLayout customView;
 
-    private WPESurfaceView m_wpeSurfaceView;
-    private FrameLayout m_customView;
-
-    private WPESettings m_settings = new WPESettings();
-
-    public WPEView(final Context context)
-    {
+    public WPEView(Context context) {
         super(context);
-        m_context = context;
+        this.context = context;
 
         Browser.initialize(context);
     }
 
-    public WPEView(final Context context, final AttributeSet attrs)
-    {
+    public WPEView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        m_context = context;
+        this.context = context;
 
         Browser.initialize(context);
     }
 
     @Override
-    protected void onAttachedToWindow()
-    {
+    protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        WPEView self = this;
+        final WPEView self = this;
         // Queue the creation of the Page until view's measure, layout, etc.
         // so we have a known width and height to create the associated WebKitWebView
         // before having the Surface texture.
-        post(() -> Browser.getInstance().createPage(self, m_context));
+        post(() -> Browser.getInstance().createPage(self, context));
     }
 
     @Override
-    protected void onDetachedFromWindow()
-    {
+    protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         Browser.getInstance().destroyPage(this);
     }
 
     @Override
-    protected void onWindowVisibilityChanged(int visibility)
-    {
+    protected void onWindowVisibilityChanged(int visibility) {
         super.onWindowVisibilityChanged(visibility);
         Browser.getInstance().onVisibilityChanged(this, visibility);
     }
 
     @Override
-    @WorkerThread
-    public void onSurfaceViewCreated(WPESurfaceView view)
-    {
+    public void onSurfaceViewCreated(WPESurfaceView view) {
         Log.v(LOGTAG, "WPESurfaceView created " + view + " number of views " + getChildCount());
-        m_wpeSurfaceView = view;
+        wpeSurfaceView = view;
 
         post(() -> {
             // Delay adding view a bit to next run cycle
@@ -103,102 +93,88 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
     }
 
     @Override
-    @WorkerThread
-    public void onSurfaceViewReady(WPESurfaceView view)
-    {
+    public void onSurfaceViewReady(WPESurfaceView view) {
         Log.v(LOGTAG, "WPESurfaceView ready " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
         post(() -> {
-            if (m_wpeViewClient != null) {
-                m_wpeViewClient.onViewReady(WPEView.this);
+            if (wpeViewClient != null) {
+                wpeViewClient.onViewReady(WPEView.this);
             }
         });
     }
 
     @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event)
-    {
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             Browser.getInstance().deleteInputMethodContent(this, -1);
             return true;
         }
 
-        final KeyCharacterMap kmap = KeyCharacterMap.load(event != null ?
-            event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
+        final KeyCharacterMap kmap =
+            KeyCharacterMap.load(event != null ? event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
         Browser.getInstance().setInputMethodContent(this, (char)kmap.get(keyCode, event.getMetaState()));
         return true;
     }
 
-    public void onLoadChanged(int loadEvent)
-    {
-        WPEView self = this;
+    public void onLoadChanged(int loadEvent) {
         switch (loadEvent) {
         case Page.LOAD_STARTED:
-            if (m_wpeViewClient == null) {
+            if (wpeViewClient == null) {
                 return;
             }
-            m_wpeViewClient.onPageStarted(self, m_url);
+            wpeViewClient.onPageStarted(this, url);
             break;
         case Page.LOAD_FINISHED:
             onLoadProgress(100);
-            if (m_wpeViewClient == null) {
+            if (wpeViewClient == null) {
                 return;
             }
-            m_wpeViewClient.onPageFinished(self, m_url);
+            wpeViewClient.onPageFinished(this, url);
             break;
         }
     }
 
-    public void onLoadProgress(double progress)
-    {
-        m_currentLoadProgress = (int)(progress * 100);
-        if (m_chromeClient == null) {
+    public void onLoadProgress(double progress) {
+        currentLoadProgress = (int)(progress * 100);
+        if (chromeClient == null) {
             return;
         }
-        WPEView self = this;
-        m_chromeClient.onProgressChanged(self, m_currentLoadProgress);
+        chromeClient.onProgressChanged(this, currentLoadProgress);
     }
 
-    public void onUriChanged(String uri)
-    {
-        m_url = uri;
-    }
+    public void onUriChanged(String uri) { url = uri; }
 
-    public void onTitleChanged(String title)
-    {
-        m_title = title;
-        if (m_chromeClient == null) {
+    public void onTitleChanged(String title) {
+        this.title = title;
+        if (chromeClient == null) {
             return;
         }
-        WPEView self = this;
-        m_chromeClient.onReceivedTitle(self, m_title);
+        chromeClient.onReceivedTitle(this, title);
     }
 
-    public void enterFullScreen()
-    {
-        removeView(m_wpeSurfaceView);
+    public void enterFullScreen() {
+        removeView(wpeSurfaceView);
 
-        m_customView = new FrameLayout(m_context);
-        m_customView.addView(m_wpeSurfaceView);
-        m_customView.setFocusable(true);
-        m_customView.setFocusableInTouchMode(true);
+        customView = new FrameLayout(context);
+        customView.addView(wpeSurfaceView);
+        customView.setFocusable(true);
+        customView.setFocusableInTouchMode(true);
 
-        m_chromeClient.onShowCustomView(m_customView, () -> {
-            if (m_customView != null) {
+        chromeClient.onShowCustomView(customView, () -> {
+            if (customView != null) {
                 Browser.getInstance().requestExitFullscreenMode(WPEView.this);
             }
         });
     }
 
-    public void exitFullScreen()
-    {
-        if (m_customView != null)  {
-            m_customView.removeView(m_wpeSurfaceView);
-            addView(m_wpeSurfaceView);
-            m_customView = null;
+    public void exitFullScreen() {
+        if (customView != null) {
+            customView.removeView(wpeSurfaceView);
+            addView(wpeSurfaceView);
+            customView = null;
 
-            m_chromeClient.onHideCustomView();
+            chromeClient.onHideCustomView();
         }
     }
 
@@ -207,19 +183,16 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
     /**
      * Gets the WPESettings object used to control the settings for this WPEView.
      */
-    public WPESettings getSettings()
-    {
-        return m_settings;
-    }
+    public WPESettings getSettings() { return settings; }
 
     /**
      * Loads the given URL.
+     *
      * @param url The URL of the resource to be loaded.
      */
-    public void loadUrl(@NonNull String url)
-    {
-        m_originalUrl = url;
-        Browser.getInstance().loadUrl(this, m_context, url);
+    public void loadUrl(@NonNull String url) {
+        originalUrl = url;
+        Browser.getInstance().loadUrl(this, context, url);
     }
 
     /**
@@ -227,62 +200,41 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      *
      * @return true if this WPEView has a back history item.
      */
-    public boolean canGoBack()
-    {
-        return Browser.getInstance().canGoBack(this);
-    }
+    public boolean canGoBack() { return Browser.getInstance().canGoBack(this); }
 
     /**
      * Gets whether this WPEView has a forward history item.
      *
      * @return true if this WPEView has a forward history item.
      */
-    public boolean canGoForward()
-    {
-        return Browser.getInstance().canGoForward(this);
-    }
+    public boolean canGoForward() { return Browser.getInstance().canGoForward(this); }
 
     /**
      * Goes back in the history of this WPEView.
      */
-    public void goBack()
-    {
-        Browser.getInstance().goBack(this);
-    }
+    public void goBack() { Browser.getInstance().goBack(this); }
 
     /**
      * Goes forward in the history of this WPEView.
      */
-    public void goForward()
-    {
-        Browser.getInstance().goForward(this);
-    }
+    public void goForward() { Browser.getInstance().goForward(this); }
 
     /**
      * Stop the current load.
      */
-    public void stopLoading()
-    {
-        Browser.getInstance().stopLoading(this);
-    }
+    public void stopLoading() { Browser.getInstance().stopLoading(this); }
 
     /**
      * Reloads the current URL.
      */
-    public void reload()
-    {
-        Browser.getInstance().reload(this);
-    }
+    public void reload() { Browser.getInstance().reload(this); }
 
     /**
      * Gets the progress for the current page.
      *
      * @return the progress for the current page between 0 and 100
      */
-    public int getProgress()
-    {
-        return m_currentLoadProgress;
-    }
+    public int getProgress() { return currentLoadProgress; }
 
     /**
      * Gets the title for the current page. This is the title of the current page until
@@ -290,10 +242,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      *
      * @return the title for the current page or null
      */
-    public String getTitle()
-    {
-        return m_title;
-    }
+    public String getTitle() { return title; }
 
     /**
      * Get the url for the current page. This is not always the same as the url
@@ -302,10 +251,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      *
      * @return The url for the current page.
      */
-    public String getUrl()
-    {
-        return m_url;
-    }
+    public String getUrl() { return url; }
 
     /**
      * Get the original url for the current page. This is not always the same
@@ -316,9 +262,17 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      *
      * @return The url that was originally requested for the current page.
      */
-    public String getOriginalUrl()
-    {
-        return m_originalUrl;
+    public String getOriginalUrl() { return originalUrl; }
+
+    /**
+     * Gets the chrome handler.
+     *
+     * @return the WebChromeClient, or {@code null} if not yet set
+     * @see #setWebChromeClient
+     */
+    @Nullable
+    public WebChromeClient getWebChromeClient() {
+        return chromeClient;
     }
 
     /**
@@ -329,32 +283,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      * @param client an implementation of WebChromeClient
      * @see #getWebChromeClient
      */
-    public void setWebChromeClient(@Nullable WebChromeClient client)
-    {
-        m_chromeClient = client;
-    }
-
-    /**
-     * Gets the chrome handler.
-     *
-     * @return the WebChromeClient, or {@code null} if not yet set
-     * @see #setWebChromeClient
-     */
-    @Nullable
-    public WebChromeClient getWebChromeClient()
-    {
-        return m_chromeClient;
-    }
-
-    /**
-     * Set the WPEViewClient that will receive various notifications and
-     * requests. This will replace the current handler.
-     * @param client An implementation of WPEViewClient.
-     */
-    public void setWPEViewClient(@Nullable WPEViewClient client)
-    {
-        m_wpeViewClient = client;
-    }
+    public void setWebChromeClient(@Nullable WebChromeClient client) { chromeClient = client; }
 
     /**
      * Gets the WPEViewClient.
@@ -363,20 +292,17 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      * @see #setWPEViewClient
      */
     @Nullable
-    public WPEViewClient getWPEViewClient()
-    {
-        return m_wpeViewClient;
+    public WPEViewClient getWPEViewClient() {
+        return wpeViewClient;
     }
 
     /**
-     * Set the SurfaceClient that will manage the Surface where
-     * WPEView renders it's contents to. This will replace the current handler.
-     * @param client An implementation of SurfaceClient.
+     * Set the WPEViewClient that will receive various notifications and
+     * requests. This will replace the current handler.
+     *
+     * @param client An implementation of WPEViewClient.
      */
-    public void setSurfaceClient(@Nullable SurfaceClient client)
-    {
-        m_surfaceClient = client;
-    }
+    public void setWPEViewClient(@Nullable WPEViewClient client) { wpeViewClient = client; }
 
     /**
      * Gets the SurfaceClient.
@@ -385,8 +311,15 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver
      * @see #setSurfaceClient
      */
     @Nullable
-    public SurfaceClient getSurfaceClient()
-    {
-        return m_surfaceClient;
+    public SurfaceClient getSurfaceClient() {
+        return surfaceClient;
     }
+
+    /**
+     * Set the SurfaceClient that will manage the Surface where
+     * WPEView renders it's contents to. This will replace the current handler.
+     *
+     * @param client An implementation of SurfaceClient.
+     */
+    public void setSurfaceClient(@Nullable SurfaceClient client) { surfaceClient = client; }
 }

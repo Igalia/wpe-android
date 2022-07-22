@@ -34,7 +34,7 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
         }
 
         override fun getItem(position: Int): Any {
-            return tabs[position];
+            return tabs[position]
         }
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
@@ -93,11 +93,11 @@ class TabsSelector(tabs: ArrayList<TabSelectorItem>, active: Int) : BottomSheetD
         tabsList.adapter = TabsListAdapter(this, requireContext(), tabs)
         tabsList.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
             selected = position
-            val adapter = (tabsList.adapter as BaseAdapter);
+            val adapter = (tabsList.adapter as BaseAdapter)
             adapter.notifyDataSetChanged()
             val item = (adapter.getItem(position) as TabSelectorItem)
-            (activity as MainActivity).setActiveTab(item);
+            (activity as MainActivity).setActiveTab(item)
             dismiss()
-        };
+        }
     }
 }

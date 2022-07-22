@@ -54,7 +54,8 @@ class BuildPatch:
         print(f"Building recipe {self._recipe}...")
         with tempfile.NamedTemporaryFile() as ref_temp_file:
             subprocess.check_call(self._cerbero_command_args +
-                                  ["buildone", self._recipe, "--steps", "configure", "compile", "install", "post_install"])
+                                  ["buildone", self._recipe, "--steps", "configure",
+                                   "compile", "install", "post_install"])
             output = subprocess.check_output(rf'find . -type f -newer {ref_temp_file.name} -printf "%P\n"',
                                              shell=True, cwd=self._cerbero_dist_dir, encoding="utf-8")
 

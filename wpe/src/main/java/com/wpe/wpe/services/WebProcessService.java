@@ -18,8 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-public class WebProcessService extends WPEService
-{
+public class WebProcessService extends WPEService {
     private static final String LOGTAG = "WPEWebProcess";
 
     // Bump this version number if you make any changes to the font config
@@ -27,8 +26,7 @@ public class WebProcessService extends WPEService
     private static final String assetsVersion = "web_process_assets_v1";
 
     @Override
-    protected void loadNativeLibraries()
-    {
+    protected void loadNativeLibraries() {
         // To debug the sub-process with Android Studio (Java and native code), you must:
         // 1- Uncomment the following instruction to wait for the debugger before loading native code.
         // 2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work).
@@ -43,8 +41,7 @@ public class WebProcessService extends WPEService
     }
 
     @Override
-    protected void setupServiceEnvironment()
-    {
+    protected void setupServiceEnvironment() {
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0", true);
@@ -151,13 +148,12 @@ public class WebProcessService extends WPEService
             GStreamer.init(getApplicationContext());
         } catch (Exception e) {
             Log.w(LOGTAG,
-                "Cannot initialize GStreamer JNI interface, multimedia hardware acceleration will be disabled", e);
+                  "Cannot initialize GStreamer JNI interface, multimedia hardware acceleration will be disabled", e);
         }
     }
 
     @Override
-    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd)
-    {
+    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd) {
         Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
         initializeMain(ProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
