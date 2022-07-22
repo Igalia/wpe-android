@@ -3,7 +3,6 @@ package com.wpe.wpe;
 import android.content.Context;
 import android.content.Intent;
 import android.os.ParcelFileDescriptor;
-import android.os.Parcelable;
 import android.util.Log;
 import android.view.inputmethod.InputMethodManager;
 
@@ -16,9 +15,6 @@ import com.wpe.wpe.gfx.WPESurfaceView;
 import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpeview.WPEView;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 /**
  * A Page roughly corresponds with a tab in a regular browser UI.
  * There is a 1:1 relationship between WPEView and Page.
@@ -27,67 +23,57 @@ import java.util.regex.Pattern;
  * processes (WebProcess and NetworkProcess).
  */
 @UiThread
-public class Page
-{
+public class Page {
+    public static final int LOAD_STARTED = 0;
+    public static final int LOAD_REDIRECTED = 1;
+    public static final int LOAD_COMMITTED = 2;
+    public static final int LOAD_FINISHED = 3;
+
     private final String LOGTAG;
+    private final int id;
+    private final Browser browser;
+    private final Context context;
+    private final WPEView wpeView;
+    private final int width;
+    private final int height;
+    private final WPESurfaceView view;
+    private final boolean canGoBack = true;
+    private final boolean canGoForward = true;
 
-    static public final int LOAD_STARTED = 0;
-    static public final int LOAD_REDIRECTED = 1;
-    static public final int LOAD_COMMITTED = 2;
-    static public final int LOAD_FINISHED = 3;
+    private boolean closed = false;
+    private boolean viewReady = false;
+    private boolean pageGlueReady = false;
+    private String pendingLoad;
 
-    private final int m_id;
-
-    private final Browser m_browser;
-    private final Context m_context;
-    private final WPEView m_wpeView;
-
-    private boolean m_closed = false;
-
-    private final int m_width;
-    private final int m_height;
-
-    private WPESurfaceView m_view;
-    private boolean m_viewReady = false;
-
-    private boolean m_pageGlueReady = false;
-
-    private String m_pendingLoad;
-
-    private boolean m_canGoBack = true;
-    private boolean m_canGoForward = true;
-
-    public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId)
-    {
+    public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId) {
         LOGTAG = "WPE page" + pageId;
 
         Log.v(LOGTAG, "Page construction " + this);
 
-        m_id = pageId;
+        id = pageId;
 
-        m_browser = browser;
-        m_context = context;
-        m_wpeView = wpeView;
+        this.browser = browser;
+        this.context = context;
+        this.wpeView = wpeView;
 
-        m_width = wpeView.getMeasuredWidth();
-        m_height = wpeView.getMeasuredHeight();
+        width = wpeView.getMeasuredWidth();
+        height = wpeView.getMeasuredHeight();
 
-        m_view = new WPESurfaceView(m_context, pageId, wpeView);
-        m_wpeView.onSurfaceViewCreated(m_view);
+        view = new WPESurfaceView(context, pageId, wpeView);
+        wpeView.onSurfaceViewCreated(view);
         onViewReady();
 
         ensurePageGlue();
     }
 
-    public void close()
-    {
-        if (m_closed) {
+    public void close() {
+        if (closed)
             return;
-        }
-        m_closed = true;
+
+        closed = true;
         Log.v(LOGTAG, "Page destruction");
-        BrowserGlue.closePage(m_id);
-        m_pageGlueReady = false;
+        BrowserGlue.closePage(id);
+        pageGlueReady = false;
     }
 
     /**
@@ -96,209 +82,169 @@ public class Page
      * This is called by the JNI layer. See `Java_com_wpe_wpe_BrowserGlue_newPage`
      */
     @Keep
-    public void onPageGlueReady()
-    {
-        Log.v(LOGTAG, "WebKitWebView ready " + m_pageGlueReady);
-        m_pageGlueReady = true;
+    public void onPageGlueReady() {
+        Log.v(LOGTAG, "WebKitWebView ready " + pageGlueReady);
+        pageGlueReady = true;
 
         updateAllSettings();
-        m_wpeView.getSettings().getPageSettings().setPage(this);
+        wpeView.getSettings().getPageSettings().setPage(this);
 
-        if (m_viewReady) {
+        if (viewReady) {
             loadUrlInternal();
         }
     }
 
-    private void ensurePageGlue()
-    {
-        if (m_pageGlueReady) {
+    private void ensurePageGlue() {
+        if (pageGlueReady) {
             onPageGlueReady();
             return;
         }
 
         // Requests the creation of a new WebKitWebView. On creation, the `onPageGlueReady` callback
         // is triggered.
-        BrowserGlue.newPage(this, m_id, m_width, m_height);
+        BrowserGlue.newPage(this, id, width, height);
     }
 
-    public void onViewReady()
-    {
+    public void onViewReady() {
         Log.d(LOGTAG, "onViewReady");
-        m_wpeView.onSurfaceViewReady(m_view);
-        m_viewReady = true;
-        if (m_pageGlueReady) {
+        wpeView.onSurfaceViewReady(view);
+        viewReady = true;
+        if (pageGlueReady) {
             loadUrlInternal();
         }
     }
 
     @WorkerThread
-    public WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd, @NonNull Class<?> serviceClass)
-    {
+    public WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
+                                              @NonNull Class<?> serviceClass) {
         Log.v(LOGTAG, "launchService type: " + processType.name());
-        Intent intent = new Intent(m_context, serviceClass);
+        Intent intent = new Intent(context, serviceClass);
 
         WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, parcelFd);
         switch (processType) {
         case WebProcess:
             // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.
-            m_browser.setWebProcess(serviceConnection);
+            browser.setWebProcess(serviceConnection);
             break;
 
         case NetworkProcess:
-            m_browser.setNetworkProcess(serviceConnection);
+            browser.setNetworkProcess(serviceConnection);
             break;
 
         default:
             throw new IllegalArgumentException("Unknown process type");
         }
 
-        m_context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
         return serviceConnection;
     }
 
     @WorkerThread
-    public void stopService(@NonNull WPEServiceConnection serviceConnection)
-    {
+    public void stopService(@NonNull WPEServiceConnection serviceConnection) {
         Log.v(LOGTAG, "stopService type: " + serviceConnection.getProcessType().name());
         // FIXME: Until we fully support PSON, we won't do anything here.
     }
 
-    public WPESurfaceView view()
-    {
-        return m_view;
-    }
+    public WPESurfaceView view() { return view; }
 
-    private void loadUrlInternal()
-    {
-        if (m_pendingLoad == null) {
+    private void loadUrlInternal() {
+        if (pendingLoad == null) {
             return;
         }
-        BrowserGlue.loadURL(m_id, m_pendingLoad);
-        m_pendingLoad = null;
+        BrowserGlue.loadURL(id, pendingLoad);
+        pendingLoad = null;
     }
 
-    public void loadUrl(@NonNull Context context, @NonNull String url)
-    {
+    public void loadUrl(@NonNull Context context, @NonNull String url) {
         Log.d(LOGTAG, "Queue URL load " + url);
-        m_pendingLoad = url;
+        pendingLoad = url;
         ensurePageGlue();
     }
 
-    public void onLoadChanged(int loadEvent)
-    {
-        m_wpeView.onLoadChanged(loadEvent);
+    public void onLoadChanged(int loadEvent) {
+        wpeView.onLoadChanged(loadEvent);
         if (loadEvent == Page.LOAD_STARTED) {
             dismissKeyboard();
         }
     }
 
-    public void onLoadProgress(double progress)
-    {
-        m_wpeView.onLoadProgress(progress);
+    public void onLoadProgress(double progress) { wpeView.onLoadProgress(progress); }
+
+    public void onUriChanged(String uri) { wpeView.onUriChanged(uri); }
+
+    public void onTitleChanged(String title, boolean canGoBack, boolean canGoForward) {
+        canGoBack = canGoBack;
+        canGoForward = canGoForward;
+        wpeView.onTitleChanged(title);
     }
 
-    public void onUriChanged(String uri)
-    {
-        m_wpeView.onUriChanged(uri);
-    }
-
-    public void onTitleChanged(String title, boolean canGoBack, boolean canGoForward)
-    {
-        m_canGoBack = canGoBack;
-        m_canGoForward = canGoForward;
-        m_wpeView.onTitleChanged(title);
-    }
-
-    public void onInputMethodContextIn()
-    {
-        InputMethodManager imm = (InputMethodManager)m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
+    public void onInputMethodContextIn() {
+        InputMethodManager imm = (InputMethodManager)context.getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
     }
 
-    private void dismissKeyboard()
-    {
-        InputMethodManager imm = (InputMethodManager)m_context.getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(m_view.getWindowToken(), 0);
+    private void dismissKeyboard() {
+        InputMethodManager imm = (InputMethodManager)context.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
-    public void onInputMethodContextOut()
-    {
-        dismissKeyboard();
-    }
+    public void onInputMethodContextOut() { dismissKeyboard(); }
 
-    public void enterFullscreenMode()
-    {
+    public void enterFullscreenMode() {
         Log.v(LOGTAG, "enterFullscreenMode");
-        m_wpeView.enterFullScreen();
+        wpeView.enterFullScreen();
     }
 
-    public void exitFullscreenMode()
-    {
+    public void exitFullscreenMode() {
         Log.v(LOGTAG, "exitFullscreenMode");
-        m_wpeView.exitFullScreen();
+        wpeView.exitFullScreen();
     }
 
-    public void requestExitFullscreenMode()
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.requestExitFullscreenMode(m_id);
+    public void requestExitFullscreenMode() {
+        if (pageGlueReady) {
+            BrowserGlue.requestExitFullscreenMode(id);
         }
     }
 
-    public boolean canGoBack()
-    {
-        return m_canGoBack;
-    }
+    public boolean canGoBack() { return canGoBack; }
 
-    public boolean canGoForward()
-    {
-        return m_canGoForward;
-    }
+    public boolean canGoForward() { return canGoForward; }
 
-    public void goBack()
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.goBack(m_id);
+    public void goBack() {
+        if (pageGlueReady) {
+            BrowserGlue.goBack(id);
         }
     }
 
-    public void goForward()
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.goForward(m_id);
+    public void goForward() {
+        if (pageGlueReady) {
+            BrowserGlue.goForward(id);
         }
     }
 
-    public void stopLoading()
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.stopLoading(m_id);
+    public void stopLoading() {
+        if (pageGlueReady) {
+            BrowserGlue.stopLoading(id);
         }
     }
 
-    public void reload()
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.reload(m_id);
+    public void reload() {
+        if (pageGlueReady) {
+            BrowserGlue.reload(id);
         }
     }
 
-    public void setInputMethodContent(char c)
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.setInputMethodContent(m_id, c);
+    public void setInputMethodContent(char c) {
+        if (pageGlueReady) {
+            BrowserGlue.setInputMethodContent(id, c);
         }
     }
 
-    public void deleteInputMethodContent(int offset)
-    {
-        if (m_pageGlueReady) {
-            BrowserGlue.deleteInputMethodContent(m_id, offset);
+    public void deleteInputMethodContent(int offset) {
+        if (pageGlueReady) {
+            BrowserGlue.deleteInputMethodContent(id, offset);
         }
     }
 
-    void updateAllSettings()
-    {
-        BrowserGlue.updateAllPageSettings(m_id, m_wpeView.getSettings().getPageSettings());
-    }
+    void updateAllSettings() { BrowserGlue.updateAllPageSettings(id, wpeView.getSettings().getPageSettings()); }
 }

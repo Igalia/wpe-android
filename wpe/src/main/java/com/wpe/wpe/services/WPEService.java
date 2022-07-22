@@ -11,30 +11,18 @@ import androidx.annotation.NonNull;
 
 import com.wpe.wpe.IWPEService;
 
-public abstract class WPEService extends Service
-{
+public abstract class WPEService extends Service {
     private static final String LOGTAG = "WPEService";
 
-    protected static native void setupEnvironment(String[] envStringsArray);
-    protected static native void initializeMain(int processType, int fd);
-
-    protected abstract void loadNativeLibraries();
-    protected abstract void setupServiceEnvironment();
-    protected abstract void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd);
-
-    private final IWPEService.Stub m_binder = new IWPEService.Stub()
-    {
+    private final IWPEService.Stub binder = new IWPEService.Stub() {
         @Override
-        public int connect(@NonNull Bundle args)
-        {
+        public int connect(@NonNull Bundle args) {
             Log.v(LOGTAG, "IWPEService.Stub connect()");
             final ParcelFileDescriptor parcelFd = args.getParcelable("fd");
 
-            new Thread(new Runnable()
-            {
+            new Thread(new Runnable() {
                 @Override
-                public void run()
-                {
+                public void run() {
                     WPEService.this.initializeServiceMain(parcelFd);
                 }
             }).start();
@@ -43,9 +31,15 @@ public abstract class WPEService extends Service
         }
     };
 
+    protected static native void setupEnvironment(String[] envStringsArray);
+    protected static native void initializeMain(int processType, int fd);
+
+    protected abstract void loadNativeLibraries();
+    protected abstract void setupServiceEnvironment();
+    protected abstract void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd);
+
     @Override
-    public void onCreate()
-    {
+    public void onCreate() {
         Log.i(LOGTAG, "onCreate()");
         super.onCreate();
         loadNativeLibraries();
@@ -53,15 +47,13 @@ public abstract class WPEService extends Service
     }
 
     @Override
-    public IBinder onBind(Intent intent)
-    {
+    public IBinder onBind(Intent intent) {
         Log.i(LOGTAG, "onBind()");
-        return m_binder;
+        return binder;
     }
 
     @Override
-    public void onDestroy()
-    {
+    public void onDestroy() {
         Log.i(LOGTAG, "onDestroy()");
         super.onDestroy();
     }

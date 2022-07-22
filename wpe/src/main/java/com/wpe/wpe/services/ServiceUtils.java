@@ -13,13 +13,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class ServiceUtils
-{
+public class ServiceUtils {
     private static final String LOGTAG = "ServiceUtils";
 
-    public static void copyFileOrDir(@NonNull Context context, @NonNull AssetManager assetManager,
-                                     @NonNull String path, boolean copyForCurrentABI)
-    {
+    public static void copyFileOrDir(@NonNull Context context, @NonNull AssetManager assetManager, @NonNull String path,
+                                     boolean copyForCurrentABI) {
         String srcAsset = null;
         if (copyForCurrentABI) {
             for (String abi : Build.SUPPORTED_ABIS) {
@@ -29,7 +27,8 @@ public class ServiceUtils
                         srcAsset = testPath;
                         break;
                     }
-                } catch (IOException e) {}
+                } catch (IOException e) {
+                }
             }
 
             if (srcAsset == null) {
@@ -47,10 +46,9 @@ public class ServiceUtils
         }
     }
 
-    private static void recCopyFileOrDir(@NonNull AssetManager assetManager,
-                                         @NonNull String srcAsset, @NonNull File destFile) throws IOException
-    {
-        String assets[] = assetManager.list(srcAsset);
+    private static void recCopyFileOrDir(@NonNull AssetManager assetManager, @NonNull String srcAsset,
+                                         @NonNull File destFile) throws IOException {
+        String[] assets = assetManager.list(srcAsset);
         if (assets.length == 0)
             copyFile(assetManager, srcAsset, destFile);
         else {
@@ -59,9 +57,8 @@ public class ServiceUtils
         }
     }
 
-    private static void copyFile(@NonNull AssetManager assetManager,
-                                 @NonNull String srcAsset, @NonNull File destFile) throws IOException
-    {
+    private static void copyFile(@NonNull AssetManager assetManager, @NonNull String srcAsset, @NonNull File destFile)
+        throws IOException {
         destFile.getParentFile().mkdirs();
         try (InputStream in = assetManager.open(srcAsset); OutputStream out = new FileOutputStream(destFile, false)) {
             byte[] buffer = new byte[8192];
@@ -74,14 +71,12 @@ public class ServiceUtils
     // Tells whether we need to move the font config and gstreamer plugins to
     // the files dir. This is done only the first time WPEWebKit is launched or
     // everytime an update on these files is required
-    public static boolean needAssets(@NonNull Context context, @NonNull String assetsVersion)
-    {
+    public static boolean needAssets(@NonNull Context context, @NonNull String assetsVersion) {
         File file = new File(context.getFilesDir(), assetsVersion);
         return !file.exists();
     }
 
-    public static void saveAssetsVersion(@NonNull Context context, @NonNull String assetsVersion)
-    {
+    public static void saveAssetsVersion(@NonNull Context context, @NonNull String assetsVersion) {
         File file = new File(context.getFilesDir(), assetsVersion);
         if (!file.exists()) {
             try {

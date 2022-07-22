@@ -1,9 +1,7 @@
-
 /******* THIS CODE IS GENERATED AT BUILD TIME BY build.gradle. DO NOT MODIFY IT DIRECTLY! *****/
 
 package com.wpe.wpe.services;
 
-public class WPEServices
-{
+public class WPEServices {
     // SERVICES PLACEHOLDER
 }

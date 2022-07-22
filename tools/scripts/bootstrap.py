@@ -161,7 +161,8 @@ class Bootstrap:
 
         # Don't do copy if given external cerbero path points to internal cerbero clone.
         # In that case internally built packages are already placed to self._project_build_dir
-        if os.path.commonprefix([self._external_cerbero_build_path, self._project_build_dir]) == self._project_build_dir:
+        if os.path.commonprefix([self._external_cerbero_build_path,
+                                 self._project_build_dir]) == self._project_build_dir:
             return version
 
         filenames = [
@@ -396,22 +397,22 @@ class Bootstrap:
         target_script_file = os.path.join(target_dir, "wrap.sh")
         with open(target_script_file, "wt", encoding="utf-8", newline="\n") as file:
             file.write(dedent("""\
-                #!/system/bin/sh
+        #!/system/bin/sh
 
-                cmd=$1
-                shift
+        cmd=$1
+        shift
 
-                os_version=$(getprop ro.build.version.sdk)
+        os_version=$(getprop ro.build.version.sdk)
 
-                if [ "$os_version" -eq "27" ]; then
-                    cmd="$cmd -Xrunjdwp:transport=dt_android_adb,suspend=n,server=y -Xcompiler-option --debuggable $@"
-                elif [ "$os_version" -eq "28" ]; then
-                    cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y -Xcompiler-option --debuggable $@"
-                else
-                    cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y $@"
-                fi
+        if [ "$os_version" -eq "27" ]; then
+            cmd="$cmd -Xrunjdwp:transport=dt_android_adb,suspend=n,server=y -Xcompiler-option --debuggable $@"
+        elif [ "$os_version" -eq "28" ]; then
+            cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y -Xcompiler-option --debuggable $@"
+        else
+            cmd="$cmd -XjdwpProvider:adbconnection -XjdwpOptions:suspend=n,server=y $@"
+        fi
 
-                exec $cmd
+        exec $cmd
             """))
         os.chmod(target_script_file, 0o755)
 

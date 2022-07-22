@@ -13,55 +13,44 @@ import com.wpe.wpe.IWPEService;
 import com.wpe.wpe.Page;
 import com.wpe.wpe.ProcessType;
 
-public final class WPEServiceConnection implements ServiceConnection
-{
+public final class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
-    private final ProcessType m_processType;
-    private Page m_page;
-    private ParcelFileDescriptor m_parcelFd;
+    private final ProcessType processType;
+    private Page page;
+    private ParcelFileDescriptor parcelFd;
 
-    public WPEServiceConnection(@NonNull ProcessType processType, @NonNull Page page, @NonNull ParcelFileDescriptor parcelFd)
-    {
-        m_processType = processType;
-        m_page = page;
-        m_parcelFd = parcelFd;
+    public WPEServiceConnection(@NonNull ProcessType processType, @NonNull Page page,
+                                @NonNull ParcelFileDescriptor parcelFd) {
+        this.processType = processType;
+        this.page = page;
+        this.parcelFd = parcelFd;
     }
 
-    public ProcessType getProcessType()
-    {
-        return m_processType;
-    }
+    public ProcessType getProcessType() { return processType; }
 
-    public Page getActivePage()
-    {
-        return m_page;
-    }
+    public Page getActivePage() { return page; }
 
     /**
      * FIXME: Since we do not support PSON, the auxiliary processes are shared
-     *        among Page instances. We need to set the Page instance this
-     *        auxiliary process is working for.
+     * among Page instances. We need to set the Page instance this
+     * auxiliary process is working for.
      */
-    public void setActivePage(@NonNull Page page)
-    {
-        m_page = page;
-    }
+    public void setActivePage(@NonNull Page page) { this.page = page; }
 
     @Override
-    public void onServiceConnected(@NonNull ComponentName name, IBinder service)
-    {
-        if (m_parcelFd == null) {
+    public void onServiceConnected(@NonNull ComponentName name, IBinder service) {
+        if (parcelFd == null) {
             Log.w(LOGTAG, "onServiceConnected() name: " + name + " called more than once");
             return;
         }
 
-        Log.i(LOGTAG, "onServiceConnected() name: " + name + ", fd: " + m_parcelFd.getFd());
+        Log.i(LOGTAG, "onServiceConnected() name: " + name + ", fd: " + parcelFd.getFd());
         IWPEService wpeService = IWPEService.Stub.asInterface(service);
 
         Bundle bundle = new Bundle();
-        bundle.putParcelable("fd", m_parcelFd);
-        m_parcelFd = null;
+        bundle.putParcelable("fd", parcelFd);
+        parcelFd = null;
 
         try {
             wpeService.connect(bundle);
@@ -71,11 +60,10 @@ public final class WPEServiceConnection implements ServiceConnection
     }
 
     @Override
-    public void onServiceDisconnected(@NonNull ComponentName name)
-    {
+    public void onServiceDisconnected(@NonNull ComponentName name) {
         Log.i(LOGTAG, "onServiceDisconnected() name: " + name);
         // FIXME: We need to notify WebKit about the Service being killed.
         //        What should WebKit do in this case?
-        m_page.stopService(this);
+        page.stopService(this);
     }
 }

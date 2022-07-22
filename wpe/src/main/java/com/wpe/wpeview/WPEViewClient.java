@@ -1,7 +1,6 @@
 package com.wpe.wpeview;
 
-public interface WPEViewClient
-{
+public interface WPEViewClient {
     /**
      * Notify the host application that a page has started loading. This method
      * is called once for each main frame load so a page with iframes or
@@ -13,6 +12,7 @@ public interface WPEViewClient
      * @param url The url to be loaded.
      */
     default void onPageStarted(WPEView view, String url) {}
+
     /**
      * Notify the host application that a page has finished loading. This method
      * is called only for main frame.
@@ -21,6 +21,7 @@ public interface WPEViewClient
      * @param url The url of the page.
      */
     default void onPageFinished(WPEView view, String url) {}
+
     /**
      * Notify the host application that the internal SurfaceView has been created
      * and it's ready to render to it's surface.
