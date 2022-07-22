@@ -16,7 +16,7 @@
 struct ANativeWindow;
 struct ExportedBuffer;
 
-class Page {
+class Page final {
 public:
     Page(int width, int height, std::shared_ptr<PageEventObserver> observer);
 
@@ -24,6 +24,8 @@ public:
     Page& operator=(Page&&) = delete;
     Page(const Page&) = delete;
     Page& operator=(const Page&) = delete;
+
+    ~Page();
 
     void init();
     void close();
@@ -53,6 +55,8 @@ public:
     struct wpe_android_view_backend_exportable* exportable() { return m_viewBackendExportable; }
 
     void updateAllSettings(const PageSettings& settings);
+
+    static int registerJNINativeFunctions(JNIEnv* env);
 
 private:
     static struct wpe_android_view_backend_exportable_client s_exportableClient;

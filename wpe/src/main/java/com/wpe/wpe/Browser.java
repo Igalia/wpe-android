@@ -148,6 +148,7 @@ public final class Browser {
         if (webProcess != null) {
             webProcess.setActivePage(page);
         }
+        page.init();
         loadPendingUrls(wpeView);
     }
 

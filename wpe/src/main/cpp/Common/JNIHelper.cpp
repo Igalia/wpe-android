@@ -65,3 +65,12 @@ JNIEnv* Wpe::Android::getCurrentThreadJNIEnv()
 
     return env;
 }
+
+void Wpe::Android::checkException(JNIEnv* env)
+{
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        throw std::runtime_error("Java exception from JNI call");
+    }
+}

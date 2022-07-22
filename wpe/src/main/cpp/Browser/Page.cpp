@@ -1,6 +1,7 @@
 #include "Page.h"
 
 #include "Browser.h"
+#include "JNIHelper.h"
 #include "Logging.h"
 #include "RendererASurfaceTransaction.h"
 #include "RendererFallback.h"
@@ -8,8 +9,190 @@
 #include <algorithm>
 #include <android/api-level.h>
 #include <android/hardware_buffer.h>
+#include <android/native_window_jni.h>
+#include <jni.h>
 
 namespace {
+
+/** JNI Interface **/
+
+inline Page* getPage(JNIEnv* env, jobject obj, bool resetNativePtrField = false)
+{
+    jclass clazz = env->GetObjectClass(obj);
+    jfieldID nativePtrField = env->GetFieldID(clazz, "nativePtr", "J");
+    Page* page = reinterpret_cast<Page*>(env->GetLongField(obj, nativePtrField));
+    if (resetNativePtrField)
+        env->SetLongField(obj, nativePtrField, reinterpret_cast<intptr_t>(page));
+    env->DeleteLocalRef(clazz);
+    return page;
+}
+
+void pageInit(JNIEnv* env, jobject obj, jint pageId, jint width, jint height)
+{
+    ALOGV("pageInit(%p, %d, %d, %d) [tid %d]", obj, pageId, width, height, gettid());
+    jclass clazz = env->GetObjectClass(obj);
+    auto page = new Page(width, height, std::make_shared<PageEventObserver>(env, clazz, obj));
+    jfieldID nativePtrField = env->GetFieldID(clazz, "nativePtr", "J");
+    env->SetLongField(obj, nativePtrField, reinterpret_cast<intptr_t>(page));
+    page->init();
+    env->DeleteLocalRef(clazz);
+}
+
+void pageClose(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageClose(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->close();
+}
+
+void pageDestroy(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageClose(%p) [tid %d]", obj, gettid());
+    Page* page = getPage(env, obj, true);
+    delete page;
+}
+
+void pageLoadUrl(JNIEnv* env, jobject obj, jstring jurl)
+{
+    const char* urlChars = env->GetStringUTFChars(jurl, nullptr);
+    ALOGV("pageLoadUrl(%p, %s) [tid %d]", obj, urlChars, gettid());
+    getPage(env, obj)->loadUrl(urlChars);
+    env->ReleaseStringUTFChars(jurl, urlChars);
+}
+
+void pageGoBack(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageGoBack(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->goBack();
+}
+
+void pageGoForward(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageGoForward(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->goForward();
+}
+
+void pageStopLoading(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageStopLoading(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->stopLoading();
+}
+
+void pageReload(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageReload(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->reload();
+}
+
+void pageSurfaceCreated(JNIEnv* env, jobject obj, jobject jSurface)
+{
+    ALOGV("pageSurfaceCreated(%p, %p) [tid %d]", obj, jSurface, gettid());
+
+    getPage(env, obj)->surfaceCreated(ANativeWindow_fromSurface(env, jSurface));
+}
+
+void pageSurfaceDestroyed(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageSurfaceDestroyed(%p) [tid %d]", obj, gettid());
+    auto* page = getPage(env, obj);
+    page->surfaceDestroyed();
+}
+
+void pageSurfaceChanged(JNIEnv* env, jobject obj, jint format, jint width, jint height)
+{
+    ALOGV("pageSurfaceChanged(%p, %d, %d, %d) [tid %d]", obj, format, width, height, gettid());
+    getPage(env, obj)->surfaceChanged(format, width, height);
+}
+
+void pageSurfaceRedrawNeeded(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageSurfaceRedrawNeeded(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->reload();
+}
+
+void pageSetZoomLevel(JNIEnv* env, jobject obj, jdouble zoomLevel)
+{
+    ALOGV("pageSetZoomLevel(%p, %f) [tid %d]", obj, zoomLevel, gettid());
+    getPage(env, obj)->setZoomLevel(zoomLevel);
+}
+
+void pageOnTouchEvent(JNIEnv* env, jobject obj, jlong time, jint type, jfloat x, jfloat y)
+{
+    ALOGV("pageTouchEvent(%p, %ld, %d, %f, %f) [tid %d]", obj, static_cast<long>(time), type, x, y, gettid());
+    wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
+    switch (type) {
+    case 0:
+        touchEventType = wpe_input_touch_event_type_down;
+        break;
+    case 1:
+        touchEventType = wpe_input_touch_event_type_motion;
+        break;
+    case 2:
+        touchEventType = wpe_input_touch_event_type_up;
+        break;
+    }
+
+    struct wpe_input_touch_event_raw touchEventRaw;
+    touchEventRaw.type = touchEventType;
+    touchEventRaw.time = (uint32_t)time;
+    touchEventRaw.id = 0;
+    touchEventRaw.x = (int32_t)x;
+    touchEventRaw.y = (int32_t)y;
+
+    getPage(env, obj)->onTouch(&touchEventRaw);
+}
+
+void pageSetInputMethodContent(JNIEnv* env, jobject obj, jchar c)
+{
+    ALOGV("pageSetInputMethodContent(%p, %c) [tid %d]", obj, c, gettid());
+    getPage(env, obj)->setInputMethodContent(c);
+}
+
+void pageDeleteInputMethodContent(JNIEnv* env, jobject obj, jint offset)
+{
+    ALOGV("pageDeleteInputMethodContent(%p, %d) [tid %d]", obj, offset, gettid());
+    getPage(env, obj)->deleteInputMethodContent(offset);
+}
+
+void pageRequestExitFullscreenMode(JNIEnv* env, jobject obj)
+{
+    ALOGV("pageRequestExitFullscreenMode(%p) [tid %d]", obj, gettid());
+    getPage(env, obj)->requestExitFullscreen();
+}
+
+void pageUpdateAllSettings(JNIEnv* env, jobject obj, jobject jPageSettings)
+{
+    ALOGV("pageUpdateAllSettings(%p) [tid %d]", obj, gettid());
+
+    PageSettings settings;
+
+    jclass jPageSettingsClass = env->GetObjectClass(jPageSettings);
+
+    jmethodID methodID = env->GetMethodID(jPageSettingsClass, "getUserAgentString", "()Ljava/lang/String;");
+    if (methodID != nullptr) {
+        jstring jniString = reinterpret_cast<jstring>(env->CallObjectMethod(jPageSettings, methodID));
+        Wpe::Android::checkException(env);
+        const char* str = env->GetStringUTFChars(jniString, nullptr);
+        settings.setUserAgent(str);
+        env->ReleaseStringUTFChars(jniString, str);
+    } else
+        ALOGE("Cannot update user agent setting (cannot find \"getUserAgentString\" method)");
+
+    methodID = env->GetMethodID(jPageSettingsClass, "getMediaPlaybackRequiresUserGesture", "()Z");
+    if (methodID != nullptr) {
+        jboolean require = env->CallBooleanMethod(jPageSettings, methodID);
+        Wpe::Android::checkException(env);
+        settings.setMediaPlayerRequiresUserGesture(require);
+    } else
+        ALOGE("Cannot update media playback requires user gesture setting (cannot find \"getUserAgentString\" "
+              "method)");
+
+    env->DeleteLocalRef(jPageSettingsClass);
+
+    getPage(env, obj)->updateAllSettings(settings);
+}
+
+/** Callbacks **/
+
 void onLoadChanged(WebKitWebView*, WebKitLoadEvent loadEvent, gpointer data)
 {
     auto* observer = reinterpret_cast<PageEventObserver*>(data);
@@ -77,7 +260,6 @@ Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
     , m_initialized(false)
 {
     m_signalHandlers.clear();
-
 #if __ANDROID_API__ >= 29
     if (android_get_device_api_level() >= 29)
         m_renderer = std::make_unique<RendererASurfaceTransaction>(*this, m_width, m_height);
@@ -124,6 +306,12 @@ void Page::init()
     m_initialized = true;
 }
 
+Page::~Page()
+{
+    close();
+    g_object_unref(m_input_method_context);
+}
+
 void Page::close()
 {
     ALOGV("Page::close");
@@ -152,11 +340,7 @@ void Page::stopLoading() { webkit_web_view_stop_loading(m_webView); }
 
 void Page::reload() { webkit_web_view_reload(m_webView); }
 
-void Page::surfaceCreated(ANativeWindow* window)
-{
-    ALOGV("Page::surfaceCreated() window %p", window);
-    m_renderer->surfaceCreated(window);
-}
+void Page::surfaceCreated(ANativeWindow* window) { m_renderer->surfaceCreated(window); }
 
 void Page::surfaceChanged(int format, int width, int height)
 {
@@ -246,4 +430,34 @@ void Page::updateAllSettings(const PageSettings& settings)
     webkit_settings_set_media_playback_requires_user_gesture(
         webViewSettings, settings.mediaPlayerRequiresUserGesture());
     webkit_web_view_set_settings(m_webView, webViewSettings);
+}
+
+int Page::registerJNINativeFunctions(JNIEnv* env)
+{
+    jclass clazz = env->FindClass("com/wpe/wpe/Page");
+    if (clazz == nullptr)
+        return JNI_ERR;
+
+    static const JNINativeMethod methods[] = {{"nativeInit", "(III)V", reinterpret_cast<void*>(pageInit)},
+        {"nativeClose", "()V", reinterpret_cast<void*>(pageClose)},
+        {"nativeDestroy", "()V", reinterpret_cast<void*>(pageDestroy)},
+        {"nativeLoadUrl", "(Ljava/lang/String;)V", reinterpret_cast<void*>(pageLoadUrl)},
+        {"nativeGoBack", "()V", reinterpret_cast<void*>(pageGoBack)},
+        {"nativeGoForward", "()V", reinterpret_cast<void*>(pageGoForward)},
+        {"nativeStopLoading", "()V", reinterpret_cast<void*>(pageStopLoading)},
+        {"nativeReload", "()V", reinterpret_cast<void*>(pageReload)},
+        {"nativeSurfaceCreated", "(Landroid/view/Surface;)V", reinterpret_cast<void*>(pageSurfaceCreated)},
+        {"nativeSurfaceDestroyed", "()V", reinterpret_cast<void*>(pageSurfaceDestroyed)},
+        {"nativeSurfaceChanged", "(III)V", reinterpret_cast<void*>(pageSurfaceChanged)},
+        {"nativeSurfaceRedrawNeeded", "()V", reinterpret_cast<void*>(pageSurfaceRedrawNeeded)},
+        {"nativeSurfaceRedrawNeeded", "()V", reinterpret_cast<void*>(pageSurfaceRedrawNeeded)},
+        {"nativeSetZoomLevel", "(D)V", reinterpret_cast<void*>(pageSetZoomLevel)},
+        {"nativeOnTouchEvent", "(JIFF)V", reinterpret_cast<void*>(pageOnTouchEvent)},
+        {"nativeSetInputMethodContent", "(C)V", reinterpret_cast<void*>(pageSetInputMethodContent)},
+        {"nativeDeleteInputMethodContent", "(I)V", reinterpret_cast<void*>(pageDeleteInputMethodContent)},
+        {"nativeRequestExitFullscreenMode", "()V", reinterpret_cast<void*>(pageRequestExitFullscreenMode)},
+        {"nativeUpdateAllSettings", "(Lcom/wpe/wpe/PageSettings;)V", reinterpret_cast<void*>(pageUpdateAllSettings)}};
+    int result = env->RegisterNatives(clazz, methods, sizeof(methods) / sizeof(JNINativeMethod));
+    env->DeleteLocalRef(clazz);
+    return result;
 }

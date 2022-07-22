@@ -5,6 +5,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
+import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -13,8 +14,7 @@ import androidx.annotation.UiThread;
 
 import com.wpe.wpe.Browser;
 import com.wpe.wpe.Page;
-import com.wpe.wpe.gfx.WPESurfaceView;
-import com.wpe.wpe.gfx.WPESurfaceViewObserver;
+import com.wpe.wpe.PageObserver;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
@@ -24,7 +24,8 @@ import com.wpe.wpe.gfx.WPESurfaceViewObserver;
  * The WPEView class is the main API entry point.
  */
 @UiThread
-public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
+public class WPEView extends FrameLayout implements PageObserver {
+
     private static final String LOGTAG = "WPEView";
 
     private final Context context;
@@ -37,7 +38,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     private String title = "about:blank";
     private String url = "about:blank";
     private String originalUrl = "about:blank";
-    private WPESurfaceView wpeSurfaceView;
+    private SurfaceView surfaceView;
     private FrameLayout customView;
 
     public WPEView(Context context) {
@@ -77,9 +78,9 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     }
 
     @Override
-    public void onSurfaceViewCreated(WPESurfaceView view) {
-        Log.v(LOGTAG, "WPESurfaceView created " + view + " number of views " + getChildCount());
-        wpeSurfaceView = view;
+    public void onPageSurfaceViewCreated(SurfaceView view) {
+        Log.v(LOGTAG, "onSurfaceViewCreated " + view + " number of views " + getChildCount());
+        surfaceView = view;
 
         post(() -> {
             // Delay adding view a bit to next run cycle
@@ -92,8 +93,8 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     }
 
     @Override
-    public void onSurfaceViewReady(WPESurfaceView view) {
-        Log.v(LOGTAG, "WPESurfaceView ready " + getChildCount());
+    public void onPageSurfaceViewReady(SurfaceView view) {
+        Log.v(LOGTAG, "onSurfaceViewReady " + getChildCount());
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
         post(() -> {
@@ -153,10 +154,10 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     }
 
     public void enterFullScreen() {
-        removeView(wpeSurfaceView);
+        removeView(surfaceView);
 
         customView = new FrameLayout(context);
-        customView.addView(wpeSurfaceView);
+        customView.addView(surfaceView);
         customView.setFocusable(true);
         customView.setFocusableInTouchMode(true);
 
@@ -169,8 +170,8 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
 
     public void exitFullScreen() {
         if (customView != null) {
-            customView.removeView(wpeSurfaceView);
-            addView(wpeSurfaceView);
+            customView.removeView(surfaceView);
+            addView(surfaceView);
             customView = null;
 
             wpeChromeClient.onHideCustomView();
