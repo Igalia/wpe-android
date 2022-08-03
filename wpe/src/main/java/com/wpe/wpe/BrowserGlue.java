@@ -25,23 +25,6 @@ public class BrowserGlue {
     public static native void init(BrowserGlue self);
     public static native void initLooperHelper();
     public static native void shut();
-    public static native void newPage(Page page, int pageId, int width, int height);
-    public static native void closePage(int pageId);
-    public static native void loadURL(int pageId, String url);
-    public static native void goBack(int pageId);
-    public static native void goForward(int pageId);
-    public static native void stopLoading(int pageId);
-    public static native void reload(int pageId);
-    public static native void surfaceCreated(int pageId, Surface surface);
-    public static native void surfaceChanged(int pageId, int format, int width, int height);
-    public static native void surfaceRedrawNeeded(int pageId);
-    public static native void surfaceDestroyed(int pageId);
-    public static native void touchEvent(int pageId, long time, int type, float x, float y);
-    public static native void setZoomLevel(int pageId, double zoomLevel);
-    public static native void setInputMethodContent(int pageId, char c);
-    public static native void deleteInputMethodContent(int id, int offset);
-    public static native void requestExitFullscreenMode(int pageId);
-    public static native void updateAllPageSettings(int pageId, PageSettings settings);
 
     /**
      * This method is called directly from WebKit when a new auxiliary process needs to be created.

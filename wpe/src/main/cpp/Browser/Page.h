@@ -18,12 +18,14 @@ struct ExportedBuffer;
 
 class Page {
 public:
-    Page(int width, int height, std::shared_ptr<PageEventObserver> observer);
+    Page(jweak javaRef, int width, int height, std::shared_ptr<PageEventObserver> observer);
 
     Page(Page&&) = delete;
     Page& operator=(Page&&) = delete;
     Page(const Page&) = delete;
     Page& operator=(const Page&) = delete;
+
+    ~Page();
 
     void init();
     void close();
@@ -54,8 +56,12 @@ public:
 
     void updateAllSettings(const PageSettings& settings);
 
+    static int registerJNINativeFunctions(JNIEnv* env);
+
 private:
     static struct wpe_android_view_backend_exportable_client s_exportableClient;
+
+    jweak m_javaRef = nullptr;
 
     int m_width = 0;
     int m_height = 0;
