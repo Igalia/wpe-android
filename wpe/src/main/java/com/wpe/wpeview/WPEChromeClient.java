@@ -2,7 +2,7 @@ package com.wpe.wpeview;
 
 import android.view.View;
 
-public interface WebChromeClient {
+public interface WPEChromeClient {
     /**
      * Tell the host application the current progress of loading a page.
      *
@@ -27,7 +27,7 @@ public interface WebChromeClient {
      * @param callback invoke this callback to request the page to exit
      * full screen mode.
      */
-    default void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {}
+    default void onShowCustomView(View view, WPEChromeClient.CustomViewCallback callback) {}
 
     /**
      * Notify the host application that the current page has exited full screen mode.

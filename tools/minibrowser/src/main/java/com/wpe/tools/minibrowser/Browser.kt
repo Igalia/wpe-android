@@ -20,7 +20,7 @@ import androidx.fragment.app.commit
 import com.google.android.material.color.MaterialColors
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
-import com.wpe.wpeview.WebChromeClient
+import com.wpe.wpeview.WPEChromeClient
 
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
@@ -142,7 +142,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     }
 
     private fun setChromeClient() {
-        activeTab?.view?.webChromeClient = object : WebChromeClient {
+        activeTab?.view?.wpeChromeClient = object : WPEChromeClient {
             override fun onProgressChanged(view: WPEView?, progress: Int) {
                 super.onProgressChanged(view, progress)
                 progressView.progress = progress
@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
             }
 
-            override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+            override fun onShowCustomView(view: View?, callback: WPEChromeClient.CustomViewCallback?) {
                 fullscreenView?.let {
                     (it.parent as ViewGroup).removeView(it)
                 }
