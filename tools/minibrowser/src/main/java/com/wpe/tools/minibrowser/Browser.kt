@@ -20,7 +20,6 @@ import androidx.fragment.app.commit
 import com.google.android.material.color.MaterialColors
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
-import com.wpe.wpeview.WebChromeClient
 
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
@@ -67,7 +66,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         activeTabItem = TabSelectorItem(activeTab!!)
         tabs.add(activeTabItem!!)
 
-        setChromeClient()
         setWPEViewClient()
     }
 
@@ -141,8 +139,8 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         })
     }
 
-    private fun setChromeClient() {
-        activeTab?.view?.webChromeClient = object : WebChromeClient {
+    private fun setWPEViewClient() {
+        activeTab?.view?.wpeViewClient = object : WPEViewClient {
             override fun onProgressChanged(view: WPEView?, progress: Int) {
                 super.onProgressChanged(view, progress)
                 progressView.progress = progress
@@ -153,7 +151,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
             }
 
-            override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+            override fun onShowCustomView(view: View?, callback: WPEViewClient.CustomViewCallback?) {
                 fullscreenView?.let {
                     (it.parent as ViewGroup).removeView(it)
                 }
@@ -188,11 +186,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
                 }
                 fullscreenView = null
             }
-        }
-    }
 
-    private fun setWPEViewClient() {
-        activeTab?.view?.wpeViewClient = object : WPEViewClient {
             override fun onPageStarted(view: WPEView?, url: String?) {
                 super.onPageStarted(view, url)
                 if (url != null) {
