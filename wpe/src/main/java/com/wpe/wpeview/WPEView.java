@@ -10,7 +10,6 @@ import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
-import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.Browser;
 import com.wpe.wpe.Page;
@@ -31,7 +30,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     private final Context context;
     private final WPESettings settings = new WPESettings();
 
-    private WebChromeClient chromeClient;
+    private WPEChromeClient wpeChromeClient;
     private WPEViewClient wpeViewClient;
     private SurfaceClient surfaceClient;
     private int currentLoadProgress = 0;
@@ -137,20 +136,20 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
 
     public void onLoadProgress(double progress) {
         currentLoadProgress = (int)(progress * 100);
-        if (chromeClient == null) {
+        if (wpeChromeClient == null) {
             return;
         }
-        chromeClient.onProgressChanged(this, currentLoadProgress);
+        wpeChromeClient.onProgressChanged(this, currentLoadProgress);
     }
 
     public void onUriChanged(String uri) { url = uri; }
 
     public void onTitleChanged(String title) {
         this.title = title;
-        if (chromeClient == null) {
+        if (wpeChromeClient == null) {
             return;
         }
-        chromeClient.onReceivedTitle(this, title);
+        wpeChromeClient.onReceivedTitle(this, title);
     }
 
     public void enterFullScreen() {
@@ -161,7 +160,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
         customView.setFocusable(true);
         customView.setFocusableInTouchMode(true);
 
-        chromeClient.onShowCustomView(customView, () -> {
+        wpeChromeClient.onShowCustomView(customView, () -> {
             if (customView != null) {
                 Browser.getInstance().requestExitFullscreenMode(WPEView.this);
             }
@@ -174,7 +173,7 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
             addView(wpeSurfaceView);
             customView = null;
 
-            chromeClient.onHideCustomView();
+            wpeChromeClient.onHideCustomView();
         }
     }
 
@@ -267,23 +266,23 @@ public class WPEView extends FrameLayout implements WPESurfaceViewObserver {
     /**
      * Gets the chrome handler.
      *
-     * @return the WebChromeClient, or {@code null} if not yet set
-     * @see #setWebChromeClient
+     * @return the WPEChromeClient, or {@code null} if not yet set
+     * @see #setWPEChromeClient
      */
     @Nullable
-    public WebChromeClient getWebChromeClient() {
-        return chromeClient;
+    public WPEChromeClient getWPEChromeClient() {
+        return wpeChromeClient;
     }
 
     /**
-     * Sets the chrome handler. This is an implementation of WebChromeClient for
+     * Sets the chrome handler. This is an implementation of WPEChromeClient for
      * use in handling JavaScript dialogs, favicons, titles, and the progress.
      * This will replace the current handler.
      *
-     * @param client an implementation of WebChromeClient
-     * @see #getWebChromeClient
+     * @param client an implementation of WPEChromeClient
+     * @see #getWPEChromeClient
      */
-    public void setWebChromeClient(@Nullable WebChromeClient client) { chromeClient = client; }
+    public void setWPEChromeClient(@Nullable WPEChromeClient client) { wpeChromeClient = client; }
 
     /**
      * Gets the WPEViewClient.
