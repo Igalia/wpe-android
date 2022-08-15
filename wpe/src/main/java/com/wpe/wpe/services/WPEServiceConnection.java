@@ -1,6 +1,7 @@
 package com.wpe.wpe.services;
 
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -17,26 +18,14 @@ public final class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
     private final ProcessType processType;
-    private Page page;
     private ParcelFileDescriptor parcelFd;
 
-    public WPEServiceConnection(@NonNull ProcessType processType, @NonNull Page page,
-                                @NonNull ParcelFileDescriptor parcelFd) {
+    public WPEServiceConnection(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd) {
         this.processType = processType;
-        this.page = page;
         this.parcelFd = parcelFd;
     }
 
     public ProcessType getProcessType() { return processType; }
-
-    public Page getActivePage() { return page; }
-
-    /**
-     * FIXME: Since we do not support PSON, the auxiliary processes are shared
-     * among Page instances. We need to set the Page instance this
-     * auxiliary process is working for.
-     */
-    public void setActivePage(@NonNull Page page) { this.page = page; }
 
     @Override
     public void onServiceConnected(@NonNull ComponentName name, IBinder service) {
@@ -64,6 +53,5 @@ public final class WPEServiceConnection implements ServiceConnection {
         Log.i(LOGTAG, "onServiceDisconnected() name: " + name);
         // FIXME: We need to notify WebKit about the Service being killed.
         //        What should WebKit do in this case?
-        page.stopService(this);
     }
 }

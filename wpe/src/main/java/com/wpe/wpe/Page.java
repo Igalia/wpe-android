@@ -35,9 +35,6 @@ public class Page {
 
     private final String LOGTAG;
 
-    private final int id;
-
-    private final Browser browser;
     private final Context context;
     private final WPEView wpeView;
 
@@ -55,7 +52,7 @@ public class Page {
     private boolean ignoreTouchEvent = false;
 
     private long nativePtr;
-    private native void nativeInit(int pageId, int width, int height);
+    private native void nativeInit(int width, int height);
     private native void nativeClose();
     private native void nativeDestroy();
     private native void nativeLoadUrl(String url);
@@ -80,14 +77,11 @@ public class Page {
 
     private native void nativeUpdateAllSettings(PageSettings settings);
 
-    public Page(@NonNull Browser browser, @NonNull Context context, @NonNull WPEView wpeView, int pageId) {
-        LOGTAG = "WPE page" + pageId;
+    public Page(@NonNull Context context, @NonNull WPEView wpeView) {
+        LOGTAG = "WPE page";
 
         Log.v(LOGTAG, "Page construction " + this);
 
-        id = pageId;
-
-        this.browser = browser;
         this.context = context;
         this.wpeView = wpeView;
 
@@ -108,7 +102,7 @@ public class Page {
     }
 
     public void init() {
-        nativeInit(id, width, height);
+        nativeInit(width, height);
 
         wpeView.onPageSurfaceViewCreated(surfaceView);
         wpeView.onPageSurfaceViewReady(surfaceView);
@@ -138,37 +132,6 @@ public class Page {
         } finally {
             super.finalize();
         }
-    }
-
-    @WorkerThread
-    public WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
-                                              @NonNull Class<?> serviceClass) {
-        Log.v(LOGTAG, "launchService type: " + processType.name());
-        Intent intent = new Intent(context, serviceClass);
-
-        WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, this, parcelFd);
-        switch (processType) {
-        case WebProcess:
-            // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.
-            browser.setWebProcess(serviceConnection);
-            break;
-
-        case NetworkProcess:
-            browser.setNetworkProcess(serviceConnection);
-            break;
-
-        default:
-            throw new IllegalArgumentException("Unknown process type");
-        }
-
-        context.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
-        return serviceConnection;
-    }
-
-    @WorkerThread
-    public void stopService(@NonNull WPEServiceConnection serviceConnection) {
-        Log.v(LOGTAG, "stopService type: " + serviceConnection.getProcessType().name());
-        // FIXME: Until we fully support PSON, we won't do anything here.
     }
 
     public void loadUrl(@NonNull Context context, @NonNull String url) {

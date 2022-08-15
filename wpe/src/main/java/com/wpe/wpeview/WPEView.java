@@ -31,6 +31,8 @@ public class WPEView extends FrameLayout implements PageObserver {
     private final Context context;
     private final WPESettings settings = new WPESettings();
 
+    private final Page page;
+
     private WPEChromeClient wpeChromeClient;
     private WPEViewClient wpeViewClient;
     private SurfaceClient surfaceClient;
@@ -45,36 +47,26 @@ public class WPEView extends FrameLayout implements PageObserver {
         super(context);
         this.context = context;
 
-        Browser.initialize(context);
+        Browser.getInstance().initialize(context);
+
+        page = new Page(context, this);
+        page.init();
     }
 
     public WPEView(Context context, AttributeSet attrs) {
         super(context, attrs);
         this.context = context;
 
-        Browser.initialize(context);
-    }
+        Browser.getInstance().initialize(context);
 
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        final WPEView self = this;
-        // Queue the creation of the Page until view's measure, layout, etc.
-        // so we have a known width and height to create the associated WebKitWebView
-        // before having the Surface texture.
-        post(() -> Browser.getInstance().createPage(self, context));
+        page = new Page(context, this);
+        page.init();
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        Browser.getInstance().destroyPage(this);
-    }
-
-    @Override
-    protected void onWindowVisibilityChanged(int visibility) {
-        super.onWindowVisibilityChanged(visibility);
-        Browser.getInstance().onVisibilityChanged(this, visibility);
+        page.destroy(); // TODO: This is probably not right
     }
 
     @Override
@@ -107,13 +99,13 @@ public class WPEView extends FrameLayout implements PageObserver {
     @Override
     public boolean onKeyUp(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
-            Browser.getInstance().deleteInputMethodContent(this, -1);
+            page.deleteInputMethodContent(-1);
             return true;
         }
 
         final KeyCharacterMap kmap =
             KeyCharacterMap.load(event != null ? event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
-        Browser.getInstance().setInputMethodContent(this, (char)kmap.get(keyCode, event.getMetaState()));
+        page.setInputMethodContent((char)kmap.get(keyCode, event.getMetaState()));
         return true;
     }
 
@@ -163,7 +155,7 @@ public class WPEView extends FrameLayout implements PageObserver {
 
         wpeChromeClient.onShowCustomView(customView, () -> {
             if (customView != null) {
-                Browser.getInstance().requestExitFullscreenMode(WPEView.this);
+                page.requestExitFullscreenMode();
             }
         });
     }
@@ -192,7 +184,7 @@ public class WPEView extends FrameLayout implements PageObserver {
      */
     public void loadUrl(@NonNull String url) {
         originalUrl = url;
-        Browser.getInstance().loadUrl(this, context, url);
+        page.loadUrl(context, url);
     }
 
     /**
@@ -200,34 +192,34 @@ public class WPEView extends FrameLayout implements PageObserver {
      *
      * @return true if this WPEView has a back history item.
      */
-    public boolean canGoBack() { return Browser.getInstance().canGoBack(this); }
+    public boolean canGoBack() { return page.canGoBack(); }
 
     /**
      * Gets whether this WPEView has a forward history item.
      *
      * @return true if this WPEView has a forward history item.
      */
-    public boolean canGoForward() { return Browser.getInstance().canGoForward(this); }
+    public boolean canGoForward() { return page.canGoForward(); }
 
     /**
      * Goes back in the history of this WPEView.
      */
-    public void goBack() { Browser.getInstance().goBack(this); }
+    public void goBack() { page.goBack(); }
 
     /**
      * Goes forward in the history of this WPEView.
      */
-    public void goForward() { Browser.getInstance().goForward(this); }
+    public void goForward() { page.goForward(); }
 
     /**
      * Stop the current load.
      */
-    public void stopLoading() { Browser.getInstance().stopLoading(this); }
+    public void stopLoading() { page.stopLoading(); }
 
     /**
      * Reloads the current URL.
      */
-    public void reload() { Browser.getInstance().reload(this); }
+    public void reload() { page.reload(); }
 
     /**
      * Gets the progress for the current page.

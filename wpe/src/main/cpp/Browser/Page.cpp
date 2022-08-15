@@ -27,9 +27,9 @@ inline Page* getPage(JNIEnv* env, jobject obj, bool resetNativePtrField = false)
     return page;
 }
 
-void pageInit(JNIEnv* env, jobject obj, jint pageId, jint width, jint height)
+void pageInit(JNIEnv* env, jobject obj, jint width, jint height)
 {
-    ALOGV("pageInit(%p, %d, %d, %d) [tid %d]", obj, pageId, width, height, gettid());
+    ALOGV("pageInit(%p, %d, %d) [tid %d]", obj, width, height, gettid());
     jclass clazz = env->GetObjectClass(obj);
     auto page = new Page(width, height, std::make_shared<PageEventObserver>(env, clazz, obj));
     jfieldID nativePtrField = env->GetFieldID(clazz, "nativePtr", "J");
@@ -438,7 +438,7 @@ int Page::registerJNINativeFunctions(JNIEnv* env)
     if (clazz == nullptr)
         return JNI_ERR;
 
-    static const JNINativeMethod methods[] = {{"nativeInit", "(III)V", reinterpret_cast<void*>(pageInit)},
+    static const JNINativeMethod methods[] = {{"nativeInit", "(II)V", reinterpret_cast<void*>(pageInit)},
         {"nativeClose", "()V", reinterpret_cast<void*>(pageClose)},
         {"nativeDestroy", "()V", reinterpret_cast<void*>(pageDestroy)},
         {"nativeLoadUrl", "(Ljava/lang/String;)V", reinterpret_cast<void*>(pageLoadUrl)},
