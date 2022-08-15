@@ -1,6 +1,7 @@
 package com.wpe.wpe;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -14,7 +15,6 @@ import com.wpe.wpeview.WPEView;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
@@ -50,6 +50,12 @@ public final class Browser {
     private final BrowserGlue glue;
 
     /**
+     * Under normal circumstances there is only one application context in a process, so it's safe
+     * to treat this as a global.
+     */
+    private Context applicationContext;
+
+    /**
      * A sideline thread that enables tying into Java-based Looper execution from native code.
      */
     private final LooperHelperThread looperHelperThread;
@@ -60,19 +66,6 @@ public final class Browser {
      * @see AuxiliaryProcesses.AuxiliaryProcess
      */
     private final AuxiliaryProcesses auxiliaryProcesses = new AuxiliaryProcesses();
-
-    /**
-     * List of active Pages.
-     * A page corresponds to a tab in regular browser's UI.
-     */
-    private IdentityHashMap<WPEView, Page> pages = null;
-
-    /**
-     * List of pending URL loads.
-     * We queue an URL load if a `WPEView.loadURL` call is made while the Page associated to the
-     * WPEView instance is not being initialized.
-     */
-    private IdentityHashMap<WPEView, PendingLoad> pendingLoads = null;
 
     /**
      * References to the single web and web processes.
@@ -100,18 +93,19 @@ public final class Browser {
         Log.v(LOGTAG, "Browser creation");
         glue = new BrowserGlue(this);
         looperHelperThread = new LooperHelperThread();
-
-        // Create a WebKitWebContext and integrate webkit main loop with Android looper
-        BrowserGlue.init(glue);
     }
 
-    public static void initialize(Context context) {
+    public void initialize(Context context) {
         if (initialized) {
             return;
         }
 
+        applicationContext = context;
         String[] envStringsArray = {"GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()};
         BrowserGlue.setupEnvironment(envStringsArray);
+
+        // Create a WebKitWebContext and integrate webkit main loop with Android looper
+        BrowserGlue.init(glue);
         initialized = true;
     }
 
@@ -128,60 +122,9 @@ public final class Browser {
         BrowserGlue.shut();
     }
 
-    /**
-     * Create a new Page instance.
-     * A Page corresponds to a tab in regular browser's UI
-     *
-     * @param wpeView The WPEView instance this Page is associated with.
-     * There is a 1:1 relation between WPEView and Page instances.
-     * @param context The Context this Page is created in.
-     */
-    public void createPage(@NonNull WPEView wpeView, @NonNull Context context) {
-        Log.d(LOGTAG, "Create new Page instance for view " + wpeView);
-        if (pages == null) {
-            pages = new IdentityHashMap<>();
-        }
-        assert (!pages.containsKey(wpeView));
-        Page page = new Page(this, context, wpeView, pages.size());
-        pages.put(wpeView, page);
-        activeView = wpeView;
-        if (webProcess != null) {
-            webProcess.setActivePage(page);
-        }
-        page.init();
-        loadPendingUrls(wpeView);
-    }
-
-    public void destroyPage(@NonNull WPEView wpeView) {
-        Log.d(LOGTAG, "Unregister Page for view");
-        assert (pages.containsKey(wpeView));
-        Page page = pages.remove(wpeView);
-        page.close();
-        if (activeView == wpeView) {
-            activeView = null;
-        }
-    }
-
-    public void onVisibilityChanged(@NonNull WPEView wpeView, int visibility) {
-        Log.v(LOGTAG, "Visibility changed for " + wpeView + " to " + visibility);
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        if (visibility == android.view.View.VISIBLE) {
-            activeView = wpeView;
-            webProcess.setActivePage(pages.get(wpeView));
-        }
-    }
-
     @WorkerThread
     void launchAuxiliaryProcess(long pid, @NonNull ProcessType processType, int fd) {
         Log.d(LOGTAG, "launch " + processType.name() + ", pid: " + pid + ", fd: " + fd);
-
-        Page page = pages.get(activeView);
-        if (page == null) {
-            Log.e(LOGTAG, "Cannot launch auxiliary process (no active page)");
-            return;
-        }
 
         int processSlot = auxiliaryProcesses.getFirstAvailableSlot(processType);
         Log.v(LOGTAG, "Should launch " + processType.name());
@@ -191,7 +134,7 @@ public final class Browser {
                 Class.forName("com.wpe.wpe.services.WPEServices$" + processType.name() + "Service" + processSlot);
             ParcelFileDescriptor parcelFd = ParcelFileDescriptor.adoptFd(fd);
 
-            WPEServiceConnection connection = page.launchService(processType, parcelFd, serviceClass);
+            WPEServiceConnection connection = launchService(processType, parcelFd, serviceClass);
             auxiliaryProcesses.register(pid, connection);
         } catch (Exception e) {
             Log.e(LOGTAG, "Cannot launch auxiliary process", e);
@@ -213,95 +156,33 @@ public final class Browser {
         networkProcess = process;
     }
 
-    private void queuePendingLoad(@NonNull WPEView wpeView, @NonNull PendingLoad pendingLoad) {
-        Log.v(LOGTAG, "No available page. Queueing " + pendingLoad.url + " for load");
-        if (pendingLoads == null) {
-            pendingLoads = new IdentityHashMap<>();
+    @WorkerThread
+    private WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
+                                               @NonNull Class<?> serviceClass) {
+        Log.v(LOGTAG, "launchService type: " + processType.name());
+        Intent intent = new Intent(applicationContext, serviceClass);
+
+        WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, parcelFd);
+        switch (processType) {
+        case WebProcess:
+            // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.
+            setWebProcess(serviceConnection);
+            break;
+
+        case NetworkProcess:
+            setNetworkProcess(serviceConnection);
+            break;
+
+        default:
+            throw new IllegalArgumentException("Unknown process type");
         }
-        // We only care about the last url.
-        pendingLoads.put(wpeView, pendingLoad);
+
+        applicationContext.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+        return serviceConnection;
     }
 
-    private void loadPendingUrls(@NonNull WPEView wpeView) {
-        if (pendingLoads == null) {
-            return;
-        }
-        PendingLoad load = pendingLoads.remove(wpeView);
-        if (load != null) {
-            loadUrl(wpeView, load.context, load.url);
-        }
-    }
-
-    public void loadUrl(@NonNull WPEView wpeView, @NonNull Context context, @NonNull String url) {
-        Log.d(LOGTAG, "Load URL " + url);
-        if (pages == null || !pages.containsKey(wpeView)) {
-            queuePendingLoad(wpeView, new PendingLoad(context, url));
-            return;
-        }
-        pages.get(wpeView).loadUrl(context, url);
-    }
-
-    public boolean canGoBack(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return false;
-        }
-        return pages.get(wpeView).canGoBack();
-    }
-
-    public boolean canGoForward(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return false;
-        }
-        return pages.get(wpeView).canGoForward();
-    }
-
-    public void goBack(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).goBack();
-    }
-
-    public void goForward(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).goForward();
-    }
-
-    public void stopLoading(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).stopLoading();
-    }
-
-    public void reload(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).reload();
-    }
-
-    public void setInputMethodContent(@NonNull WPEView wpeView, char c) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).setInputMethodContent(c);
-    }
-
-    public void deleteInputMethodContent(@NonNull WPEView wpeView, int offset) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).deleteInputMethodContent(offset);
-    }
-
-    public void requestExitFullscreenMode(@NonNull WPEView wpeView) {
-        if (pages == null || !pages.containsKey(wpeView)) {
-            return;
-        }
-        pages.get(wpeView).requestExitFullscreenMode();
+    private void stopService(@NonNull WPEServiceConnection serviceConnection) {
+        applicationContext.unbindService(serviceConnection);
     }
 
     /**
@@ -381,22 +262,7 @@ public final class Browser {
 
             public ProcessType getProcessType() { return serviceConnection.getProcessType(); }
 
-            public void terminate() { serviceConnection.getActivePage().stopService(serviceConnection); }
-        }
-    }
-
-    /**
-     * Temporary structure to store the data associated with a pending URL load.
-     * We queue an URL load if a `WPEView.loadURL` call is made while the Page associated to the
-     * WPEView instance is not being initialized.
-     */
-    private final class PendingLoad {
-        public final String url;
-        public final Context context;
-
-        PendingLoad(Context context, String url) {
-            this.url = url;
-            this.context = context;
+            public void terminate() { Browser.getInstance().stopService(serviceConnection); }
         }
     }
 
