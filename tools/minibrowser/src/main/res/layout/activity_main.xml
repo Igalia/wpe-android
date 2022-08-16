@@ -6,10 +6,26 @@
     android:background="@drawable/wpeandroid_background"
     android:orientation="vertical">
 
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/fragment_container_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/toolbar"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
+
+    <ProgressBar
+        android:id="@+id/page_progress"
+        style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_alignTop="@id/toolbar" />
+
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?android:actionBarSize"
+        android:layout_alignParentBottom="true"
         android:background="?android:statusBarColor">
 
         <EditText
@@ -23,20 +39,5 @@
             android:singleLine="true" />
 
     </androidx.appcompat.widget.Toolbar>
-
-    <ProgressBar
-        android:id="@+id/page_progress"
-        style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
-        android:layout_width="match_parent"
-        android:layout_height="3dp"
-        android:layout_alignBottom="@id/toolbar" />
-
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/fragment_container_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@id/toolbar"
-        android:focusable="true"
-        android:focusableInTouchMode="true" />
 
 </RelativeLayout>
