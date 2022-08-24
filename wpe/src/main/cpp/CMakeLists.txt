@@ -12,7 +12,7 @@ option(USE_CODE_WARNINGS_AS_ERRORS "Use code warnings as errors" OFF)
 if(USE_CODE_TIDY)
     find_program(
         CLANG_TIDY_EXE
-        NAMES clang-tidy-14 clang-tidy-13 clang-tidy-12 clang-tidy
+        NAMES clang-tidy-12 clang-tidy
         DOC "Path to clang-tidy executable")
     if(CLANG_TIDY_EXE)
         message(STATUS "Using clang-tidy from ${CLANG_TIDY_EXE}")

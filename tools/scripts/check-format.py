@@ -16,10 +16,7 @@ import site
 class CheckFormat:
     _project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     _git = shutil.which("git")
-    _clang_format = shutil.which("clang-format-14") or \
-        shutil.which("clang-format-13") or \
-        shutil.which("clang-format-12") or \
-        shutil.which("clang-format")
+    _clang_format = shutil.which("clang-format-12") or shutil.which("clang-format")
     _editor_config_checker = os.path.join(site.getuserbase(), "bin", "ec")
 
     _kebab_case_pattern = re.compile(r"[a-z][a-z0-9.-]+\.[a-z]+")
