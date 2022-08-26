@@ -6,8 +6,7 @@
 #include <stdexcept>
 
 namespace {
-enum class JavaMethodTag : int
-{
+enum class JavaMethodTag : int {
     ON_LOAD_CHANGED = 0,
     ON_LOAD_PROGRESS,
     ON_URI_CHANGED,

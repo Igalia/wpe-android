@@ -371,8 +371,7 @@ void Page::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedB
 
 void Page::onTouch(wpe_input_touch_event_raw* touchEventRaw)
 {
-    struct wpe_input_touch_event touchEvent {
-    };
+    struct wpe_input_touch_event touchEvent {};
     touchEvent.touchpoints = touchEventRaw;
     touchEvent.touchpoints_length = 1;
     touchEvent.type = touchEventRaw->type;

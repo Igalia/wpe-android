@@ -2,8 +2,7 @@
 
 #include "Logging.h"
 
-enum InputMethodContextProperty
-{
+enum InputMethodContextProperty {
     PROP_OBSERVER = 1,
     N_PROPERTIES
 };

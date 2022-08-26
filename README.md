@@ -1,6 +1,9 @@
 # WPE Android
 
-![logo](./logo.png)
+[![LGPLv2.1 License](https://img.shields.io/badge/License-LGPLv2.1-blue.svg?style=flat)](/LICENSE.md)
+[![CI build](https://github.com/Igalia/wpe-android/actions/workflows/build.yml/badge.svg)](https://github.com/Igalia/wpe-android/actions/workflows/build.yml)
+
+![logo](/logo.png)
 
 [WPE WebKit](https://wpewebkit.org/) port for Android.
 

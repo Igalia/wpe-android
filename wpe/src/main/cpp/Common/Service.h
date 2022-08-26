@@ -3,8 +3,7 @@
 #include <jni.h>
 
 namespace Wpe::Android {
-enum class ProcessType : jint
-{
+enum class ProcessType : jint {
     FirstType = 0,
     WebProcess = FirstType,
     NetworkProcess,

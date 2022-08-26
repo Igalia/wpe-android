@@ -16,7 +16,7 @@ import site
 class CheckFormat:
     _project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     _git = shutil.which("git")
-    _clang_format = shutil.which("clang-format-12") or shutil.which("clang-format")
+    _clang_format = shutil.which("clang-format-14") or shutil.which("clang-format")
     _editor_config_checker = os.path.join(site.getuserbase(), "bin", "ec")
 
     _kebab_case_pattern = re.compile(r"[a-z][a-z0-9.-]+\.[a-z]+")
@@ -59,6 +59,9 @@ class CheckFormat:
         return command.stdout
 
     def _check_pep8(self, file):
+        if os.path.islink(os.path.join(self._project_root_dir, file)):
+            return True
+
         original_file_content = self._get_original_file_content(file)
         command = subprocess.run([sys.executable, "-m", "pycodestyle", "-"],
                                  input=original_file_content,
@@ -78,6 +81,9 @@ class CheckFormat:
             return False
 
     def _check_clang_format(self, file):
+        if os.path.islink(os.path.join(self._project_root_dir, file)):
+            return True
+
         base_name = os.path.basename(file)
         if base_name.endswith(".aidl"):
             base_name = base_name[:-4] + "java"
@@ -100,6 +106,9 @@ class CheckFormat:
             return False
 
     def _check_cmake_format(self, file):
+        if os.path.islink(os.path.join(self._project_root_dir, file)):
+            return True
+
         original_file_content = self._get_original_file_content(file)
         command = subprocess.run([sys.executable, "-m", "cmakelang.format", "-"],
                                  input=original_file_content,
@@ -119,9 +128,10 @@ class CheckFormat:
     def _check_file_format(self, file):
         base_name = os.path.basename(file)
         if base_name in ["AndroidManifest.xml", "codeStyleConfig.xml", "Project.xml",
-                         "README.md", ".clang-format", ".clang-tidy", ".cmake-format.json",
-                         ".editorconfig", ".gitattributes", ".gitignore", "gradlew",
-                         "gradlew.bat", "setup.cfg", "WPEServices.java.template"]:
+                         "README.md", "LICENSE.md", ".clang-format", ".clang-tidy",
+                         ".cmake-format.json", ".editorconfig", ".gitattributes",
+                         ".gitignore", "gradlew", "gradlew.bat", "setup.cfg",
+                         "WPEServices.java.template"]:
             return True
 
         file_ext = os.path.splitext(file)[1]
@@ -133,10 +143,12 @@ class CheckFormat:
             return self._check_pascal_case_name(file)
         if file_ext in [".conf", ".xml", ".png", ".md"]:
             return self._check_snake_case_name(file)
-        if file_ext in [".pro", ".gradle", ".properties", ".jar", ".yml"]:
+        if file_ext in [".pro", ".gradle", ".properties", ".jar", ".yml", ".json"]:
             return self._check_kebab_case_name(file)
         if base_name == "CMakeLists.txt":
             return self._check_cmake_format(file)
+        if os.path.isdir(file) and os.path.islink(file):
+            return True
 
         print(f"-- Unknown file extension for {file}.", file=sys.stderr)
         return False
