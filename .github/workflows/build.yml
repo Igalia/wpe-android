@@ -6,7 +6,7 @@ on:
 
 jobs:
   check-format:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -20,12 +20,28 @@ jobs:
         with:
           arguments: checkFormat
 
+  check-jni:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Java™ Setup
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 11
+      - name: Check JNI
+        run: |
+          cd tools/jni-test && \
+          cmake -S. -Bbuild && \
+          cmake --build build --target run
+
   build:
-    needs: check-format
+    needs: [check-format, check-jni]
     strategy:
       matrix:
         build_type: [Release, Debug]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3

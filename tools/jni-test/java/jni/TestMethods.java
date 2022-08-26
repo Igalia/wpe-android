@@ -17,17 +17,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package jni;
 
-#include <jni.h>
+public final class TestMethods {
+    private boolean voidMethodCalled = false;
+    public boolean hasVoidMethodBeenCalled() { return voidMethodCalled; }
+    public void voidMethod() { voidMethodCalled = true; }
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
-};
+    public boolean booleanMethod() { return true; }
+    public byte byteMethod() { return 1; }
+    public char charMethod() { return 'A'; }
+    public short shortMethod() { return 2; }
+    public int intMethod() { return 3; }
+    public long longMethod() { return 4; }
+    public float floatMethod() { return 5.2f; }
+    public double doubleMethod() { return 2.4; }
+    public Object objectMethod() { return new Object(); }
+    public String stringMethod() { return "test"; }
+    public TestMethods thisMethod() { return this; }
 
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+    public int intMethodWithParams(int i, int j) { return i + j; }
+}

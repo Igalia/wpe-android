@@ -17,17 +17,28 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package jni;
 
-#include <jni.h>
+public final class Test {
+    private static native void testConstructors();
+    private static native void testDuplexCalls();
+    private static native void testFields();
+    private static native void testMethods();
+    private static native void testObjectArrays();
+    private static native void testScalarArrays();
+    private static native void testStaticFields();
+    private static native void testStaticMethods();
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
-};
+    static { System.loadLibrary("jniTest"); }
 
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+    public static void main(String[] args) {
+        Test.testConstructors();
+        Test.testDuplexCalls();
+        Test.testFields();
+        Test.testMethods();
+        Test.testObjectArrays();
+        Test.testScalarArrays();
+        Test.testStaticFields();
+        Test.testStaticMethods();
+    }
+}

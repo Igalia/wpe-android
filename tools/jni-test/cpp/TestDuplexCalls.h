@@ -19,15 +19,23 @@
 
 #pragma once
 
-#include <jni.h>
+#include "JNI/JNI.h"
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
+DECLARE_JNI_CLASS_SIGNATURE(JNITestDuplexCalls, "jni/TestDuplexCalls");
+
+class TestDuplexCalls final {
+public:
+    static void executeTests(JNIEnv* env, jclass klass);
+
+    TestDuplexCalls();
+
+    int addTwo(int value);
+    int getValue() const;
+
+    void callNativeMethodThroughJava(int value);
+    void throwingMethod() const;
+
+private:
+    bool m_addTwoHasBeenCalled = false;
+    Wpe::Android::JNI::ProtectedType<JNITestDuplexCalls> m_javaInstance;
 };
-
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android

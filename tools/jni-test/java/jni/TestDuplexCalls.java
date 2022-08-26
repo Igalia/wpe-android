@@ -17,17 +17,25 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package jni;
 
-#include <jni.h>
+public final class TestDuplexCalls {
+    private volatile long nativeInstancePointer;
+    TestDuplexCalls(long nativeInstancePointer) { this.nativeInstancePointer = nativeInstancePointer; }
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
-};
+    private int value = 0;
+    public int getValue() { return value; }
 
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+    private native int addTwoNativeMethod(int i);
+
+    public void callNativeMethod(int i) {
+        if (nativeInstancePointer == 0)
+            return;
+
+        value = addTwoNativeMethod(i);
+        if (value != i + 2)
+            throw new Error("TestDuplexCalls.callNativeMethod failed");
+    }
+
+    public void throwingMethod() { throw new Error(); }
+}

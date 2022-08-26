@@ -17,17 +17,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package jni;
 
-#include <jni.h>
+public final class TestConstructors {
+    private final int value;
+    public int getValue() { return value; }
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
-};
-
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+    public TestConstructors() { value = 1; }
+    public TestConstructors(int i) { value = i; }
+}

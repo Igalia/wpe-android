@@ -19,15 +19,28 @@
 
 #pragma once
 
-#include <jni.h>
+#include "JNITypes.h"
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
+namespace Wpe::Android::JNI {
+
+class String final {
+public:
+    String(const char* str, bool useGlobalRef = false);
+    String(const jstring& str, bool useGlobalRef = false);
+    String(jstring&& str, bool useGlobalRef = false); // WARNING: the moved jstring MUST be a local reference
+    String(ProtectedType<jstring> javaStringRef)
+        : m_javaStringRef(std::move(javaStringRef))
+    {
+    }
+
+    bool operator==(const String& other) const noexcept;
+    inline operator jstring() const noexcept { return m_javaStringRef.get(); }
+
+    size_t getLength() const;
+    std::shared_ptr<const char> getContent() const;
+
+private:
+    ProtectedType<jstring> m_javaStringRef;
 };
 
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+} // namespace Wpe::Android::JNI

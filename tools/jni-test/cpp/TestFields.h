@@ -19,15 +19,18 @@
 
 #pragma once
 
-#include <jni.h>
+#include "JNI/JNI.h"
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
+DECLARE_JNI_CLASS_SIGNATURE(JNITestFields, "jni/TestFields");
+
+class TestFields final {
+public:
+    static void executeTests(JNIEnv* env, jclass klass);
+
+    TestFields();
+
+    void checkFieldsAfterModification() const;
+
+private:
+    Wpe::Android::JNI::ProtectedType<JNITestFields> m_javaInstance;
 };
-
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
