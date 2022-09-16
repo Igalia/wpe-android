@@ -3,6 +3,7 @@ plugins {
 }
 
 android {
+    namespace 'com.wpe.wpe'
     compileSdk 33
     buildToolsVersion '33.0.0'
     ndkVersion '25.1.8937393'
