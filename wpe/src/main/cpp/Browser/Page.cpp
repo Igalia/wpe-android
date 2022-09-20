@@ -4,7 +4,6 @@
 #include "JNIHelper.h"
 #include "Logging.h"
 #include "RendererASurfaceTransaction.h"
-#include "RendererFallback.h"
 
 #include <algorithm>
 #include <android/api-level.h>
@@ -260,12 +259,7 @@ Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
     , m_initialized(false)
 {
     m_signalHandlers.clear();
-#if __ANDROID_API__ >= 29
-    if (android_get_device_api_level() >= 29)
-        m_renderer = std::make_unique<RendererASurfaceTransaction>(*this, m_width, m_height);
-    else
-#endif
-        m_renderer = std::make_unique<RendererFallback>(*this, m_width, m_height);
+    m_renderer = std::make_unique<RendererASurfaceTransaction>(*this, m_width, m_height);
 }
 
 void Page::init()

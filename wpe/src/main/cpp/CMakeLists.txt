@@ -100,8 +100,7 @@ add_library(
     Browser/MessagePump.cpp
     Browser/Page.cpp
     Browser/InputMethodContext.cpp
-    Browser/RendererASurfaceTransaction.cpp
-    Browser/RendererFallback.cpp)
+    Browser/RendererASurfaceTransaction.cpp)
 target_configure_quality(WPEBrowserGlue)
 target_compile_definitions(WPEBrowserGlue PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(

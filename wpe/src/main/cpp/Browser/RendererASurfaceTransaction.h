@@ -2,10 +2,6 @@
 
 #include "Renderer.h"
 
-#include <android/api-level.h>
-
-#if __ANDROID_API__ >= 29
-
 struct ANativeWindow;
 struct ASurfaceControl;
 struct ASurfaceTransactionStats;
@@ -52,5 +48,3 @@ private:
         std::shared_ptr<ExportedBuffer> lockedBuffer;
     } m_state;
 };
-
-#endif

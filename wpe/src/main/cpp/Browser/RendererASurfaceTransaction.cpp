@@ -1,7 +1,5 @@
 #include "RendererASurfaceTransaction.h"
 
-#if __ANDROID_API__ >= 29
-
 #include "Browser.h"
 #include "Logging.h"
 
@@ -146,5 +144,3 @@ void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(void* data, A
         },
         data, [](void* data) { delete static_cast<TransactionContext*>(data); });
 }
-
-#endif

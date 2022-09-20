@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    compileSdk 32
-    buildToolsVersion '32.0.0'
-    ndkVersion '23.1.7779620'
+    compileSdk 33
+    buildToolsVersion '33.0.0'
+    ndkVersion '25.1.8937393'
 
     defaultConfig {
-        minSdk 26
-        targetSdk 32
+        minSdk 29
+        targetSdk 33
     }
 
     buildTypes {
@@ -24,21 +24,9 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    flavorDimensions 'api'
-    productFlavors {
-        minApi26 {
-            dimension 'api'
-            minSdkVersion 26
-        }
-
-        minApi29 {
-            dimension 'api'
-            minSdkVersion 29
-        }
-    }
-
     externalNativeBuild {
         cmake {
+            version '3.22.1'
             path file('src/main/cpp/CMakeLists.txt')
         }
     }

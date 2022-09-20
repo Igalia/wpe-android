@@ -24,7 +24,6 @@ jobs:
     needs: check-format
     strategy:
       matrix:
-        api_level: [26, 29]
         build_type: [Release, Debug]
     runs-on: ubuntu-latest
     steps:
@@ -40,9 +39,9 @@ jobs:
       - name: Build Minibrowser
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: assembleMinApi${{ matrix.api_level }}${{ matrix.build_type }}
+          arguments: assemble${{ matrix.build_type }}
       - name: Save Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: minibrowser-api${{ matrix.api_level }}${{ matrix.build_type }}
-          path: tools/minibrowser/build/outputs/apk/minApi${{ matrix.api_level }}/**/*.apk
+          name: minibrowser-${{ matrix.build_type }}
+          path: tools/minibrowser/build/outputs/apk/**/*.apk
