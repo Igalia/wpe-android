@@ -4,12 +4,12 @@ plugins {
 }
 
 android {
-    compileSdk 32
-    buildToolsVersion '32.0.0'
+    compileSdk 33
+    buildToolsVersion '33.0.0'
 
     defaultConfig {
-        minSdk 26
-        targetSdk 32
+        minSdk 29
+        targetSdk 33
         versionCode 1
         versionName '1.0'
     }
@@ -28,19 +28,6 @@ android {
 
     kotlinOptions {
         jvmTarget = '1.8'
-    }
-
-    flavorDimensions 'api'
-    productFlavors {
-        minApi26 {
-            dimension 'api'
-            minSdkVersion 26
-        }
-
-        minApi29 {
-            dimension 'api'
-            minSdkVersion 29
-        }
     }
 
     packagingOptions {
