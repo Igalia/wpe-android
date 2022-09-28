@@ -124,6 +124,7 @@ public final class Browser {
         }
 
         applicationContext = context;
+
         String[] envStringsArray = {"GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()};
         BrowserGlue.setupEnvironment(envStringsArray);
 
@@ -157,7 +158,7 @@ public final class Browser {
                 Class.forName("com.wpe.wpe.services.WPEServices$" + processType.name() + "Service" + processSlot);
             ParcelFileDescriptor parcelFd = ParcelFileDescriptor.adoptFd(fd);
 
-            WPEServiceConnection connection = launchService(processType, parcelFd, serviceClass);
+            WPEServiceConnection connection = launchService(pid, processType, parcelFd, serviceClass);
             auxiliaryProcesses.register(pid, connection);
         } catch (Exception e) {
             Log.e(LOGTAG, "Cannot launch auxiliary process", e);
@@ -180,12 +181,12 @@ public final class Browser {
     }
 
     @WorkerThread
-    private WPEServiceConnection launchService(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
-                                               @NonNull Class<?> serviceClass) {
+    private WPEServiceConnection launchService(long pid, @NonNull ProcessType processType,
+                                               @NonNull ParcelFileDescriptor parcelFd, @NonNull Class<?> serviceClass) {
         Log.v(LOGTAG, "launchService type: " + processType.name());
         Intent intent = new Intent(applicationContext, serviceClass);
 
-        WPEServiceConnection serviceConnection = new WPEServiceConnection(processType, parcelFd);
+        WPEServiceConnection serviceConnection = new WPEServiceConnection(pid, processType, parcelFd);
         switch (processType) {
         case WebProcess:
             // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.
