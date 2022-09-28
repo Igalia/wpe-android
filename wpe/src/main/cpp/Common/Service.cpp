@@ -1,6 +1,7 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,7 +32,7 @@
 #include <unistd.h>
 
 namespace {
-void initializeMain(JNIEnv*, jclass, Wpe::Android::ProcessType processType, jint fd)
+void initializeMain(JNIEnv*, jclass, jlong pid, Wpe::Android::ProcessType processType, jint fd)
 {
     // As this function can exclusively be called from JNI, we just
     // need to assert having the right value for the process type in
@@ -55,7 +56,7 @@ void initializeMain(JNIEnv*, jclass, Wpe::Android::ProcessType processType, jint
         entrypoint);
 
     char pidString[32];
-    snprintf(pidString, sizeof(pidString), "%d", getpid());
+    snprintf(pidString, sizeof(pidString), "%lu", static_cast<unsigned long>(pid));
     char fdString[32];
     snprintf(fdString, sizeof(fdString), "%d", fd);
 
@@ -80,7 +81,7 @@ jint Wpe::Android::registerServiceEntryPoints(JavaVM* vm, const char* serviceGlu
     if (klass == nullptr)
         return JNI_ERR;
 
-    static const JNINativeMethod methods[] = {{"initializeMain", "(II)V", reinterpret_cast<void*>(initializeMain)},
+    static const JNINativeMethod methods[] = {{"initializeMain", "(JII)V", reinterpret_cast<void*>(initializeMain)},
         {"setupEnvironment", "([Ljava/lang/String;)V", reinterpret_cast<void*>(setupEnvironment)}};
     int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
     env->DeleteLocalRef(klass);

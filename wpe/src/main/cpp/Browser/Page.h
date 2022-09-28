@@ -40,7 +40,7 @@ struct ExportedBuffer;
 
 class Page final {
 public:
-    Page(int width, int height, std::shared_ptr<PageEventObserver> observer);
+    Page(std::string dataDir, std::string cacheDir, int width, int height, std::shared_ptr<PageEventObserver> observer);
 
     Page(Page&&) = delete;
     Page& operator=(Page&&) = delete;
@@ -83,10 +83,15 @@ public:
 private:
     static struct wpe_android_view_backend_exportable_client s_exportableClient;
 
+    std::string m_dataDir;
+    std::string m_cacheDir;
     int m_width = 0;
     int m_height = 0;
     bool m_initialized = false;
     bool m_resizing_fullscreen = false;
+
+    WebKitWebsiteDataManager* m_websiteDataManager = nullptr;
+    WebKitWebContext* m_webContext = nullptr;
     WebKitWebView* m_webView = nullptr;
     struct wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
 

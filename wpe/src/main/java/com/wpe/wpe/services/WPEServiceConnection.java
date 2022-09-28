@@ -39,10 +39,12 @@ import com.wpe.wpe.ProcessType;
 public final class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
+    private final long pid;
     private final ProcessType processType;
     private ParcelFileDescriptor parcelFd;
 
-    public WPEServiceConnection(@NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd) {
+    public WPEServiceConnection(long pid, @NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd) {
+        this.pid = pid;
         this.processType = processType;
         this.parcelFd = parcelFd;
     }
@@ -56,10 +58,11 @@ public final class WPEServiceConnection implements ServiceConnection {
             return;
         }
 
-        Log.i(LOGTAG, "onServiceConnected() name: " + name + ", fd: " + parcelFd.getFd());
+        Log.i(LOGTAG, "onServiceConnected() name: " + name + ", pid: " + pid + ", fd: " + parcelFd.getFd());
         IWPEService wpeService = IWPEService.Stub.asInterface(service);
 
         Bundle bundle = new Bundle();
+        bundle.putLong("pid", pid);
         bundle.putParcelable("fd", parcelFd);
         parcelFd = null;
 

@@ -2,6 +2,7 @@
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
  *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -60,12 +61,14 @@ public class NetworkProcessService extends WPEService {
 
         String[] envStringsArray = {"XDG_RUNTIME_DIR", context.getCacheDir().getAbsolutePath(), "GIO_EXTRA_MODULES",
                                     new File(context.getFilesDir(), "gio").getAbsolutePath()};
+
         setupEnvironment(envStringsArray);
     }
 
     @Override
-    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd) {
-        Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeMain(ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
+    protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
+        Log.v(LOGTAG,
+              "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
+        initializeMain(pid, ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }

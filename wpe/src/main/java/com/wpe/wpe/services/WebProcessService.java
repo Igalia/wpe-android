@@ -3,6 +3,7 @@
  *   Author: Zan Dobersek <zdobersek@igalia.com>
  *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -174,8 +175,9 @@ public class WebProcessService extends WPEService {
     }
 
     @Override
-    protected void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd) {
-        Log.v(LOGTAG, "initializeServiceMain() fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeMain(ProcessType.WebProcess.getValue(), parcelFd.detachFd());
+    protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
+        Log.v(LOGTAG,
+              "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
+        initializeMain(pid, ProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
 }

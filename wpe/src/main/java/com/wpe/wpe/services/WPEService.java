@@ -3,6 +3,7 @@
  *   Author: Zan Dobersek <zdobersek@igalia.com>
  *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -39,12 +40,13 @@ public abstract class WPEService extends Service {
         @Override
         public int connect(@NonNull Bundle args) {
             Log.v(LOGTAG, "IWPEService.Stub connect()");
+            long pid = args.getLong("pid");
             final ParcelFileDescriptor parcelFd = args.getParcelable("fd");
 
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    WPEService.this.initializeServiceMain(parcelFd);
+                    WPEService.this.initializeServiceMain(pid, parcelFd);
                 }
             }).start();
 
@@ -53,11 +55,11 @@ public abstract class WPEService extends Service {
     };
 
     protected static native void setupEnvironment(String[] envStringsArray);
-    protected static native void initializeMain(int processType, int fd);
+    protected static native void initializeMain(long pid, int processType, int fd);
 
     protected abstract void loadNativeLibraries();
     protected abstract void setupServiceEnvironment();
-    protected abstract void initializeServiceMain(@NonNull ParcelFileDescriptor parcelFd);
+    protected abstract void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd);
 
     @Override
     public void onCreate() {
