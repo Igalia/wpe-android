@@ -133,7 +133,7 @@ void pageSurfaceChanged(JNIEnv* env, jobject obj, jint format, jint width, jint 
 void pageSurfaceRedrawNeeded(JNIEnv* env, jobject obj)
 {
     ALOGV("pageSurfaceRedrawNeeded(%p) [tid %d]", obj, gettid());
-    getPage(env, obj)->reload();
+    getPage(env, obj)->surfaceRedrawNeeded();
 }
 
 void pageSetZoomLevel(JNIEnv* env, jobject obj, jdouble zoomLevel)
@@ -267,6 +267,7 @@ bool onDomFullscreenRequest(void* data, bool fullscreen)
 
     return true;
 }
+
 } // namespace
 
 struct wpe_android_view_backend_exportable_client Page::s_exportableClient = {
@@ -481,7 +482,6 @@ int Page::registerJNINativeFunctions(JNIEnv* env)
         {"nativeSurfaceCreated", "(Landroid/view/Surface;)V", reinterpret_cast<void*>(pageSurfaceCreated)},
         {"nativeSurfaceDestroyed", "()V", reinterpret_cast<void*>(pageSurfaceDestroyed)},
         {"nativeSurfaceChanged", "(III)V", reinterpret_cast<void*>(pageSurfaceChanged)},
-        {"nativeSurfaceRedrawNeeded", "()V", reinterpret_cast<void*>(pageSurfaceRedrawNeeded)},
         {"nativeSurfaceRedrawNeeded", "()V", reinterpret_cast<void*>(pageSurfaceRedrawNeeded)},
         {"nativeSetZoomLevel", "(D)V", reinterpret_cast<void*>(pageSetZoomLevel)},
         {"nativeOnTouchEvent", "(JIFF)V", reinterpret_cast<void*>(pageOnTouchEvent)},
