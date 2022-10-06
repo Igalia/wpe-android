@@ -18,8 +18,9 @@
         android:theme="@style/Theme.MiniBrowser">
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
