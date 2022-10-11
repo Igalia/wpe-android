@@ -36,18 +36,23 @@
 #include <android/hardware_buffer.h>
 #include <android/surface_control.h>
 
-void Browser::init()
+void Browser::init(std::string dataDir, std::string cacheDir)
 {
     ALOGV("Browser::init - tid: %d", gettid());
 
     m_messagePump = std::make_unique<MessagePump>();
-    webkit_web_context_new();
+    m_websiteDataManager = webkit_website_data_manager_new(
+        "base-data-directory", dataDir.c_str(), "base-cache-directory", cacheDir.c_str(), NULL);
+    m_webContext = webkit_web_context_new_with_website_data_manager(m_websiteDataManager);
 }
 
 void Browser::shut()
 {
     ALOGV("Browser::shut - tid: %d", gettid());
     m_messagePump->quit();
+
+    g_clear_object(&m_webContext);
+    g_clear_object(&m_websiteDataManager);
 }
 
 void Browser::invokeOnUiThread(void (*callback)(void*), void* callbackData, void (*destroy)(void*))

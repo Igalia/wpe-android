@@ -48,21 +48,16 @@ inline Page* getPage(JNIEnv* env, jobject obj, bool resetNativePtrField = false)
     return page;
 }
 
-void pageInit(JNIEnv* env, jobject obj, jstring jdataDir, jstring jcacheDir, jint width, jint height)
+void pageInit(JNIEnv* env, jobject obj, jint width, jint height)
 {
     ALOGV("pageInit(%p, %d, %d) [tid %d]", obj, width, height, gettid());
-    const char* dataDirChars = env->GetStringUTFChars(jdataDir, nullptr);
-    const char* cacheDirChars = env->GetStringUTFChars(jcacheDir, nullptr);
 
     jclass clazz = env->GetObjectClass(obj);
-    auto page
-        = new Page(dataDirChars, cacheDirChars, width, height, std::make_shared<PageEventObserver>(env, clazz, obj));
+    auto page = new Page(width, height, std::make_shared<PageEventObserver>(env, clazz, obj));
     jfieldID nativePtrField = env->GetFieldID(clazz, "nativePtr", "J");
     env->SetLongField(obj, nativePtrField, reinterpret_cast<intptr_t>(page));
     page->init();
     env->DeleteLocalRef(clazz);
-    env->ReleaseStringUTFChars(jdataDir, dataDirChars);
-    env->ReleaseStringUTFChars(jcacheDir, cacheDirChars);
 }
 
 void pageClose(JNIEnv* env, jobject obj)
@@ -276,14 +271,11 @@ struct wpe_android_view_backend_exportable_client Page::s_exportableClient = {
         ALOGV("s_exportableClient::export_buffer() buffer %p poolID %u bufferID %u", buffer, poolID, bufferID);
         auto* page = reinterpret_cast<Page*>(data);
 
-        Browser::getInstance().handleExportedBuffer(*page, std::make_shared<ExportedBuffer>(buffer, poolID, bufferID));
+        Browser::instance().handleExportedBuffer(*page, std::make_shared<ExportedBuffer>(buffer, poolID, bufferID));
     }};
 
-Page::Page(
-    std::string dataDir, std::string cacheDir, int width, int height, std::shared_ptr<PageEventObserver> observer)
-    : m_dataDir(std::move(dataDir))
-    , m_cacheDir(std::move(cacheDir))
-    , m_width(width)
+Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
+    : m_width(width)
     , m_height(height)
     , m_observer(observer)
     , m_webView(nullptr)
@@ -310,10 +302,7 @@ void Page::init()
 
     auto* viewBackend = webkit_web_view_backend_new(wpeBackend, nullptr, nullptr);
 
-    m_websiteDataManager = webkit_website_data_manager_new(
-        "base-data-directory", m_dataDir.c_str(), "base-cache-directory", m_cacheDir.c_str(), NULL);
-    m_webContext = webkit_web_context_new_with_website_data_manager(m_websiteDataManager);
-    m_webView = webkit_web_view_new_with_context(viewBackend, m_webContext);
+    m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
 
     m_signalHandlers.push_back(
         g_signal_connect(m_webView, "load-changed", G_CALLBACK(onLoadChanged), m_observer.get()));
@@ -355,8 +344,6 @@ void Page::close()
     webkit_web_view_try_close(m_webView);
 
     g_clear_object(&m_webView);
-    g_clear_object(&m_webContext);
-    g_clear_object(&m_websiteDataManager);
 }
 
 void Page::loadUrl(const char* url)
@@ -470,8 +457,7 @@ int Page::registerJNINativeFunctions(JNIEnv* env)
     if (clazz == nullptr)
         return JNI_ERR;
 
-    static const JNINativeMethod methods[] = {
-        {"nativeInit", "(Ljava/lang/String;Ljava/lang/String;II)V", reinterpret_cast<void*>(pageInit)},
+    static const JNINativeMethod methods[] = {{"nativeInit", "(II)V", reinterpret_cast<void*>(pageInit)},
         {"nativeClose", "()V", reinterpret_cast<void*>(pageClose)},
         {"nativeDestroy", "()V", reinterpret_cast<void*>(pageDestroy)},
         {"nativeLoadUrl", "(Ljava/lang/String;)V", reinterpret_cast<void*>(pageLoadUrl)},

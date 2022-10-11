@@ -45,14 +45,20 @@ void setupEnvironment(JNIEnv*, jclass, jobjectArray envStringsArray)
     Wpe::Android::configureEnvironment(envStringsArray);
 }
 
-void init(JNIEnv* env, jclass, jobject glueObj)
+void init(JNIEnv* env, jclass, jobject glueObj, jstring jdataDir, jstring jcacheDir)
 {
     ALOGV("BrowserGlue::init(%p) [tid %d]", glueObj, gettid());
 
     if (s_browserGlue_object == nullptr)
         s_browserGlue_object = env->NewWeakGlobalRef(glueObj);
 
-    Browser::getInstance().init();
+    const char* dataDirChars = env->GetStringUTFChars(jdataDir, nullptr);
+    const char* cacheDirChars = env->GetStringUTFChars(jcacheDir, nullptr);
+
+    Browser::instance().init(dataDirChars, cacheDirChars);
+
+    env->ReleaseStringUTFChars(jdataDir, dataDirChars);
+    env->ReleaseStringUTFChars(jcacheDir, cacheDirChars);
 }
 
 void initLooperHelper(JNIEnv*, jclass)
@@ -66,7 +72,7 @@ void shut(JNIEnv* env, jclass)
 {
     ALOGV("BrowserGlue::shut() [tid %d]", gettid());
 
-    Browser::getInstance().shut();
+    Browser::instance().shut();
 
     if (s_browserGlue_object != nullptr) {
         env->DeleteWeakGlobalRef(s_browserGlue_object);
@@ -211,7 +217,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 
     static const JNINativeMethod methods[]
         = {{"setupEnvironment", "([Ljava/lang/String;)V", reinterpret_cast<void*>(setupEnvironment)},
-            {"init", "(Lcom/wpe/wpe/BrowserGlue;)V", reinterpret_cast<void*>(init)},
+            {"init", "(Lcom/wpe/wpe/BrowserGlue;Ljava/lang/String;Ljava/lang/String;)V", reinterpret_cast<void*>(init)},
             {"initLooperHelper", "()V", reinterpret_cast<void*>(initLooperHelper)},
             {"shut", "()V", reinterpret_cast<void*>(shut)}};
 
