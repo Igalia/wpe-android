@@ -39,7 +39,7 @@ struct ANativeWindow;
 
 class Browser final {
 public:
-    static Browser& getInstance()
+    static Browser& instance()
     {
         static std::unique_ptr<Browser> singleton(new Browser());
         return *singleton;
@@ -52,7 +52,9 @@ public:
 
     ~Browser() { shut(); }
 
-    void init();
+    WebKitWebContext* webContext() const { return m_webContext; }
+
+    void init(std::string dataDir, std::string cacheDir);
     void shut();
 
     void invokeOnUiThread(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
@@ -63,4 +65,7 @@ private:
     Browser() = default;
 
     std::unique_ptr<MessagePump> m_messagePump;
+
+    WebKitWebsiteDataManager* m_websiteDataManager = nullptr;
+    WebKitWebContext* m_webContext = nullptr;
 };

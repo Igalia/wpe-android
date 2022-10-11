@@ -158,7 +158,7 @@ void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(void* data, A
     ALOGV("RendererASurfaceTransaction::onTransactionCompleteOnAnyThread() context %p tid: %d", data, gettid());
 
     // Relay the transaction completion to the webkit ui thread.
-    Browser::getInstance().invokeOnUiThread(
+    Browser::instance().invokeOnUiThread(
         [](void* data) {
             auto* context = static_cast<TransactionContext*>(data);
             context->renderer.finishFrame(context->buffer);

@@ -75,7 +75,7 @@ public class Page {
     private boolean ignoreTouchEvent = false;
 
     private long nativePtr;
-    private native void nativeInit(String dataDir, String cacheDir, int width, int height);
+    private native void nativeInit(int width, int height);
     private native void nativeClose();
     private native void nativeDestroy();
     private native void nativeLoadUrl(String url);
@@ -125,7 +125,7 @@ public class Page {
     }
 
     public void init() {
-        nativeInit(context.getDataDir().getAbsolutePath(), context.getCacheDir().getAbsolutePath(), width, height);
+        nativeInit(width, height);
         wpeView.onPageSurfaceViewCreated(surfaceView);
         wpeView.onPageSurfaceViewReady(surfaceView);
 

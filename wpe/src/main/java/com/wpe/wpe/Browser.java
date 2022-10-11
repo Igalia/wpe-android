@@ -129,7 +129,7 @@ public final class Browser {
         BrowserGlue.setupEnvironment(envStringsArray);
 
         // Create a WebKitWebContext and integrate webkit main loop with Android looper
-        BrowserGlue.init(glue);
+        BrowserGlue.init(glue, context.getDataDir().getAbsolutePath(), context.getCacheDir().getAbsolutePath());
         initialized = true;
     }
 

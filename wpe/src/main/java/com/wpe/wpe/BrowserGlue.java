@@ -44,7 +44,7 @@ public class BrowserGlue {
     public BrowserGlue(@NonNull Browser browser) { this.browser = browser; }
 
     public static native void setupEnvironment(String[] envStringsArray);
-    public static native void init(BrowserGlue self);
+    public static native void init(BrowserGlue self, String dataDir, String cacheDir);
     public static native void initLooperHelper();
     public static native void shut();
 
