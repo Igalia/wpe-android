@@ -25,6 +25,7 @@ package com.wpe.wpe;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -34,6 +35,7 @@ import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
 import com.wpe.wpe.services.WPEServiceConnection;
+import com.wpe.wpe.services.WPEServiceConnectionDelegate;
 import com.wpe.wpeview.WPEView;
 
 import java.io.File;
@@ -101,6 +103,15 @@ public final class Browser {
      */
     private WPEServiceConnection webProcess;
     private WPEServiceConnection networkProcess;
+
+    private WPEServiceConnectionDelegate serviceConnectionDelegate = new WPEServiceConnectionDelegate() {
+        @Override
+        public void onServiceDisconnected(WPEServiceConnection connection) {
+            // Unbinds service which prevents restart on crash.
+            // Let wpe restart auxiliary processes if necessary
+            auxiliaryProcesses.unregister(connection.getPid());
+        }
+    };
 
     /**
      * The active view is the last view that changed its visibility to VISIBLE.
@@ -186,7 +197,8 @@ public final class Browser {
         Log.v(LOGTAG, "launchService type: " + processType.name());
         Intent intent = new Intent(applicationContext, serviceClass);
 
-        WPEServiceConnection serviceConnection = new WPEServiceConnection(pid, processType, parcelFd);
+        WPEServiceConnection serviceConnection =
+            new WPEServiceConnection(pid, processType, parcelFd, serviceConnectionDelegate);
         switch (processType) {
         case WebProcess:
             // FIXME: we probably want to kill the current web process here if any exists when PSON is enabled.

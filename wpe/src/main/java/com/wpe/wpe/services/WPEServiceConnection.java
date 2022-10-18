@@ -43,12 +43,17 @@ public final class WPEServiceConnection implements ServiceConnection {
     private final ProcessType processType;
     private ParcelFileDescriptor parcelFd;
 
-    public WPEServiceConnection(long pid, @NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd) {
+    private final WPEServiceConnectionDelegate delegate;
+
+    public WPEServiceConnection(long pid, @NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
+                                @NonNull WPEServiceConnectionDelegate delegate) {
         this.pid = pid;
         this.processType = processType;
         this.parcelFd = parcelFd;
+        this.delegate = delegate;
     }
 
+    public long getPid() { return pid; }
     public ProcessType getProcessType() { return processType; }
 
     @Override
@@ -76,7 +81,7 @@ public final class WPEServiceConnection implements ServiceConnection {
     @Override
     public void onServiceDisconnected(@NonNull ComponentName name) {
         Log.i(LOGTAG, "onServiceDisconnected() name: " + name);
-        // FIXME: We need to notify WebKit about the Service being killed.
-        //        What should WebKit do in this case?
+
+        delegate.onServiceDisconnected(this);
     }
 }
