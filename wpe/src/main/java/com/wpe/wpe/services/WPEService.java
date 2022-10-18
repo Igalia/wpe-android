@@ -27,6 +27,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.os.Process;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -72,12 +73,13 @@ public abstract class WPEService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         Log.i(LOGTAG, "onBind()");
+        stopSelf();
         return binder;
     }
 
     @Override
     public void onDestroy() {
         Log.i(LOGTAG, "onDestroy()");
-        super.onDestroy();
+        Process.killProcess(Process.myPid());
     }
 }
