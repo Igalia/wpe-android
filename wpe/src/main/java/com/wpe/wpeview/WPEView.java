@@ -87,12 +87,6 @@ public class WPEView extends FrameLayout implements PageObserver {
     }
 
     @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        page.destroy(); // TODO: This is probably not right
-    }
-
-    @Override
     public void onPageSurfaceViewCreated(SurfaceView view) {
         Log.v(LOGTAG, "onSurfaceViewCreated " + view + " number of views " + getChildCount());
         surfaceView = view;
