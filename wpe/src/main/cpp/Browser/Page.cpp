@@ -111,6 +111,7 @@ private:
     static void nativeClose(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeLoadUrl(JNIEnv* env, jobject obj, jlong pagePtr, jstring url) noexcept;
+    static void nativeLoadHtml(JNIEnv* env, jobject obj, jlong pagePtr, jstring content, jstring baseUri) noexcept;
     static void nativeGoBack(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeGoForward(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeStopLoading(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
@@ -149,6 +150,7 @@ JNIPageCache::JNIPageCache()
         JNI::NativeMethod<void(jlong)>("nativeClose", JNIPageCache::nativeClose),
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIPageCache::nativeDestroy),
         JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", JNIPageCache::nativeLoadUrl),
+        JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", JNIPageCache::nativeLoadHtml),
         JNI::NativeMethod<void(jlong)>("nativeGoBack", JNIPageCache::nativeGoBack),
         JNI::NativeMethod<void(jlong)>("nativeGoForward", JNIPageCache::nativeGoForward),
         JNI::NativeMethod<void(jlong)>("nativeStopLoading", JNIPageCache::nativeStopLoading),
@@ -196,6 +198,17 @@ void JNIPageCache::nativeLoadUrl(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
     if ((page != nullptr) && (page->m_webView != nullptr))
         webkit_web_view_load_uri(page->m_webView, JNI::String(url).getContent().get());
+}
+
+void JNIPageCache::nativeLoadHtml(
+    JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jstring content, jstring baseUri) noexcept
+{
+    Logging::logDebug("Page::nativeLoadHtml(content, baseUri) [tid %d]", gettid());
+    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
+    if ((page != nullptr) && (page->m_webView != nullptr)) {
+        webkit_web_view_load_html(
+            page->m_webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
+    }
 }
 
 void JNIPageCache::nativeGoBack(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr) noexcept

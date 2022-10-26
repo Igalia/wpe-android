@@ -58,6 +58,7 @@ public final class PageSettings {
 
     private native void setNativeUserAgent(long nativePtr, String userAgent);
     private native void setNativeMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
+    private native void setNativeAllowFileUrls(long nativePtr, boolean allow);
 
     public PageSettings(@NonNull Page page) {
         this.page = page;
@@ -107,6 +108,27 @@ public final class PageSettings {
         if (requires != mediaPlaybackRequiresUserGesture) {
             mediaPlaybackRequiresUserGesture = requires;
             setNativeMediaPlaybackRequiresUserGesture(page.getNativePtr(), mediaPlaybackRequiresUserGesture);
+        }
+    }
+
+    private boolean allowFileUrls = false;
+
+    /**
+     * Gets whether the page allows file Urls.
+     * @return {@code true} if the page allows file Urls, or false otherwise.
+     * @see #setAllowFileUrls
+     */
+    public boolean getAllowFileUrls() { return allowFileUrls; }
+
+    /**
+     * Sets whether the page allows file Urls.
+     * The default is {@code false}.
+     * @param allow whether the page allows file Urls, or not.
+     */
+    public void setAllowFileUrls(boolean allow) {
+        if (allow != allowFileUrls) {
+            allowFileUrls = allow;
+            setNativeAllowFileUrls(page.getNativePtr(), allowFileUrls);
         }
     }
 }

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mediaplayer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+        }
+
+        #carousel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 320px;
+            height: 240px;
+            transform: translate(-50%, -50%);
+            perspective: 1000px;
+        }
+
+        #carousel>div {
+            transform-style: preserve-3d;
+        }
+
+        #carousel>div>figure {
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+            position: absolute;
+            border-radius: 20px;
+            box-shadow: 0 0 7px 1px white;
+        }
+
+        #carousel>div>figure:nth-child(1) {
+            transform: rotateY(0deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(2) {
+            transform: rotateY(45deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(3) {
+            transform: rotateY(90deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(4) {
+            transform: rotateY(135deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(5) {
+            transform: rotateY(180deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(6) {
+            transform: rotateY(225deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(7) {
+            transform: rotateY(270deg) translateZ(400px);
+        }
+
+        #carousel>div>figure:nth-child(8) {
+            transform: rotateY(315deg) translateZ(400px);
+        }
+
+        #carousel>div>figure>iframe {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <script>
+        window.addEventListener("DOMContentLoaded", () =>
+        {
+            const SENSITIVITY = 800;
+            const EPSILON = 0.0001;
+            const AMORTIZATION = 0.004;
+
+            const carousel = document.querySelector("#carousel > div");
+            const data = {
+                x: 0,
+                tracking: false,
+                lastTimestamp: 0,
+                angleSpeed: 0,
+                angle: 0
+            };
+
+            function updateAngle(timestamp)
+            {
+                const dt = timestamp - data.lastTimestamp;
+                if (dt < EPSILON)
+                {
+                    window.requestAnimationFrame(updateAngle);
+                    return;
+                }
+                data.lastTimestamp = timestamp;
+
+                data.angle = (data.angle + data.angleSpeed * dt) % 360;
+                carousel.style.transform = "rotateY(" + data.angle + "deg)";
+
+                data.angleSpeed *= Math.max(1 - AMORTIZATION * dt, 0);
+                if (Math.abs(data.angleSpeed) < EPSILON)
+                {
+                    data.angleSpeed = 0;
+                    if (!data.tracking)
+                        return;
+                }
+
+                window.requestAnimationFrame(updateAngle);
+            }
+
+            document.addEventListener("mousedown", (event) =>
+            {
+                if ((event.button === 0) && (event.buttons === 1))
+                {
+                    data.x = event.clientX;
+                    data.tracking = true;
+                    data.lastTimestamp = performance.now();
+                    window.requestAnimationFrame(updateAngle);
+                }
+                else
+                    data.tracking = false;
+            });
+
+            document.addEventListener("mouseup", (event) =>
+            {
+                data.tracking = false;
+            });
+
+            document.addEventListener("mousemove", (event) =>
+            {
+                if (event.buttons !== 1)
+                    data.tracking = false;
+
+                if (data.tracking)
+                {
+                    const delta = Math.atan2(event.clientX - data.x, SENSITIVITY);
+                    data.x = event.clientX;
+                    data.angleSpeed += delta;
+                }
+            });
+
+            document.addEventListener("touchstart", (event) =>
+            {
+                if ((event.target === document) && event.cancelable)
+                    event.preventDefault();
+
+                document.dispatchEvent(new MouseEvent("mousedown", {
+                    clientX: event.touches[0].clientX,
+                    buttons: ((event.touches.length === 1) && (event.changedTouches.length === 1)) ? 1 : 0
+                }));
+            });
+
+            document.addEventListener("touchcancel", (event) =>
+            {
+                if ((event.target === document) && event.cancelable)
+                    event.preventDefault();
+
+                document.dispatchEvent(new MouseEvent("mouseup"));
+            });
+
+            document.addEventListener("touchend", (event) =>
+            {
+                if ((event.target === document) && event.cancelable)
+                    event.preventDefault();
+
+                document.dispatchEvent(new MouseEvent("mouseup"));
+            });
+
+            document.addEventListener("touchmove", (event) =>
+            {
+                if ((event.target === document) && event.cancelable)
+                    event.preventDefault();
+
+                document.dispatchEvent(new MouseEvent("mousemove", {
+                    clientX: event.touches[0].clientX,
+                    buttons: ((event.touches.length === 1) && (event.changedTouches.length === 1)) ? 1 : 0
+                }));
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div id="carousel">
+        <div>
+            <figure><iframe width="1280" height="720" src="https://www.youtube.com/embed/YE7VzlLtp-4"
+                    title="Big Buck Bunny" frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="536" src="https://www.youtube.com/embed/_cMxraX_5RE"
+                    title="Sprite Fright" frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="536" src="https://www.youtube.com/embed/WhWc3b3KhnY" title="Spring"
+                    frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="536" src="https://www.youtube.com/embed/pKmSdY56VtY" title="HERO"
+                    frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="536" src="https://www.youtube.com/embed/Y-rmzh0PI3c"
+                    title="Cosmos Laundromat - First Cycle" frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="533" src="https://www.youtube.com/embed/R6MlUcmOul8"
+                    title="Tears of Steel" frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="545" src="https://www.youtube.com/embed/eRsGyueVLvQ" title="Sintel"
+                    frameborder="0" allowfullscreen></iframe></figure>
+            <figure><iframe width="1280" height="720" src="https://www.youtube.com/embed/TLkA0RELQ1g"
+                    title="Elephants Dream" frameborder="0" allowfullscreen></iframe>
+            </figure>
+        </div>
+    </div>
+</body>
+
+</html>

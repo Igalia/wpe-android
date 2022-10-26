@@ -29,7 +29,6 @@ void setNativeUserAgent(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jstring
         WebKitWebView* webView = page->webView();
         WebKitSettings* settings = webkit_web_view_get_settings(webView);
         webkit_settings_set_user_agent(settings, JNI::String(userAgent).getContent().get());
-        webkit_web_view_set_settings(webView, settings);
     }
 }
 
@@ -41,7 +40,17 @@ void setNativeMediaPlaybackRequiresUserGesture(
         WebKitWebView* webView = page->webView();
         WebKitSettings* settings = webkit_web_view_get_settings(webView);
         webkit_settings_set_media_playback_requires_user_gesture(settings, static_cast<gboolean>(require));
-        webkit_web_view_set_settings(webView, settings);
+    }
+}
+
+void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jboolean allow) noexcept
+{
+    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
+    if (page != nullptr) {
+        WebKitWebView* webView = page->webView();
+        WebKitSettings* settings = webkit_web_view_get_settings(webView);
+        webkit_settings_set_allow_file_access_from_file_urls(settings, static_cast<gboolean>(allow));
+        webkit_settings_set_allow_universal_access_from_file_urls(settings, static_cast<gboolean>(allow));
     }
 }
 } // namespace
@@ -51,5 +60,6 @@ void PageSettings::configureJNIMappings()
     JNI::Class("com/wpe/wpe/PageSettings")
         .registerNativeMethods(JNI::NativeMethod<void(jlong, jstring)>("setNativeUserAgent", setNativeUserAgent),
             JNI::NativeMethod<void(jlong, jboolean)>(
-                "setNativeMediaPlaybackRequiresUserGesture", setNativeMediaPlaybackRequiresUserGesture));
+                "setNativeMediaPlaybackRequiresUserGesture", setNativeMediaPlaybackRequiresUserGesture),
+            JNI::NativeMethod<void(jlong, jboolean)>("setNativeAllowFileUrls", setNativeAllowFileUrls));
 }
