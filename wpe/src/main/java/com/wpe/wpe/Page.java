@@ -62,6 +62,7 @@ public final class Page {
     private native void nativeClose(long nativePtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, @NonNull String url);
+    private native void nativeLoadHtml(long nativePtr, @NonNull String content, @NonNull String baseUri);
     private native void nativeGoBack(long nativePtr);
     private native void nativeGoForward(long nativePtr);
     private native void nativeStopLoading(long nativePtr);
@@ -143,6 +144,11 @@ public final class Page {
     public void loadUrl(@NonNull String url) {
         Log.d(LOGTAG, "loadUrl('" + url + "')");
         nativeLoadUrl(nativePtr, url);
+    }
+
+    public void loadHtml(@NonNull String content, @NonNull String baseUri) {
+        Log.d(LOGTAG, "loadHtml(..., '" + baseUri + "')");
+        nativeLoadHtml(nativePtr, content, baseUri);
     }
 
     @Keep

@@ -182,6 +182,16 @@ public class WPEView extends FrameLayout {
     }
 
     /**
+     * Loads an HTML page from its content.
+     * @param content The HTML content to load.
+     * @param baseUri The base URI for the content loaded.
+     */
+    public void loadHtml(@NonNull String content, @NonNull String baseUri) {
+        originalUrl = baseUri;
+        page.loadHtml(content, baseUri);
+    }
+
+    /**
      * Gets whether this WPEView has a back history item.
      * @return true if this WPEView has a back history item.
      */

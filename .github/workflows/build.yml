@@ -60,8 +60,13 @@ jobs:
         uses: gradle/gradle-build-action@v2
         with:
           arguments: assemble${{ matrix.build_type }}
-      - name: Save Artifacts
+      - name: Save MiniBrowser Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: minibrowser-${{ matrix.build_type }}
           path: tools/minibrowser/build/outputs/apk/**/*.apk
+      - name: Save Mediaplayer Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: mediaplayer-${{ matrix.build_type }}
+          path: tools/mediaplayer/build/outputs/apk/**/*.apk
