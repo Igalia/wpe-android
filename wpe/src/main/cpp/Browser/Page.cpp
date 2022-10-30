@@ -68,7 +68,7 @@ void pageClose(JNIEnv* env, jobject obj)
 
 void pageDestroy(JNIEnv* env, jobject obj)
 {
-    ALOGV("pageClose(%p) [tid %d]", obj, gettid());
+    ALOGV("pageDestroy(%p) [tid %d]", obj, gettid());
     Page* page = getPage(env, obj, true);
     delete page;
 }
@@ -283,7 +283,7 @@ Page::Page(int width, int height, std::shared_ptr<PageEventObserver> observer)
     , m_initialized(false)
 {
     m_signalHandlers.clear();
-    m_renderer = std::make_unique<RendererASurfaceTransaction>(*this, m_width, m_height);
+    m_renderer = std::make_shared<RendererASurfaceTransaction>(*this, m_width, m_height);
 }
 
 void Page::init()
@@ -300,7 +300,8 @@ void Page::init()
         wpeBackend = wpe_android_view_backend_exportable_get_view_backend(m_viewBackendExportable);
     }
 
-    auto* viewBackend = webkit_web_view_backend_new(wpeBackend, nullptr, nullptr);
+    auto* viewBackend = webkit_web_view_backend_new(
+        wpeBackend, (GDestroyNotify)wpe_android_view_backend_exportable_destroy, m_viewBackendExportable);
 
     m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
 
@@ -326,6 +327,9 @@ void Page::init()
 
 Page::~Page()
 {
+    // ensure renderer is destroyed first so that all pending commits will be cleared before page is gone
+    m_renderer.reset();
+
     close();
     g_object_unref(m_input_method_context);
 }

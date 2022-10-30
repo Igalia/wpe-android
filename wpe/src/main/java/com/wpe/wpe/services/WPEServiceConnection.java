@@ -26,13 +26,16 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
 import com.wpe.wpe.IWPEService;
+import com.wpe.wpe.IWPEServiceHost;
 import com.wpe.wpe.Page;
 import com.wpe.wpe.ProcessType;
 
@@ -45,12 +48,15 @@ public final class WPEServiceConnection implements ServiceConnection {
 
     private final WPEServiceConnectionDelegate delegate;
 
+    private final Handler handler;
+
     public WPEServiceConnection(long pid, @NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
                                 @NonNull WPEServiceConnectionDelegate delegate) {
         this.pid = pid;
         this.processType = processType;
         this.parcelFd = parcelFd;
         this.delegate = delegate;
+        this.handler = new Handler();
     }
 
     public long getPid() { return pid; }
@@ -71,8 +77,21 @@ public final class WPEServiceConnection implements ServiceConnection {
         bundle.putParcelable("fd", parcelFd);
         parcelFd = null;
 
+        IWPEServiceHost serviceHost = new IWPEServiceHost.Stub() {
+            @Override
+            public void notifyCleanExit() {
+                Log.i(LOGTAG, "notifyCleanExit()");
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        delegate.onCleanExit(WPEServiceConnection.this);
+                    }
+                });
+            }
+        };
+
         try {
-            wpeService.connect(bundle);
+            wpeService.connect(bundle, serviceHost);
         } catch (android.os.RemoteException e) {
             Log.e(LOGTAG, "Failed to connect to service", e);
         }
@@ -81,7 +100,10 @@ public final class WPEServiceConnection implements ServiceConnection {
     @Override
     public void onServiceDisconnected(@NonNull ComponentName name) {
         Log.i(LOGTAG, "onServiceDisconnected() name: " + name);
-
-        delegate.onServiceDisconnected(this);
+        if (handler.getLooper() == Looper.myLooper()) {
+            delegate.onServiceDisconnected(this);
+        } else {
+            handler.post(() -> delegate.onServiceDisconnected(this));
+        }
     }
 }

@@ -17,9 +17,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-package com.wpe.wpe.services;
+package com.wpe.wpe;
 
-public interface WPEServiceConnectionDelegate {
-    void onCleanExit(WPEServiceConnection connection);
-    void onServiceDisconnected(WPEServiceConnection connection);
+interface IWPEServiceHost {
+    void notifyCleanExit();
 }

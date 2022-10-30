@@ -28,19 +28,25 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.os.RemoteException;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
 import com.wpe.wpe.IWPEService;
+import com.wpe.wpe.IWPEServiceHost;
 
 public abstract class WPEService extends Service {
     private static final String LOGTAG = "WPEService";
 
     private final IWPEService.Stub binder = new IWPEService.Stub() {
+        private IWPEServiceHost serviceHost;
+
         @Override
-        public int connect(@NonNull Bundle args) {
+        public int connect(@NonNull Bundle args, @NonNull IWPEServiceHost serviceHost) {
             Log.v(LOGTAG, "IWPEService.Stub connect()");
+            this.serviceHost = serviceHost;
+
             long pid = args.getLong("pid");
             final ParcelFileDescriptor parcelFd = args.getParcelable("fd");
 
@@ -48,6 +54,14 @@ public abstract class WPEService extends Service {
                 @Override
                 public void run() {
                     WPEService.this.initializeServiceMain(pid, parcelFd);
+
+                    // Clean exit
+                    try {
+                        serviceHost.notifyCleanExit();
+                    } catch (RemoteException e) {
+                        Log.e(LOGTAG, "Failed to call clean exit callback.", e);
+                    }
+                    System.exit(0);
                 }
             }).start();
 
@@ -80,6 +94,6 @@ public abstract class WPEService extends Service {
     @Override
     public void onDestroy() {
         Log.i(LOGTAG, "onDestroy()");
-        Process.killProcess(Process.myPid());
+        System.exit(0);
     }
 }

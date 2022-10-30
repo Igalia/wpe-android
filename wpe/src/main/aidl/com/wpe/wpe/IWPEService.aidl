@@ -22,6 +22,8 @@ package com.wpe.wpe;
 
 import android.os.Bundle;
 
+import com.wpe.wpe.IWPEServiceHost;
+
 interface IWPEService {
-    int connect(in Bundle args);
+    int connect(in Bundle args, IWPEServiceHost serviceHost);
 }

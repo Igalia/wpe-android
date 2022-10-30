@@ -29,8 +29,8 @@
 #include <wpe-android/view-backend-exportable.h>
 
 struct RendererASurfaceTransaction::TransactionContext {
-    RendererASurfaceTransaction& renderer;
-    std::shared_ptr<ExportedBuffer> buffer;
+    std::weak_ptr<RendererASurfaceTransaction> m_renderer;
+    std::shared_ptr<ExportedBuffer> m_buffer;
 };
 
 static void releaseBuffer(struct wpe_android_view_backend_exportable* exportable, const ExportedBuffer& buffer)
@@ -48,10 +48,9 @@ RendererASurfaceTransaction::RendererASurfaceTransaction(Page& page, unsigned wi
 
 RendererASurfaceTransaction::~RendererASurfaceTransaction()
 {
-    if (m_surface.control)
-        ASurfaceControl_release(m_surface.control);
-    if (m_surface.window)
-        ANativeWindow_release(m_surface.window);
+    ALOGV("RendererASurfaceTransaction() destructor");
+    if (m_surfaceControl != nullptr)
+        ASurfaceControl_release(m_surfaceControl);
 
     // Release the stored exported buffer, if any, and if different from the locked buffer.
     // If the same, the buffer will be released via the locked buffer.
@@ -65,12 +64,10 @@ RendererASurfaceTransaction::~RendererASurfaceTransaction()
 
 void RendererASurfaceTransaction::surfaceCreated(ANativeWindow* window)
 {
-    // This is now the surface we work with. We also spawn the corresponding ASurfaceControl.
-    m_surface.window = window;
-    m_surface.control = ASurfaceControl_createFromWindow(m_surface.window, "RendererASurfaceTransaction");
+    m_surfaceControl = ASurfaceControl_createFromWindow(window, "RendererASurfaceTransaction");
 }
 
-void RendererASurfaceTransaction::surfaceChanged(int format, unsigned width, unsigned height)
+void RendererASurfaceTransaction::surfaceChanged(int /*format*/, unsigned width, unsigned height)
 {
     // Update the size.
     m_size.width = width;
@@ -80,23 +77,20 @@ void RendererASurfaceTransaction::surfaceChanged(int format, unsigned width, uns
 void RendererASurfaceTransaction::surfaceRedrawNeeded()
 {
     // Nothing is doable if there's no ASurfaceControl.
-    if (!m_surface.control)
+    if (m_surfaceControl == nullptr)
         return;
 
     // Redraw is needed -- if there's currently an exported buffer present, reuse it.
     if (m_state.exportedBuffer)
-        scheduleFrame(new TransactionContext {*this, m_state.exportedBuffer});
+        scheduleFrame(new TransactionContext {shared_from_this(), m_state.exportedBuffer});
 }
 
 void RendererASurfaceTransaction::surfaceDestroyed()
 {
     // Regular cleanup of the ASurfaceControl as well as the ANativeWindow.
 
-    ASurfaceControl_release(m_surface.control);
-    m_surface.control = nullptr;
-
-    ANativeWindow_release(m_surface.window);
-    m_surface.window = nullptr;
+    ASurfaceControl_release(m_surfaceControl);
+    m_surfaceControl = nullptr;
 }
 
 void RendererASurfaceTransaction::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
@@ -112,11 +106,11 @@ void RendererASurfaceTransaction::handleExportedBuffer(const std::shared_ptr<Exp
     m_state.dispatchFrameCompleteCallback = true;
 
     // Nothing is doable if there's no ASurfaceControl.
-    if (!m_surface.control)
+    if (m_surfaceControl == nullptr)
         return;
 
     // Finally, schedule the new frame, presenting the just-exported buffer.
-    scheduleFrame(new TransactionContext {*this, m_state.exportedBuffer});
+    scheduleFrame(new TransactionContext {shared_from_this(), m_state.exportedBuffer});
 }
 
 void RendererASurfaceTransaction::scheduleFrame(TransactionContext* transactionContext)
@@ -125,10 +119,10 @@ void RendererASurfaceTransaction::scheduleFrame(TransactionContext* transactionC
     // Upon transaction completion, the buffer will be presented on the surface.
 
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
-    ASurfaceTransaction_setVisibility(transaction, m_surface.control, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
-    ASurfaceTransaction_setZOrder(transaction, m_surface.control, 0);
+    ASurfaceTransaction_setVisibility(transaction, m_surfaceControl, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
+    ASurfaceTransaction_setZOrder(transaction, m_surfaceControl, 0);
 
-    ASurfaceTransaction_setBuffer(transaction, m_surface.control, transactionContext->buffer->buffer, -1);
+    ASurfaceTransaction_setBuffer(transaction, m_surfaceControl, transactionContext->m_buffer->buffer, -1);
 
     ASurfaceTransaction_setOnComplete(transaction, transactionContext, onTransactionCompleteOnAnyThread);
     ASurfaceTransaction_apply(transaction);
@@ -161,7 +155,9 @@ void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(void* data, A
     Browser::instance().invokeOnUiThread(
         [](void* data) {
             auto* context = static_cast<TransactionContext*>(data);
-            context->renderer.finishFrame(context->buffer);
+            if (auto renderer = context->m_renderer.lock()) {
+                renderer->finishFrame(context->m_buffer);
+            }
         },
         data, [](void* data) { delete static_cast<TransactionContext*>(data); });
 }

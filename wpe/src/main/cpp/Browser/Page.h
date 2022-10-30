@@ -91,7 +91,7 @@ private:
     WebKitWebView* m_webView = nullptr;
     struct wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
 
-    std::unique_ptr<Renderer> m_renderer;
+    std::shared_ptr<Renderer> m_renderer;
     std::shared_ptr<PageEventObserver> m_observer;
     std::vector<gulong> m_signalHandlers;
     WebKitInputMethodContext* m_input_method_context = nullptr;
