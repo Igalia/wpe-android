@@ -51,7 +51,7 @@ import java.util.Map;
  */
 @UiThread
 public final class Browser {
-    private static final String LOGTAG = "WPE Browser";
+    private static final String LOGTAG = "WPEBrowser";
     // FIXME: There is no real fixed limitation on the number of services an app can spawn on
     //        Android or the number of auxiliary processes WebKit spawns. However we have a
     //        limitation imposed by the way Android requires Services to be defined in the
@@ -106,7 +106,14 @@ public final class Browser {
 
     private WPEServiceConnectionDelegate serviceConnectionDelegate = new WPEServiceConnectionDelegate() {
         @Override
+        public void onCleanExit(WPEServiceConnection connection) {
+            Log.i(LOGTAG, "onCleanExit");
+            auxiliaryProcesses.unregister(connection.getPid());
+        }
+
+        @Override
         public void onServiceDisconnected(WPEServiceConnection connection) {
+            Log.i(LOGTAG, "onServiceDisconnected");
             // Unbinds service which prevents restart on crash.
             // Let wpe restart auxiliary processes if necessary
             auxiliaryProcesses.unregister(connection.getPid());

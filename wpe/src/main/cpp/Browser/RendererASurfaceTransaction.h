@@ -29,7 +29,8 @@ struct ASurfaceTransactionStats;
 
 class Page;
 
-class RendererASurfaceTransaction final : public Renderer {
+class RendererASurfaceTransaction final : public Renderer,
+                                          public std::enable_shared_from_this<RendererASurfaceTransaction> {
 public:
     RendererASurfaceTransaction(Page&, unsigned width, unsigned height);
     virtual ~RendererASurfaceTransaction();
@@ -52,10 +53,7 @@ private:
     static void onTransactionCompleteOnAnyThread(void* data, ASurfaceTransactionStats* stats);
 
     Page& m_page;
-    struct {
-        ANativeWindow* window {nullptr};
-        ASurfaceControl* control {nullptr};
-    } m_surface;
+    ASurfaceControl* m_surfaceControl {nullptr};
 
     struct {
         unsigned width;
