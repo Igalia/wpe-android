@@ -35,15 +35,16 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.os.bundleOf
 import androidx.fragment.app.add
 import androidx.fragment.app.commit
 import com.google.android.material.color.MaterialColors
+import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
-import com.wpe.wpeview.WPEChromeClient
 
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
@@ -63,6 +64,16 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
         setupToolbar()
         setupUrlEditText()
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (activeTab?.view?.canGoBack() == true) {
+                    activeTab?.view?.goBack()
+                } else {
+                    finish()
+                }
+            }
+        })
 
         newTab(INITIAL_URL)
     }
@@ -281,14 +292,6 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
         else -> {
             super.onOptionsItemSelected(item)
-        }
-    }
-
-    override fun onBackPressed() {
-        if (activeTab?.view?.canGoBack() == true) {
-            activeTab?.view?.goBack()
-        } else {
-            super.onBackPressed()
         }
     }
 
