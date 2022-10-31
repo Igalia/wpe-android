@@ -81,7 +81,7 @@ from urllib.request import urlretrieve
 
 class Bootstrap:
     default_arch = "arm64"
-    default_version = "2.34.6"
+    default_version = "2.38.1"
 
     _cerbero_origin = "https://github.com/Igalia/cerbero.git"
     _cerbero_branch = "wpe-android"
@@ -219,11 +219,13 @@ class Bootstrap:
                 line = line.replace("self.append_env('WEBKIT_DEBUG', '')", "self.append_env('WEBKIT_DEBUG', 'all')")
                 print(line, end="")
 
-        package_path = os.path.join(self._cerbero_root_dir, "packages", "wpewebkit.package")
-        with fileinput.FileInput(package_path, inplace=True) as file:
-            for line in file:
-                line = line.replace("strip = True", "strip = False")
-                print(line, end="")
+        packages = ["wpewebkit.package", "wpewebkit-core.package"]
+        for package_path in packages:
+            package_path = os.path.join(self._cerbero_root_dir, "packages", package_path)
+            with fileinput.FileInput(package_path, inplace=True) as file:
+                for line in file:
+                    line = line.replace("strip = True", "strip = False")
+                    print(line, end="")
 
     def ensure_cerbero(self):
         if not self._build:
@@ -294,7 +296,7 @@ class Bootstrap:
         soname_list = []
         needed_list = []
 
-        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE,
+        p = subprocess.Popen(["readelf", "-d", lib_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              env=dict(os.environ, LC_ALL="C"), encoding="utf-8")
         (stdout, _) = p.communicate()
 

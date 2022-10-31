@@ -35,7 +35,7 @@ struct InputMethodContextPrivate {
     PageEventObserver* m_observer;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE(InputMethodContext, input_method_context, WEBKIT_TYPE_INPUT_METHOD_CONTEXT)
+G_DEFINE_TYPE_WITH_PRIVATE(InputMethodContext, input_method_context, WEBKIT_TYPE_INPUT_METHOD_CONTEXT);
 
 #define PRIV(obj)                                                                                                      \
     ((InputMethodContextPrivate*)input_method_context_get_instance_private(WPE_ANDROID_INPUT_METHOD_CONTEXT(obj)))
@@ -117,7 +117,7 @@ static void input_method_context_init(InputMethodContext* self) {}
 
 WebKitInputMethodContext* input_method_context_new(std::shared_ptr<PageEventObserver> observer)
 {
-    return WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(TYPE_INPUT_METHOD_CONTEXT, "observer", observer.get()));
+    return WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(TYPE_INPUT_METHOD_CONTEXT, "observer", observer.get(), nullptr));
 }
 
 void input_method_context_set_content(WebKitInputMethodContext* context, const char c)

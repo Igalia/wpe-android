@@ -98,7 +98,7 @@ void destroyProcessProvider(void* data)
     delete reinterpret_cast<AndroidProcessProvider*>(data);
 }
 
-int32_t launchProcess(void* data, enum wpe_process_type wpeProcessType, void* options)
+int64_t launchProcess(void* data, enum wpe_process_type wpeProcessType, void* options)
 {
     ALOGV("BrowserGlue launchProcess()");
     auto* provider = reinterpret_cast<AndroidProcessProvider*>(data);
@@ -164,14 +164,14 @@ int32_t launchProcess(void* data, enum wpe_process_type wpeProcessType, void* op
     return 0;
 }
 
-void terminateProcess(void* data, int32_t pid)
+void terminateProcess(void* data, int64_t pid)
 {
     ALOGV("BrowserGlue terminateProcess()");
     auto* provider = reinterpret_cast<AndroidProcessProvider*>(data);
     if (!provider)
         return;
 
-    uint64_t pid64 = pid;
+    uint64_t pid64 = static_cast<uint64_t>(pid);
     ALOGV("BrowserGlue terminateProcess - pid: %lu)", static_cast<unsigned long>(pid64));
 
     try {
