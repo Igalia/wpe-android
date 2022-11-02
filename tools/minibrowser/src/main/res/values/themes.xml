@@ -1,13 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
     <style name="Theme.MiniBrowser" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_200</item>
+        <item name="colorPrimary">@color/light_grey_10</item>
+        <item name="colorPrimaryVariant">@color/light_grey_10</item>
         <item name="colorOnPrimary">@color/black</item>
         <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_200</item>
+        <item name="colorSecondary">@color/violet_70</item>
+        <item name="colorSecondaryVariant">@color/black</item>
         <item name="colorOnSecondary">@color/black</item>
 
         <!-- Status bar color. -->
@@ -17,6 +18,27 @@
         <item name="android:navigationBarColor">@color/light_grey_10</item>
         <item name="android:windowLightNavigationBar">true</item>
 
-        <!-- Customize your theme here. -->
+        <item name="android:colorAccent">@color/violet_70</item>
+
+        <item name="preferenceTheme">@style/PrefsTheme</item>
+        <item name="alertDialogTheme">@style/AlertDialogTheme</item>
     </style>
+
+    <style name="PrefsTheme" parent="@style/PreferenceThemeOverlay.v14.Material">
+        <item name="android:layout">@layout/fragment_settings</item>
+    </style>
+
+    <style name="AlertDialogTheme" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="buttonBarNegativeButtonStyle">@style/NegativeButtonStyle</item>
+        <item name="buttonBarPositiveButtonStyle">@style/PositiveButtonStyle</item>
+    </style>
+
+    <style name="NegativeButtonStyle" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/violet_70</item>
+    </style>
+
+    <style name="PositiveButtonStyle" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/violet_70</item>
+    </style>
+
 </resources>

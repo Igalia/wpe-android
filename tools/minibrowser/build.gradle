@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.android' version '1.7.20'
+    id 'androidx.navigation.safeargs' version '2.5.3'
 }
 
 android {
@@ -13,6 +14,10 @@ android {
         targetSdk 33
         versionCode 1
         versionName '1.0'
+    }
+
+    buildFeatures {
+        viewBinding = true
     }
 
     buildTypes {
@@ -44,4 +49,7 @@ dependencies {
     implementation 'com.google.android.material:material:1.7.0'
     implementation 'androidx.core:core-ktx:1.9.0'
     implementation 'androidx.fragment:fragment-ktx:1.5.4'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.5.3'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.5.3'
+    implementation 'androidx.preference:preference-ktx:1.2.0'
 }

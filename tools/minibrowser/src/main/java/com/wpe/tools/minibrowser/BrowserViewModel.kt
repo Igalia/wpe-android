@@ -1,8 +1,6 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
  *   Author: Jani Hautakangas <jani@igalia.com>
- *   Author: Loïc Le Page <llepage@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,10 +19,30 @@
 
 package com.wpe.tools.minibrowser
 
-class TabSelectorItem(tab: Tab) {
-    internal val tab: Tab = tab
+import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
-    fun close() {
-        tab.close(this)
+data class BrowserState(
+    val tabs: List<Tab> = emptyList(),
+    val selectedTabId: String? = null,
+)
+
+class BrowserViewModel : ViewModel() {
+    private val _browserState = MutableStateFlow(BrowserState())
+    val browserState = _browserState.asStateFlow()
+
+    fun addTab(tab: Tab) {
+        _browserState.update {
+            it.copy(
+                tabs = it.tabs + tab,
+                selectedTabId = tab.id // Todo maybe make selection optional
+            )
+        }
+    }
+
+    fun findTab(id: String) : Tab {
+        return browserState.value.tabs.first{ tab -> tab.id == id }
     }
 }

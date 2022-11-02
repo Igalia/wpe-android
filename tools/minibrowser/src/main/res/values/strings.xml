@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MiniBrowser</string>
     <string name="action_back">Back</string>
@@ -6,4 +7,17 @@
     <string name="no_open_tabs_description">No open tabs</string>
     <string name="new_tab">New tab</string>
     <string name="action_stop">Stop</string>
+    <string name="action_settings">Settings</string>
+    <string name="search_hint">Enter URL</string>
+    <string name="preferences_category_privacy_security">Privacy and security</string>
+    <string name="preferences_clear_browsing_data">Clear browsing data</string>
+    <string name="preferences_intelligent_tracking_prevention">Intelligent Tracking Prevention</string>
+    <string name="preferences_clear_browsing_data_cookies">Cookies and site data</string>
+    <string name="preferences_clear_browsing_data_cookies_subtitle">Signs you out of most sites.</string>
+    <string name="preferences_clear_browsing_data_button">Clear browsing data</string>
+    <string name="preferences_clear_browsing_data_snackbar">Browsing data cleared</string>
+    <string name="clear_browsing_data_prompt_message">Clear the selected browsing data.</string>
+    <string name="clear_browsing_data_prompt_cancel">Cancel</string>
+    <string name="Clear_browsing_data_prompt_ok">Clear</string>
+    <string name="empty_string" translatable="false"></string>
 </resources>

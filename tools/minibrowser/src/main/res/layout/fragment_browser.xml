@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <FrameLayout
+        android:id="@+id/tab_container_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/page_progress" />
+
+    <ProgressBar
+        android:id="@+id/page_progress"
+        style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:background="@android:color/transparent"
+        android:layout_above="@id/toolbar"
+        android:progressTint="@color/violet_70"/>
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?android:actionBarSize"
+        android:layout_alignParentBottom="true"
+        android:background="?android:statusBarColor">
+
+        <FrameLayout
+            android:id="@+id/toolbar_edit_text_wrapper"
+            android:layout_width="match_parent"
+            android:layout_height="40dp"
+            android:background="@drawable/address_view_background"
+            android:clickable="true"
+            android:contentDescription="@string/search_hint"
+            android:focusable="true"
+            >
+            <EditText
+                android:id="@+id/toolbar_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:importantForAutofill="no"
+                android:inputType="text|textUri"
+                android:selectAllOnFocus="true"
+                android:singleLine="true"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="16dp"
+                android:hint="@string/search_hint"/>
+        </FrameLayout>
+
+    </androidx.appcompat.widget.Toolbar>
+
+</RelativeLayout>
