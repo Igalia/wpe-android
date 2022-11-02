@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory
+        android:title="@string/preferences_category_privacy_security"
+        android:layout="@layout/preference_category_no_icon_style">
+
+        <androidx.preference.Preference
+            android:key="@string/pref_key_clear_browsing_data"
+            app:iconSpaceReserved="false"
+            android:title="@string/preferences_clear_browsing_data" />
+
+        <androidx.preference.SwitchPreference
+            android:defaultValue="false"
+            android:key="@string/pref_key_intelligent_tracking_prevention"
+            app:iconSpaceReserved="false"
+            android:title="@string/preferences_intelligent_tracking_prevention" />
+
+    </PreferenceCategory>
+</PreferenceScreen>

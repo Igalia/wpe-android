@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="ClearBrowsingDataItem">
+        <attr name="clearBrowsingDataItemTitle" format="reference" />
+        <attr name="clearBrowsingDataItemSubtitle" format="reference" />
+        <attr name="clearBrowsingDataItemIcon" format="reference" />
+    </declare-styleable>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_key_clear_browsing_data" translatable="false">pref_key_clear_browsing_data</string>
+    <string name="pref_key_intelligent_tracking_prevention" translatable="false">
+        pref_key_intelligent_tracking_prevention</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ToolbarTitleTextStyle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textSize">20sp</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:fontWeight">500</item>
+    </style>
+
+    <style name="PreferenceSectionHeader" parent="@android:style/Widget.ListView">
+        <item name="android:textColor">@color/violet_70</item>
+        <item name="android:textFontWeight">500</item>
+        <item name="android:fontWeight">500</item>
+    </style>
+
+    <style name="ListItemTextStyle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textColor">@color/dark_grey_90</item>
+    </style>
+</resources>

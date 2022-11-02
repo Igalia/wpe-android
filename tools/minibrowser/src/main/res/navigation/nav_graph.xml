@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph.xml"
+    app:startDestination="@id/browserFragment">
+
+    <action
+        android:id="@+id/action_global_settingsFragment"
+        app:destination="@id/settingsFragment" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.wpe.tools.minibrowser.settings.SettingsFragment"
+        android:label="fragment_settings" >
+        <action
+            android:id="@+id/action_settingsFragment_to_deleteBrowsingDataFragment"
+            app:destination="@id/clearBrowsingDataFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/clearBrowsingDataFragment"
+        android:name="com.wpe.tools.minibrowser.settings.clearbrowsingdata.ClearBrowsingDataFragment"
+        android:label="fragment_delete_browsing_data"
+        tools:layout="@layout/fragment_clear_browsing_data" />
+    <fragment
+        android:id="@+id/browserFragment"
+        android:name="com.wpe.tools.minibrowser.BrowserFragment"
+        android:label="BrowserFragment" >
+        <action
+            android:id="@+id/action_browserFragment_to_settingsFragment"
+            app:destination="@id/settingsFragment" />
+    </fragment>
+</navigation>
