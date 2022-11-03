@@ -21,8 +21,6 @@
 
 #include <cassert>
 
-using namespace Wpe::Android;
-
 namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestConstructors> {
 public:

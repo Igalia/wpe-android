@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class ServiceUtils {
+public final class ServiceUtils {
     private static final String LOGTAG = "ServiceUtils";
 
     public static void copyFileOrDir(@NonNull Context context, @NonNull AssetManager assetManager, @NonNull String path,

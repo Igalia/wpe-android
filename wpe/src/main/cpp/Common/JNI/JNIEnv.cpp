@@ -22,8 +22,6 @@
 #include <atomic>
 #include <pthread.h>
 
-using namespace Wpe::Android;
-
 namespace {
 // Android threads names have maximum 16 characters (including the terminating null char)
 constexpr size_t MAX_THREAD_NAME_SIZE = 16;
@@ -65,15 +63,20 @@ JNIEnv* JNI::getCurrentThreadJNIEnv()
     auto* env = reinterpret_cast<JNIEnv*>(pthread_getspecific(globalJNIEnvKey));
     if (env == nullptr && globalJavaVM != nullptr) {
         if (globalJavaVM->GetEnv(reinterpret_cast<void**>(&env), VERSION) == JNI_EDETACHED) {
-            JavaVMAttachArgs args = {0};
+            JavaVMAttachArgs args = {};
             args.version = VERSION;
 
             char threadName[MAX_THREAD_NAME_SIZE];
             if (pthread_getname_np(pthread_self(), threadName, sizeof(threadName)) == 0)
                 args.name = threadName;
 
-            if (globalJavaVM->AttachCurrentThread(reinterpret_cast<void**>(&env), &args) == JNI_OK)
+#ifdef USE_JAVA_JDK
+            if (globalJavaVM->AttachCurrentThread(reinterpret_cast<void**>(&env), &args) == JNI_OK) {
+#else
+            if (globalJavaVM->AttachCurrentThread(&env, &args) == JNI_OK) {
+#endif // USE_JAVA_JDK
                 pthread_setspecific(globalJNIEnvKey, env);
+            }
         }
     }
 

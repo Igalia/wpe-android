@@ -35,12 +35,12 @@ override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_main)
 
-    var browser = findViewById(R.id.wpe_view)
+    val browser = findViewById(R.id.wpe_view)
     browser?.loadUrl(INITIAL_URL)
 }
 ```
 
-To see WPEView in action check the [examples](examples) folder.
+To see WPEView in action check the [tools](tools) folder.
 
 ## Setting up your environment
 

@@ -19,46 +19,30 @@
 
 #include "Environment.h"
 
-#include "JNIHelper.h"
 #include "Logging.h"
 
 #include <cassert>
 #include <cstdlib>
 
-bool Wpe::Android::configureEnvironment(jobjectArray envStringsArray)
+bool Environment::configureEnvironment(jstringArray envStringsArray) noexcept
 {
     if (envStringsArray == nullptr)
         return true;
 
     try {
-        JNIEnv* env = Wpe::Android::getCurrentThreadJNIEnv();
-        jsize size = env->GetArrayLength(reinterpret_cast<jarray>(envStringsArray));
+        auto content = JNI::ObjectArray<jstring>(envStringsArray).getReadOnlyContent();
+        const size_t size = content.getSize();
+
         assert(size % 2 == 0);
-
-        for (jsize i = 1; i < size; i += 2) {
-            jstring jName = reinterpret_cast<jstring>(env->GetObjectArrayElement(envStringsArray, i - 1));
-            if (jName == nullptr)
-                continue;
-
-            jstring jValue = reinterpret_cast<jstring>(env->GetObjectArrayElement(envStringsArray, i));
-            if (jValue == nullptr) {
-                env->DeleteLocalRef(jName);
-                continue;
-            }
-
-            const char* name = env->GetStringUTFChars(jName, nullptr);
-            const char* value = env->GetStringUTFChars(jValue, nullptr);
-            setenv(name, value, 1);
-            env->ReleaseStringUTFChars(jValue, value);
-            env->ReleaseStringUTFChars(jName, name);
-
-            env->DeleteLocalRef(jValue);
-            env->DeleteLocalRef(jName);
+        for (size_t i = 1; i < size; i += 2) {
+            auto name = JNI::String(content[i - 1]);
+            auto value = JNI::String(content[i]);
+            setenv(name.getContent().get(), value.getContent().get(), 1); // NOLINT(concurrency-mt-unsafe)
         }
 
         return true;
     } catch (...) {
-        ALOGE("Cannot configure native environment (JNI environment error)");
+        Logging::logError("Cannot configure native environment (JNI environment error)");
         return false;
     }
 }

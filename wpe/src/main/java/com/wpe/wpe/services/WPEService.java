@@ -27,7 +27,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
-import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -40,37 +39,41 @@ public abstract class WPEService extends Service {
     private static final String LOGTAG = "WPEService";
 
     private final IWPEService.Stub binder = new IWPEService.Stub() {
-        private IWPEServiceHost serviceHost;
+        private IWPEServiceHost serviceHost = null;
 
         @Override
+        @SuppressWarnings("deprecation")
         public int connect(@NonNull Bundle args, @NonNull IWPEServiceHost serviceHost) {
-            Log.v(LOGTAG, "IWPEService.Stub connect()");
+            Log.d(LOGTAG, "IWPEService.Stub::connect()");
             this.serviceHost = serviceHost;
 
             long pid = args.getLong("pid");
-            final ParcelFileDescriptor parcelFd = args.getParcelable("fd");
+            final ParcelFileDescriptor parcelFd;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                parcelFd = args.getParcelable("fd", ParcelFileDescriptor.class);
+            } else {
+                parcelFd = args.getParcelable("fd");
+            }
 
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    WPEService.this.initializeServiceMain(pid, parcelFd);
+            new Thread(() -> {
+                WPEService.this.initializeServiceMain(pid, parcelFd);
 
-                    // Clean exit
-                    try {
-                        serviceHost.notifyCleanExit();
-                    } catch (RemoteException e) {
-                        Log.e(LOGTAG, "Failed to call clean exit callback.", e);
-                    }
-                    System.exit(0);
+                // Clean exit
+                try {
+                    serviceHost.notifyCleanExit();
+                } catch (RemoteException e) {
+                    Log.e(LOGTAG, "Failed to call clean exit callback", e);
                 }
+
+                System.exit(0);
             }).start();
 
             return -1;
         }
     };
 
-    protected static native void setupEnvironment(String[] envStringsArray);
-    protected static native void initializeMain(long pid, int processType, int fd);
+    protected static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
+    protected static native void initializeNativeMain(long pid, int processType, int fd);
 
     protected abstract void loadNativeLibraries();
     protected abstract void setupServiceEnvironment();
@@ -78,22 +81,22 @@ public abstract class WPEService extends Service {
 
     @Override
     public void onCreate() {
-        Log.i(LOGTAG, "onCreate()");
+        Log.d(LOGTAG, "onCreate()");
         super.onCreate();
         loadNativeLibraries();
         setupServiceEnvironment();
     }
 
     @Override
-    public IBinder onBind(Intent intent) {
-        Log.i(LOGTAG, "onBind()");
+    public @NonNull IBinder onBind(Intent intent) {
+        Log.d(LOGTAG, "onBind()");
         stopSelf();
         return binder;
     }
 
     @Override
     public void onDestroy() {
-        Log.i(LOGTAG, "onDestroy()");
+        Log.d(LOGTAG, "onDestroy()");
         System.exit(0);
     }
 }

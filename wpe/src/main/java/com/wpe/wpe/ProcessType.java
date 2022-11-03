@@ -29,8 +29,7 @@ public enum ProcessType {
 
     ProcessType(int value) { this.value = value; }
 
-    @NonNull
-    public static ProcessType fromValue(int value) {
+    public static @NonNull ProcessType fromValue(int value) {
         for (ProcessType entry : ProcessType.values()) {
             if (entry.getValue() == value)
                 return entry;

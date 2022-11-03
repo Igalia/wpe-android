@@ -21,7 +21,7 @@
 
 #include "JNIEnv.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 class Class;
 
@@ -218,4 +218,4 @@ private:
 template <typename T> using Field = GenericField<T, false>;
 template <typename T> using StaticField = GenericField<T, true>;
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

@@ -20,141 +20,142 @@
 
 #include "MessagePump.h"
 
-#include "Logging.h"
-
-#include <algorithm>
-#include <android/looper.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 
 namespace {
-int looperCollectEventsCallback(int fd, int events, void* data)
+uint glibEventsToLooperEvents(gushort events) noexcept
 {
-    MessagePump* pump = reinterpret_cast<MessagePump*>(data);
-    pump->onCollectEventsLooperCallback(fd, events);
-    return 1; // continue listening for events
-}
-
-int looperDisptachCallback(int fd, int events, void* data)
-{
-    MessagePump* pump = reinterpret_cast<MessagePump*>(data);
-    pump->onDispatchLooperCallback();
-    return 1; // continue listening for events
-}
-
-int glibEventsToLooperEvents(gushort events)
-{
-    int looperEvents = 0;
-    if (events & G_IO_IN)
+    uint looperEvents = 0;
+    if ((events & G_IO_IN) != 0)
         looperEvents |= ALOOPER_EVENT_INPUT;
-    if (events & G_IO_OUT)
+    if ((events & G_IO_OUT) != 0)
         looperEvents |= ALOOPER_EVENT_OUTPUT;
-    if (events & G_IO_ERR)
+    if ((events & G_IO_ERR) != 0)
         looperEvents |= ALOOPER_EVENT_ERROR;
-    if (events & G_IO_HUP)
+    if ((events & G_IO_HUP) != 0)
         looperEvents |= ALOOPER_EVENT_HANGUP;
-    if (events & G_IO_NVAL)
+    if ((events & G_IO_NVAL) != 0)
         looperEvents |= ALOOPER_EVENT_INVALID;
     return looperEvents;
 }
 
-gushort looperEventsToGLibEvents(int events)
+gushort looperEventsToGLibEvents(uint events) noexcept
 {
     gushort glibEvents = 0;
-    if (events & ALOOPER_EVENT_INPUT)
+    if ((events & ALOOPER_EVENT_INPUT) != 0)
         glibEvents |= G_IO_IN;
-    if (events & ALOOPER_EVENT_OUTPUT)
+    if ((events & ALOOPER_EVENT_OUTPUT) != 0)
         glibEvents |= G_IO_OUT;
-    if (events & ALOOPER_EVENT_ERROR)
+    if ((events & ALOOPER_EVENT_ERROR) != 0)
         glibEvents |= G_IO_ERR;
-    if (events & ALOOPER_EVENT_HANGUP)
+    if ((events & ALOOPER_EVENT_HANGUP) != 0)
         glibEvents |= G_IO_HUP;
-    if (events & ALOOPER_EVENT_INVALID)
+    if ((events & ALOOPER_EVENT_INVALID) != 0)
         glibEvents |= G_IO_NVAL;
     return glibEvents;
 }
-}
+} // namespace
 
 /*
  * Message pump implements integration between the GLib main loop
- * and the Android native ALooper run loop and event handling..
+ * and the Android native ALooper run loop and events handling..
  *
- * Message pump "pumps" event and message fds from GLib context and pushes
- * them to Android looper for polling. When event occurs, message pump receives
- * callback from Android looper and initiates GLib main loop stages
- * (prepare, check, dispatch) and makes the appropriate calls into GLib.
- * This allows running WPE UI on Android main UI thread
+ * Message pump "pumps" events and messages file descriptors from GLib context
+ * and pushes them back to an Android looper for polling. When an event occurs,
+ * the MessagePump is called from the Android looper and initiates GLib main
+ * loop cycle steps (prepare, check, dispatch) and makes the appropriate calls
+ * into GLib.
+ *
+ * This allows to run WPE UI on Android within the Android main UI thread.
  */
-
 MessagePump::MessagePump()
 {
     // The Android native ALooper uses epoll to poll file descriptors.
-    // We use eventfd to signal that GLib dispatch stages can be started.
+    // We use eventfd to inform GLib that it can start dispatching.
     m_dispatchFd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 
     m_looper = ALooper_prepare(0);
-    // Add a reference to the looper so it isn't deleted on us.
     ALooper_acquire(m_looper);
-    ALooper_addFd(
-        m_looper, m_dispatchFd, 0, ALOOPER_EVENT_INPUT, &looperDisptachCallback, reinterpret_cast<void*>(this));
 
-    GMainContext* context = g_main_context_default();
-    g_main_context_acquire(context);
-    m_context = g_main_context_ref(context);
+    ALooper_addFd(
+        m_looper, m_dispatchFd, ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT,
+        +[](int fileDesc, int /*events*/, void* userData) -> int {
+            // Clear the eventfd and reset its counter to 0
+            uint64_t value = 0;
+            read(fileDesc, &value, sizeof(value));
+
+            auto* pump = reinterpret_cast<MessagePump*>(userData);
+            pump->dispatch();
+            pump->prepare();
+
+            return 1; // Continue listening for events
+        },
+        reinterpret_cast<void*>(this));
+
+    m_context = g_main_context_ref(g_main_context_default());
+    g_main_context_acquire(m_context);
     prepare();
 }
 
 MessagePump::~MessagePump()
 {
-    std::vector<LooperGLibPollFd>::iterator it = m_looperGlibPollFds.begin();
-    while (it != m_looperGlibPollFds.end()) {
-        ALooper_removeFd(m_looper, it->fd);
-        it = m_looperGlibPollFds.erase(it);
-    }
+    flush();
 
-    g_free(m_pollFds);
+    for (int fileDesc : m_looperAttachedPollFds)
+        ALooper_removeFd(m_looper, fileDesc);
+    m_looperAttachedPollFds.clear();
+
     m_pollFdsSize = 0;
+    m_pollFdsCapacity = 0;
+    if (m_pollFds != nullptr) {
+        g_free(m_pollFds);
+        m_pollFds = nullptr;
+    }
+    m_maxPriority = 0;
 
-    /* Release GMainContext loop */
+    g_main_context_release(m_context);
     g_main_context_unref(m_context);
 
     ALooper_release(m_looper);
     m_looper = nullptr;
 
     close(m_dispatchFd);
+    m_dispatchFd = 0;
 }
 
-void MessagePump::quit()
+void MessagePump::flush() const
 {
     // Clear the eventfd and reset its counter to 0
-    int64_t value;
+    int64_t value = 0;
     read(m_dispatchFd, &value, sizeof(value));
-
     dispatch();
 }
 
-void MessagePump::invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*))
+void MessagePump::invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
 {
-    struct GenericCallback {
-        void (*callback)(void*);
-        void* callbackData;
-        void (*destroy)(void*);
+    struct InvocationInfo {
+        void (*m_onExec)(void*);
+        void (*m_onDestroy)(void*);
+        void* m_userData;
     };
 
-    auto* data = new GenericCallback {callback, callbackData, destroy};
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
+    auto* info = new InvocationInfo {onExec, onDestroy, userData};
     g_main_context_invoke_full(
         m_context, G_PRIORITY_DEFAULT,
         +[](gpointer data) -> gboolean {
-            auto* genericData = reinterpret_cast<GenericCallback*>(data);
-            genericData->callback(genericData->callbackData);
+            auto* invocation = reinterpret_cast<InvocationInfo*>(data);
+            if (invocation->m_onExec != nullptr)
+                invocation->m_onExec(invocation->m_userData);
             return G_SOURCE_REMOVE;
         },
-        data,
+        info,
         +[](gpointer data) -> void {
-            auto* genericData = reinterpret_cast<GenericCallback*>(data);
-            if (genericData->destroy)
-                genericData->destroy(genericData->callbackData);
-            delete genericData;
+            auto* invocation = reinterpret_cast<InvocationInfo*>(data);
+            if (invocation->m_onDestroy != nullptr)
+                invocation->m_onDestroy(invocation->m_userData);
+            delete invocation; // NOLINT(cppcoreguidelines-owning-memory)
         });
 }
 
@@ -163,96 +164,56 @@ void MessagePump::prepare()
     g_main_context_prepare(m_context, &m_maxPriority);
 
     if (m_pollFds == nullptr) {
-        m_pollFdsSize = 1; // There will be at least one fd in GMainContext
-        m_pollFds = g_new(GPollFD, m_pollFdsSize);
+        m_pollFdsCapacity = 1; // There will be at least one fd in GMainContext
+        m_pollFds = g_new(GPollFD, m_pollFdsCapacity);
     }
 
-    gint nfds;
     gint timeout = 0;
-    while (
-        (nfds = g_main_context_query(m_context, m_maxPriority, &timeout, m_pollFds, m_pollFdsSize)) > m_pollFdsSize) {
+    while ((m_pollFdsSize = g_main_context_query(m_context, m_maxPriority, &timeout, m_pollFds, m_pollFdsCapacity))
+        > m_pollFdsCapacity) {
         g_free(m_pollFds);
-        m_pollFdsSize = nfds;
-        m_pollFds = g_new(GPollFD, nfds);
+        m_pollFdsCapacity = m_pollFdsSize;
+        m_pollFds = g_new(GPollFD, m_pollFdsCapacity);
     }
 
-    char* glibPollFdAddedToLooperFlags = (char*)g_new0(char, nfds);
+    std::set<int> unusedAttachedFds = m_looperAttachedPollFds;
+    for (int i = 0; i < m_pollFdsSize; ++i) {
+        GPollFD& pollFd = m_pollFds[i];
+        pollFd.revents = 0;
+        unusedAttachedFds.erase(pollFd.fd);
 
-    // Update reference count of each looper glib poll fd
-    for (auto& pollFd : m_looperGlibPollFds) {
-        pollFd.ref = 0;
+        if (m_looperAttachedPollFds.find(pollFd.fd) == m_looperAttachedPollFds.end()) {
+            m_looperAttachedPollFds.emplace(pollFd.fd);
+            ALooper_addFd(
+                m_looper, pollFd.fd, ALOOPER_POLL_CALLBACK,
+                static_cast<int>(glibEventsToLooperEvents(pollFd.events) | ALOOPER_EVENT_OUTPUT),
+                +[](int fileDesc, int events, void* userData) -> int {
+                    auto* pump = reinterpret_cast<MessagePump*>(userData);
+                    for (int j = 0; j < pump->m_pollFdsSize; ++j) {
+                        if (pump->m_pollFds[j].fd == fileDesc) {
+                            pump->m_pollFds[j].revents = looperEventsToGLibEvents(events);
+                            break;
+                        }
+                    }
 
-        for (int i = 0; i < m_pollFdsSize; i++) {
-            GPollFD* pfd = m_pollFds + i;
+                    // Schedule dispatching
+                    uint64_t value = 1;
+                    write(pump->m_dispatchFd, &value, sizeof(value));
 
-            if (pollFd.fd == pfd->fd) {
-                *(glibPollFdAddedToLooperFlags + i) = 1;
-                pollFd.pfd = pfd;
-                pollFd.ref = 1;
-                pfd->revents = 0;
-                break;
-            }
+                    return 1; // Continue listening for events
+                },
+                reinterpret_cast<void*>(this));
         }
     }
 
-    // Add new fds to ALooper if they weren't added before
-    for (int i = 0; i < m_pollFdsSize; i++) {
-        GPollFD* pfd = m_pollFds + i;
-        gint exists = (gint) * (glibPollFdAddedToLooperFlags + i);
-
-        if (exists)
-            continue;
-
-        pfd->revents = 0;
-
-        // ALooper uses epoll for polling and in order to dispatching work correctly it requires ALOOPER_EVENT_OUTPUT
-        // but G_IO_OUT is not flagged by default glib wakeup fd nor by wpe android backend ipc sockets.
-        ALooper_addFd(m_looper, pfd->fd, 0, glibEventsToLooperEvents(pfd->events) | ALOOPER_EVENT_OUTPUT,
-            &looperCollectEventsCallback, reinterpret_cast<void*>(this));
-
-        m_looperGlibPollFds.push_back({pfd->fd, pfd, 1});
-    }
-
-    g_free(glibPollFdAddedToLooperFlags);
-
-    // Remove looper glib poll fds which aren't required anymore
-    std::vector<LooperGLibPollFd>::iterator it = m_looperGlibPollFds.begin();
-    while (it != m_looperGlibPollFds.end()) {
-        if (it->ref == 0) {
-            ALooper_removeFd(m_looper, it->fd);
-            it = m_looperGlibPollFds.erase(it);
-        } else {
-            ++it;
-        }
+    for (int fileDesc : unusedAttachedFds) {
+        ALooper_removeFd(m_looper, fileDesc);
+        m_looperAttachedPollFds.erase(fileDesc);
     }
 }
 
-void MessagePump::dispatch()
+void MessagePump::dispatch() const noexcept
 {
-    if (g_main_context_check(m_context, m_maxPriority, m_pollFds, m_pollFdsSize)) {
+    if (g_main_context_check(m_context, m_maxPriority, m_pollFds, m_pollFdsSize) == TRUE)
         g_main_context_dispatch(m_context);
-    }
-}
-
-void MessagePump::onCollectEventsLooperCallback(int fd, int events)
-{
-    for (int i = 0; i < m_pollFdsSize; i++) {
-        if (m_pollFds[i].fd == fd) {
-            m_pollFds[i].revents = looperEventsToGLibEvents(events);
-        }
-    }
-
-    // Schedule dispatch callback
-    uint64_t value = 1;
-    write(m_dispatchFd, &value, sizeof(value));
-}
-
-void MessagePump::onDispatchLooperCallback()
-{
-    // Clear the eventfd and reset its counter to 0
-    uint64_t value;
-    read(m_dispatchFd, &value, sizeof(value));
-
-    dispatch();
-    prepare();
 }

@@ -24,32 +24,31 @@ package com.wpe.wpeview;
 
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 public interface WPEChromeClient {
     /**
-     * Tell the host application the current progress of loading a page.
-     *
+     * Tell the host application the current progress while loading a page.
      * @param view The WPEView that initiated the callback.
      * @param progress Current page loading progress, represented by
      * an integer between 0 and 100.
      */
-    default void onProgressChanged(WPEView view, int progress) {}
+    default void onProgressChanged(@NonNull WPEView view, int progress) {}
 
     /**
      * Notify the host application of a change in the document title.
-     *
      * @param view The WPEView that initiated the callback.
      * @param title A String containing the new title of the document.
      */
-    default void onReceivedTitle(WPEView view, String title) {}
+    default void onReceivedTitle(@NonNull WPEView view, @NonNull String title) {}
 
     /**
      * Notify the host application that the current page has entered full screen mode.
-     *
      * @param view is the View object to be shown.
      * @param callback invoke this callback to request the page to exit
      * full screen mode.
      */
-    default void onShowCustomView(View view, WPEChromeClient.CustomViewCallback callback) {}
+    default void onShowCustomView(@NonNull View view, @NonNull WPEChromeClient.CustomViewCallback callback) {}
 
     /**
      * Notify the host application that the current page has exited full screen mode.

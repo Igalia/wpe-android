@@ -5,6 +5,7 @@ Checks:
     clang-analyzer-*,
     concurrency-*,
     bugprone-*,
+    -bugprone-easily-swappable-parameters,
     cppcoreguidelines-*,
     -cppcoreguidelines-pro-type-reinterpret-cast,
     -cppcoreguidelines-pro-type-vararg,
@@ -12,6 +13,7 @@ Checks:
     -cppcoreguidelines-pro-bounds-pointer-arithmetic,
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -cppcoreguidelines-avoid-c-arrays,
+    -cppcoreguidelines-prefer-member-initializer,
     misc-*,
     -misc-non-private-member-variables-in-classes,
     modernize-*,
@@ -48,6 +50,7 @@ AnalyzeTemporaryDtors: false
 FormatStyle: file
 CheckOptions:
     - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }
+    - { key: readability-function-cognitive-complexity.Threshold,      value: 35         }
     - { key: readability-identifier-naming.StructCase,                 value: CamelCase  }
     - { key: readability-identifier-naming.EnumCase,                   value: CamelCase  }
     - { key: readability-identifier-naming.EnumConstantCase,           value: CamelCase  }

@@ -6,13 +6,15 @@ if(NOT EXISTS "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}")
     message(FATAL_ERROR "Native dependencies not installed for ${ANDROID_ABI}")
 endif()
 
-option(USE_CODE_TIDY "Use code static analysis on build" OFF)
-option(USE_CODE_WARNINGS_AS_ERRORS "Use code warnings as errors" OFF)
+option(USE_CODE_TIDY "Use code static analysis on build" ON)
+option(USE_CODE_WARNINGS_AS_ERRORS "Use code warnings as errors" ON)
 
 if(USE_CODE_TIDY)
     find_program(
         CLANG_TIDY_EXE
-        NAMES clang-tidy-14 clang-tidy
+        NAMES clang-tidy
+        PATHS ${ANDROID_TOOLCHAIN_ROOT}/bin
+        NO_DEFAULT_PATH
         DOC "Path to clang-tidy executable")
     if(CLANG_TIDY_EXE)
         message(STATUS "Using clang-tidy from ${CLANG_TIDY_EXE}")
@@ -74,60 +76,55 @@ set_target_properties(
     libwpe-1.0 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libwpe-1.0.so"
                           INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include/wpe")
 
-add_library(WPEBackend-default SHARED IMPORTED)
+add_library(WPEBackend SHARED IMPORTED)
 set_target_properties(
-    WPEBackend-default
-    PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend-default.so"
-               INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include")
+    WPEBackend PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend-android.so"
+                          INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include")
 
 # ######################################################################################################################
 # Built libraries
 # ######################################################################################################################
 
-# libWPECommonGlue
-add_library(WPECommonGlue SHARED Common/Environment.cpp Common/JNIHelper.cpp Common/Logging.cpp Common/Service.cpp)
-target_configure_quality(WPECommonGlue)
-target_include_directories(WPECommonGlue INTERFACE Common)
-target_link_libraries(WPECommonGlue ${android-lib} ${log-lib})
+# libWPEAndroidCommon
+add_library(WPEAndroidCommon SHARED Common/Environment.cpp Common/Logging.cpp Common/JNI/JNIClass.cpp
+                                    Common/JNI/JNIEnv.cpp Common/JNI/JNIString.cpp)
+target_configure_quality(WPEAndroidCommon)
+target_include_directories(WPEAndroidCommon INTERFACE Common)
+target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib})
 
-# libWPEBrowserGlue
+# libWPEAndroidBrowser
 add_library(
-    WPEBrowserGlue SHARED
-    Browser/PageEventObserver.cpp
-    Browser/EntryPoints.cpp
+    WPEAndroidBrowser SHARED
     Browser/Browser.cpp
+    Browser/EntryPoint.cpp
+    Browser/InputMethodContext.cpp
     Browser/LooperThread.cpp
     Browser/MessagePump.cpp
     Browser/Page.cpp
-    Browser/InputMethodContext.cpp
+    Browser/PageSettings.cpp
     Browser/RendererASurfaceTransaction.cpp)
-target_configure_quality(WPEBrowserGlue)
-target_compile_definitions(WPEBrowserGlue PRIVATE WPE_ENABLE_PROCESS)
+target_configure_quality(WPEAndroidBrowser)
+target_compile_definitions(WPEAndroidBrowser PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
-    WPEBrowserGlue
+    WPEAndroidBrowser
     EGL
     GLESv2
     gio-2.0
     glib-2.0
     gobject-2.0
     libwpe-1.0
-    WPEBackend-default
+    WPEBackend
     WPEWebKit-1.0
-    WPECommonGlue)
+    WPEAndroidCommon)
 
-# libWPENetworkProcessGlue
-add_library(WPENetworkProcessGlue SHARED NetworkProcess/EntryPoints.cpp)
-target_configure_quality(WPENetworkProcessGlue)
-target_link_libraries(WPENetworkProcessGlue WPEWebKit-1.0 WPECommonGlue)
-
-# libWPEWebProcessGlue
-add_library(WPEWebProcessGlue SHARED WebProcess/EntryPoints.cpp)
-target_configure_quality(WPEWebProcessGlue)
+# libWPEAndroidService
+add_library(WPEAndroidService SHARED Service/EntryPoint.cpp)
+target_configure_quality(WPEAndroidService)
 target_link_libraries(
-    WPEWebProcessGlue
+    WPEAndroidService
     gio-2.0
     glib-2.0
     gmodule-2.0
-    WPEBackend-default
+    WPEBackend
     WPEWebKit-1.0
-    WPECommonGlue)
+    WPEAndroidCommon)

@@ -23,7 +23,7 @@
 
 #include <stdexcept>
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 constexpr jint VERSION = JNI_VERSION_1_6;
 
 JNIEnv* initVM(JavaVM* javaVM);
@@ -38,7 +38,7 @@ template <typename T>
 inline EnableIfObjectType<T, ProtectedType<T>> createTypedProtectedRef(
     JNIEnv* env, const T& obj, bool useGlobalRef = false)
 {
-    return std::reinterpret_pointer_cast<std::remove_pointer_t<T>>(createProtectedRef(env, obj, useGlobalRef));
+    return std::static_pointer_cast<std::remove_pointer_t<T>>(createProtectedRef(env, obj, useGlobalRef));
 }
 
 // WARNING: in both following functions, the moved obj MUST be a local reference
@@ -47,8 +47,8 @@ ProtectedType<jobject> createProtectedRef(JNIEnv* env, jobject&& obj, bool useGl
 template <typename T>
 inline EnableIfObjectType<T, ProtectedType<T>> createTypedProtectedRef(JNIEnv* env, T&& obj, bool useGlobalRef = false)
 {
-    return std::reinterpret_pointer_cast<std::remove_pointer_t<T>>(
+    return std::static_pointer_cast<std::remove_pointer_t<T>>(
         createProtectedRef(env, std::move(obj), useGlobalRef)); // NOLINT(bugprone-move-forwarding-reference)
 }
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

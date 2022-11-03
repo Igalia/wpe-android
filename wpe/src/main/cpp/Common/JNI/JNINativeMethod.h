@@ -21,7 +21,7 @@
 
 #include "JNITypes.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 template <typename T, typename U, typename = void> struct GenericNativeMethod;
 
@@ -48,4 +48,4 @@ struct GenericNativeMethod<Ret(Params...), U,
 template <typename T> using NativeMethod = GenericNativeMethod<T, jobject>;
 template <typename T> using StaticNativeMethod = GenericNativeMethod<T, jclass>;
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

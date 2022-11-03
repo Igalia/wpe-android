@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,17 +17,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package com.wpe.wpe.services;
 
-#include <jni.h>
+import androidx.annotation.NonNull;
 
-namespace Wpe::Android {
-enum class ProcessType : jint {
-    FirstType = 0,
-    WebProcess = FirstType,
-    NetworkProcess,
-    TypesCount
-};
-
-jint registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass);
-} // namespace wpe::android
+public interface WPEServiceConnectionListener {
+    void onCleanExit(@NonNull WPEServiceConnection connection);
+    void onServiceDisconnected(@NonNull WPEServiceConnection connection);
+}

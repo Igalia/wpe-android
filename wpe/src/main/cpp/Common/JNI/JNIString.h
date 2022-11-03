@@ -21,7 +21,7 @@
 
 #include "JNITypes.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 class String final {
 public:
@@ -40,7 +40,7 @@ public:
     std::shared_ptr<const char> getContent() const;
 
 private:
-    ProtectedType<jstring> m_javaStringRef;
+    ProtectedType<jstring> m_javaStringRef {};
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

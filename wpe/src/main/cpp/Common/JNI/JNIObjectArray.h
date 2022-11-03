@@ -21,7 +21,7 @@
 
 #include "JNIEnv.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 template <typename T, typename = void> class ObjectArray;
 
@@ -189,4 +189,4 @@ private:
     ProtectedArrayType<T> m_javaArrayRef;
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

@@ -36,7 +36,7 @@ public class NetworkProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the gio
     // modules or else they won't be applied.
-    private static final String assetsVersion = "network_process_assets_v1";
+    private static final String assetsVersion = "network_process_assets_gst1.21.1";
 
     @Override
     protected void loadNativeLibraries() {
@@ -48,7 +48,7 @@ public class NetworkProcessService extends WPEService {
 
         // android.os.Debug.waitForDebugger();
 
-        System.loadLibrary("WPENetworkProcessGlue");
+        System.loadLibrary("WPEAndroidService");
     }
 
     @Override
@@ -62,13 +62,13 @@ public class NetworkProcessService extends WPEService {
         String[] envStringsArray = {"XDG_RUNTIME_DIR", context.getCacheDir().getAbsolutePath(), "GIO_EXTRA_MODULES",
                                     new File(context.getFilesDir(), "gio").getAbsolutePath()};
 
-        setupEnvironment(envStringsArray);
+        setupNativeEnvironment(envStringsArray);
     }
 
     @Override
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
-        Log.v(LOGTAG,
+        Log.d(LOGTAG,
               "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeMain(pid, ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
+        initializeNativeMain(pid, ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }

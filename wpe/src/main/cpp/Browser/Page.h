@@ -23,76 +23,45 @@
 #pragma once
 
 #include "InputMethodContext.h"
-#include "PageEventObserver.h"
-#include "PageSettings.h"
+#include "JNI/JNI.h"
 #include "Renderer.h"
 
-#include <memory>
-#include <string>
 #include <vector>
-#include <wpe/webkit.h>
-#include <wpe/wpe.h>
-
 #include <wpe-android/view-backend-exportable.h>
 
-struct ANativeWindow;
-struct ExportedBuffer;
+DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "com/wpe/wpe/Page");
 
-class Page final {
+class Page final : public InputMethodContextObserver {
 public:
-    Page(int width, int height, std::shared_ptr<PageEventObserver> observer);
+    static void configureJNIMappings();
 
     Page(Page&&) = delete;
     Page& operator=(Page&&) = delete;
     Page(const Page&) = delete;
     Page& operator=(const Page&) = delete;
 
-    ~Page();
+    ~Page() override { close(); }
 
-    void init();
-    void close();
+    void close() noexcept;
 
-    void loadUrl(const char* url);
-    void goBack();
-    void goForward();
-    void stopLoading();
-    void reload();
+    WebKitWebView* webView() const noexcept { return m_webView; }
 
-    void surfaceCreated(ANativeWindow* window);
-    void surfaceChanged(int format, int width, int height);
-    void surfaceRedrawNeeded();
-    void surfaceDestroyed();
-    void handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer);
-
-    void onTouch(wpe_input_touch_event_raw* touchEventRaw);
-    void setZoomLevel(double zoomLevel);
-
-    void setInputMethodContent(const char c);
-    void deleteInputMethodContent(int offset);
-
-    void domFullscreenRequest(bool fullscreen);
-    void requestExitFullscreen();
-    void fullscreenImageReady();
-
-    struct wpe_android_view_backend_exportable* exportable() { return m_viewBackendExportable; }
-
-    void updateAllSettings(const PageSettings& settings);
-
-    static int registerJNINativeFunctions(JNIEnv* env);
+    void onInputMethodContextIn() noexcept override;
+    void onInputMethodContextOut() noexcept override;
 
 private:
-    static struct wpe_android_view_backend_exportable_client s_exportableClient;
+    friend class JNIPageCache;
 
-    int m_width = 0;
-    int m_height = 0;
-    bool m_initialized = false;
-    bool m_resizing_fullscreen = false;
+    Page(JNIEnv* env, JNIPage jniPage, int width, int height);
 
-    WebKitWebView* m_webView = nullptr;
-    struct wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
-
+    JNI::ProtectedType<JNIPage> m_pageJavaInstance;
+    InputMethodContext m_inputMethodContext;
     std::shared_ptr<Renderer> m_renderer;
-    std::shared_ptr<PageEventObserver> m_observer;
+
+    wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
+    WebKitWebView* m_webView = nullptr;
     std::vector<gulong> m_signalHandlers;
-    WebKitInputMethodContext* m_input_method_context = nullptr;
+    bool m_isFullscreenRequested = false;
+
+    void handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer) noexcept;
 };

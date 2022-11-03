@@ -21,6 +21,8 @@
 
 package com.wpe.wpeview;
 
+import androidx.annotation.NonNull;
+
 public interface WPEViewClient {
     /**
      * Notify the host application that a page has started loading. This method
@@ -28,24 +30,22 @@ public interface WPEViewClient {
      * framesets will call onPageStarted one time for the main frame. This also
      * means that onPageStarted will not be called when the contents of an
      * embedded frame changes, i.e. clicking a link whose target is an iframe.
-     *
      * @param view The WPEView that is initiating the callback.
      * @param url The url to be loaded.
      */
-    default void onPageStarted(WPEView view, String url) {}
+    default void onPageStarted(@NonNull WPEView view, @NonNull String url) {}
 
     /**
      * Notify the host application that a page has finished loading. This method
      * is called only for main frame.
-     *
      * @param view The WPEView that is initiating the callback.
      * @param url The url of the page.
      */
-    default void onPageFinished(WPEView view, String url) {}
+    default void onPageFinished(@NonNull WPEView view, @NonNull String url) {}
 
     /**
      * Notify the host application that the internal SurfaceView has been created
      * and it's ready to render to it's surface.
      */
-    default void onViewReady(WPEView view) {}
+    default void onViewReady(@NonNull WPEView view) {}
 }

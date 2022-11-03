@@ -37,152 +37,129 @@ import androidx.annotation.UiThread;
 
 import com.wpe.wpe.Browser;
 import com.wpe.wpe.Page;
-import com.wpe.wpe.PageObserver;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
- * WPEView serves a similar purpose to Android's built-in WebView and tries to mimic
+ * WPEView serves a similar purpose as the Android built-in WebView and tries to mimic
  * its API aiming to be an easy to use drop-in replacement with extended functionality.
- *
- * The WPEView class is the main API entry point.
+ * <p>The WPEView class is the API main entry point.</p>
  */
 @UiThread
-public class WPEView extends FrameLayout implements PageObserver {
-
+public class WPEView extends FrameLayout {
     private static final String LOGTAG = "WPEView";
-
-    private final Context context;
-    private final WPESettings settings = new WPESettings();
 
     private final Page page;
 
-    private WPEChromeClient wpeChromeClient;
-    private WPEViewClient wpeViewClient;
-    private SurfaceClient surfaceClient;
-    private int currentLoadProgress = 0;
-    private String title = "about:blank";
-    private String url = "about:blank";
-    private String originalUrl = "about:blank";
-    private SurfaceView surfaceView;
-    private FrameLayout customView;
-
-    public WPEView(Context context) {
+    public WPEView(@NonNull Context context) {
         super(context);
-        this.context = context;
-
         Browser.getInstance().initialize(context);
-
-        page = new Page(context, this);
-        page.init();
+        page = new Page(this);
     }
 
-    public WPEView(Context context, AttributeSet attrs) {
+    public WPEView(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        this.context = context;
-
         Browser.getInstance().initialize(context);
-
-        page = new Page(context, this);
-        page.init();
+        page = new Page(this);
     }
 
-    @Override
-    public void onPageSurfaceViewCreated(SurfaceView view) {
-        Log.v(LOGTAG, "onSurfaceViewCreated " + view + " number of views " + getChildCount());
+    private SurfaceView surfaceView = null;
+    private WPEViewClient wpeViewClient = null;
+    private WPEChromeClient wpeChromeClient = null;
+    private SurfaceClient surfaceClient = null;
+    private int currentLoadProgress = 0;
+    private String url = "about:blank";
+    private String originalUrl = url;
+    private String title = url;
+    private FrameLayout customView = null;
+
+    public void onPageSurfaceViewCreated(@NonNull SurfaceView view) {
+        Log.d(LOGTAG,
+              "onPageSurfaceViewCreated() for view: " + view + " (number of children: " + getChildCount() + ")");
         surfaceView = view;
 
         post(() -> {
-            // Delay adding view a bit to next run cycle
+            // Add the view during the next UI cycle
             try {
                 addView(view);
             } catch (Exception e) {
-                Log.e(LOGTAG, "Error setting view", e);
+                Log.e(LOGTAG, "Error while adding the surface view", e);
             }
         });
     }
 
-    @Override
-    public void onPageSurfaceViewReady(SurfaceView view) {
-        Log.v(LOGTAG, "onSurfaceViewReady " + getChildCount());
+    public void onPageSurfaceViewReady(@NonNull SurfaceView view) {
+        Log.d(LOGTAG, "onPageSurfaceViewReady() for view: " + view + " (number of children: " + getChildCount() + ")");
+
         // FIXME: Once PSON is enabled we may want to do something smarter here and not
         //        display the view until this point.
         post(() -> {
-            if (wpeViewClient != null) {
+            if (wpeViewClient != null)
                 wpeViewClient.onViewReady(WPEView.this);
-            }
         });
     }
 
     @Override
-    public boolean onKeyUp(int keyCode, KeyEvent event) {
+    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
             page.deleteInputMethodContent(-1);
             return true;
         }
 
-        final KeyCharacterMap kmap =
-            KeyCharacterMap.load(event != null ? event.getDeviceId() : KeyCharacterMap.VIRTUAL_KEYBOARD);
-        page.setInputMethodContent((char)kmap.get(keyCode, event.getMetaState()));
+        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
+        page.setInputMethodContent(map.get(keyCode, event.getMetaState()));
         return true;
     }
 
     public void onLoadChanged(int loadEvent) {
         switch (loadEvent) {
         case Page.LOAD_STARTED:
-            if (wpeViewClient == null) {
-                return;
-            }
-            wpeViewClient.onPageStarted(this, url);
+            if (wpeViewClient != null)
+                wpeViewClient.onPageStarted(this, url);
             break;
+
         case Page.LOAD_FINISHED:
             onLoadProgress(100);
-            if (wpeViewClient == null) {
-                return;
-            }
-            wpeViewClient.onPageFinished(this, url);
+            if (wpeViewClient != null)
+                wpeViewClient.onPageFinished(this, url);
             break;
         }
     }
 
     public void onLoadProgress(double progress) {
-        currentLoadProgress = (int)(progress * 100);
-        if (wpeChromeClient == null) {
-            return;
-        }
-        wpeChromeClient.onProgressChanged(this, currentLoadProgress);
+        currentLoadProgress = Math.max(0, Math.min(100, (int)Math.round(progress * 100)));
+        if (wpeChromeClient != null)
+            wpeChromeClient.onProgressChanged(this, currentLoadProgress);
     }
 
-    public void onUriChanged(String uri) { url = uri; }
+    public void onUriChanged(@NonNull String uri) { url = uri; }
 
-    public void onTitleChanged(String title) {
+    public void onTitleChanged(@NonNull String title) {
         this.title = title;
-        if (wpeChromeClient == null) {
-            return;
+        if (wpeChromeClient != null)
+            wpeChromeClient.onReceivedTitle(this, title);
+    }
+
+    public void onEnterFullscreenMode() {
+        if ((surfaceView != null) && (wpeChromeClient != null)) {
+            removeView(surfaceView);
+
+            customView = new FrameLayout(getContext());
+            customView.addView(surfaceView);
+            customView.setFocusable(true);
+            customView.setFocusableInTouchMode(true);
+
+            wpeChromeClient.onShowCustomView(customView, () -> {
+                if (customView != null)
+                    page.requestExitFullscreenMode();
+            });
         }
-        wpeChromeClient.onReceivedTitle(this, title);
     }
 
-    public void enterFullScreen() {
-        removeView(surfaceView);
-
-        customView = new FrameLayout(context);
-        customView.addView(surfaceView);
-        customView.setFocusable(true);
-        customView.setFocusableInTouchMode(true);
-
-        wpeChromeClient.onShowCustomView(customView, () -> {
-            if (customView != null) {
-                page.requestExitFullscreenMode();
-            }
-        });
-    }
-
-    public void exitFullScreen() {
-        if (customView != null) {
+    public void onExitFullscreenMode() {
+        if ((customView != null) && (surfaceView != null) && (wpeChromeClient != null)) {
             customView.removeView(surfaceView);
             addView(surfaceView);
             customView = null;
-
             wpeChromeClient.onHideCustomView();
         }
     }
@@ -190,30 +167,28 @@ public class WPEView extends FrameLayout implements PageObserver {
     /************** PUBLIC WPEView API *******************/
 
     /**
-     * Gets the WPESettings object used to control the settings for this WPEView.
+     * Gets the page associated with this WPEView.
+     * @return the associated page.
      */
-    public WPESettings getSettings() { return settings; }
+    public @NonNull Page getPage() { return page; }
 
     /**
      * Loads the given URL.
-     *
-     * @param url The URL of the resource to be loaded.
+     * @param url The URL of the resource to load.
      */
     public void loadUrl(@NonNull String url) {
         originalUrl = url;
-        page.loadUrl(context, url);
+        page.loadUrl(url);
     }
 
     /**
      * Gets whether this WPEView has a back history item.
-     *
      * @return true if this WPEView has a back history item.
      */
     public boolean canGoBack() { return page.canGoBack(); }
 
     /**
      * Gets whether this WPEView has a forward history item.
-     *
      * @return true if this WPEView has a forward history item.
      */
     public boolean canGoForward() { return page.canGoForward(); }
@@ -229,38 +204,34 @@ public class WPEView extends FrameLayout implements PageObserver {
     public void goForward() { page.goForward(); }
 
     /**
-     * Stop the current load.
+     * Stop current loading process.
      */
     public void stopLoading() { page.stopLoading(); }
 
     /**
-     * Reloads the current URL.
+     * Reloads the current page.
      */
     public void reload() { page.reload(); }
 
     /**
-     * Gets the progress for the current page.
-     *
-     * @return the progress for the current page between 0 and 100
+     * Gets loading progress for the current page.
+     * @return the loading progress for the current page (between 0 and 100).
      */
     public int getProgress() { return currentLoadProgress; }
 
     /**
-     * Gets the title for the current page. This is the title of the current page until
-     * WebViewClient.onReceivedTitle is called
-     *
-     * @return the title for the current page or null
+     * Gets current page title (until WebViewClient.onReceivedTitle is called).
+     * @return the title for the current page
      */
-    public String getTitle() { return title; }
+    public @NonNull String getTitle() { return title; }
 
     /**
      * Get the url for the current page. This is not always the same as the url
      * passed to WebViewClient.onPageStarted because although the load for
      * that url has begun, the current page may not have changed.
-     *
      * @return The url for the current page.
      */
-    public String getUrl() { return url; }
+    public @NonNull String getUrl() { return url; }
 
     /**
      * Get the original url for the current page. This is not always the same
@@ -268,27 +239,21 @@ public class WPEView extends FrameLayout implements PageObserver {
      * load for that url has begun, the current page may not have changed.
      * Also, there may have been redirects resulting in a different url to that
      * originally requested.
-     *
      * @return The url that was originally requested for the current page.
      */
-    public String getOriginalUrl() { return originalUrl; }
+    public @NonNull String getOriginalUrl() { return originalUrl; }
 
     /**
      * Gets the chrome handler.
-     *
-     * @return the WPEChromeClient, or {@code null} if not yet set
+     * @return the WPEChromeClient, or {@code null} if it has not been set yet.
      * @see #setWPEChromeClient
      */
-    @Nullable
-    public WPEChromeClient getWPEChromeClient() {
-        return wpeChromeClient;
-    }
+    public @Nullable WPEChromeClient getWPEChromeClient() { return wpeChromeClient; }
 
     /**
      * Sets the chrome handler. This is an implementation of WPEChromeClient for
      * use in handling JavaScript dialogs, favicons, titles, and the progress.
      * This will replace the current handler.
-     *
      * @param client an implementation of WPEChromeClient
      * @see #getWPEChromeClient
      */
@@ -296,38 +261,28 @@ public class WPEView extends FrameLayout implements PageObserver {
 
     /**
      * Gets the WPEViewClient.
-     *
-     * @return the WPEViewClient, or {@code null} if not yet set
+     * @return the WPEViewClient, or {@code null} if it has not been set yet.
      * @see #setWPEViewClient
      */
-    @Nullable
-    public WPEViewClient getWPEViewClient() {
-        return wpeViewClient;
-    }
+    public @Nullable WPEViewClient getWPEViewClient() { return wpeViewClient; }
 
     /**
      * Set the WPEViewClient that will receive various notifications and
      * requests. This will replace the current handler.
-     *
      * @param client An implementation of WPEViewClient.
      */
     public void setWPEViewClient(@Nullable WPEViewClient client) { wpeViewClient = client; }
 
     /**
      * Gets the SurfaceClient.
-     *
-     * @return the SurfaceClient, or {@code null} if not yet set
+     * @return the SurfaceClient, or {@code null} if it has not been set yet.
      * @see #setSurfaceClient
      */
-    @Nullable
-    public SurfaceClient getSurfaceClient() {
-        return surfaceClient;
-    }
+    public @Nullable SurfaceClient getSurfaceClient() { return surfaceClient; }
 
     /**
      * Set the SurfaceClient that will manage the Surface where
      * WPEView renders it's contents to. This will replace the current handler.
-     *
      * @param client An implementation of SurfaceClient.
      */
     public void setSurfaceClient(@Nullable SurfaceClient client) { surfaceClient = client; }

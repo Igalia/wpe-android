@@ -40,14 +40,14 @@ using jstringArray = _jstringArray*;
     typedef _##TYPE*(TYPE);                                                                                            \
     class _##TYPE##Array : public _jarray {};                                                                          \
     typedef _##TYPE##Array* TYPE##Array;                                                                               \
-    template <> struct Wpe::Android::JNI::TypeSignature<TYPE> {                                                        \
+    template <> struct JNI::TypeSignature<TYPE> {                                                                      \
         using ComponentType = TYPE;                                                                                    \
         using ArrayType = TYPE##Array;                                                                                 \
         static constexpr std::string_view value = "L" JAVA_CLASS_NAME ";";                                             \
         static constexpr bool isArray = false;                                                                         \
         static constexpr const char* componentClassName = JAVA_CLASS_NAME;                                             \
     };                                                                                                                 \
-    template <> struct Wpe::Android::JNI::TypeSignature<TYPE##Array> {                                                 \
+    template <> struct JNI::TypeSignature<TYPE##Array> {                                                               \
         using ComponentType = TYPE;                                                                                    \
         using ArrayType = TYPE##Array;                                                                                 \
         static constexpr std::string_view value = "[L" JAVA_CLASS_NAME ";";                                            \
@@ -55,7 +55,7 @@ using jstringArray = _jstringArray*;
         static constexpr const char* componentClassName = JAVA_CLASS_NAME;                                             \
     }
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 template <typename T> struct TypeSignature;
 
@@ -139,4 +139,4 @@ public:
         closeParenthesis, TypeSignature<Ret>::value>::value;
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

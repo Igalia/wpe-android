@@ -99,7 +99,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         currentState.selectedTabId?.let { selectedTabId ->
             val tab = browserViewModel.findTab(selectedTabId)
             binding.tabContainerView.addView(tab.webview)
-            tab.webview.url?.let {
+            tab.webview.url.let {
                 binding.toolbarEditText.setText(tab.webview.url)
             }
         } ?:run {
@@ -112,7 +112,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         val selectedTab = selectedTab()
         if (selectedTab.webview.wpeChromeClient == null) {
             selectedTab.webview.wpeChromeClient = object : WPEChromeClient {
-                override fun onProgressChanged(view: WPEView?, progress: Int) {
+                override fun onProgressChanged(view: WPEView, progress: Int) {
                     super.onProgressChanged(view, progress)
                     binding.pageProgress.progress = progress
                     if (progress in 1..99) {
@@ -122,7 +122,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
                     }
                 }
 
-                override fun onShowCustomView(view: View?, callback: WPEChromeClient.CustomViewCallback?) {
+                override fun onShowCustomView(view: View, callback: WPEChromeClient.CustomViewCallback) {
                     fullscreenView?.let {
                         (it.parent as ViewGroup).removeView(it)
                     }
@@ -164,12 +164,12 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
         if (selectedTab.webview.wpeViewClient == null) {
             selectedTab.webview.wpeViewClient = object : WPEViewClient {
-                override fun onPageStarted(view: WPEView?, url: String?) {
+                override fun onPageStarted(view: WPEView, url: String) {
                     // DO nothing for now
                     super.onPageStarted(view, url)
                 }
 
-                override fun onPageFinished(view: WPEView?, url: String?) {
+                override fun onPageFinished(view: WPEView, url: String) {
                     // DO nothing for now
                     super.onPageFinished(view, url)
                 }

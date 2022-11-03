@@ -21,32 +21,19 @@
 #pragma once
 
 #include <android/hardware_buffer.h>
-#include <cstdint>
-#include <memory>
 
-struct ExportedBuffer final : public std::enable_shared_from_this<ExportedBuffer> {
-    AHardwareBuffer* buffer;
-
-    uint32_t poolID;
-    uint32_t bufferID;
-
-    struct {
-        uint32_t width;
-        uint32_t height;
-    } size;
-
-    ExportedBuffer(AHardwareBuffer* buffer, uint32_t poolID, uint32_t bufferID)
-        : buffer(buffer)
-        , poolID(poolID)
-        , bufferID(bufferID)
-        , size({0, 0})
+class ExportedBuffer final {
+public:
+    ExportedBuffer(AHardwareBuffer* buffer, uint32_t poolId, uint32_t bufferId)
+        : m_buffer(buffer)
+        , m_poolId(poolId)
+        , m_bufferId(bufferId)
     {
-        if (buffer) {
-            AHardwareBuffer_acquire(buffer);
-
-            AHardwareBuffer_Desc desc;
-            AHardwareBuffer_describe(buffer, &desc);
-            size = {desc.width, desc.height};
+        if (m_buffer != nullptr) {
+            AHardwareBuffer_acquire(m_buffer);
+            AHardwareBuffer_Desc desc = {};
+            AHardwareBuffer_describe(m_buffer, &desc);
+            m_size = {desc.width, desc.height};
         }
     }
 
@@ -57,7 +44,22 @@ struct ExportedBuffer final : public std::enable_shared_from_this<ExportedBuffer
 
     ~ExportedBuffer()
     {
-        if (buffer)
-            AHardwareBuffer_release(buffer);
+        if (m_buffer != nullptr)
+            AHardwareBuffer_release(m_buffer);
     }
+
+    AHardwareBuffer* buffer() const noexcept { return m_buffer; }
+    uint32_t poolId() const noexcept { return m_poolId; }
+    uint32_t bufferId() const noexcept { return m_bufferId; }
+    uint32_t width() const noexcept { return m_size.m_width; }
+    uint32_t height() const noexcept { return m_size.m_height; }
+
+private:
+    AHardwareBuffer* m_buffer;
+    uint32_t m_poolId;
+    uint32_t m_bufferId;
+    struct {
+        uint32_t m_width;
+        uint32_t m_height;
+    } m_size = {};
 };

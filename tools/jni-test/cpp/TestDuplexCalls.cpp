@@ -21,8 +21,6 @@
 
 #include <cassert>
 
-using namespace Wpe::Android;
-
 namespace {
 class JNIClassCache;
 const JNIClassCache& getJNIClassCache();

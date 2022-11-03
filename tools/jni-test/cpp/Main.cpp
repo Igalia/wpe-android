@@ -28,8 +28,6 @@
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
-    using namespace Wpe::Android;
-
     try {
         JNI::initVM(javaVM);
         JNI::Class("jni/Test")

@@ -20,13 +20,11 @@
 
 #pragma once
 
+#include <android/looper.h>
 #include <glib.h>
-#include <memory>
-#include <vector>
+#include <set>
 
-struct ALooper;
-
-class MessagePump {
+class MessagePump final {
 public:
     MessagePump();
 
@@ -37,30 +35,21 @@ public:
 
     ~MessagePump();
 
-    void quit();
-
-    void invoke(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
-
-    void onCollectEventsLooperCallback(int fd, int events);
-    void onDispatchLooperCallback();
+    void flush() const;
+    void invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
     void prepare();
-    void dispatch();
+    void dispatch() const noexcept;
 
-    ALooper* m_looper = nullptr;
     int m_dispatchFd = 0;
+    ALooper* m_looper = nullptr;
 
     GMainContext* m_context = nullptr;
     gint m_maxPriority = 0;
     GPollFD* m_pollFds = nullptr;
-    gint m_pollFdsSize = 1;
+    gint m_pollFdsSize = 0;
+    gint m_pollFdsCapacity = 0;
 
-    struct LooperGLibPollFd {
-        int fd;
-        GPollFD* pfd;
-        int ref;
-    };
-
-    std::vector<LooperGLibPollFd> m_looperGlibPollFds;
+    std::set<int> m_looperAttachedPollFds {};
 };

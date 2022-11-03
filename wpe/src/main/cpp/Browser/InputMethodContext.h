@@ -20,24 +20,35 @@
 
 #pragma once
 
-#include "PageEventObserver.h"
-
-#include <memory>
+#include <functional>
 #include <wpe/webkit.h>
 
-G_BEGIN_DECLS
+class InputMethodContextObserver {
+public:
+    InputMethodContextObserver() = default;
+    virtual ~InputMethodContextObserver() = default;
 
-#define TYPE_INPUT_METHOD_CONTEXT (input_method_context_get_type())
+    InputMethodContextObserver(InputMethodContextObserver&&) = default;
+    InputMethodContextObserver& operator=(InputMethodContextObserver&&) = default;
+    InputMethodContextObserver(const InputMethodContextObserver&) = default;
+    InputMethodContextObserver& operator=(const InputMethodContextObserver&) = default;
 
-G_DECLARE_DERIVABLE_TYPE(
-    InputMethodContext, input_method_context, WPE_ANDROID, INPUT_METHOD_CONTEXT, WebKitInputMethodContext);
-
-struct _InputMethodContextClass {
-    WebKitInputMethodContextClass parent_class;
+    virtual void onInputMethodContextIn() noexcept = 0;
+    virtual void onInputMethodContextOut() noexcept = 0;
 };
 
-WebKitInputMethodContext* input_method_context_new(std::shared_ptr<PageEventObserver> observer);
-void input_method_context_set_content(WebKitInputMethodContext* context, const char c);
-void input_method_context_delete_content(WebKitInputMethodContext* context, int offset);
+class InputMethodContext final {
+public:
+    InputMethodContext(InputMethodContextObserver* observer);
 
-G_END_DECLS
+    WebKitInputMethodContext* webKitInputMethodContext() const noexcept { return m_webKitInputMethodContext.get(); }
+
+    void setContent(const char* utf8Content) const noexcept;
+    void deleteContent(int offset) const noexcept;
+
+private:
+    InputMethodContextObserver* m_observer;
+
+    template <typename T> using ProtectedUniquePointer = std::unique_ptr<T, std::function<void(T*)>>;
+    ProtectedUniquePointer<WebKitInputMethodContext> m_webKitInputMethodContext {};
+};

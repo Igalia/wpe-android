@@ -1,7 +1,5 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Zan Dobersek <zdobersek@igalia.com>
- *   Author: Fernando Jimenez <fjimenez@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -22,10 +20,26 @@
 #pragma once
 
 #include <android/log.h>
+#include <utility>
 
-#define ALOGE(...) __android_log_print(ANDROID_LOG_ERROR, "WPE Glue", __VA_ARGS__)
-#define ALOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "WPE Glue", __VA_ARGS__)
+namespace Logging {
+bool pipeStdoutToLogcat() noexcept;
 
-namespace Wpe::Android {
-bool pipeStdoutToLogcat();
-} // namespace Wpe::Android
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat"
+template <typename... Args> constexpr void logError(Args&&... args) noexcept
+{
+    __android_log_print(ANDROID_LOG_ERROR, "WPEAndroid", std::forward<Args>(args)...);
+}
+
+template <typename... Args> constexpr void logVerbose(Args&&... args) noexcept
+{
+    __android_log_print(ANDROID_LOG_VERBOSE, "WPEAndroid", std::forward<Args>(args)...);
+}
+
+template <typename... Args> constexpr void logDebug(Args&&... args) noexcept
+{
+    __android_log_print(ANDROID_LOG_DEBUG, "WPEAndroid", std::forward<Args>(args)...);
+}
+#pragma clang diagnostic pop
+} // namespace Logging
