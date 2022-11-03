@@ -23,7 +23,7 @@
 
 #include <functional>
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 template <typename T, typename = void> class ScalarArray;
 
@@ -228,4 +228,4 @@ private:
     }
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

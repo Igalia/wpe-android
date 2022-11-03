@@ -37,5 +37,5 @@ public:
 
 private:
     bool m_addTwoHasBeenCalled = false;
-    Wpe::Android::JNI::ProtectedType<JNITestDuplexCalls> m_javaInstance;
+    JNI::ProtectedType<JNITestDuplexCalls> m_javaInstance;
 };

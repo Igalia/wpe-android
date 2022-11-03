@@ -22,27 +22,18 @@
 
 #pragma once
 
-#include "ExportedBuffer.h"
 #include "MessagePump.h"
-#include "Page.h"
-#include "PageEventObserver.h"
-#include "PageSettings.h"
-
-#include <functional>
-#include <string>
-#include <unordered_map>
 
 #include <wpe/webkit.h>
-#include <wpe/wpe.h>
-
-struct ANativeWindow;
 
 class Browser final {
 public:
-    static Browser& instance()
+    static void configureJNIMappings();
+
+    static Browser& instance() noexcept
     {
-        static std::unique_ptr<Browser> singleton(new Browser());
-        return *singleton;
+        static Browser s_singleton;
+        return s_singleton;
     }
 
     Browser(Browser&&) = delete;
@@ -50,22 +41,22 @@ public:
     Browser(const Browser&) = delete;
     Browser& operator=(const Browser&) = delete;
 
-    ~Browser() { shut(); }
+    ~Browser() { jniShut(); }
 
-    WebKitWebContext* webContext() const { return m_webContext; }
+    WebKitWebContext* webContext() const noexcept { return m_webContext.get(); }
 
-    void init(std::string dataDir, std::string cacheDir);
-    void shut();
-
-    void invokeOnUiThread(void (*callback)(void*), void* callbackData, void (*destroy)(void*));
-
-    void handleExportedBuffer(Page& page, std::shared_ptr<ExportedBuffer>&& exportedBuffer);
+    void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
     Browser() = default;
 
-    std::unique_ptr<MessagePump> m_messagePump;
+    friend class JNIBrowserCache;
+    void jniInit(const char* dataDir, const char* cacheDir);
+    void jniShut() noexcept;
 
-    WebKitWebsiteDataManager* m_websiteDataManager = nullptr;
-    WebKitWebContext* m_webContext = nullptr;
+    template <typename T> using ProtectedUniquePointer = std::unique_ptr<T, std::function<void(T*)>>;
+
+    std::unique_ptr<MessagePump> m_messagePump {};
+    ProtectedUniquePointer<WebKitWebsiteDataManager> m_websiteDataManager {};
+    ProtectedUniquePointer<WebKitWebContext> m_webContext {};
 };

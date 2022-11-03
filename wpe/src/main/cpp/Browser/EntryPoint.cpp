@@ -1,6 +1,5 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,11 +17,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-package com.wpe.wpe;
+#include "Browser.h"
+#include "Page.h"
+#include "PageSettings.h"
 
-import android.view.SurfaceView;
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
+{
+    try {
+        JNI::initVM(javaVM);
 
-public interface PageObserver {
-    void onPageSurfaceViewCreated(SurfaceView view);
-    void onPageSurfaceViewReady(SurfaceView view);
+        Browser::configureJNIMappings();
+        Page::configureJNIMappings();
+        PageSettings::configureJNIMappings();
+
+        return JNI::VERSION;
+    } catch (...) {
+        return JNI_ERR;
+    }
 }

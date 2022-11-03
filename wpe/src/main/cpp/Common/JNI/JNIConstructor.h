@@ -21,7 +21,7 @@
 
 #include "JNIEnv.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 class Class;
 template <typename T, typename = void> class TypedClass;
@@ -86,4 +86,4 @@ private:
     jmethodID m_methodId;
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

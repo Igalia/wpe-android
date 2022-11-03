@@ -20,23 +20,26 @@
 #include "Logging.h"
 
 #include <cstdio>
+#include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
 
-bool Wpe::Android::pipeStdoutToLogcat()
+static constexpr size_t BUFFER_SIZE = 8192;
+
+bool Logging::pipeStdoutToLogcat() noexcept
 {
     static bool s_alreadyInitialized = false;
     if (s_alreadyInitialized)
         return true;
 
     // Make stdout line-buffered and stderr unbuffered.
-    setvbuf(stdout, nullptr, _IOLBF, 0);
-    setvbuf(stderr, nullptr, _IONBF, 0);
+    (void)setvbuf(stdout, nullptr, _IOLBF, 0);
+    (void)setvbuf(stderr, nullptr, _IONBF, 0);
 
     // Create the pipe and redirect stdout and stderr to the pipe write end.
     static int s_pfd[2] = {0};
     if (s_pfd[0] == 0 || s_pfd[1] == 0) {
-        if (pipe(s_pfd) == -1)
+        if (pipe2(s_pfd, O_CLOEXEC) == -1)
             return false;
 
         dup2(s_pfd[1], STDOUT_FILENO);
@@ -44,12 +47,12 @@ bool Wpe::Android::pipeStdoutToLogcat()
     }
 
     // Spawn the logging thread
-    pthread_t logging_thread = 0;
+    pthread_t loggingThread = 0;
     if (pthread_create(
-            &logging_thread, nullptr,
+            &loggingThread, nullptr,
             +[](void* userData) -> void* {
                 ssize_t readSize = 0;
-                char buf[4096] = {0};
+                char buf[BUFFER_SIZE] = {0};
                 int* pfd = reinterpret_cast<int*>(userData);
 
                 while ((readSize = read(pfd[0], buf, sizeof(buf) - 1)) > 0) {
@@ -57,7 +60,7 @@ bool Wpe::Android::pipeStdoutToLogcat()
                         --readSize;
 
                     buf[readSize] = '\0';
-                    __android_log_write(ANDROID_LOG_DEBUG, "wpe-android", buf);
+                    logDebug(buf);
                 }
 
                 close(pfd[0]);
@@ -69,7 +72,7 @@ bool Wpe::Android::pipeStdoutToLogcat()
         != 0)
         return false;
 
-    pthread_detach(logging_thread);
+    pthread_detach(loggingThread);
     s_alreadyInitialized = true;
     return true;
 }

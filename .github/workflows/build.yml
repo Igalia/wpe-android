@@ -52,7 +52,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 11
-      - name: Build Minibrowser
+      - name: Execute Android Linter
+        uses: gradle/gradle-build-action@v2
+        with:
+          arguments: lint
+      - name: Build Project
         uses: gradle/gradle-build-action@v2
         with:
           arguments: assemble${{ matrix.build_type }}

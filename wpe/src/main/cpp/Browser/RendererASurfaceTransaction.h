@@ -23,47 +23,55 @@
 
 #include "Renderer.h"
 
-struct ANativeWindow;
-struct ASurfaceControl;
-struct ASurfaceTransactionStats;
-
-class Page;
+#include <android/surface_control.h>
+#include <memory>
+#include <wpe-android/view-backend-exportable.h>
 
 class RendererASurfaceTransaction final : public Renderer,
                                           public std::enable_shared_from_this<RendererASurfaceTransaction> {
 public:
-    RendererASurfaceTransaction(Page&, unsigned width, unsigned height);
-    virtual ~RendererASurfaceTransaction();
+    RendererASurfaceTransaction(
+        wpe_android_view_backend_exportable* viewBackendExportable, uint32_t width, uint32_t height);
+    ~RendererASurfaceTransaction() override;
 
-    int width() const override { return m_size.width; }
-    int height() const override { return m_size.height; }
+    RendererASurfaceTransaction(RendererASurfaceTransaction&&) = delete;
+    RendererASurfaceTransaction& operator=(RendererASurfaceTransaction&&) = delete;
+    RendererASurfaceTransaction(const RendererASurfaceTransaction&) = delete;
+    RendererASurfaceTransaction& operator=(const RendererASurfaceTransaction&) = delete;
 
-    virtual void surfaceCreated(ANativeWindow*) override;
-    virtual void surfaceChanged(int format, unsigned width, unsigned height) override;
-    virtual void surfaceRedrawNeeded() override;
-    virtual void surfaceDestroyed() override;
+    uint32_t width() const noexcept override { return m_size.m_width; }
+    uint32_t height() const noexcept override { return m_size.m_height; }
 
-    virtual void handleExportedBuffer(const std::shared_ptr<ExportedBuffer>&) override;
+    void onSurfaceCreated(ANativeWindow* window) noexcept override;
+    void onSurfaceChanged(int format, uint32_t width, uint32_t height) noexcept override;
+    void onSurfaceRedrawNeeded() noexcept override;
+    void onSurfaceDestroyed() noexcept override;
+
+    void handleExportedBuffer(std::shared_ptr<ExportedBuffer> buffer) noexcept override;
 
 private:
-    struct TransactionContext;
-    void scheduleFrame(TransactionContext*);
-    void finishFrame(const std::shared_ptr<ExportedBuffer>&);
+    struct TransactionContext {
+        std::weak_ptr<RendererASurfaceTransaction> m_renderer {};
+        std::shared_ptr<ExportedBuffer> m_buffer {};
+    };
 
-    static void onTransactionCompleteOnAnyThread(void* data, ASurfaceTransactionStats* stats);
+    void scheduleFrame(TransactionContext* transactionContext);
+    void finishFrame(std::shared_ptr<ExportedBuffer> buffer);
+    void releaseExportedBuffer(const ExportedBuffer& buffer) const noexcept;
 
-    Page& m_page;
-    ASurfaceControl* m_surfaceControl {nullptr};
+    static void onTransactionCompleteOnAnyThread(void* context, ASurfaceTransactionStats* stats) noexcept;
+
+    wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
+    ASurfaceControl* m_surfaceControl = nullptr;
 
     struct {
-        unsigned width;
-        unsigned height;
-    } m_size;
+        uint32_t m_width;
+        uint32_t m_height;
+    } m_size = {};
 
     struct {
-        bool dispatchFrameCompleteCallback {false};
-
-        std::shared_ptr<ExportedBuffer> exportedBuffer;
-        std::shared_ptr<ExportedBuffer> lockedBuffer;
+        bool m_dispatchFrameCompleteCallback = false;
+        std::shared_ptr<ExportedBuffer> m_exportedBuffer {};
+        std::shared_ptr<ExportedBuffer> m_lockedBuffer {};
     } m_state;
 };

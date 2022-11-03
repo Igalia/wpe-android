@@ -19,8 +19,6 @@
 
 #include "JNIClass.h"
 
-using namespace Wpe::Android;
-
 JNI::Class::Class(jobject obj, bool useGlobalRef)
 {
     if (obj == nullptr)

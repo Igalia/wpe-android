@@ -23,19 +23,26 @@
 
 #include "ExportedBuffer.h"
 
-struct ANativeWindow;
+#include <android/native_window.h>
+#include <memory>
 
 class Renderer {
 public:
+    Renderer() = default;
     virtual ~Renderer() = default;
 
-    virtual int width() const = 0;
-    virtual int height() const = 0;
+    Renderer(Renderer&&) = default;
+    Renderer& operator=(Renderer&&) = default;
+    Renderer(const Renderer&) = default;
+    Renderer& operator=(const Renderer&) = default;
 
-    virtual void surfaceCreated(ANativeWindow*) = 0;
-    virtual void surfaceChanged(int format, unsigned width, unsigned height) = 0;
-    virtual void surfaceRedrawNeeded() = 0;
-    virtual void surfaceDestroyed() = 0;
+    virtual uint32_t width() const noexcept = 0;
+    virtual uint32_t height() const noexcept = 0;
 
-    virtual void handleExportedBuffer(const std::shared_ptr<ExportedBuffer>&) = 0;
+    virtual void onSurfaceCreated(ANativeWindow* window) noexcept = 0;
+    virtual void onSurfaceChanged(int format, uint32_t width, uint32_t height) noexcept = 0;
+    virtual void onSurfaceRedrawNeeded() noexcept = 0;
+    virtual void onSurfaceDestroyed() noexcept = 0;
+
+    virtual void handleExportedBuffer(std::shared_ptr<ExportedBuffer> buffer) noexcept = 0;
 };

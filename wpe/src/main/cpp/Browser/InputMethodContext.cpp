@@ -22,110 +22,113 @@
 
 #include "Logging.h"
 
-enum InputMethodContextProperty {
-    PROP_OBSERVER = 1,
-    N_PROPERTIES
+namespace {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+G_DECLARE_DERIVABLE_TYPE(InternalInputMethodContext, internal_input_method_context, WPE_ANDROID,
+    INTERNAL_INPUT_METHOD_CONTEXT, WebKitInputMethodContext);
+#pragma clang diagnostic pop
+
+struct _InternalInputMethodContextClass {
+    WebKitInputMethodContextClass m_parentClass;
 };
 
-static GParamSpec* obj_properties[N_PROPERTIES] = {
-    nullptr,
+enum class InternalInputMethodContextProperty : guint {
+    ObserverPropertyId = 1,
+    NumberOfProperties
 };
 
-struct InputMethodContextPrivate {
-    PageEventObserver* m_observer;
+struct InternalInputMethodContextPrivate {
+    InputMethodContextObserver* m_observer;
 };
 
-G_DEFINE_TYPE_WITH_PRIVATE(InputMethodContext, input_method_context, WEBKIT_TYPE_INPUT_METHOD_CONTEXT);
+G_DEFINE_TYPE_WITH_PRIVATE(InternalInputMethodContext, internal_input_method_context, WEBKIT_TYPE_INPUT_METHOD_CONTEXT);
 
-#define PRIV(obj)                                                                                                      \
-    ((InputMethodContextPrivate*)input_method_context_get_instance_private(WPE_ANDROID_INPUT_METHOD_CONTEXT(obj)))
-
-static void input_method_context_notify_focus_in(WebKitInputMethodContext* context)
+inline InternalInputMethodContextPrivate* getInternalInputMethodContextPrivate(GObject* object) noexcept
 {
-    InputMethodContextPrivate* priv = PRIV(context);
-    ALOGV("input_method_context_notify_focus_in %p", priv->m_observer);
-
-    if (priv->m_observer != nullptr) {
-        priv->m_observer->onInputMethodContextIn();
-    }
+    return reinterpret_cast<InternalInputMethodContextPrivate*>(
+        internal_input_method_context_get_instance_private(WPE_ANDROID_INTERNAL_INPUT_METHOD_CONTEXT(object)));
 }
 
-static void input_method_context_notify_focus_out(WebKitInputMethodContext* context)
+void setProperty(GObject* object, guint propertyId, const GValue* value, GParamSpec* paramSpec) noexcept
 {
-    InputMethodContextPrivate* priv = PRIV(context);
-    ALOGV("input_method_context_notify_focus_out %p", priv->m_observer);
-
-    if (priv->m_observer != nullptr) {
-        priv->m_observer->onInputMethodContextOut();
-    }
-}
-
-static void input_method_context_set_property(
-    GObject* object, guint property_id, const GValue* value, GParamSpec* pspec)
-{
-    InputMethodContextPrivate* self = PRIV(object);
-
-    switch ((InputMethodContextProperty)property_id) {
-    case PROP_OBSERVER:
-        self->m_observer = static_cast<PageEventObserver*>(g_value_get_pointer(value));
+    InternalInputMethodContextPrivate* ctx = getInternalInputMethodContextPrivate(object);
+    switch (static_cast<InternalInputMethodContextProperty>(propertyId)) {
+    case InternalInputMethodContextProperty::ObserverPropertyId:
+        ctx->m_observer = reinterpret_cast<InputMethodContextObserver*>(g_value_get_pointer(value));
         break;
 
     default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
+        G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propertyId, paramSpec);
         break;
     }
 }
 
-static void input_method_context_get_property(GObject* object, guint property_id, GValue* value, GParamSpec* pspec)
+void getProperty(GObject* object, guint propertyId, GValue* value, GParamSpec* paramSpec) noexcept
 {
-    InputMethodContextPrivate* self = PRIV(object);
-
-    switch ((InputMethodContextProperty)property_id) {
-    case PROP_OBSERVER:
-        g_value_set_pointer(value, self->m_observer);
+    InternalInputMethodContextPrivate* ctx = getInternalInputMethodContextPrivate(object);
+    switch (static_cast<InternalInputMethodContextProperty>(propertyId)) {
+    case InternalInputMethodContextProperty::ObserverPropertyId:
+        g_value_set_pointer(value, ctx->m_observer);
         break;
 
     default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
+        G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propertyId, paramSpec);
         break;
     }
 }
 
-static void input_method_context_class_init(InputMethodContextClass* klass)
+void notifyFocusIn(WebKitInputMethodContext* context) noexcept
 {
-    GObjectClass* object_class = G_OBJECT_CLASS(klass);
-
-    object_class->set_property = input_method_context_set_property;
-    object_class->get_property = input_method_context_get_property;
-
-    obj_properties[PROP_OBSERVER] = g_param_spec_pointer("observer", "Observer", "Page event observer",
-        static_cast<GParamFlags>(G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE));
-
-    g_object_class_install_properties(object_class, N_PROPERTIES, obj_properties);
-
-    WebKitInputMethodContextClass* input_method_context_class = WEBKIT_INPUT_METHOD_CONTEXT_CLASS(klass);
-    input_method_context_class->notify_focus_in = input_method_context_notify_focus_in;
-    input_method_context_class->notify_focus_out = input_method_context_notify_focus_out;
-
-    // input_method_context_class->get_preedit = input_method_context_get_preedit;
-    // input_method_context_class->notify_cursor_area = input_method_context_notify_cursor_area;
-    // input_method_context_class->notify_surrounding = input_method_context_notify_surrounding;
-    // input_method_context_class->reset = input_method_context_reset;
+    InternalInputMethodContextPrivate* ctx = getInternalInputMethodContextPrivate(G_OBJECT(context));
+    Logging::logDebug("internal_input_method_context_notify_focus_in %p", ctx->m_observer);
+    if (ctx->m_observer != nullptr)
+        ctx->m_observer->onInputMethodContextIn();
 }
 
-static void input_method_context_init(InputMethodContext* self) {}
-
-WebKitInputMethodContext* input_method_context_new(std::shared_ptr<PageEventObserver> observer)
+void notifyFocusOut(WebKitInputMethodContext* context) noexcept
 {
-    return WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(TYPE_INPUT_METHOD_CONTEXT, "observer", observer.get(), nullptr));
+    InternalInputMethodContextPrivate* ctx = getInternalInputMethodContextPrivate(G_OBJECT(context));
+    Logging::logDebug("internal_input_method_context_notify_focus_out %p", ctx->m_observer);
+    if (ctx->m_observer != nullptr)
+        ctx->m_observer->onInputMethodContextOut();
 }
 
-void input_method_context_set_content(WebKitInputMethodContext* context, const char c)
+void internal_input_method_context_class_init(InternalInputMethodContextClass* klass)
 {
-    g_signal_emit_by_name(context, "committed", &c);
+    GObjectClass* objectKlass = G_OBJECT_CLASS(klass);
+    objectKlass->set_property = setProperty;
+    objectKlass->get_property = getProperty;
+
+    static GParamSpec* s_properties[static_cast<size_t>(InternalInputMethodContextProperty::NumberOfProperties)]
+        = {nullptr,
+            g_param_spec_pointer("observer", "Observer", "Page event observer",
+                static_cast<GParamFlags>(G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE))}; // NOLINT(hicpp-signed-bitwise)
+    g_object_class_install_properties(
+        objectKlass, static_cast<guint>(InternalInputMethodContextProperty::NumberOfProperties), s_properties);
+
+    WebKitInputMethodContextClass* webkitInputMethodContextKlass = WEBKIT_INPUT_METHOD_CONTEXT_CLASS(klass);
+    webkitInputMethodContextKlass->notify_focus_in = notifyFocusIn;
+    webkitInputMethodContextKlass->notify_focus_out = notifyFocusOut;
 }
 
-void input_method_context_delete_content(WebKitInputMethodContext* context, int offset)
+void internal_input_method_context_init(InternalInputMethodContext* /*self*/) {}
+} // namespace
+
+InputMethodContext::InputMethodContext(InputMethodContextObserver* observer)
+    : m_observer(observer)
+    , m_webKitInputMethodContext({WEBKIT_INPUT_METHOD_CONTEXT(g_object_new(
+                                      internal_input_method_context_get_type(), "observer", m_observer, nullptr)),
+          [](auto* ptr) { g_object_unref(ptr); }})
 {
-    g_signal_emit_by_name(context, "delete-surrounding", offset, 1);
+}
+
+void InputMethodContext::setContent(const char* utf8Content) const noexcept
+{
+    g_signal_emit_by_name(m_webKitInputMethodContext.get(), "committed", utf8Content);
+}
+
+void InputMethodContext::deleteContent(int offset) const noexcept
+{
+    g_signal_emit_by_name(m_webKitInputMethodContext.get(), "delete-surrounding", offset, 1);
 }

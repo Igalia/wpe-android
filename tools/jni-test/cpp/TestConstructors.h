@@ -33,5 +33,5 @@ public:
     int getValue() const;
 
 private:
-    Wpe::Android::JNI::ProtectedType<JNITestConstructors> m_javaInstance;
+    JNI::ProtectedType<JNITestConstructors> m_javaInstance;
 };

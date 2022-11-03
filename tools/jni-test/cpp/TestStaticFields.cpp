@@ -22,8 +22,6 @@
 #include <cassert>
 #include <cstring>
 
-using namespace Wpe::Android;
-
 namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestStaticFields> {
 public:

@@ -32,5 +32,5 @@ public:
     bool hasVoidMethodBeenCalled() const;
 
 private:
-    Wpe::Android::JNI::ProtectedType<JNITestMethods> m_javaInstance;
+    JNI::ProtectedType<JNITestMethods> m_javaInstance;
 };

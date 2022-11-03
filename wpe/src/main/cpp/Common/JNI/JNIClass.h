@@ -24,7 +24,7 @@
 #include "JNIMethod.h"
 #include "JNINativeMethod.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 class Class {
 public:
@@ -73,7 +73,7 @@ public:
     inline operator jclass() const noexcept { return m_javaClassRef.get(); }
 
 protected:
-    ProtectedType<jclass> m_javaClassRef; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    ProtectedType<jclass> m_javaClassRef {}; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
 };
 
 template <typename T> class TypedClass<T, EnableIfObjectType<T>> : public Class {
@@ -101,4 +101,4 @@ public:
     template <typename... Params> Constructor<T(Params...)> getConstructor() const { return {m_javaClassRef}; }
 };
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

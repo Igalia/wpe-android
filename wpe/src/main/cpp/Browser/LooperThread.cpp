@@ -22,18 +22,17 @@
 
 #include "Logging.h"
 
-#include <android/looper.h>
-
-static LooperThread* s_looperThread = nullptr;
-
-LooperThread::~LooperThread() { ALooper_release(m_looper); }
-
-void LooperThread::initialize()
+LooperThread::~LooperThread()
 {
-    ALOGV("LooperThread::initialize() ALooper %p", ALooper_forThread());
-    s_looperThread = new LooperThread;
-    s_looperThread->m_looper = ALooper_forThread();
-    ALooper_acquire(s_looperThread->m_looper);
+    if (m_looper != nullptr)
+        ALooper_release(m_looper);
 }
 
-LooperThread& LooperThread::instance() { return *s_looperThread; }
+void LooperThread::startLooper() noexcept
+{
+    if (m_looper == nullptr) {
+        m_looper = ALooper_forThread();
+        Logging::logDebug("LooperThread::startLooper() with looper: %p", m_looper);
+        ALooper_acquire(m_looper);
+    }
+}

@@ -4,7 +4,7 @@ In order to communicate between Android and native code, wpe-android uses
 [JNI](https://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/jniTOC.html).
 
 To simplify calls and help managing references, a small wrapping API has been developped in
-[Common/JNI](/wpe/src/main/cpp/Common/JNI).
+[Common/JNI](./wpe/src/main/cpp/Common/JNI).
 
 This subproject runs a series of tests to verify that the wrapping code is behaving correctly. It also shows
 examples of how to use the wrapping API.

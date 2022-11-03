@@ -21,7 +21,7 @@
 
 #include "JNIEnv.h"
 
-namespace Wpe::Android::JNI {
+namespace JNI {
 
 class Class;
 
@@ -201,4 +201,4 @@ private:
 template <typename T> using Method = GenericMethod<T, false>;
 template <typename T> using StaticMethod = GenericMethod<T, true>;
 
-} // namespace Wpe::Android::JNI
+} // namespace JNI

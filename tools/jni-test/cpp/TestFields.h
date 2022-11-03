@@ -32,5 +32,5 @@ public:
     void checkFieldsAfterModification() const;
 
 private:
-    Wpe::Android::JNI::ProtectedType<JNITestFields> m_javaInstance;
+    JNI::ProtectedType<JNITestFields> m_javaInstance;
 };

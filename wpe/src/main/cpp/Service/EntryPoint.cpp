@@ -1,7 +1,6 @@
 /**
  * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
  *   Author: Loïc Le Page <llepage@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,13 +17,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "Service.h"
-
 #include "Environment.h"
-#include "JNIHelper.h"
 #include "Logging.h"
 
 #include <cassert>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
 #include <dlfcn.h>
@@ -32,59 +29,64 @@
 #include <unistd.h>
 
 namespace {
-void initializeMain(JNIEnv*, jclass, jlong pid, Wpe::Android::ProcessType processType, jint fd)
+void setupNativeEnvironment(JNIEnv* /*env*/, jclass /*klass*/, jstringArray envStringsArray) noexcept
 {
+    Logging::logDebug("setupNativeEnvironment()");
+    Environment::configureEnvironment(envStringsArray);
+}
+
+void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint type, jint fileDesc) noexcept
+{
+    auto processType = static_cast<ProcessType>(type);
+
     // As this function can exclusively be called from JNI, we just
     // need to assert having the right value for the process type in
     // case that one day the Java enum is modified but the native enum
     // has not been well synchronized.
-    assert(processType >= Wpe::Android::ProcessType::FirstType);
-    assert(processType < Wpe::Android::ProcessType::TypesCount);
+    assert(processType >= ProcessType::FirstType);
+    assert(processType < ProcessType::TypesCount);
 
-    Wpe::Android::pipeStdoutToLogcat();
+    Logging::pipeStdoutToLogcat();
 
-    static const char* const processName[static_cast<int>(Wpe::Android::ProcessType::TypesCount)]
+    static constexpr const char* const processName[static_cast<int>(ProcessType::TypesCount)]
         = {"WPEWebProcess", "WPENetworkProcess"};
 
-    static const char* const entrypointName[static_cast<int>(Wpe::Android::ProcessType::TypesCount)]
+    static constexpr const char* const entrypointName[static_cast<int>(ProcessType::TypesCount)]
         = {"android_WebProcess_main", "android_NetworkProcess_main"};
 
     using ProcessEntryPoint = int(int, char**);
     auto* entrypoint
         = reinterpret_cast<ProcessEntryPoint*>(dlsym(RTLD_DEFAULT, entrypointName[static_cast<int>(processType)]));
-    ALOGV("Glue::initializeMain() for %s, fd: %d, entrypoint: %p", processName[static_cast<int>(processType)], fd,
-        entrypoint);
+    Logging::logDebug("initializeNativeMain() for %s, fd: %d, entrypoint: %p",
+        processName[static_cast<int>(processType)], fileDesc, entrypoint);
 
-    char pidString[32];
-    snprintf(pidString, sizeof(pidString), "%lu", static_cast<unsigned long>(pid));
-    char fdString[32];
-    snprintf(fdString, sizeof(fdString), "%d", fd);
+    static constexpr size_t NUMBER_BUFFER_SIZE = 32;
+    char pidString[NUMBER_BUFFER_SIZE];
+    (void)snprintf(pidString, NUMBER_BUFFER_SIZE, "%" PRIu64, static_cast<uint64_t>(pid));
+    char fdString[NUMBER_BUFFER_SIZE];
+    (void)snprintf(fdString, NUMBER_BUFFER_SIZE, "%d", fileDesc);
 
     char* argv[3];
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     argv[0] = const_cast<char*>(processName[static_cast<int>(processType)]);
     argv[1] = pidString;
     argv[2] = fdString;
     (*entrypoint)(3, argv);
 }
-
-void setupEnvironment(JNIEnv*, jclass, jobjectArray envStringsArray)
-{
-    ALOGV("Glue::setupEnvironment()");
-    Wpe::Android::configureEnvironment(envStringsArray);
-}
 } // namespace
 
-jint Wpe::Android::registerServiceEntryPoints(JavaVM* vm, const char* serviceGlueClass)
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
-    JNIEnv* env = Wpe::Android::initVM(vm);
-    jclass klass = env->FindClass(serviceGlueClass);
-    if (klass == nullptr)
+    try {
+        JNI::initVM(javaVM);
+
+        JNI::Class("com/wpe/wpe/services/WPEService")
+            .registerNativeMethods(
+                JNI::StaticNativeMethod<void(jstringArray)>("setupNativeEnvironment", setupNativeEnvironment),
+                JNI::StaticNativeMethod<void(jlong, jint, jint)>("initializeNativeMain", initializeNativeMain));
+
+        return JNI::VERSION;
+    } catch (...) {
         return JNI_ERR;
-
-    static const JNINativeMethod methods[] = {{"initializeMain", "(JII)V", reinterpret_cast<void*>(initializeMain)},
-        {"setupEnvironment", "([Ljava/lang/String;)V", reinterpret_cast<void*>(setupEnvironment)}};
-    int result = env->RegisterNatives(klass, methods, sizeof(methods) / sizeof(JNINativeMethod));
-    env->DeleteLocalRef(klass);
-
-    return (result != JNI_OK) ? result : Wpe::Android::JNI_VERSION;
+    }
 }

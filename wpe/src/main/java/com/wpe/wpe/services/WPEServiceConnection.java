@@ -23,7 +23,6 @@
 package com.wpe.wpe.services;
 
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,7 +35,6 @@ import androidx.annotation.NonNull;
 
 import com.wpe.wpe.IWPEService;
 import com.wpe.wpe.IWPEServiceHost;
-import com.wpe.wpe.Page;
 import com.wpe.wpe.ProcessType;
 
 public final class WPEServiceConnection implements ServiceConnection {
@@ -46,30 +44,28 @@ public final class WPEServiceConnection implements ServiceConnection {
     private final ProcessType processType;
     private ParcelFileDescriptor parcelFd;
 
-    private final WPEServiceConnectionDelegate delegate;
-
-    private final Handler handler;
+    protected final WPEServiceConnectionListener listener;
+    protected final Handler handler = new Handler(Looper.myLooper());
 
     public WPEServiceConnection(long pid, @NonNull ProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
-                                @NonNull WPEServiceConnectionDelegate delegate) {
+                                @NonNull WPEServiceConnectionListener listener) {
         this.pid = pid;
         this.processType = processType;
         this.parcelFd = parcelFd;
-        this.delegate = delegate;
-        this.handler = new Handler();
+        this.listener = listener;
     }
 
     public long getPid() { return pid; }
-    public ProcessType getProcessType() { return processType; }
+    public @NonNull ProcessType getProcessType() { return processType; }
 
     @Override
     public void onServiceConnected(@NonNull ComponentName name, IBinder service) {
         if (parcelFd == null) {
-            Log.w(LOGTAG, "onServiceConnected() name: " + name + " called more than once");
+            Log.w(LOGTAG, "onServiceConnected() for " + name + " called more than once");
             return;
         }
 
-        Log.i(LOGTAG, "onServiceConnected() name: " + name + ", pid: " + pid + ", fd: " + parcelFd.getFd());
+        Log.d(LOGTAG, "onServiceConnected() for " + name + " (pid: " + pid + ", fd: " + parcelFd.getFd() + ")");
         IWPEService wpeService = IWPEService.Stub.asInterface(service);
 
         Bundle bundle = new Bundle();
@@ -80,13 +76,10 @@ public final class WPEServiceConnection implements ServiceConnection {
         IWPEServiceHost serviceHost = new IWPEServiceHost.Stub() {
             @Override
             public void notifyCleanExit() {
-                Log.i(LOGTAG, "notifyCleanExit()");
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        delegate.onCleanExit(WPEServiceConnection.this);
-                    }
-                });
+                if (handler.getLooper() == Looper.myLooper())
+                    listener.onCleanExit(WPEServiceConnection.this);
+                else
+                    handler.post(() -> listener.onCleanExit(WPEServiceConnection.this));
             }
         };
 
@@ -99,11 +92,10 @@ public final class WPEServiceConnection implements ServiceConnection {
 
     @Override
     public void onServiceDisconnected(@NonNull ComponentName name) {
-        Log.i(LOGTAG, "onServiceDisconnected() name: " + name);
-        if (handler.getLooper() == Looper.myLooper()) {
-            delegate.onServiceDisconnected(this);
-        } else {
-            handler.post(() -> delegate.onServiceDisconnected(this));
-        }
+        Log.d(LOGTAG, "onServiceDisconnected() for " + name);
+        if (handler.getLooper() == Looper.myLooper())
+            listener.onServiceDisconnected(this);
+        else
+            handler.post(() -> listener.onServiceDisconnected(this));
     }
 }

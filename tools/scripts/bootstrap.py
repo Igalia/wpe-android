@@ -99,7 +99,6 @@ class Bootstrap:
         "libgmodule-2.0.so",
         "libgobject-2.0.so",
         "libwpe-1.0.so",
-        "libWPEBackend-default.so",
         "libWPEBackend-android.so",
         "libWPEWebKit-1.0_3.so"
     ]
@@ -372,9 +371,6 @@ class Bootstrap:
 
         for lib_path in Path(target_dir).rglob("*.so"):
             self._replace_soname_values(lib_path)
-
-        backend_path = Path(target_dir, "libWPEBackend-android.so")
-        backend_path.replace(backend_path.with_name("libWPEBackend-default.so"))
 
         shutil.copytree(os.path.join(sysroot_lib_dir, "glib-2.0"), os.path.join(target_dir, "glib-2.0"))
 

@@ -20,17 +20,26 @@
 
 #pragma once
 
-struct ALooper;
+#include <android/looper.h>
 
 class LooperThread final {
 public:
-    static void initialize();
-    static LooperThread& instance();
+    static LooperThread& instance() noexcept
+    {
+        static LooperThread s_singleton;
+        return s_singleton;
+    }
+
+    LooperThread(LooperThread&&) = delete;
+    LooperThread& operator=(LooperThread&&) = delete;
+    LooperThread(const LooperThread&) = delete;
+    LooperThread& operator=(const LooperThread&) = delete;
 
     ~LooperThread();
 
-    ALooper* looper() const { return m_looper; }
+    void startLooper() noexcept;
 
 private:
+    LooperThread() = default;
     ALooper* m_looper = nullptr;
 };

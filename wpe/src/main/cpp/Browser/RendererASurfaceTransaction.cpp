@@ -24,140 +24,136 @@
 #include "Browser.h"
 #include "Logging.h"
 
-#include <android/hardware_buffer.h>
-#include <android/surface_control.h>
-#include <wpe-android/view-backend-exportable.h>
+#include <cassert>
 
-struct RendererASurfaceTransaction::TransactionContext {
-    std::weak_ptr<RendererASurfaceTransaction> m_renderer;
-    std::shared_ptr<ExportedBuffer> m_buffer;
-};
-
-static void releaseBuffer(struct wpe_android_view_backend_exportable* exportable, const ExportedBuffer& buffer)
-{
-    wpe_android_view_backend_exportable_dispatch_release_buffer(
-        exportable, buffer.buffer, buffer.poolID, buffer.bufferID);
-}
-
-RendererASurfaceTransaction::RendererASurfaceTransaction(Page& page, unsigned width, unsigned height)
-    : m_page(page)
+RendererASurfaceTransaction::RendererASurfaceTransaction(
+    wpe_android_view_backend_exportable* viewBackendExportable, uint32_t width, uint32_t height)
+    : m_viewBackendExportable(viewBackendExportable)
     , m_size({width, height})
 {
-    ALOGV("RendererASurfaceTransaction() page %p", &m_page);
+    Logging::logDebug(
+        "RendererASurfaceTransaction(%p, %u, %u)", m_viewBackendExportable, m_size.m_width, m_size.m_height);
 }
 
 RendererASurfaceTransaction::~RendererASurfaceTransaction()
 {
-    ALOGV("RendererASurfaceTransaction() destructor");
-    if (m_surfaceControl != nullptr)
+    Logging::logDebug("~RendererASurfaceTransaction()");
+    if (m_surfaceControl != nullptr) {
         ASurfaceControl_release(m_surfaceControl);
+        m_surfaceControl = nullptr;
+    }
 
     // Release the stored exported buffer, if any, and if different from the locked buffer.
     // If the same, the buffer will be released via the locked buffer.
-    if (m_state.exportedBuffer && m_state.exportedBuffer != m_state.lockedBuffer)
-        releaseBuffer(m_page.exportable(), *m_state.exportedBuffer);
+    if (m_state.m_exportedBuffer && (m_state.m_exportedBuffer != m_state.m_lockedBuffer))
+        releaseExportedBuffer(*m_state.m_exportedBuffer);
+
     // If locked buffer still exists, release it.
-    if (m_state.lockedBuffer)
-        releaseBuffer(m_page.exportable(), *m_state.lockedBuffer);
+    if (m_state.m_lockedBuffer)
+        releaseExportedBuffer(*m_state.m_lockedBuffer);
+
     m_state = {};
 }
 
-void RendererASurfaceTransaction::surfaceCreated(ANativeWindow* window)
+void RendererASurfaceTransaction::onSurfaceCreated(ANativeWindow* window) noexcept
 {
     m_surfaceControl = ASurfaceControl_createFromWindow(window, "RendererASurfaceTransaction");
 }
 
-void RendererASurfaceTransaction::surfaceChanged(int /*format*/, unsigned width, unsigned height)
+void RendererASurfaceTransaction::onSurfaceChanged(int /*format*/, uint32_t width, uint32_t height) noexcept
 {
-    // Update the size.
-    m_size.width = width;
-    m_size.height = height;
+    m_size.m_width = width;
+    m_size.m_height = height;
 }
 
-void RendererASurfaceTransaction::surfaceRedrawNeeded()
+void RendererASurfaceTransaction::onSurfaceRedrawNeeded() noexcept
 {
     // Nothing is doable if there's no ASurfaceControl.
-    if (m_surfaceControl == nullptr)
-        return;
-
-    // Redraw is needed -- if there's currently an exported buffer present, reuse it.
-    if (m_state.exportedBuffer)
-        scheduleFrame(new TransactionContext {shared_from_this(), m_state.exportedBuffer});
+    if ((m_surfaceControl != nullptr) && m_state.m_exportedBuffer) {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
+        scheduleFrame(new TransactionContext {shared_from_this(), m_state.m_exportedBuffer});
+    }
 }
 
-void RendererASurfaceTransaction::surfaceDestroyed()
+void RendererASurfaceTransaction::onSurfaceDestroyed() noexcept
 {
-    // Regular cleanup of the ASurfaceControl as well as the ANativeWindow.
-
     ASurfaceControl_release(m_surfaceControl);
     m_surfaceControl = nullptr;
 }
 
-void RendererASurfaceTransaction::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
+void RendererASurfaceTransaction::handleExportedBuffer(std::shared_ptr<ExportedBuffer> buffer) noexcept
 {
     // If there's an exported buffer being held that's different from the locked one, it has to
     // be released here since it won't be released otherwise.
-    if (m_state.exportedBuffer && m_state.exportedBuffer != m_state.lockedBuffer)
-        releaseBuffer(m_page.exportable(), *m_state.exportedBuffer);
+    if (m_state.m_exportedBuffer && (m_state.m_exportedBuffer != m_state.m_lockedBuffer))
+        releaseExportedBuffer(*m_state.m_exportedBuffer);
 
-    m_state.exportedBuffer = exportedBuffer;
+    m_state.m_exportedBuffer = std::move(buffer);
 
     // Each buffer export requires a corresponding frame-complete callback. This is signalled here.
-    m_state.dispatchFrameCompleteCallback = true;
+    m_state.m_dispatchFrameCompleteCallback = true;
 
     // Nothing is doable if there's no ASurfaceControl.
-    if (m_surfaceControl == nullptr)
-        return;
-
-    // Finally, schedule the new frame, presenting the just-exported buffer.
-    scheduleFrame(new TransactionContext {shared_from_this(), m_state.exportedBuffer});
+    if (m_surfaceControl != nullptr) {
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
+        scheduleFrame(new TransactionContext {shared_from_this(), m_state.m_exportedBuffer});
+    }
 }
 
 void RendererASurfaceTransaction::scheduleFrame(TransactionContext* transactionContext)
 {
+    assert(m_surfaceControl);
+
     // Take the TransactionContext and its buffer and form a transaction for it.
     // Upon transaction completion, the buffer will be presented on the surface.
-
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
     ASurfaceTransaction_setVisibility(transaction, m_surfaceControl, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
     ASurfaceTransaction_setZOrder(transaction, m_surfaceControl, 0);
 
-    ASurfaceTransaction_setBuffer(transaction, m_surfaceControl, transactionContext->m_buffer->buffer, -1);
+    ASurfaceTransaction_setBuffer(transaction, m_surfaceControl, transactionContext->m_buffer->buffer());
 
     ASurfaceTransaction_setOnComplete(transaction, transactionContext, onTransactionCompleteOnAnyThread);
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
 }
 
-void RendererASurfaceTransaction::finishFrame(const std::shared_ptr<ExportedBuffer>& exportedBuffer)
+void RendererASurfaceTransaction::finishFrame(std::shared_ptr<ExportedBuffer> buffer)
 {
-    ALOGV("RendererASurfaceTransaction::finishFrame() exportedBuffer %p tid: %d", exportedBuffer.get(), gettid());
+    Logging::logDebug("RendererASurfaceTransaction::finishFrame(%p)", buffer.get());
 
     // If the current locked buffer is different from the current exported one, it should be released here.
-    if (m_state.lockedBuffer && m_state.exportedBuffer != m_state.lockedBuffer)
-        releaseBuffer(m_page.exportable(), *m_state.lockedBuffer);
+    if (m_state.m_lockedBuffer && (m_state.m_exportedBuffer != m_state.m_lockedBuffer))
+        releaseExportedBuffer(*m_state.m_lockedBuffer);
 
     // The just-presented buffer is now also the locked one.
-    m_state.lockedBuffer = exportedBuffer;
+    m_state.m_lockedBuffer = std::move(buffer);
 
     // If the frame-complete callback dispatch was requested, it's invoked here.
-    if (m_state.dispatchFrameCompleteCallback)
-        wpe_android_view_backend_exportable_dispatch_frame_complete(m_page.exportable());
-    m_state.dispatchFrameCompleteCallback = false;
+    if (m_state.m_dispatchFrameCompleteCallback) {
+        wpe_android_view_backend_exportable_dispatch_frame_complete(m_viewBackendExportable);
+        m_state.m_dispatchFrameCompleteCallback = false;
+    }
 }
 
-// API documentation states that this callback can be dispatched on any thread.
-void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(void* data, ASurfaceTransactionStats* stats)
+void RendererASurfaceTransaction::releaseExportedBuffer(const ExportedBuffer& buffer) const noexcept
 {
-    ALOGV("RendererASurfaceTransaction::onTransactionCompleteOnAnyThread() context %p tid: %d", data, gettid());
+    wpe_android_view_backend_exportable_dispatch_release_buffer(
+        m_viewBackendExportable, buffer.buffer(), buffer.poolId(), buffer.bufferId());
+}
 
-    // Relay the transaction completion to the webkit ui thread.
+void RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(
+    void* context, ASurfaceTransactionStats* /*stats*/) noexcept
+{
+    Logging::logDebug("RendererASurfaceTransaction::onTransactionCompleteOnAnyThread(%p)", context);
+
+    // API documentation states that this callback can be dispatched from any thread.
+    // Let's relay the transaction completion to the UI thread.
     Browser::instance().invokeOnUiThread(
-        [](void* data) {
-            auto* context = static_cast<TransactionContext*>(data);
-            if (auto renderer = context->m_renderer.lock()) {
-                renderer->finishFrame(context->m_buffer);
-            }
+        +[](void* userData) {
+            auto* transactionContext = reinterpret_cast<TransactionContext*>(userData);
+            if (auto renderer = transactionContext->m_renderer.lock())
+                renderer->finishFrame(transactionContext->m_buffer);
         },
-        data, [](void* data) { delete static_cast<TransactionContext*>(data); });
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        +[](void* userData) { delete reinterpret_cast<TransactionContext*>(userData); }, context);
 }

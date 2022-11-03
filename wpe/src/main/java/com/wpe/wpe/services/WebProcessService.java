@@ -45,7 +45,7 @@ public class WebProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "web_process_assets_v1";
+    private static final String assetsVersion = "web_process_assets_gst1.21.1";
 
     @Override
     protected void loadNativeLibraries() {
@@ -58,8 +58,7 @@ public class WebProcessService extends WPEService {
         // android.os.Debug.waitForDebugger();
 
         System.loadLibrary("gstreamer-1.0");
-        System.loadLibrary("WPEBackend-default");
-        System.loadLibrary("WPEWebProcessGlue");
+        System.loadLibrary("WPEAndroidService");
     }
 
     @Override
@@ -164,7 +163,7 @@ public class WebProcessService extends WPEService {
             envStrings.add(gstDebugLevels);
         }
 
-        setupEnvironment(envStrings.toArray(new String[envStrings.size()]));
+        setupNativeEnvironment(envStrings.toArray(new String[envStrings.size()]));
 
         try {
             GStreamer.init(getApplicationContext());
@@ -176,8 +175,8 @@ public class WebProcessService extends WPEService {
 
     @Override
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
-        Log.v(LOGTAG,
+        Log.d(LOGTAG,
               "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeMain(pid, ProcessType.WebProcess.getValue(), parcelFd.detachFd());
+        initializeNativeMain(pid, ProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
 }

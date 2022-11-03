@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="all" severity="error">
+        <ignore path="src/main/java/org/freedesktop/gstreamer/**.java" />
+    </issue>
+    <issue id="LogConditional" severity="ignore" />
+</lint>

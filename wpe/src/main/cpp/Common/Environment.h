@@ -19,8 +19,15 @@
 
 #pragma once
 
-#include <jni.h>
+#include "JNI/JNI.h"
 
-namespace Wpe::Android {
-bool configureEnvironment(jobjectArray envStringsArray);
-} // namespace Wpe::Android
+enum class ProcessType : jint {
+    FirstType = 0,
+    WebProcess = FirstType,
+    NetworkProcess,
+    TypesCount
+};
+
+namespace Environment {
+bool configureEnvironment(jstringArray envStringsArray) noexcept;
+} // namespace Environment

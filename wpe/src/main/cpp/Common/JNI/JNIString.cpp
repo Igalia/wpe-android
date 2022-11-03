@@ -21,8 +21,6 @@
 
 #include "JNIEnv.h"
 
-using namespace Wpe::Android;
-
 JNI::String::String(const char* str, bool useGlobalRef)
 {
     if (str == nullptr)
