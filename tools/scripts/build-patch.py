@@ -35,6 +35,9 @@ If --arch argument is not specified, default architecture is 'arm64'
 
 You can build any different recipe by specifying --recipe <recipe name> when
 calling the script.
+
+Instead of using the built-in Cerbero path from [project root]/build/cerbero,
+you can also specify your own Cerbero path with --cerbero <path> option.
 """
 
 import os
@@ -56,10 +59,14 @@ class BuildPatch:
         self._arch = args["arch"] if "arch" in args else Bootstrap.default_arch
         self._recipe = args["recipe"] if "recipe" in args else self.default_recipe
 
+        self._external_cerbero_path = args["cerbero"] if "cerbero" in args else None
+        if self._external_cerbero_path:
+            self._external_cerbero_path = os.path.realpath(self._external_cerbero_path)
+
         self._project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
         self._project_build_dir = os.path.join(self._project_root_dir, "build")
         self._sysroot_dir = os.path.join(self._project_build_dir, "sysroot", self._arch)
-        self._cerbero_root_dir = os.path.join(self._project_build_dir, "cerbero")
+        self._cerbero_root_dir = self._external_cerbero_path or os.path.join(self._project_build_dir, "cerbero")
         self._cerbero_dist_dir = os.path.join(self._cerbero_root_dir, "build", "dist", f"android_{self._arch}")
 
         cerbero_arch_suffix = self._arch.replace("_", "-")
@@ -91,7 +98,7 @@ class BuildPatch:
 
     def run(self):
         self.copy_built_files_to_sysroot(self.build_recipe())
-        Bootstrap({"arch": self._arch}).install_deps()
+        Bootstrap({"arch": self._arch, "cerbero": self._external_cerbero_path}).install_deps()
 
 
 if __name__ == "__main__":
@@ -104,6 +111,7 @@ if __name__ == "__main__":
                         choices=["arm64", "armv7", "x86", "x86_64"], help="The target architecture")
     parser.add_argument("-r", "--recipe", metavar="recipe", required=False, default=BuildPatch.default_recipe,
                         help="Specify the Cerbero recipe to build")
+    parser.add_argument("-c", "--cerbero", metavar="path", required=False, help="Path to an external Cerbero build")
 
     args = parser.parse_args()
     print(args)
