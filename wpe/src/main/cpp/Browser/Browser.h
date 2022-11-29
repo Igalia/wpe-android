@@ -44,6 +44,8 @@ public:
     ~Browser() { jniShut(); }
 
     WebKitWebContext* webContext() const noexcept { return m_webContext.get(); }
+    WebKitWebsiteDataManager* websiteDataManager() const noexcept { return m_websiteDataManager.get(); }
+    WebKitCookieManager* cookieManager() const noexcept;
 
     void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
