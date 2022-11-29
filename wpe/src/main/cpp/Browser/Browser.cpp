@@ -162,6 +162,8 @@ void Browser::jniInit(const char* dataDir, const char* cacheDir)
             [](auto* ptr) { g_object_unref(ptr); }};
     m_webContext = {webkit_web_context_new_with_website_data_manager(m_websiteDataManager.get()),
         [](auto* ptr) { g_object_unref(ptr); }};
+
+    webkit_cookie_manager_set_accept_policy(cookieManager(), WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 }
 
 void Browser::jniShut() noexcept
@@ -178,4 +180,9 @@ void Browser::jniShut() noexcept
 void Browser::invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
 {
     m_messagePump->invoke(onExec, onDestroy, userData);
+}
+
+WebKitCookieManager* Browser::cookieManager() const noexcept
+{
+    return webkit_website_data_manager_get_cookie_manager(m_websiteDataManager.get());
 }

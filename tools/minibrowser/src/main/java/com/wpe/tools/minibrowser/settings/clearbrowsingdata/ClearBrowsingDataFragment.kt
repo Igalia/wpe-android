@@ -31,6 +31,7 @@ import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
 import com.wpe.tools.minibrowser.R
 import com.wpe.tools.minibrowser.databinding.FragmentClearBrowsingDataBinding
+import com.wpe.wpeview.WPECookieManager
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
 
@@ -51,6 +52,13 @@ class ClearBrowsingDataFragment : Fragment(R.layout.fragment_clear_browsing_data
         }
         toolbar.setNavigationOnClickListener {
             findNavController().popBackStack()
+        }
+
+        binding.cookiesItem.onCheckListener = {
+                when (it) {
+                    true -> binding.btnClearData.isEnabled = true
+                    else -> binding.btnClearData.isEnabled = false
+                }
         }
 
         binding.btnClearData.setOnClickListener {
@@ -79,13 +87,22 @@ class ClearBrowsingDataFragment : Fragment(R.layout.fragment_clear_browsing_data
     }
 
     private fun clearSelected() {
-        // TODO: Do actual clearing in WPEView
+        if (binding.cookiesItem.isChecked) {
+            WPECookieManager.getInstance().removeAllCookies {
+                Snackbar.make(
+                    requireView(),
+                    R.string.preferences_clear_browsing_data_snackbar,
+                    Snackbar.LENGTH_SHORT
+                ).show()
 
-        Snackbar.make(
-            requireView(),
-            R.string.preferences_clear_browsing_data_snackbar,
-            Snackbar.LENGTH_SHORT).show()
+                navigateBack()
+            }
+        } else {
+            navigateBack()
+        }
+    }
 
+    private fun navigateBack() {
         viewLifecycleOwner.lifecycleScope.launch(Main) {
             findNavController().apply {
                 popBackStack(R.id.browserFragment, false)

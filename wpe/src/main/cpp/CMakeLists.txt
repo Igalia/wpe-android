@@ -96,6 +96,7 @@ target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib})
 add_library(
     WPEAndroidBrowser SHARED
     Browser/Browser.cpp
+    Browser/WPECookieManager.cpp
     Browser/EntryPoint.cpp
     Browser/InputMethodContext.cpp
     Browser/LooperThread.cpp
