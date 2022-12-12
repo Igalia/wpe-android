@@ -1,8 +1,10 @@
-name: CI build
+name: Build
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
 
 jobs:
   check-format:
@@ -36,11 +38,8 @@ jobs:
           cmake -S. -Bbuild && \
           cmake --build build --target run
 
-  build:
+  build-code:
     needs: [check-format, check-jni]
-    strategy:
-      matrix:
-        build_type: [Release, Debug]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -59,14 +58,14 @@ jobs:
       - name: Build Project
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: assemble${{ matrix.build_type }}
+          arguments: assemble${{ inputs.build_type }}
       - name: Save MiniBrowser Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: minibrowser-${{ matrix.build_type }}
+          name: minibrowser-${{ inputs.build_type }}
           path: tools/minibrowser/build/outputs/apk/**/*.apk
       - name: Save Mediaplayer Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: mediaplayer-${{ matrix.build_type }}
+          name: mediaplayer-${{ inputs.build_type }}
           path: tools/mediaplayer/build/outputs/apk/**/*.apk

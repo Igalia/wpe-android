@@ -1,0 +1,14 @@
+name: Build Feature Branch
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        build_type: [Release, Debug]
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: ${{ matrix.build_type }}
