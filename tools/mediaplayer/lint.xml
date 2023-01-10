@@ -3,4 +3,5 @@
     <issue id="all" severity="error" />
     <issue id="LogConditional" severity="ignore" />
     <issue id="InvalidPackage" severity="ignore" />
+    <issue id="MonochromeLauncherIcon" severity="ignore" />
 </lint>
