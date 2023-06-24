@@ -5,8 +5,8 @@ plugins {
 android {
     namespace 'com.wpe.wpe'
     compileSdk 33
-    buildToolsVersion '33.0.1'
-    ndkVersion '25.1.8937393'
+    buildToolsVersion '34.0.0'
+    ndkVersion '25.2.9519653'
 
     defaultConfig {
         minSdk 29
@@ -39,6 +39,9 @@ android {
     //        entry for each Service we expect to launch. This magic number is taken from GeckoView,
     //        which uses a similar approach.
     final NUMBER_OF_AUX_PROCESSES = 40
+    buildFeatures {
+        aidl true
+    }
 
     libraryVariants.all { variant ->
         def genDir = new File(project.buildDir, "generated/source/services/${variant.name}")
@@ -83,7 +86,7 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.5.0'
+    implementation 'androidx.annotation:annotation:1.6.0'
 }
 
 gradle.afterProject { project ->
