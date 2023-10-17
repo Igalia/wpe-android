@@ -6,12 +6,11 @@ plugins {
 
 android {
     namespace 'com.wpe.tools.minibrowser'
-    compileSdk 33
-    buildToolsVersion '33.0.1'
+    compileSdk 34
 
     defaultConfig {
-        minSdk 29
-        targetSdk 33
+        minSdk 31
+        targetSdk 34
         versionCode 1
         versionName '1.0'
     }
@@ -46,12 +45,12 @@ android {
 dependencies {
     implementation project(':wpe')
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
-    implementation 'androidx.core:core-ktx:1.10.1'
-    implementation 'androidx.fragment:fragment-ktx:1.6.0'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.6.0'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.6.0'
-    implementation 'androidx.preference:preference-ktx:1.2.0'
+    implementation 'com.google.android.material:material:1.10.0'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.fragment:fragment-ktx:1.6.1'
+    implementation 'androidx.navigation:navigation-fragment-ktx:2.7.4'
+    implementation 'androidx.navigation:navigation-ui-ktx:2.7.4'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
 
     modules {
         module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") {

@@ -21,10 +21,12 @@
 
 #pragma once
 
-#include "ExportedBuffer.h"
+#include "ScopedWPEAndroidBuffer.h"
 
 #include <android/native_window.h>
 #include <memory>
+
+#include "ScopedFD.h"
 
 class Renderer {
 public:
@@ -44,5 +46,5 @@ public:
     virtual void onSurfaceRedrawNeeded() noexcept = 0;
     virtual void onSurfaceDestroyed() noexcept = 0;
 
-    virtual void handleExportedBuffer(std::shared_ptr<ExportedBuffer> buffer) noexcept = 0;
+    virtual void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) = 0;
 };

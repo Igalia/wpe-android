@@ -4,19 +4,18 @@ plugins {
 
 android {
     namespace 'com.wpe.tools.mediaplayer'
-    compileSdk 33
-    buildToolsVersion '33.0.1'
+    compileSdk 34
 
     defaultConfig {
-        minSdk 29
-        targetSdk 33
+        minSdk 31
+        targetSdk 34
         versionCode 1
         versionName '1.0'
     }
 
     buildTypes {
         release {
-            minifyEnabled true
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
     }

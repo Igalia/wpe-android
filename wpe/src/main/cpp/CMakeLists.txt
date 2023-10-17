@@ -36,6 +36,7 @@ endfunction()
 
 find_library(android-lib android REQUIRED)
 find_library(log-lib log REQUIRED)
+find_library(sync-lib sync REQUIRED)
 
 # ######################################################################################################################
 # Imported external libraries
@@ -90,7 +91,7 @@ add_library(WPEAndroidCommon SHARED Common/Environment.cpp Common/Logging.cpp Co
                                     Common/JNI/JNIEnv.cpp Common/JNI/JNIString.cpp)
 target_configure_quality(WPEAndroidCommon)
 target_include_directories(WPEAndroidCommon INTERFACE Common)
-target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib})
+target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib} ${sync-lib})
 
 # libWPEAndroidBrowser
 add_library(
@@ -98,12 +99,14 @@ add_library(
     Browser/Browser.cpp
     Browser/WPECookieManager.cpp
     Browser/EntryPoint.cpp
+    Browser/Fence.cpp
     Browser/InputMethodContext.cpp
     Browser/LooperThread.cpp
     Browser/MessagePump.cpp
     Browser/Page.cpp
     Browser/PageSettings.cpp
-    Browser/RendererASurfaceTransaction.cpp)
+    Browser/RendererSurfaceControl.cpp
+    Browser/SurfaceControl.cpp)
 target_configure_quality(WPEAndroidBrowser)
 target_compile_definitions(WPEAndroidBrowser PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(

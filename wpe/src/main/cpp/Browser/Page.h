@@ -27,9 +27,10 @@
 #include "Renderer.h"
 
 #include <vector>
-#include <wpe-android/view-backend-exportable.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "com/wpe/wpe/Page");
+
+struct WPEAndroidViewBackend;
 
 class Page final : public InputMethodContextObserver {
 public:
@@ -49,6 +50,8 @@ public:
     void onInputMethodContextIn() noexcept override;
     void onInputMethodContextOut() noexcept override;
 
+    void commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept;
+
 private:
     friend class JNIPageCache;
 
@@ -58,10 +61,8 @@ private:
     InputMethodContext m_inputMethodContext;
     std::shared_ptr<Renderer> m_renderer;
 
-    wpe_android_view_backend_exportable* m_viewBackendExportable = nullptr;
+    WPEAndroidViewBackend* m_viewBackend = nullptr;
     WebKitWebView* m_webView = nullptr;
     std::vector<gulong> m_signalHandlers;
     bool m_isFullscreenRequested = false;
-
-    void handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer) noexcept;
 };

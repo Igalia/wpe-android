@@ -21,43 +21,49 @@
 #pragma once
 
 #include <android/hardware_buffer.h>
+#include <memory>
+#include <wpe-android/view-backend.h>
 
-class ExportedBuffer final {
+#include "ScopedFD.h"
+
+class ScopedWPEAndroidBuffer final {
 public:
-    ExportedBuffer(AHardwareBuffer* buffer, uint32_t poolId, uint32_t bufferId)
+    ScopedWPEAndroidBuffer(WPEAndroidBuffer* buffer)
         : m_buffer(buffer)
-        , m_poolId(poolId)
-        , m_bufferId(bufferId)
     {
         if (m_buffer != nullptr) {
-            AHardwareBuffer_acquire(m_buffer);
+            m_hardwareBuffer = WPEAndroidBuffer_getAHardwareBuffer(m_buffer);
+            AHardwareBuffer_acquire(m_hardwareBuffer);
             AHardwareBuffer_Desc desc = {};
-            AHardwareBuffer_describe(m_buffer, &desc);
+            AHardwareBuffer_describe(m_hardwareBuffer, &desc);
             m_size = {desc.width, desc.height};
         }
     }
 
-    ExportedBuffer(ExportedBuffer&&) = delete;
-    ExportedBuffer& operator=(ExportedBuffer&&) = delete;
-    ExportedBuffer(const ExportedBuffer&) = delete;
-    ExportedBuffer& operator=(const ExportedBuffer&) = delete;
+    ScopedWPEAndroidBuffer(ScopedWPEAndroidBuffer&&) = delete;
+    ScopedWPEAndroidBuffer& operator=(ScopedWPEAndroidBuffer&&) = delete;
+    ScopedWPEAndroidBuffer(const ScopedWPEAndroidBuffer&) = delete;
+    ScopedWPEAndroidBuffer& operator=(const ScopedWPEAndroidBuffer&) = delete;
 
-    ~ExportedBuffer()
+    ~ScopedWPEAndroidBuffer()
     {
         if (m_buffer != nullptr)
-            AHardwareBuffer_release(m_buffer);
+            AHardwareBuffer_release(m_hardwareBuffer);
     }
 
-    AHardwareBuffer* buffer() const noexcept { return m_buffer; }
-    uint32_t poolId() const noexcept { return m_poolId; }
-    uint32_t bufferId() const noexcept { return m_bufferId; }
+    WPEAndroidBuffer* wpeBuffer() const { return m_buffer; }
+    AHardwareBuffer* buffer() const noexcept { return WPEAndroidBuffer_getAHardwareBuffer(m_buffer); }
     uint32_t width() const noexcept { return m_size.m_width; }
     uint32_t height() const noexcept { return m_size.m_height; }
 
+    int getReleaseFenceFD() const { return m_releaseFenceFD->get(); }
+    void setReleaseFenceFD(std::shared_ptr<ScopedFD> releaseFenceFD) { m_releaseFenceFD = std::move(releaseFenceFD); }
+
 private:
-    AHardwareBuffer* m_buffer;
-    uint32_t m_poolId;
-    uint32_t m_bufferId;
+    WPEAndroidBuffer* m_buffer = nullptr;
+    ;
+    AHardwareBuffer* m_hardwareBuffer = nullptr;
+    std::shared_ptr<ScopedFD> m_releaseFenceFD;
     struct {
         uint32_t m_width;
         uint32_t m_height;
