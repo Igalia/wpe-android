@@ -108,7 +108,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-a", "--arch", metavar="architecture", required=False, default=Bootstrap.default_arch,
-                        choices=["arm64", "armv7", "x86", "x86_64"], help="The target architecture")
+                        choices=["arm64", "x86_64"], help="The target architecture")
     parser.add_argument("-r", "--recipe", metavar="recipe", required=False, default=BuildPatch.default_recipe,
                         help="Specify the Cerbero recipe to build")
     parser.add_argument("-c", "--cerbero", metavar="path", required=False, help="Path to an external Cerbero build")

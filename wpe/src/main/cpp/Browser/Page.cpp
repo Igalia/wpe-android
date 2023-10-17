@@ -24,10 +24,21 @@
 
 #include "Browser.h"
 #include "Logging.h"
-#include "RendererASurfaceTransaction.h"
+#include "RendererSurfaceControl.h"
 
 #include <android/native_window_jni.h>
 #include <unistd.h>
+#include <wpe-android/view-backend.h>
+
+namespace {
+
+void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
+{
+    auto* page = static_cast<Page*>(context);
+    page->commitBuffer(buffer, fenceID);
+}
+
+} // namespace
 
 /***********************************************************************************************************************
  * JNI mapping with Java Page class
@@ -69,14 +80,14 @@ public:
 
     static bool onFullscreenRequest(Page* page, bool fullscreen) noexcept
     {
-        if (page->m_viewBackendExportable != nullptr) {
+        if (page->m_viewBackend != nullptr) {
             page->m_isFullscreenRequested = fullscreen;
             if (fullscreen) {
                 callJavaMethod(getJNIPageCache().m_onEnterFullscreenMode, page->m_pageJavaInstance.get());
             } else {
                 callJavaMethod(getJNIPageCache().m_onExitFullscreenMode, page->m_pageJavaInstance.get());
                 wpe_view_backend_dispatch_did_exit_fullscreen(
-                    wpe_android_view_backend_exportable_get_view_backend(page->m_viewBackendExportable));
+                    WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend));
             }
         }
 
@@ -256,11 +267,11 @@ void JNIPageCache::nativeSurfaceChanged(
 {
     Logging::logDebug("Page::nativeSurfaceChanged(%d, %d, %d) [tid %d]", format, width, height, gettid());
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if ((page != nullptr) && (page->m_viewBackendExportable != nullptr) && page->m_renderer) {
+    if ((page != nullptr) && (page->m_viewBackend != nullptr) && page->m_renderer) {
         uint32_t uWidth = std::max(0, width);
         uint32_t uHeight = std::max(0, height);
         wpe_view_backend_dispatch_set_size(
-            wpe_android_view_backend_exportable_get_view_backend(page->m_viewBackendExportable), uWidth, uHeight);
+            WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend), uWidth, uHeight);
         page->m_renderer->onSurfaceChanged(format, uWidth, uHeight);
     }
 }
@@ -292,9 +303,8 @@ void JNIPageCache::nativeSetZoomLevel(JNIEnv* /*env*/, jobject /*obj*/, jlong pa
 void JNIPageCache::nativeOnTouchEvent(
     JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jlong time, jint type, jfloat xCoord, jfloat yCoord) noexcept
 {
-    Logging::logDebug("Page::nativeOnTouchEvent(%ld, %d, %f, %f) [tid %d]", time, type, xCoord, yCoord, gettid());
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if ((page != nullptr) && (page->m_viewBackendExportable != nullptr)) {
+    if ((page != nullptr) && (page->m_viewBackend != nullptr)) {
         wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
         switch (type) {
         case 0:
@@ -327,7 +337,7 @@ void JNIPageCache::nativeOnTouchEvent(
             .modifiers = 0};
 
         wpe_view_backend_dispatch_touch_event(
-            wpe_android_view_backend_exportable_get_view_backend(page->m_viewBackendExportable), &touchEvent);
+            WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend), &touchEvent);
     }
 }
 
@@ -356,9 +366,8 @@ void JNIPageCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*ob
 {
     Logging::logDebug("Page::nativeRequestExitFullscreenMode() [tid %d]", gettid());
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if ((page != nullptr) && (page->m_viewBackendExportable != nullptr)) {
-        wpe_view_backend_dispatch_request_exit_fullscreen(
-            wpe_android_view_backend_exportable_get_view_backend(page->m_viewBackendExportable));
+    if ((page != nullptr) && (page->m_viewBackend != nullptr)) {
+        wpe_view_backend_dispatch_request_exit_fullscreen(WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend));
     }
 }
 
@@ -372,22 +381,15 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
     : m_pageJavaInstance(JNI::createTypedProtectedRef(env, jniPage, true))
     , m_inputMethodContext(this)
 {
-    static const wpe_android_view_backend_exportable_client s_exportableClient
-        = {.export_buffer = +[](void* data, AHardwareBuffer* buffer, uint32_t poolId, uint32_t bufferId) noexcept {
-              Logging::logDebug("s_exportableClient::export_buffer(%p, %u, %u)", buffer, poolId, bufferId);
-              Page* page = reinterpret_cast<Page*>(data);
-              page->handleExportedBuffer(std::make_shared<ExportedBuffer>(buffer, poolId, bufferId));
-          }};
-
     uint32_t uWidth = std::max(0, width);
     uint32_t uHeight = std::max(0, height);
 
-    m_viewBackendExportable = wpe_android_view_backend_exportable_create(&s_exportableClient, this, uWidth, uHeight);
-    m_renderer = std::make_shared<RendererASurfaceTransaction>(m_viewBackendExportable, uWidth, uHeight);
+    m_viewBackend = WPEAndroidViewBackend_create(uWidth, uHeight);
+    m_renderer = std::make_shared<RendererSurfaceControl>(m_viewBackend, uWidth, uHeight);
 
-    wpe_view_backend* wpeBackend = wpe_android_view_backend_exportable_get_view_backend(m_viewBackendExportable);
-    WebKitWebViewBackend* viewBackend = webkit_web_view_backend_new(wpeBackend,
-        reinterpret_cast<GDestroyNotify>(wpe_android_view_backend_exportable_destroy), m_viewBackendExportable);
+    WPEViewBackend* wpeBackend = WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend);
+    WebKitWebViewBackend* viewBackend = webkit_web_view_backend_new(
+        wpeBackend, reinterpret_cast<GDestroyNotify>(WPEAndroidViewBackend_destroy), m_viewBackend);
 
     m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
@@ -403,6 +405,8 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
 
     wpe_view_backend_set_fullscreen_handler(
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);
+
+    WPEAndroidViewBackend_setCommitBufferHandler(m_viewBackend, this, handleCommitBuffer);
 }
 
 void Page::close() noexcept
@@ -419,7 +423,7 @@ void Page::close() noexcept
 
         webkit_web_view_try_close(m_webView);
 
-        m_viewBackendExportable = nullptr;
+        m_viewBackend = nullptr;
         g_object_unref(m_webView);
         m_webView = nullptr;
     }
@@ -429,20 +433,19 @@ void Page::onInputMethodContextIn() noexcept { getJNIPageCache().onInputMethodCo
 
 void Page::onInputMethodContextOut() noexcept { getJNIPageCache().onInputMethodContextOut(m_pageJavaInstance.get()); }
 
-void Page::handleExportedBuffer(const std::shared_ptr<ExportedBuffer>& exportedBuffer) noexcept
+void Page::commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept
 {
-    if (m_renderer && (m_viewBackendExportable != nullptr)) {
-        Logging::logDebug("Page::handleExportedBuffer(%p) - Size (%ux%u)", exportedBuffer.get(),
-            exportedBuffer->width(), exportedBuffer->height());
+    if (m_renderer && (m_viewBackend != nullptr)) {
+        auto scopedBuffer = std::make_shared<ScopedWPEAndroidBuffer>(buffer);
+        auto scopedFenceFD = std::make_shared<ScopedFD>(fenceFD);
 
-        m_renderer->handleExportedBuffer(exportedBuffer);
-
-        if (m_isFullscreenRequested && (exportedBuffer->width() == m_renderer->width())
-            && (exportedBuffer->height() == m_renderer->height())) {
+        if (m_isFullscreenRequested && (scopedBuffer->width() == m_renderer->width())
+            && (scopedBuffer->height() == m_renderer->height())) {
             Logging::logDebug("Fullscreen ready");
             m_isFullscreenRequested = false;
-            wpe_view_backend_dispatch_did_enter_fullscreen(
-                wpe_android_view_backend_exportable_get_view_backend(m_viewBackendExportable));
+            wpe_view_backend_dispatch_did_enter_fullscreen(WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend));
         }
+
+        m_renderer->commitBuffer(scopedBuffer, scopedFenceFD);
     }
 }

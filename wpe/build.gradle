@@ -4,13 +4,16 @@ plugins {
 
 android {
     namespace 'com.wpe.wpe'
-    compileSdk 33
-    buildToolsVersion '34.0.0'
+    compileSdk 34
     ndkVersion '25.2.9519653'
 
     defaultConfig {
-        minSdk 29
-        targetSdk 33
+        minSdk 31
+        targetSdk 34
+    }
+
+    lintOptions {
+        disable 'ChromeOsAbiSupport'
     }
 
     buildTypes {
@@ -86,13 +89,13 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.6.0'
+    implementation 'androidx.annotation:annotation:1.7.0'
 }
 
 gradle.afterProject { project ->
     if (project == getProject()) {
         def abiList = []
-        for (abi in ['x86_64', 'x86', 'arm64-v8a', 'armeabi-v7a']) {
+        for (abi in ['x86_64', 'arm64-v8a']) {
             if (file("src/main/jniLibs/$abi").isDirectory())
                 abiList.add(abi)
         }

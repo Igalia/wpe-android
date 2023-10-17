@@ -78,7 +78,7 @@ You can optionally create a debug build of WPEWebKit passing the `--debug` optio
 ```
 
 Finally, the bootstrap option accepts the `--arch` option to set the target architecture.
-Currently supported architectures are `arm64`, `armv7`, `x86` and `x86_64`.
+Currently supported architectures are `arm64` and `x86_64`.
 
 
 ### Android Studio

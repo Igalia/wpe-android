@@ -448,10 +448,6 @@ class Bootstrap:
 
         if self._arch == "arm64":
             android_abi = "arm64-v8a"
-        elif self._arch == "armv7":
-            android_abi = "armeabi-v7a"
-        elif self._arch == "x86":
-            android_abi = "x86"
         elif self._arch == "x86_64":
             android_abi = "x86_64"
         else:
@@ -493,7 +489,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-a", "--arch", metavar="architecture", required=False, default=Bootstrap.default_arch,
-                        choices=["arm64", "armv7", "x86", "x86_64", "all"], help="The target architecture")
+                        choices=["arm64", "x86_64", "all"], help="The target architecture")
     parser.add_argument("-v", "--version", metavar="version", required=False, default=Bootstrap.default_version,
                         help="Specify the wpewebkit version to use (ignored if using --cerbero or --build, "
                              "in these cases the version is taken from the Cerbero build)")
@@ -510,7 +506,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.arch == "all":
-        for arch in ["arm64", "armv7", "x86", "x86_64"]:
+        for arch in ["arm64", "x86_64"]:
             args.arch = arch
             print(args)
             Bootstrap(args).run()

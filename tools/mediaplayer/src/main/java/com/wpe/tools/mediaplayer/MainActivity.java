@@ -76,18 +76,8 @@ public class MainActivity extends AppCompatActivity {
         if (hasFocus) {
             View rootView = findViewById(android.R.id.content);
             if (rootView != null) {
-                if (Build.VERSION.SDK_INT >= 30) {
-                    rootView.getWindowInsetsController().hide(WindowInsets.Type.statusBars() |
-                                                              WindowInsets.Type.navigationBars());
-                } else {
-                    rootView = rootView.getRootView();
-                    if (rootView != null) {
-                        rootView.setSystemUiVisibility(
-                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_LOW_PROFILE | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-                    }
-                }
+                rootView.getWindowInsetsController().hide(WindowInsets.Type.statusBars() |
+                                                          WindowInsets.Type.navigationBars());
             }
         }
     }
