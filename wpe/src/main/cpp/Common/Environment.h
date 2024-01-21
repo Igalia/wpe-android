@@ -25,6 +25,7 @@ enum class ProcessType : jint {
     FirstType = 0,
     WebProcess = FirstType,
     NetworkProcess,
+    WebDriverProcess,
     TypesCount
 };
 

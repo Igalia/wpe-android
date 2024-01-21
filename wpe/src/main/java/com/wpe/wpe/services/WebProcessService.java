@@ -30,6 +30,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.wpe.wpe.Browser;
 import com.wpe.wpe.ProcessType;
 
 import org.freedesktop.gstreamer.GStreamer;

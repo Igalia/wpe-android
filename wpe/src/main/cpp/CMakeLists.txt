@@ -82,6 +82,10 @@ set_target_properties(
     WPEBackend PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend-android.so"
                           INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include")
 
+add_library(WPEWebDriver SHARED IMPORTED)
+set_target_properties(WPEWebDriver PROPERTIES IMPORTED_LOCATION
+                                              "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebDriver.so")
+
 # ######################################################################################################################
 # Built libraries
 # ######################################################################################################################
@@ -131,4 +135,5 @@ target_link_libraries(
     gmodule-2.0
     WPEBackend
     WPEWebKit-1.0
-    WPEAndroidCommon)
+    WPEAndroidCommon
+    WPEWebDriver)

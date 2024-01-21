@@ -8,6 +8,8 @@
         android:name="android.software.leanback"
         android:required="false" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:banner="@drawable/banner"
         android:icon="@mipmap/ic_launcher"

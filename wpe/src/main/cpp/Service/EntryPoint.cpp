@@ -49,10 +49,10 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
     Logging::pipeStdoutToLogcat();
 
     static constexpr const char* const processName[static_cast<int>(ProcessType::TypesCount)]
-        = {"WPEWebProcess", "WPENetworkProcess"};
+        = {"WPEWebProcess", "WPENetworkProcess", "WPEWebDriverProcess"};
 
     static constexpr const char* const entrypointName[static_cast<int>(ProcessType::TypesCount)]
-        = {"android_WebProcess_main", "android_NetworkProcess_main"};
+        = {"android_WebProcess_main", "android_NetworkProcess_main", "android_WebDriverProcess_main"};
 
     using ProcessEntryPoint = int(int, char**);
     auto* entrypoint
@@ -61,17 +61,34 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
         processName[static_cast<int>(processType)], fileDesc, entrypoint);
 
     static constexpr size_t NUMBER_BUFFER_SIZE = 32;
-    char pidString[NUMBER_BUFFER_SIZE];
-    (void)snprintf(pidString, NUMBER_BUFFER_SIZE, "%" PRIu64, static_cast<uint64_t>(pid));
-    char fdString[NUMBER_BUFFER_SIZE];
-    (void)snprintf(fdString, NUMBER_BUFFER_SIZE, "%d", fileDesc);
+    char arg1String[NUMBER_BUFFER_SIZE];
+    char arg2String[NUMBER_BUFFER_SIZE];
+    char arg3String[NUMBER_BUFFER_SIZE];
 
-    char* argv[3];
+    int numArgs = 3;
+
+    if (processType != ProcessType::WebDriverProcess) {
+        (void)snprintf(arg1String, NUMBER_BUFFER_SIZE, "%" PRIu64, static_cast<uint64_t>(pid));
+        (void)snprintf(arg2String, NUMBER_BUFFER_SIZE, "%d", fileDesc);
+
+    } else {
+        numArgs = 4;
+
+        (void)snprintf(arg1String, NUMBER_BUFFER_SIZE, "--port=8888");
+        (void)snprintf(arg2String, NUMBER_BUFFER_SIZE, "--host=all");
+        (void)snprintf(arg3String, NUMBER_BUFFER_SIZE, "--target=127.0.0.1:8889");
+    }
+
+    char* argv[numArgs];
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     argv[0] = const_cast<char*>(processName[static_cast<int>(processType)]);
-    argv[1] = pidString;
-    argv[2] = fdString;
-    (*entrypoint)(3, argv);
+    argv[1] = arg1String;
+    argv[2] = arg2String;
+    if (numArgs > 3) {
+        argv[3] = arg3String;
+    }
+
+    (*entrypoint)(numArgs, argv);
 }
 } // namespace
 

@@ -38,6 +38,24 @@ void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
     page->commitBuffer(buffer, fenceID);
 }
 
+WebKitWebView* createWebViewForAutomationCallback(WebKitAutomationSession* /*session*/, WebKitWebView* view)
+{
+    Logging::logDebug("createWebViewForAutomationCallback");
+    return view;
+}
+
+void automationStartedCallback(WebKitWebContext* /*context*/, WebKitAutomationSession* session, WebKitWebView* view)
+{
+    Logging::logDebug("AUTOMATIONSTARTED");
+    auto* info = webkit_application_info_new();
+    webkit_application_info_set_name(info, "MiniBrowser");
+    webkit_application_info_set_version(info, WEBKIT_MAJOR_VERSION, WEBKIT_MINOR_VERSION, WEBKIT_MICRO_VERSION);
+    webkit_automation_session_set_application_info(session, info);
+    webkit_application_info_unref(info);
+
+    g_signal_connect(session, "create-web-view", G_CALLBACK(createWebViewForAutomationCallback), view);
+}
+
 } // namespace
 
 /***********************************************************************************************************************
@@ -391,8 +409,13 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
     WebKitWebViewBackend* viewBackend = webkit_web_view_backend_new(
         wpeBackend, reinterpret_cast<GDestroyNotify>(WPEAndroidViewBackend_destroy), m_viewBackend);
 
-    m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
+    gboolean const automationMode = Browser::instance().automationMode() ? TRUE : FALSE;
+
+    // m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
+    m_webView = WEBKIT_WEB_VIEW(g_object_new(WEBKIT_TYPE_WEB_VIEW, "backend", viewBackend, "web-context",
+        Browser::instance().webContext(), "is-controlled-by-automation", automationMode, nullptr));
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
+    webkit_web_context_set_automation_allowed(Browser::instance().webContext(), automationMode);
 
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "load-changed", G_CALLBACK(JNIPageCache::onLoadChanged), this));
@@ -407,6 +430,17 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);
 
     WPEAndroidViewBackend_setCommitBufferHandler(m_viewBackend, this, handleCommitBuffer);
+
+    if (Browser::instance().automationMode()) {
+        g_signal_connect(
+            Browser::instance().webContext(), "automation-started", G_CALLBACK(automationStartedCallback), m_webView);
+    }
+
+    if (webkit_web_view_is_controlled_by_automation(m_webView) == TRUE) {
+        Logging::logDebug("FOOBAR");
+    } else {
+        Logging::logDebug("FOOBAR - NOT");
+    }
 }
 
 void Page::close() noexcept
