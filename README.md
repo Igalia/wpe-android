@@ -86,6 +86,64 @@ Currently supported architectures are `arm64` and `x86_64`.
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
 you should be able to open the `launcher` demo with Android Studio and run it on a real device.
 
+## WebDriver
+WebDriver support is not yet included in prebuilt packages but wpewebkit needs to be compile
+manually for now and only x86-64 emulator environment is supported.
+
+### 1. Build wpewebkit with webdriver support
+Go to [cerbero](https://github.com/Igalia/cerbero) repository clone and issue
+
+```bash
+./cerbero-uninstalled -c config/cross-android-x86-64.cbc bootstrap
+./cerbero-uninstalled -c config/cross-android-x86-64.cbc package wpewebkit
+```
+### 2. Bootstrap wpe-android with webdriver enabled wpewebkit
+In wpe-android directory issue
+
+```bash
+./tools/scripts/bootstrap.py --arch x86_64 -c <path_to_cerbero>
+```
+### 3. Create python virtual environment for selenium
+Create directory for selenium (to any location you want)
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install selenium
+```
+
+Save following as run_test.py
+
+```bash
+from selenium import webdriver
+
+options = webdriver.WPEWebKitOptions()
+# Custom browser
+options.binary_location = "/"
+# Extra browser arguments
+options.add_argument("--automation")
+# Remove incompatible capabilities keys
+del(options._caps["platform"])
+del(options._caps["version"])
+
+driver = webdriver.Remote(command_executor="http://127.0.0.1:8888", options=options)
+driver.get('http://www.google.com')
+driver.quit()
+```
+### 4. Run webdriver application
+From android studio run webdriver application on x86-64 emulator.
+After emulator has started issue fullowing
+
+```bash
+adb forward tcp:8888 tcp:8888
+```
+### 5. Run WebDriver Selenium tests
+In selenium directory created previously run
+
+```bash
+python3 ./run_test.py
+```
+
 ## Known issues and limitations
 * The universal wpewebkit bootstrap package is not yet supported.
 * The scripts and build have only been tested in Linux.
