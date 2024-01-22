@@ -35,7 +35,7 @@ class WebDriverActivity : AppCompatActivity() {
         val webView = WPEView(applicationContext)
         setContentView(webView);
 
-        //setContentView(R.layout.activity_web_driver)
+        webView.loadUrl("about:blank")
 
         try {
             val processType = ProcessType.WebDriverProcess
