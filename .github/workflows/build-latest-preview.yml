@@ -28,12 +28,14 @@ jobs:
         run: |
           mv -f minibrowser-Debug/debug/minibrowser-debug.apk minibrowser-latest.apk
           mv -f mediaplayer-Debug/debug/mediaplayer-debug.apk mediaplayer-latest.apk
+          mv -f webdriver-Debug/debug/webdriver-debug.apk webdriver-latest.apk
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@v2
         with:
           name: |
             minibrowser-Debug
             mediaplayer-Debug
+            webdriver-Debug
       - name: Upload Latest Preview Files
         uses: softprops/action-gh-release@v1
         with:
@@ -43,3 +45,4 @@ jobs:
           files: |
             minibrowser-latest.apk
             mediaplayer-latest.apk
+            webdriver-latest.apk

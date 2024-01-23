@@ -69,3 +69,8 @@ jobs:
         with:
           name: mediaplayer-${{ inputs.build_type }}
           path: tools/mediaplayer/build/outputs/apk/**/*.apk
+      - name: Save WebDriver Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: webdriver-${{ inputs.build_type }}
+          path: tools/webdriver/build/outputs/apk/**/*.apk
