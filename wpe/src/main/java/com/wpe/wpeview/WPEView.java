@@ -125,6 +125,11 @@ public class WPEView extends FrameLayout {
         }
     }
 
+    public void onClose() {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onCloseWindow(this);
+    }
+
     public void onLoadProgress(double progress) {
         currentLoadProgress = Math.max(0, Math.min(100, (int)Math.round(progress * 100)));
         if (wpeChromeClient != null)
@@ -165,6 +170,13 @@ public class WPEView extends FrameLayout {
     }
 
     /************** PUBLIC WPEView API *******************/
+
+    /**
+     * Destroys the internal state of this WebView. This method should be called
+     * after this WebView has been removed from the view system. No other
+     * methods may be called on this WebView after destroy.
+     */
+    public void destroy() { page.destroy(); }
 
     /**
      * Gets the page associated with this WPEView.

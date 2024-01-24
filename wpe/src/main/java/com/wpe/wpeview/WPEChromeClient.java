@@ -28,6 +28,17 @@ import androidx.annotation.NonNull;
 
 public interface WPEChromeClient {
     /**
+     * Notify the host application to close the given WebView and remove it
+     * from the view system if necessary. At this point, WebCore has stopped
+     * any loading in this window and has removed any cross-scripting ability
+     * in javascript.
+     * <p>
+     *
+     * @param window The WebView that needs to be closed.
+     */
+
+    default void onCloseWindow(@NonNull WPEView window) {}
+    /**
      * Tell the host application the current progress while loading a page.
      * @param view The WPEView that initiated the callback.
      * @param progress Current page loading progress, represented by

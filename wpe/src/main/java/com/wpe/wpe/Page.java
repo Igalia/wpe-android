@@ -160,6 +160,10 @@ public final class Page {
     }
 
     @Keep
+    public void onClose() {
+        wpeView.onClose();
+    }
+    @Keep
     public void onLoadProgress(double progress) {
         wpeView.onLoadProgress(progress);
     }

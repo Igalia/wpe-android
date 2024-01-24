@@ -40,13 +40,11 @@ void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
 
 WebKitWebView* createWebViewForAutomationCallback(WebKitAutomationSession* /*session*/, WebKitWebView* view)
 {
-    Logging::logDebug("createWebViewForAutomationCallback");
     return view;
 }
 
 void automationStartedCallback(WebKitWebContext* /*context*/, WebKitAutomationSession* session, WebKitWebView* view)
 {
-    Logging::logDebug("AUTOMATIONSTARTED");
     auto* info = webkit_application_info_new();
     webkit_application_info_set_name(info, "MiniBrowser");
     webkit_application_info_set_version(info, WEBKIT_MAJOR_VERSION, WEBKIT_MINOR_VERSION, WEBKIT_MICRO_VERSION);
@@ -70,6 +68,11 @@ const JNIPageCache& getJNIPageCache();
 class JNIPageCache final : public JNI::TypedClass<JNIPage> {
 public:
     JNIPageCache();
+
+    static void onClose(Page* page, WebKitWebView* /*webView*/) noexcept
+    {
+        callJavaMethod(getJNIPageCache().m_onClose, page->m_pageJavaInstance.get());
+    }
 
     static void onLoadChanged(Page* page, WebKitLoadEvent loadEvent, WebKitWebView* /*webView*/) noexcept
     {
@@ -127,6 +130,7 @@ private:
         }
     }
 
+    const JNI::Method<void()> m_onClose;
     const JNI::Method<void(jint)> m_onLoadChanged;
     const JNI::Method<void(jdouble)> m_onLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
@@ -166,6 +170,7 @@ const JNIPageCache& getJNIPageCache()
 
 JNIPageCache::JNIPageCache()
     : JNI::TypedClass<JNIPage>(true)
+    , m_onClose(getMethod<void()>("onClose"))
     , m_onLoadChanged(getMethod<void(jint)>("onLoadChanged"))
     , m_onLoadProgress(getMethod<void(jdouble)>("onLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
@@ -417,6 +422,7 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
     webkit_web_context_set_automation_allowed(Browser::instance().webContext(), automationMode);
 
+    m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "close", G_CALLBACK(JNIPageCache::onClose), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "load-changed", G_CALLBACK(JNIPageCache::onLoadChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
@@ -434,12 +440,6 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
     if (Browser::instance().automationMode()) {
         g_signal_connect(
             Browser::instance().webContext(), "automation-started", G_CALLBACK(automationStartedCallback), m_webView);
-    }
-
-    if (webkit_web_view_is_controlled_by_automation(m_webView) == TRUE) {
-        Logging::logDebug("FOOBAR");
-    } else {
-        Logging::logDebug("FOOBAR - NOT");
     }
 }
 

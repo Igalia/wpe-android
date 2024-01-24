@@ -10,11 +10,14 @@ import com.wpe.wpe.Browser
 import com.wpe.wpe.ProcessType
 import com.wpe.wpe.services.WPEServiceConnection
 import com.wpe.wpe.services.WPEServiceConnectionListener
+import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEView
 
 class WebDriverActivity : AppCompatActivity() {
 
     private val LOGTAG = "WebDriver"
+
+    private lateinit var wpeView: WPEView
 
     private val serviceConnectionDelegate: WPEServiceConnectionListener = object : WPEServiceConnectionListener {
         override fun onCleanExit(connection: WPEServiceConnection) {
@@ -27,15 +30,24 @@ class WebDriverActivity : AppCompatActivity() {
         }
     }
 
+    private val wpeChromeClient: WPEChromeClient = object : WPEChromeClient {
+        override fun onCloseWindow(window: WPEView) {
+            Log.d(LOGTAG, "onCloseWindow")
+            setContentView(null)
+            wpeView.destroy()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Browser.getInstance().isAutomationMode = true
 
-        val webView = WPEView(applicationContext)
-        setContentView(webView);
+        wpeView = WPEView(applicationContext)
+        wpeView.wpeChromeClient = wpeChromeClient
+        setContentView(wpeView)
 
-        webView.loadUrl("about:blank")
+        wpeView.loadUrl("about:blank")
 
         try {
             val processType = ProcessType.WebDriverProcess
