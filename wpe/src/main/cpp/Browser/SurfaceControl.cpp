@@ -156,6 +156,12 @@ void SurfaceControl::Transaction::setBuffer(const Surface& surface, AHardwareBuf
     ASurfaceTransaction_setBuffer(m_transaction, surface.surfaceControl(), buffer, fenceFD);
 }
 
+void SurfaceControl::Transaction::setParent(const Surface& surface, Surface* newParent)
+{
+    ASurfaceTransaction_reparent(
+        m_transaction, surface.surfaceControl(), newParent != nullptr ? newParent->surfaceControl() : nullptr);
+}
+
 void SurfaceControl::Transaction::setOnCompleteCallback(OnCompleteCallback callback)
 {
     m_onCompleteCallback = std::move(callback);

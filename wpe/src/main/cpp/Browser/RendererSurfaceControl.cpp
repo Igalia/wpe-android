@@ -36,7 +36,16 @@ RendererSurfaceControl::RendererSurfaceControl(WPEAndroidViewBackend* viewBacken
     Logging::logDebug("RendererSurfaceControl(%p, %u, %u)", m_viewBackend, m_size.m_width, m_size.m_height);
 }
 
-RendererSurfaceControl::~RendererSurfaceControl() { Logging::logDebug("RendererSurfaceControl()"); }
+RendererSurfaceControl::~RendererSurfaceControl()
+{
+    Logging::logDebug("~RendererSurfaceControl()");
+    while (!m_pendingTransactionQueue.empty()) {
+        m_pendingTransactionQueue.front().setParent(*m_surface, nullptr);
+        m_pendingTransactionQueue.front().apply();
+        m_pendingTransactionQueue.pop();
+        m_numTransactionCommitOrAckPending--;
+    }
+}
 
 void RendererSurfaceControl::onSurfaceCreated(ANativeWindow* window) noexcept
 {
