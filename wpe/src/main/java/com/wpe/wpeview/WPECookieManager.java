@@ -19,6 +19,7 @@
 
 package com.wpe.wpeview;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.wpe.wpe.WKCookieManager;
@@ -53,11 +54,11 @@ public final class WPECookieManager {
         this.cookieManager = dataManager.getCookieManager();
     }
 
-    public CookieAcceptPolicy getCookieAcceptPolicy() {
+    public @NonNull CookieAcceptPolicy getCookieAcceptPolicy() {
         return CookieAcceptPolicy.values()[cookieManager.getCookieAcceptPolicy().ordinal()];
     }
 
-    public void setCookieAcceptPolicy(CookieAcceptPolicy policy) {
+    public void setCookieAcceptPolicy(@NonNull CookieAcceptPolicy policy) {
         cookieManager.setCookieAcceptPolicy(WKCookieManager.CookieAcceptPolicy.values()[policy.ordinal()]);
     }
 

@@ -5,7 +5,6 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.wpe.wpe.Page;
 import com.wpe.wpe.WKWebContext;
 
 public class WPEContext {
@@ -35,7 +34,7 @@ public class WPEContext {
         return cookieManager;
     }
 
-    public void setClient(WPEContext.Client client) {
+    public void setClient(@Nullable WPEContext.Client client) {
         this.client = client;
 
         if (client != null) {

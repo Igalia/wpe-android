@@ -54,7 +54,7 @@ public class WKWebsiteDataManager {
         return cookieManager;
     }
 
-    public void clear(EnumSet<WebsiteDataType> websiteDataTypes, @Nullable Callback callback) {
+    public void clear(@NonNull EnumSet<WebsiteDataType> websiteDataTypes, @Nullable Callback callback) {
         int flags = websiteDataTypes.stream().map(WebsiteDataType::getValue).reduce(0, (x, y) -> x | y);
         if (flags != 0) {
             nativeClear(nativePtr, flags, new CallbackHolder(callback));

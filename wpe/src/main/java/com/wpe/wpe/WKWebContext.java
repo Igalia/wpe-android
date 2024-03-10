@@ -49,7 +49,7 @@ public class WKWebContext {
 
     public @NonNull WKWebsiteDataManager getWebsiteDataManager() { return websiteDataManager; }
 
-    public void setClient(Client client) { this.client = client; }
+    public void setClient(@Nullable Client client) { this.client = client; }
 
     @Keep
     private long createPageForAutomation() {
