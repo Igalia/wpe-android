@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
+ * Copyright (C) 2024 Igalia S.L. <info@igalia.com>
  *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -19,7 +19,13 @@
 
 #pragma once
 
-class WPECookieManager final {
+#include "JNI/JNI.h"
+
+#include <wpe/webkit.h>
+
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKCookieManager, "com/wpe/wpe/WKCookieManager");
+
+class WKCookieManager final {
 public:
     static void configureJNIMappings();
 };

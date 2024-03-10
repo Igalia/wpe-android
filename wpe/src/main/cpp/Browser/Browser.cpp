@@ -27,6 +27,7 @@
 #include "LooperThread.h"
 
 #include <string>
+#include <wpe/webkit.h>
 
 /***********************************************************************************************************************
  * JNI mapping with Java Browser class
@@ -89,13 +90,12 @@ JNIBrowserCache::JNIBrowserCache()
                 Logging::pipeStdoutToLogcat();
                 Environment::configureEnvironment(envStringsArray);
             }),
-        JNI::NativeMethod<void(jboolean, jstring, jstring)>(
+        JNI::NativeMethod<void()>(
             "nativeInit",
-            +[](JNIEnv* env, jobject obj, jboolean automationMode, jstring dataDir, jstring cacheDir) {
+            +[](JNIEnv* env, jobject obj) {
                 getJNIBrowserCache().m_browserJavaInstance
                     = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIBrowser>(obj), true);
-                Browser::instance().jniInit(automationMode != 0U, JNI::String(dataDir).getContent().get(),
-                    JNI::String(cacheDir).getContent().get());
+                Browser::instance().jniInit();
             }),
         JNI::NativeMethod<void()>(
             "nativeShut", +[](JNIEnv*, jobject) {
@@ -152,23 +152,10 @@ void Browser::configureJNIMappings()
     wpe_process_provider_register_interface(&s_processProviderInterface);
 }
 
-void Browser::jniInit(bool automationMode, const char* dataDir, const char* cacheDir)
+void Browser::jniInit()
 {
-    Logging::logDebug("Browser::jniInit('%d', '%s', '%s') [tid %d]", automationMode, dataDir, cacheDir, gettid());
-    m_automationMode = automationMode;
+    Logging::logDebug("Browser::jniInit() [tid %d]", gettid());
     m_messagePump = std::make_unique<MessagePump>();
-    if (automationMode) {
-        g_setenv("WEBKIT_INSPECTOR_SERVER", "127.0.0.1:8889", 1);
-        m_websiteDataManager = {webkit_website_data_manager_new_ephemeral(), [](auto* ptr) { g_object_unref(ptr); }};
-    } else {
-        m_websiteDataManager = {
-            webkit_website_data_manager_new("base-data-directory", dataDir, "base-cache-directory", cacheDir, nullptr),
-            [](auto* ptr) { g_object_unref(ptr); }};
-    }
-    m_webContext = {webkit_web_context_new_with_website_data_manager(m_websiteDataManager.get()),
-        [](auto* ptr) { g_object_unref(ptr); }};
-
-    webkit_cookie_manager_set_accept_policy(cookieManager(), WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 }
 
 void Browser::jniShut() noexcept
@@ -176,8 +163,6 @@ void Browser::jniShut() noexcept
     try {
         Logging::logDebug("Browser::jniShut() [tid %d]", gettid());
         m_messagePump = nullptr;
-        m_websiteDataManager = nullptr;
-        m_webContext = nullptr;
     } catch (...) {
     }
 }
@@ -185,9 +170,4 @@ void Browser::jniShut() noexcept
 void Browser::invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
 {
     m_messagePump->invoke(onExec, onDestroy, userData);
-}
-
-WebKitCookieManager* Browser::cookieManager() const noexcept
-{
-    return webkit_website_data_manager_get_cookie_manager(m_websiteDataManager.get());
 }

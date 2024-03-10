@@ -24,8 +24,6 @@
 
 #include "MessagePump.h"
 
-#include <wpe/webkit.h>
-
 class Browser final {
 public:
     static void configureJNIMappings();
@@ -43,25 +41,14 @@ public:
 
     ~Browser() { jniShut(); }
 
-    bool automationMode() const noexcept { return m_automationMode; }
-
-    WebKitWebContext* webContext() const noexcept { return m_webContext.get(); }
-    WebKitWebsiteDataManager* websiteDataManager() const noexcept { return m_websiteDataManager.get(); }
-    WebKitCookieManager* cookieManager() const noexcept;
-
     void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
     Browser() = default;
 
     friend class JNIBrowserCache;
-    void jniInit(bool automationMode, const char* dataDir, const char* cacheDir);
+    void jniInit();
     void jniShut() noexcept;
 
-    template <typename T> using ProtectedUniquePointer = std::unique_ptr<T, std::function<void(T*)>>;
-
-    bool m_automationMode = false;
     std::unique_ptr<MessagePump> m_messagePump {};
-    ProtectedUniquePointer<WebKitWebsiteDataManager> m_websiteDataManager {};
-    ProtectedUniquePointer<WebKitWebContext> m_webContext {};
 };

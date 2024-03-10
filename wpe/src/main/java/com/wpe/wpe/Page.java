@@ -58,7 +58,7 @@ public final class Page {
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
-    private native long nativeInit(int width, int height);
+    private native long nativeInit(long nativeContextPtr, int width, int height);
     private native void nativeClose(long nativePtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, @NonNull String url);
@@ -91,13 +91,13 @@ public final class Page {
     private boolean canGoForward = true;
     protected boolean ignoreTouchEvents = false;
 
-    public Page(@NonNull WPEView wpeView) {
+    public Page(@NonNull WPEView wpeView, @NonNull WKWebContext context) {
         Log.v(LOGTAG, "Creating Page: " + this);
 
         this.wpeView = wpeView;
         width = wpeView.getMeasuredWidth();
         height = wpeView.getMeasuredHeight();
-        nativePtr = nativeInit(width, height);
+        nativePtr = nativeInit(context.getNativePtr(), width, height);
 
         Context ctx = wpeView.getContext();
         surfaceView = new PageSurfaceView(ctx);

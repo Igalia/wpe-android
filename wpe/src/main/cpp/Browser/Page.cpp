@@ -25,6 +25,7 @@
 #include "Browser.h"
 #include "Logging.h"
 #include "RendererSurfaceControl.h"
+#include "WKWebContext.h"
 
 #include <android/native_window_jni.h>
 #include <unistd.h>
@@ -36,22 +37,6 @@ void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
 {
     auto* page = static_cast<Page*>(context);
     page->commitBuffer(buffer, fenceID);
-}
-
-WebKitWebView* createWebViewForAutomationCallback(WebKitAutomationSession* /*session*/, WebKitWebView* view)
-{
-    return view;
-}
-
-void automationStartedCallback(WebKitWebContext* /*context*/, WebKitAutomationSession* session, WebKitWebView* view)
-{
-    auto* info = webkit_application_info_new();
-    webkit_application_info_set_name(info, "MiniBrowser");
-    webkit_application_info_set_version(info, WEBKIT_MAJOR_VERSION, WEBKIT_MINOR_VERSION, WEBKIT_MICRO_VERSION);
-    webkit_automation_session_set_application_info(session, info);
-    webkit_application_info_unref(info);
-
-    g_signal_connect(session, "create-web-view", G_CALLBACK(createWebViewForAutomationCallback), view);
 }
 
 } // namespace
@@ -140,7 +125,7 @@ private:
     const JNI::Method<void()> m_onEnterFullscreenMode;
     const JNI::Method<void()> m_onExitFullscreenMode;
 
-    static jlong nativeInit(JNIEnv* env, jobject obj, jint width, jint height);
+    static jlong nativeInit(JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height);
     static void nativeClose(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeLoadUrl(JNIEnv* env, jobject obj, jlong pagePtr, jstring url) noexcept;
@@ -180,7 +165,7 @@ JNIPageCache::JNIPageCache()
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
     , m_onExitFullscreenMode(getMethod<void()>("onExitFullscreenMode"))
 {
-    registerNativeMethods(JNI::NativeMethod<jlong(jint, jint)>("nativeInit", JNIPageCache::nativeInit),
+    registerNativeMethods(JNI::NativeMethod<jlong(jlong, jint, jint)>("nativeInit", JNIPageCache::nativeInit),
         JNI::NativeMethod<void(jlong)>("nativeClose", JNIPageCache::nativeClose),
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIPageCache::nativeDestroy),
         JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", JNIPageCache::nativeLoadUrl),
@@ -203,11 +188,12 @@ JNIPageCache::JNIPageCache()
             "nativeRequestExitFullscreenMode", JNIPageCache::nativeRequestExitFullscreenMode));
 }
 
-jlong JNIPageCache::nativeInit(JNIEnv* env, jobject obj, jint width, jint height)
+jlong JNIPageCache::nativeInit(JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height)
 {
     Logging::logDebug("Page::nativeInit(%p, %d, %d) [tid %d]", obj, width, height, gettid());
+    auto* wkWebContext = reinterpret_cast<WKWebContext*>(wkWebContextPtr); // NOLINT(performance-no-int-to-ptr)
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    Page* page = new Page(env, reinterpret_cast<JNIPage>(obj), width, height);
+    Page* page = new Page(env, reinterpret_cast<JNIPage>(obj), wkWebContext, width, height);
     return reinterpret_cast<jlong>(page);
 }
 
@@ -400,7 +386,7 @@ void JNIPageCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*ob
 
 void Page::configureJNIMappings() { getJNIPageCache(); }
 
-Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
+Page::Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height)
     : m_pageJavaInstance(JNI::createTypedProtectedRef(env, jniPage, true))
     , m_inputMethodContext(this)
 {
@@ -414,13 +400,11 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
     WebKitWebViewBackend* viewBackend = webkit_web_view_backend_new(
         wpeBackend, reinterpret_cast<GDestroyNotify>(WPEAndroidViewBackend_destroy), m_viewBackend);
 
-    gboolean const automationMode = Browser::instance().automationMode() ? TRUE : FALSE;
+    gboolean const automationMode = wkWebContext->automationMode() ? TRUE : FALSE;
 
-    // m_webView = webkit_web_view_new_with_context(viewBackend, Browser::instance().webContext());
     m_webView = WEBKIT_WEB_VIEW(g_object_new(WEBKIT_TYPE_WEB_VIEW, "backend", viewBackend, "web-context",
-        Browser::instance().webContext(), "is-controlled-by-automation", automationMode, nullptr));
+        wkWebContext->webContext(), "is-controlled-by-automation", automationMode, nullptr));
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
-    webkit_web_context_set_automation_allowed(Browser::instance().webContext(), automationMode);
 
     m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "close", G_CALLBACK(JNIPageCache::onClose), this));
     m_signalHandlers.push_back(
@@ -436,11 +420,6 @@ Page::Page(JNIEnv* env, JNIPage jniPage, int width, int height)
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);
 
     WPEAndroidViewBackend_setCommitBufferHandler(m_viewBackend, this, handleCommitBuffer);
-
-    if (Browser::instance().automationMode()) {
-        g_signal_connect(
-            Browser::instance().webContext(), "automation-started", G_CALLBACK(automationStartedCallback), m_webView);
-    }
 }
 
 void Page::close() noexcept

@@ -48,7 +48,7 @@ public final class Browser {
 
     protected static native void startNativeLooper();
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
-    private native void nativeInit(boolean automationMode, @NonNull String dataDir, @NonNull String cacheDir);
+    private native void nativeInit();
     private native void nativeShut();
 
     private static final Browser singleton = new Browser();
@@ -63,17 +63,12 @@ public final class Browser {
 
     private LooperHelperThread looperHelperThread = null;
 
-    boolean automationMode = false;
-
-    public boolean isAutomationMode() { return automationMode; }
-    public void setAutomationMode(boolean enabled) { automationMode = enabled; }
-
     public void initialize(@NonNull Context context) {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
             setupNativeEnvironment(
                 new String[] {"GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()});
-            nativeInit(automationMode, context.getDataDir().getAbsolutePath(), context.getCacheDir().getAbsolutePath());
+            nativeInit();
             looperHelperThread = new LooperHelperThread();
         }
     }

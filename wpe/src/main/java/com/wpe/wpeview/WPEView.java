@@ -35,7 +35,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
-import com.wpe.wpe.Browser;
 import com.wpe.wpe.Page;
 
 /**
@@ -48,18 +47,33 @@ import com.wpe.wpe.Page;
 public class WPEView extends FrameLayout {
     private static final String LOGTAG = "WPEView";
 
+    private WPEContext wpeContext;
+    private boolean ownsContext;
+
     private final Page page;
 
     public WPEView(@NonNull Context context) {
         super(context);
-        Browser.getInstance().initialize(context);
-        page = new Page(this);
+
+        wpeContext = new WPEContext(context);
+        ownsContext = true;
+        page = new Page(this, wpeContext.getWebContext());
     }
 
     public WPEView(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        Browser.getInstance().initialize(context);
-        page = new Page(this);
+
+        wpeContext = new WPEContext(context);
+        ownsContext = true;
+        page = new Page(this, wpeContext.getWebContext());
+    }
+
+    public WPEView(@NonNull WPEContext context) {
+        super(context.getApplicationContext());
+
+        wpeContext = context;
+        ownsContext = false;
+        page = new Page(this, wpeContext.getWebContext());
     }
 
     private SurfaceView surfaceView = null;
@@ -176,7 +190,12 @@ public class WPEView extends FrameLayout {
      * after this WebView has been removed from the view system. No other
      * methods may be called on this WebView after destroy.
      */
-    public void destroy() { page.destroy(); }
+    public void destroy() {
+        page.destroy();
+        if (ownsContext) {
+            wpeContext.destroy();
+        }
+    }
 
     /**
      * Gets the page associated with this WPEView.
@@ -308,4 +327,6 @@ public class WPEView extends FrameLayout {
      * @param client An implementation of SurfaceClient.
      */
     public void setSurfaceClient(@Nullable SurfaceClient client) { surfaceClient = client; }
+
+    public @NonNull WPECookieManager getCookieManager() { return wpeContext.getCookieManager(); }
 }

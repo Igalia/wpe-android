@@ -26,9 +26,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.res.ResourcesCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.snackbar.Snackbar
+import com.wpe.tools.minibrowser.BrowserViewModel
 import com.wpe.tools.minibrowser.R
 import com.wpe.tools.minibrowser.databinding.FragmentClearBrowsingDataBinding
 import com.wpe.wpeview.WPECookieManager
@@ -38,6 +40,8 @@ import kotlinx.coroutines.launch
 class ClearBrowsingDataFragment : Fragment(R.layout.fragment_clear_browsing_data) {
 
     private lateinit var binding: FragmentClearBrowsingDataBinding
+
+    private val browserViewModel by activityViewModels<BrowserViewModel>()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -88,7 +92,9 @@ class ClearBrowsingDataFragment : Fragment(R.layout.fragment_clear_browsing_data
 
     private fun clearSelected() {
         if (binding.cookiesItem.isChecked) {
-            WPECookieManager.getInstance().removeAllCookies {
+            val selectedTabId = browserViewModel.browserState.value.selectedTabId
+            val wpeView = browserViewModel.findTab(selectedTabId!!).webview
+            wpeView.cookieManager.removeAllCookies {
                 Snackbar.make(
                     requireView(),
                     R.string.preferences_clear_browsing_data_snackbar,

@@ -31,6 +31,7 @@
 DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "com/wpe/wpe/Page");
 
 struct WPEAndroidViewBackend;
+class WKWebContext;
 
 class Page final : public InputMethodContextObserver {
 public:
@@ -55,7 +56,7 @@ public:
 private:
     friend class JNIPageCache;
 
-    Page(JNIEnv* env, JNIPage jniPage, int width, int height);
+    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height);
 
     JNI::ProtectedType<JNIPage> m_pageJavaInstance;
     InputMethodContext m_inputMethodContext;

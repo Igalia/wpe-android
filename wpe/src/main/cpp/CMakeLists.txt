@@ -101,7 +101,6 @@ target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib} ${sync-lib})
 add_library(
     WPEAndroidBrowser SHARED
     Browser/Browser.cpp
-    Browser/WPECookieManager.cpp
     Browser/EntryPoint.cpp
     Browser/Fence.cpp
     Browser/InputMethodContext.cpp
@@ -110,7 +109,10 @@ add_library(
     Browser/Page.cpp
     Browser/PageSettings.cpp
     Browser/RendererSurfaceControl.cpp
-    Browser/SurfaceControl.cpp)
+    Browser/SurfaceControl.cpp
+    Browser/WKCookieManager.cpp
+    Browser/WKWebContext.cpp
+    Browser/WKWebsiteDataManager.cpp)
 target_configure_quality(WPEAndroidBrowser)
 target_compile_definitions(WPEAndroidBrowser PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
