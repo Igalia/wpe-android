@@ -43,6 +43,11 @@ public class WKWebsiteDataManager {
         nativePtr = nativeInit(isEphemeral, dataDir, cacheDir);
     }
 
+    void destroy() {
+        if (nativePtr != 0)
+            nativeDestroy(nativePtr);
+    }
+
     public @NonNull WKCookieManager getCookieManager() {
         if (cookieManager == null)
             cookieManager = new WKCookieManager(nativeCookieManager(nativePtr));

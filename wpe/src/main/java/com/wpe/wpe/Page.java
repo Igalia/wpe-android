@@ -127,9 +127,11 @@ public final class Page {
     }
 
     public void destroy() {
-        close();
-        nativeDestroy(nativePtr);
-        nativePtr = 0;
+        if (nativePtr != 0) {
+            close();
+            nativeDestroy(nativePtr);
+            nativePtr = 0;
+        }
     }
 
     @Override

@@ -38,7 +38,12 @@ public class WKWebContext {
             WKCookieManager.CookieAcceptPolicy.AcceptNoThirdParty);
     }
 
-    public void destroy() { nativeDestroy(nativePtr); }
+    public void destroy() {
+        if (nativePtr != 0) {
+            nativeDestroy(nativePtr);
+            websiteDataManager.destroy();
+        }
+    }
 
     public @NonNull Context getApplicationContext() { return context.getApplicationContext(); }
 
