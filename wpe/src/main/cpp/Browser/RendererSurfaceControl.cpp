@@ -116,12 +116,19 @@ void RendererSurfaceControl::commitBuffer(
     resourceRef.m_surface = m_surface;
     resourceRef.m_scopedBuffer = buffer;
 
-    auto onCompleteCallback = [this, resources = std::move(resourcesToRelease)](auto&& stats) {
-        onTransActionAckOnBrowserThread(resources, std::forward<decltype(stats)>(stats));
+    std::weak_ptr<RendererSurfaceControl> const weakPtr(shared_from_this());
+    auto onCompleteCallback = [weakPtr, resources = std::move(resourcesToRelease)](auto&& stats) {
+        auto ptr = weakPtr.lock();
+        if (ptr)
+            ptr->onTransActionAckOnBrowserThread(resources, std::forward<decltype(stats)>(stats));
     };
     transaction.setOnCompleteCallback(std::move(onCompleteCallback));
 
-    auto onCommitCallback = [this] { onTransactionCommittedOnBrowserThread(); };
+    auto onCommitCallback = [weakPtr]() {
+        auto ptr = weakPtr.lock();
+        if (ptr)
+            ptr->onTransactionCommittedOnBrowserThread();
+    };
     transaction.setOnCommitCallback(std::move(onCommitCallback));
 
     if (m_numTransactionCommitOrAckPending > 0) {
