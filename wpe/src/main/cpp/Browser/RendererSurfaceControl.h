@@ -44,7 +44,7 @@ public:
 
     void onSurfaceCreated(ANativeWindow* window) noexcept override;
     void onSurfaceChanged(int format, uint32_t width, uint32_t height) noexcept override;
-    void onSurfaceRedrawNeeded() noexcept override;
+    void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
     void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) override;
@@ -84,4 +84,8 @@ private:
     ResourceRefs m_currentFrameResources;
 
     std::queue<std::shared_ptr<ScopedWPEAndroidBuffer>> m_releaseBufferQueue;
+    std::shared_ptr<ScopedWPEAndroidBuffer> m_pendingCommitBuffer;
+    std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
+    std::shared_ptr<ScopedWPEAndroidBuffer> m_frontBuffer;
+    bool m_pendingFrontBufferRedraw = false;
 };

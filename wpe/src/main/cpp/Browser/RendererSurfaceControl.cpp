@@ -58,22 +58,51 @@ void RendererSurfaceControl::onSurfaceChanged(int /*format*/, uint32_t width, ui
     m_size.m_height = height;
 }
 
-void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept
+void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept // NOLINT(bugprone-exception-escape)
 {
-    /*
-    // Nothing is doable if there's no ASurfaceControl.
-    if ((m_surfaceControl != nullptr) && m_state.m_exportedBuffer) {
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
-        scheduleFrame(new TransactionContext {shared_from_this(), m_state.m_exportedBuffer});
+    if (m_surface != nullptr) {
+        if (m_pendingCommitBuffer != nullptr && m_pendingCommitFenceFD != nullptr) {
+            Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded - sending pending commit");
+            auto buffer = m_pendingCommitBuffer;
+            auto fence = m_pendingCommitFenceFD;
+            commitBuffer(buffer, fence);
+        } else if (m_frontBuffer != nullptr && m_pendingFrontBufferRedraw) {
+            auto fence = std::make_shared<ScopedFD>(-1);
+            Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded - front buffer commit");
+            commitBuffer(m_frontBuffer, fence);
+        }
     }
-     */
 }
 
-void RendererSurfaceControl::onSurfaceDestroyed() noexcept { m_surface = nullptr; }
+void RendererSurfaceControl::onSurfaceDestroyed() noexcept
+{
+    m_surface.reset();
+    m_pendingFrontBufferRedraw = true;
+}
 
 void RendererSurfaceControl::commitBuffer(
     std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD)
 {
+    if (m_surface == nullptr) { // surface is lost
+        if (m_pendingCommitBuffer != nullptr)
+            WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, m_pendingCommitBuffer->wpeBuffer());
+
+        m_pendingCommitBuffer = buffer;
+        m_pendingCommitFenceFD = fenceFD;
+        if (m_frontBuffer != nullptr) {
+            WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, m_frontBuffer->wpeBuffer());
+            m_frontBuffer = nullptr;
+        }
+        return;
+    }
+
+    if (m_pendingCommitBuffer != nullptr) {
+        m_pendingCommitBuffer = nullptr;
+        m_pendingCommitFenceFD = nullptr;
+    }
+
+    m_pendingFrontBufferRedraw = false;
+
     SurfaceControl::Transaction transaction;
     transaction.setVisibility(*m_surface, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
     transaction.setZOrder(*m_surface, 0);
@@ -100,6 +129,7 @@ void RendererSurfaceControl::commitBuffer(
     } else {
         m_numTransactionCommitOrAckPending++;
         transaction.apply();
+        m_frontBuffer = buffer;
     }
 }
 
@@ -139,6 +169,9 @@ void RendererSurfaceControl::onTransActionAckOnBrowserThread(
 
         if (status == Fence::NotSignaled)
             break;
+
+        if (m_frontBuffer && m_frontBuffer->wpeBuffer() == pendingBuffer->wpeBuffer())
+            m_frontBuffer = nullptr;
 
         WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, pendingBuffer->wpeBuffer());
         m_releaseBufferQueue.pop();
