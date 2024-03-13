@@ -30,6 +30,7 @@ _deps
 .cache/
 
 # Python artifacts
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class

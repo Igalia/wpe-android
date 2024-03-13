@@ -55,8 +55,10 @@ class WebDriver(RemoteWebDriver):
                 capabilities.update(desired_capabilities)
             desired_capabilities = capabilities
 
+        self._reuse_service = reuse_service
         self.service = Service(executable_path, port=port, log_path=service_log_path)
-        #self.service.start()
+        if not reuse_service:
+            self.service.start()
 
         RemoteWebDriver.__init__(
             self,
@@ -74,4 +76,5 @@ class WebDriver(RemoteWebDriver):
         except http_client.BadStatusLine:
             pass
         finally:
-            self.service.stop()
+            if not self._reuse_service:
+                self.service.stop()

@@ -150,13 +150,20 @@ class CheckFormat:
                          "README.md", "LICENSE.md", ".clang-format", ".clang-tidy",
                          ".cmake-format.json", ".editorconfig", ".gitattributes",
                          ".gitignore", "gradlew", "gradlew.bat", "setup.cfg",
-                         "WPEServices.java.template"]:
+                         "WPEServices.java.template", "__init__.py"]:
             return True
 
         top_level_path = file
         # Remove possible multiple '../' parts from start of top_level_path
         while top_level_path.startswith('..' + os.path.sep):
             top_level_path = top_level_path[len('..' + os.path.sep):]
+
+        if top_level_path.startswith("tools/scripts/libraries"):
+            return True
+
+        if top_level_path.startswith("tools/scripts/webkitpy"):
+            return True
+
         top_level_folder = top_level_path.split(os.path.sep)[0]
 
         # Exclude imported folders
@@ -177,6 +184,8 @@ class CheckFormat:
         if base_name == "CMakeLists.txt":
             return self._check_cmake_format(file)
         if os.path.isdir(file) and os.path.islink(file):
+            return True
+        if file_ext in [".in", ""]:
             return True
 
         print(f"-- Unknown file extension for {file}.", file=sys.stderr)

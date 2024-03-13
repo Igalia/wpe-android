@@ -31,6 +31,7 @@ class WebDriver(RemoteWebDriver):
     """
 
     def __init__(self, executable_path="WebKitWebDriver", port=0, options=None,
+                 reuse_service=False,
                  desired_capabilities=None,
                  service_log_path=None, keep_alive=False):
         """

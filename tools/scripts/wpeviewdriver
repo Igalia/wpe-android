@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+
+import optparse
+import re
+import subprocess
+import signal
+import time
+
+port = 8888
+
+__all__=["WPEViewDriver",]
+class WPEViewDriver:
+    def __init__(self):
+        self._intervalSecs=2
+        self._interrupted=False
+
+        signal.signal(signal.SIGALRM, self._stopRunning)
+        signal.signal(signal.SIGINT, self._stopRunning)
+        signal.signal(signal.SIGQUIT, self._stopRunning)
+        signal.signal(signal.SIGTERM, self._stopRunning)
+
+    def _stopRunning(self, signal, frame):
+        # Shut down webdriver an
+        self._interrupted = True
+
+    def _abort(self, signal, frame):
+        raise
+
+    def _split_proc_net_tcp(self, procnet):
+        sockets = procnet.split('\n')[1:-1]
+        return [line.strip() for line in sockets]
+
+    def _split_hex_addr(self, data, n):
+        return [data[i:i+n] for i in range(0, len(data), n)]
+
+    def _convert_netaddr(self, address):
+
+        hex_addr, hex_port = address.split(':')
+
+        addr_list = self._split_hex_addr(hex_addr, 2)
+        addr_list.reverse()
+
+        addr = ".".join(map(lambda x: str(int(x, 16)), addr_list))
+        port = str(int(hex_port, 16))
+
+        return "{}:{}".format(addr, port)
+
+    def _is_connectable(self):
+        expected_open_address = "0.0.0.0:{}".format(port)
+
+        proc_net_tcp = subprocess.run("adb shell cat /proc/net/tcp", capture_output=True, text=True, shell=True)
+        sockets = self._split_proc_net_tcp(proc_net_tcp.stdout)
+        for info in sockets:
+            _ = re.split(r'\s+', info)
+            local_addr = self._convert_netaddr(_[1])
+            if local_addr == expected_open_address:
+                return True
+        return False
+
+    def _wait_for_open_connection(self):
+        while not self._interrupted and not self._is_connectable():
+            time.sleep(0.5)
+
+    def _setup(self):
+        self._teardown() # Just in case app is still running
+        #subprocess.run("adb shell pm clear com.wpe.webdriver", capture_output=True, shell=True) # Clears too much like for example gstreamer libs
+
+    def _teardown(self):
+        subprocess.run("adb shell am force-stop com.wpe.webdriver", capture_output=True, shell=True)
+        subprocess.run("adb forward --remove-all", capture_output=True, shell=True)
+
+    def run(self):
+        self._setup()
+
+        subprocess.run("adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity -e headless true", capture_output=True, shell=True)
+
+        self._wait_for_open_connection()
+        if not self._interrupted:
+            time.sleep(1) # Add small delay to ensure webdriver server is properly up
+
+        subprocess.run("adb forward tcp:8888 tcp:8888", capture_output=True, shell=True)
+
+        signal.setitimer(signal.ITIMER_REAL, 20) # Timeout after 20 secs
+        signal.pause()
+
+        self._teardown()
+
+
+driver=WPEViewDriver()
+driver.run()
