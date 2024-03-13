@@ -1,0 +1,14 @@
+
+FAIL Property backdrop-filter has initial value none assert_true: backdrop-filter doesn't seem to be supported in the computed style expected true got false
+FAIL Property backdrop-filter does not inherit assert_true: expected true got false
+PASS Property color-interpolation-filters has initial value linearrgb
+PASS Property color-interpolation-filters inherits
+PASS Property filter has initial value none
+PASS Property filter does not inherit
+PASS Property flood-color has initial value rgb(0, 0, 0)
+PASS Property flood-color does not inherit
+PASS Property flood-opacity has initial value 1
+PASS Property flood-opacity does not inherit
+PASS Property lighting-color has initial value rgb(255, 255, 255)
+PASS Property lighting-color does not inherit
+

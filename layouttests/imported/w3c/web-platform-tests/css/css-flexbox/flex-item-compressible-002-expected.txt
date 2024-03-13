@@ -1,0 +1,113 @@
+Test1: "height: 100%"
+
+
+
+
+
+
+Test2: "height: calc(100%)"
+
+
+
+
+
+
+Test3: "height: calc(140px + 100%)"
+
+
+
+
+
+
+
+FAIL .flexbox 1 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="text" class="test1" data-expected-height="100">
+    </div>
+height expected 100 but got 40
+FAIL .flexbox 2 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="range" class="test1" data-expected-height="100">
+    </div>
+height expected 100 but got 40
+FAIL .flexbox 3 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="button" value="XXXXXXX" class="test1" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 4 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="submit" value="XXXXXXX" class="test1" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 5 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="reset" value="XXXXXXX" class="test1" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 6 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="text" class="test2" data-expected-height="100">
+    </div>
+height expected 100 but got 40
+FAIL .flexbox 7 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="range" class="test2" data-expected-height="100">
+    </div>
+height expected 100 but got 40
+FAIL .flexbox 8 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="button" value="XXXXXXX" class="test2" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 9 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="submit" value="XXXXXXX" class="test2" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 10 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="reset" value="XXXXXXX" class="test2" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 11 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="text" class="test3" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 12 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="range" class="test3" data-expected-height="140">
+    </div>
+height expected 140 but got 129
+FAIL .flexbox 13 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="button" value="XXXXXXX" class="test3" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 14 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="submit" value="XXXXXXX" class="test3" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+FAIL .flexbox 15 assert_equals:
+<div class="flexbox">
+      <div class="spacer"></div>
+      <input type="reset" value="XXXXXXX" class="test3" data-expected-height="140">
+    </div>
+height expected 140 but got 100
+

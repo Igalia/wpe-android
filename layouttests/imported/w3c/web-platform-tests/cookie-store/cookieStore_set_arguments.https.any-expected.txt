@@ -1,0 +1,24 @@
+
+PASS cookieStore.set with positional name and value
+PASS cookieStore.set with name and value in options
+PASS cookieStore.set with empty name and an '=' in value
+PASS cookieStore.set with normal name and an '=' in value
+PASS cookieStore.set with expires set to a future Date
+PASS cookieStore.set with expires set to a past Date
+PASS cookieStore.set with expires set to a future timestamp
+PASS cookieStore.set with expires set to a past timestamp
+PASS cookieStore.set domain starts with "."
+PASS cookieStore.set with domain that is not equal current host
+PASS cookieStore.set with domain set to the current hostname
+PASS cookieStore.set with domain set to a subdomain of the current hostname
+PASS cookieStore.set with domain set to a non-domain-matching suffix of the current hostname
+FAIL cookieStore.set default domain is null and differs from current hostname assert_equals: expected 2 but got 1
+PASS cookieStore.set with path set to the current directory
+PASS cookieStore.set with path set to a subdirectory of the current directory
+PASS cookieStore.set default path is /
+PASS cookieStore.set adds / to path that does not end with /
+PASS cookieStore.set with path that does not start with /
+PASS cookieStore.set with get result
+PASS cookieStore.set checks if the path is too long
+PASS cookieStore.set checks if the domain is too long
+

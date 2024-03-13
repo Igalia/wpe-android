@@ -1,0 +1,3 @@
+
+PASS @property rules in shadow trees should have no effect
+

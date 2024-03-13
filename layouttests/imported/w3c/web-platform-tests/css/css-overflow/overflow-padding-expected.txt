@@ -1,0 +1,17 @@
+green blocks get scrollbars, yellow do not.
+
+Block child gets block and inline padding.
+
+
+Inline child gets block and inline padding.
+
+X  XX
+XX  X
+Inline block child gets block and inline padding.
+
+
+Padding applies to linebox, not linebox overflow.
+
+
+FAIL Container padding is applied approriately to block/inline children. assert_true: horizontal scrollbar 1 expected true got false
+

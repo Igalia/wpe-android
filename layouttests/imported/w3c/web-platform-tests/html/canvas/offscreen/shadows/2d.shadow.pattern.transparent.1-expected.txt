@@ -1,0 +1,7 @@
+2d.shadow.pattern.transparent.1
+
+Shadows are not drawn for transparent fill patterns
+
+
+FAIL Shadows are not drawn for transparent fill patterns promise_test: Unhandled rejection with value: object "TypeError: Type error"
+

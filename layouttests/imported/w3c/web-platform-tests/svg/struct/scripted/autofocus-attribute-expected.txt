@@ -1,0 +1,5 @@
+
+PASS <a> should support autofocus
+PASS Renderable element with tabindex should support autofocus
+FAIL Never-rendered element with tabindex should not support autofocus assert_equals: expected "svg" but got "metadata"
+

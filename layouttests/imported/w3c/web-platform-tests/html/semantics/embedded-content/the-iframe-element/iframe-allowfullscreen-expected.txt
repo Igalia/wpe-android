@@ -1,0 +1,7 @@
+CONSOLE MESSAGE: Feature policy 'Fullscreen' check failed for iframe with origin 'null' and allow attribute ''.
+
+PASS iframe-same-origin-allowfullscreen
+FAIL iframe-cross-origin-allowfullscreen assert_false: Fullscreen should be denied when allowfullscreen attribute is added, before reload expected false got true
+PASS iframe-noload-noallowfullscreen
+PASS iframe-noload-allowfullscreen
+

@@ -1,0 +1,4 @@
+
+PASS Test [[DefineOwnProperty]] with no indexed property setter support.
+PASS Test [[DefineOwnProperty]] with indexed property setter support.
+

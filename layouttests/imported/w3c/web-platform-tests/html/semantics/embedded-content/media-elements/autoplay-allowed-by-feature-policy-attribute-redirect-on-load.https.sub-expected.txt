@@ -1,0 +1,5 @@
+
+
+PASS Feature-Policy allow="autoplay" allows same-origin navigation in an iframe.
+FAIL Feature-Policy allow="autoplay" disallows cross-origin navigation in an iframe. assert_false: autoplay expected false got true
+

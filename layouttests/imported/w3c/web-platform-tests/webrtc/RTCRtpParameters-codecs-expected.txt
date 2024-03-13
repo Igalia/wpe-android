@@ -1,0 +1,8 @@
+
+PASS setParameters() with codec.payloadType modified should reject with InvalidModificationError
+PASS setParameters() with codec.mimeType modified should reject with InvalidModificationError
+PASS setParameters() with codec.clockRate modified should reject with InvalidModificationError
+PASS setParameters() with codec.channels modified should reject with InvalidModificationError
+PASS setParameters() with codec.sdpFmtpLine modified should reject with InvalidModificationError
+PASS setParameters() with new codecs inserted should reject with InvalidModificationError
+

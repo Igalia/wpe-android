@@ -1,0 +1,7 @@
+default
+
+
+PASS form.reset() should trigger formResetCallback
+PASS form.reset(): formResetCallback is called after reset of the last built-in form control and before the next statement.
+PASS Clicking a reset button invokes formResetCallback in a microtask
+

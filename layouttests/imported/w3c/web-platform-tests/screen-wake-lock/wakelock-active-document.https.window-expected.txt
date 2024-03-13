@@ -1,0 +1,4 @@
+
+PASS navigator.wakeLock.request() aborts if the document is not active.
+PASS navigator.wakeLock.request() aborts if the document is active, but not fully active.
+

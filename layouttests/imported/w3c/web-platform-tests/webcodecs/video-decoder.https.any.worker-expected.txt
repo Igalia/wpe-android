@@ -1,0 +1,13 @@
+
+PASS Test that VideoDecoder.isConfigSupported() rejects invalid config:Empty codec
+PASS Test that VideoDecoder.isConfigSupported() rejects invalid config:Unrecognized codec
+PASS Test that VideoDecoder.isConfigSupported() rejects invalid config:Audio codec
+PASS Test that VideoDecoder.isConfigSupported() rejects invalid config:Ambiguous codec
+PASS Test that VideoDecoder.isConfigSupported() rejects invalid config:Codec with MIME type
+PASS Test that VideoDecoder.configure() rejects invalid config:Empty codec
+PASS Test that VideoDecoder.configure() rejects invalid config:Unrecognized codec
+PASS Test that VideoDecoder.configure() rejects invalid config:Audio codec
+PASS Test that VideoDecoder.configure() rejects invalid config:Ambiguous codec
+PASS Test that VideoDecoder.configure() rejects invalid config:Codec with MIME type
+PASS Test VideoDecoder construction
+

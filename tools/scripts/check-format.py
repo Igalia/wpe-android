@@ -153,6 +153,16 @@ class CheckFormat:
                          "WPEServices.java.template"]:
             return True
 
+        top_level_path = file
+        # Remove possible multiple '../' parts from start of top_level_path
+        while top_level_path.startswith('..' + os.path.sep):
+            top_level_path = top_level_path[len('..' + os.path.sep):]
+        top_level_folder = top_level_path.split(os.path.sep)[0]
+
+        # Exclude imported folders
+        if top_level_folder in ["layouttests", "webdrivertests"]:
+            return True
+
         file_ext = os.path.splitext(file)[1]
         if file_ext == ".py":
             return (self._check_kebab_case_name(file) and self._check_pep8(file))
@@ -186,8 +196,11 @@ class CheckFormat:
         return result.stdout.splitlines()
 
     def _run_editor_config_checker(self):
+        excludes = (
+            "\\.git/|\\.gradle/|\\.idea/|build/|gradlew.bat|layouttests/|webdrivertests/|tools/scripts/libraries/"
+        )
         command = subprocess.run([self._editor_config_checker, "-no-color", "-disable-indentation",
-                                  "-exclude", "\\.git/|\\.gradle/|\\.idea/|build/|gradlew.bat"],
+                                  "-exclude", excludes],
                                  stdout=subprocess.PIPE,
                                  encoding="utf-8",
                                  check=False,

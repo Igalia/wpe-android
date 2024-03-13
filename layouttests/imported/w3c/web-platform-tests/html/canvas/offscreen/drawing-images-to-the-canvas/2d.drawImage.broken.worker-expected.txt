@@ -1,0 +1,3 @@
+
+FAIL 2d assert_unreached: Should have rejected: The source image could not be decoded. Reached unreachable code
+

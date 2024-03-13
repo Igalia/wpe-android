@@ -1,0 +1,6 @@
+CONSOLE MESSAGE: Cancelled load to http://127.0.0.1:8800/html/cross-origin-embedder-policy/resources/iframe.html because it violates the resource's Cross-Origin-Resource-Policy response header.
+
+Harness Error (TIMEOUT), message = null
+
+TIMEOUT COEP requires a secure context Test timed out
+

@@ -1,0 +1,9 @@
+
+PASS Setting binaryType to 'blob' should succeed
+PASS Setting binaryType to 'arraybuffer' should succeed
+PASS Setting invalid binaryType 'jellyfish' should throw SyntaxError
+PASS Setting invalid binaryType 'arraybuffer ' should throw SyntaxError
+PASS Setting invalid binaryType '' should throw SyntaxError
+PASS Setting invalid binaryType 'null' should throw SyntaxError
+PASS Setting invalid binaryType 'undefined' should throw SyntaxError
+

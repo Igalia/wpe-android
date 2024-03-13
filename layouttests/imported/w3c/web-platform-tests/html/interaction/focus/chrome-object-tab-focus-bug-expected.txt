@@ -1,0 +1,6 @@
+Pressing TAB twice should focus/highlight end checkbox
+
+start  end
+
+PASS focus advances with tab key thorough object element
+

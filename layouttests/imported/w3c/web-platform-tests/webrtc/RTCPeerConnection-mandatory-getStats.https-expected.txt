@@ -1,0 +1,75 @@
+
+PASS getStats succeeds
+PASS Validating stats
+PASS RTCRtpStreamStats's ssrc
+PASS RTCRtpStreamStats's kind
+PASS RTCRtpStreamStats's transportId
+PASS RTCRtpStreamStats's codecId
+PASS RTCReceivedRtpStreamStats's packetsReceived
+PASS RTCReceivedRtpStreamStats's packetsLost
+PASS RTCReceivedRtpStreamStats's jitter
+PASS RTCInboundRtpStreamStats's trackIdentifier
+PASS RTCInboundRtpStreamStats's remoteId
+PASS RTCInboundRtpStreamStats's framesDecoded
+PASS RTCInboundRtpStreamStats's framesDropped
+PASS RTCInboundRtpStreamStats's nackCount
+PASS RTCInboundRtpStreamStats's framesReceived
+PASS RTCInboundRtpStreamStats's bytesReceived
+PASS RTCInboundRtpStreamStats's totalAudioEnergy
+PASS RTCInboundRtpStreamStats's totalSamplesDuration
+PASS RTCInboundRtpStreamStats's packetsDiscarded
+PASS RTCRemoteInboundRtpStreamStats's localId
+PASS RTCRemoteInboundRtpStreamStats's roundTripTime
+PASS RTCSentRtpStreamStats's packetsSent
+PASS RTCSentRtpStreamStats's bytesSent
+PASS RTCOutboundRtpStreamStats's remoteId
+PASS RTCOutboundRtpStreamStats's framesEncoded
+PASS RTCOutboundRtpStreamStats's nackCount
+PASS RTCOutboundRtpStreamStats's framesSent
+FAIL RTCRemoteOutboundRtpStreamStats's localId assert_true: Is localId present expected true got false
+FAIL RTCRemoteOutboundRtpStreamStats's remoteTimestamp assert_true: Is remoteTimestamp present expected true got false
+PASS RTCPeerConnectionStats's dataChannelsOpened
+PASS RTCPeerConnectionStats's dataChannelsClosed
+PASS RTCDataChannelStats's label
+PASS RTCDataChannelStats's protocol
+FAIL RTCDataChannelStats's dataChannelIdentifier assert_true: Is dataChannelIdentifier present expected true got false
+PASS RTCDataChannelStats's state
+PASS RTCDataChannelStats's messagesSent
+PASS RTCDataChannelStats's bytesSent
+PASS RTCDataChannelStats's messagesReceived
+PASS RTCDataChannelStats's bytesReceived
+PASS RTCMediaSourceStats's trackIdentifier
+PASS RTCMediaSourceStats's kind
+FAIL RTCAudioSourceStats's totalAudioEnergy assert_true: Is totalAudioEnergy present expected true got false
+FAIL RTCAudioSourceStats's totalSamplesDuration assert_true: Is totalSamplesDuration present expected true got false
+FAIL RTCVideoSourceStats's width assert_true: Is width present expected true got false
+FAIL RTCVideoSourceStats's height assert_true: Is height present expected true got false
+FAIL RTCVideoSourceStats's framesPerSecond assert_true: Is framesPerSecond present expected true got false
+PASS RTCCodecStats's payloadType
+PASS RTCCodecStats's mimeType
+PASS RTCCodecStats's clockRate
+PASS RTCCodecStats's channels
+PASS RTCCodecStats's sdpFmtpLine
+PASS RTCTransportStats's bytesSent
+PASS RTCTransportStats's bytesReceived
+PASS RTCTransportStats's selectedCandidatePairId
+PASS RTCTransportStats's localCertificateId
+PASS RTCTransportStats's remoteCertificateId
+PASS RTCIceCandidatePairStats's transportId
+PASS RTCIceCandidatePairStats's localCandidateId
+PASS RTCIceCandidatePairStats's remoteCandidateId
+PASS RTCIceCandidatePairStats's state
+PASS RTCIceCandidatePairStats's nominated
+PASS RTCIceCandidatePairStats's bytesSent
+PASS RTCIceCandidatePairStats's bytesReceived
+PASS RTCIceCandidatePairStats's totalRoundTripTime
+PASS RTCIceCandidatePairStats's currentRoundTripTime
+FAIL RTCIceCandidateStats's address assert_true: Is address present expected true got false
+PASS RTCIceCandidateStats's port
+PASS RTCIceCandidateStats's protocol
+PASS RTCIceCandidateStats's candidateType
+FAIL RTCIceCandidateStats's url assert_true: Is url present expected true got false
+PASS RTCCertificateStats's fingerprint
+PASS RTCCertificateStats's fingerprintAlgorithm
+PASS RTCCertificateStats's base64Certificate
+
