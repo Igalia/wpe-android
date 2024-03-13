@@ -312,7 +312,6 @@ class WebDriverBrowser(Browser):
         self.webdriver_args = webdriver_args if webdriver_args is not None else []
 
         self.url = f"http://{self.host}:{self.port}{self.base_path}"
-
         self._output_handler = None
         self._cmd = None
         self._proc = None
@@ -338,7 +337,6 @@ class WebDriverBrowser(Browser):
     def _run_server(self, group_metadata, **kwargs):
         cmd = self.make_command()
         self._output_handler = self.create_output_handler(cmd)
-
         self._proc = mozprocess.ProcessHandler(
             cmd,
             processOutputLine=self._output_handler,
@@ -354,7 +352,6 @@ class WebDriverBrowser(Browser):
                     "WebDriver executable not found: %s" % self.webdriver_binary)
             raise
         self._output_handler.after_process_start(self._proc.pid)
-
         try:
             wait_for_service(self.logger, self.host, self.port,
                              timeout=self.init_timeout)
