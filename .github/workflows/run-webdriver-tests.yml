@@ -56,7 +56,10 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            adb install webdriver-latest.apk
+            adb install --abi x86_64 webdriver-latest.apk
+            adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity
+            sleep 5
+            adb shell am force-stop com.wpe.webdriver
             python3 -m venv .venv
             . .venv/bin/activate
             pip install -r tools/scripts/webkitpy/requirements.txt
