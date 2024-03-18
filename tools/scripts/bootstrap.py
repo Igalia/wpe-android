@@ -352,6 +352,7 @@ class Bootstrap:
         sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
 
         libs_paths = list(Path(sysroot_lib_dir).glob("*.so"))
+        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-1.0")).glob("*.so")))
         libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-1.0", "injected-bundle")).glob("*.so")))
 
         self._soname_replacements = Bootstrap._soname_replacements.copy()
