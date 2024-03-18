@@ -24,10 +24,10 @@ public class WKWebContext {
 
     private final WKWebsiteDataManager websiteDataManager;
 
-    public WKWebContext(@NonNull Context context, boolean automationMode) {
+    public WKWebContext(@NonNull Context context, int inspectorPort, boolean automationMode) {
         this.context = context;
 
-        Browser.getInstance().initialize(context);
+        Browser.getInstance().initialize(context, inspectorPort);
 
         websiteDataManager = new WKWebsiteDataManager(automationMode, context.getDataDir().getAbsolutePath(),
                                                       context.getCacheDir().getAbsolutePath());

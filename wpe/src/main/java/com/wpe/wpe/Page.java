@@ -58,7 +58,7 @@ public final class Page {
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
-    private native long nativeInit(long nativeContextPtr, int width, int height);
+    private native long nativeInit(long nativeContextPtr, int width, int height, boolean headless);
     private native void nativeClose(long nativePtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, @NonNull String url);
@@ -78,8 +78,6 @@ public final class Page {
     private native void nativeRequestExitFullscreenMode(long nativePtr);
 
     private final WPEView wpeView;
-    private final int width;
-    private final int height;
     private final PageSurfaceView surfaceView;
     protected final ScaleGestureDetector scaleDetector;
     private final PageSettings pageSettings;
@@ -91,13 +89,23 @@ public final class Page {
     private boolean canGoForward = true;
     protected boolean ignoreTouchEvents = false;
 
-    public Page(@NonNull WPEView wpeView, @NonNull WKWebContext context) {
+    private static int kHeadlessWidth = 1080;
+    private static int kHeadlessHeight = 2274;
+
+    public Page(@NonNull WPEView wpeView, @NonNull WKWebContext context, boolean headless) {
         Log.v(LOGTAG, "Creating Page: " + this);
 
         this.wpeView = wpeView;
-        width = wpeView.getMeasuredWidth();
-        height = wpeView.getMeasuredHeight();
-        nativePtr = nativeInit(context.getNativePtr(), width, height);
+
+        int width = wpeView.getMeasuredWidth();
+        int height = wpeView.getMeasuredHeight();
+        if (headless) {
+            // Use some hardcoded values
+            width = kHeadlessWidth;
+            height = kHeadlessHeight;
+        }
+
+        nativePtr = nativeInit(context.getNativePtr(), width, height, headless);
 
         Context ctx = wpeView.getContext();
         surfaceView = new PageSurfaceView(ctx);

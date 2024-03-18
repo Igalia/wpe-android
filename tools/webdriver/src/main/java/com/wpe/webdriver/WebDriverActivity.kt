@@ -7,24 +7,29 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import com.wpe.wpe.Browser
 import com.wpe.wpe.ProcessType
 import com.wpe.wpe.services.WPEServiceConnection
 import com.wpe.wpe.services.WPEServiceConnectionListener
 import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEContext
 import com.wpe.wpeview.WPEView
+import java.net.ServerSocket
+import kotlin.system.exitProcess
+
 
 class WebDriverActivity : AppCompatActivity() {
 
     private val LOGTAG = "WebDriver"
 
     private lateinit var wpeContext: WPEContext
-    private var wpeView: WPEView? = null
+    private var wpeViewMap= mutableMapOf<Int, WPEView>()
+    private var freePort = getFreePort()
+    private var isHeadless = false
 
     private val serviceConnectionDelegate: WPEServiceConnectionListener = object : WPEServiceConnectionListener {
         override fun onCleanExit(connection: WPEServiceConnection) {
-            Log.d(LOGTAG, "onCleanExit for process: " + connection.pid)
+            Log.d(LOGTAG, "onCleanExit for automation sesession in port: " + connection.pid)
+            exitProcess(0)
         }
 
         override fun onServiceDisconnected(connection: WPEServiceConnection) {
@@ -34,41 +39,63 @@ class WebDriverActivity : AppCompatActivity() {
     }
 
     private val wpeChromeClient: WPEChromeClient = object : WPEChromeClient {
-        override fun onCloseWindow(window: WPEView) {
-            wpeView?.let {
-                it.parent?.let {p ->
-                    (p as ViewGroup).removeView(it)
-                }
-                it.destroy()
+        override fun onCloseWindow(wpeView: WPEView) {
+            wpeView.parent?.let {p ->
+                (p as ViewGroup).removeView(wpeView)
             }
-            wpeView = null
+
+            wpeViewMap.remove(wpeView.hashCode())
+            wpeView.destroy()
         }
     }
 
     private val wpeContextClient: WPEContext.Client  = object : WPEContext.Client {
+
         override fun createWPEViewForAutomation(): WPEView? {
-            return wpeView ?: run {
-                wpeView = createWPEView()
-                wpeView
-            }
+            val wpeView = createWPEView()
+            wpeViewMap[wpeView.hashCode()] = wpeView
+            return wpeView
         }
+
+        private fun createWPEView() : WPEView {
+            val view = WPEView(wpeContext, isHeadless)
+            view.wpeChromeClient = wpeChromeClient
+
+            if (!isHeadless) {
+                setContentView(view)
+                view.loadUrl("about:blank")
+            }
+
+            return view
+        }
+    }
+
+    private fun getFreePort(): Int {
+        var freePort = 0
+        try {
+            ServerSocket(0).use { s -> freePort = s.localPort }
+        } catch (e: java.lang.Exception) {
+            e.printStackTrace()
+        }
+        return freePort
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        wpeContext = WPEContext(applicationContext, true)
-        wpeContext.setClient(wpeContextClient)
-        wpeView = createWPEView()
+        if (intent.hasExtra("headless")) {
+            isHeadless = true
+        }
 
         try {
             val processType = ProcessType.WebDriverProcess
             val serviceClass =
                 Class.forName("com.wpe.wpe.services." + processType.name + "Service")
             val parcelFd = ParcelFileDescriptor.fromFd(0)
-            Log.v(LOGTAG, "Launching service: " + processType.name)
+
             val intent = Intent(applicationContext, serviceClass)
-            val serviceConnection = WPEServiceConnection(0, processType, parcelFd, serviceConnectionDelegate)
+            val serviceConnection = WPEServiceConnection(
+                freePort.toLong(), processType, parcelFd,
+                serviceConnectionDelegate)
             applicationContext.bindService(
                 intent, serviceConnection,
                 Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT
@@ -76,15 +103,17 @@ class WebDriverActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e(LOGTAG, "Cannot launch webdriver process", e)
         }
+
+        wpeContext = WPEContext(applicationContext, freePort, true)
+        wpeContext.setClient(wpeContextClient)
     }
 
-    private fun createWPEView() : WPEView? {
-        val view = WPEView(wpeContext)
-        view.wpeChromeClient = wpeChromeClient
-        setContentView(view)
+    override fun onDestroy() {
+        for ((key, view) in wpeViewMap) {
+            view.destroy()
+            wpeViewMap.remove(key)
+        }
 
-        view.loadUrl("about:blank")
-
-        return view
+        super.onDestroy()
     }
 }

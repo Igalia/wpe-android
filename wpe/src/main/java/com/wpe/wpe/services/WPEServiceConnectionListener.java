@@ -23,5 +23,6 @@ import androidx.annotation.NonNull;
 
 public interface WPEServiceConnectionListener {
     void onCleanExit(@NonNull WPEServiceConnection connection);
+
     void onServiceDisconnected(@NonNull WPEServiceConnection connection);
 }

@@ -139,7 +139,6 @@ WKWebsiteDataManager::WKWebsiteDataManager(JNIEnv* env, JNIWKWebsiteDataManager 
     : m_websiteDataManagerJavaInstance(JNI::createTypedProtectedRef(env, jniWKWebsiteDataManager, true))
 {
     if (ephemeral) {
-        g_setenv("WEBKIT_INSPECTOR_SERVER", "127.0.0.1:8889", 1);
         m_websiteDataManager = {webkit_website_data_manager_new_ephemeral(), [](auto* ptr) { g_object_unref(ptr); }};
     } else {
         m_websiteDataManager = {

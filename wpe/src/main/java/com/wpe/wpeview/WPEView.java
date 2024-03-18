@@ -47,8 +47,8 @@ import com.wpe.wpe.Page;
 public class WPEView extends FrameLayout {
     private static final String LOGTAG = "WPEView";
 
-    private WPEContext wpeContext;
-    private boolean ownsContext;
+    private final WPEContext wpeContext;
+    private final boolean ownsContext;
 
     private final Page page;
 
@@ -57,7 +57,7 @@ public class WPEView extends FrameLayout {
 
         wpeContext = new WPEContext(context);
         ownsContext = true;
-        page = new Page(this, wpeContext.getWebContext());
+        page = new Page(this, wpeContext.getWebContext(), false);
     }
 
     public WPEView(@NonNull Context context, @Nullable AttributeSet attrs) {
@@ -65,15 +65,17 @@ public class WPEView extends FrameLayout {
 
         wpeContext = new WPEContext(context);
         ownsContext = true;
-        page = new Page(this, wpeContext.getWebContext());
+        page = new Page(this, wpeContext.getWebContext(), false);
     }
 
-    public WPEView(@NonNull WPEContext context) {
+    public WPEView(@NonNull WPEContext context) { this(context, false); }
+
+    public WPEView(@NonNull WPEContext context, boolean headless) {
         super(context.getApplicationContext());
 
         wpeContext = context;
         ownsContext = false;
-        page = new Page(this, wpeContext.getWebContext());
+        page = new Page(this, wpeContext.getWebContext(), headless);
     }
 
     private SurfaceView surfaceView = null;

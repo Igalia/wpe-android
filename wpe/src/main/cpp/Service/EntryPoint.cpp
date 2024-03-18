@@ -76,7 +76,7 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
 
         (void)snprintf(arg1String, NUMBER_BUFFER_SIZE, "--port=8888");
         (void)snprintf(arg2String, NUMBER_BUFFER_SIZE, "--host=all");
-        (void)snprintf(arg3String, NUMBER_BUFFER_SIZE, "--target=127.0.0.1:8889");
+        (void)snprintf(arg3String, NUMBER_BUFFER_SIZE, "--target=127.0.0.1:%d", static_cast<uint32_t>(pid));
     }
 
     char* argv[numArgs];

@@ -17,7 +17,7 @@ class JNIWKWebContextCache final : public JNI::TypedClass<JNIWKWebContext> {
 public:
     JNIWKWebContextCache();
 
-    static WebKitWebView* oCreateWebViewForAutomation(WKWebContext* wkWebContext, WebKitWebContext* /*webContext*/)
+    static WebKitWebView* onCreateWebViewForAutomation(WKWebContext* wkWebContext, WebKitWebContext* /*webContext*/)
     {
         WebKitWebView* view = nullptr;
         try {
@@ -43,7 +43,7 @@ public:
         webkit_application_info_unref(info);
 
         g_signal_connect_swapped(
-            session, "create-web-view", G_CALLBACK(JNIWKWebContextCache::oCreateWebViewForAutomation), wkWebContext);
+            session, "create-web-view", G_CALLBACK(JNIWKWebContextCache::onCreateWebViewForAutomation), wkWebContext);
     }
 
 private:

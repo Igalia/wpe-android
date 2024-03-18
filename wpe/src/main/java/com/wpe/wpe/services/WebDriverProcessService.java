@@ -47,6 +47,7 @@ public class WebDriverProcessService extends WPEService {
     @Override
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
         Log.d(LOGTAG, "initializeServiceMain()");
-        initializeNativeMain(0, ProcessType.WebDriverProcess.getValue(), 0);
+
+        initializeNativeMain(pid, ProcessType.WebDriverProcess.getValue(), 0);
     }
 }

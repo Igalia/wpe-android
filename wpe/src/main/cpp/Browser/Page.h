@@ -56,7 +56,7 @@ public:
 private:
     friend class JNIPageCache;
 
-    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height);
+    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, bool headless);
 
     JNI::ProtectedType<JNIPage> m_pageJavaInstance;
     InputMethodContext m_inputMethodContext;
@@ -66,4 +66,5 @@ private:
     WebKitWebView* m_webView = nullptr;
     std::vector<gulong> m_signalHandlers;
     bool m_isFullscreenRequested = false;
+    bool m_isHeadless = false;
 };

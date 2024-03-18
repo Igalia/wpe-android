@@ -39,6 +39,8 @@ import com.wpe.wpe.services.WPEServiceConnection;
 import com.wpe.wpe.services.WPEServiceConnectionListener;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 @UiThread
 public final class Browser {
@@ -63,11 +65,18 @@ public final class Browser {
 
     private LooperHelperThread looperHelperThread = null;
 
-    public void initialize(@NonNull Context context) {
+    public void initialize(@NonNull Context context, int inspectorPort) {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
-            setupNativeEnvironment(
-                new String[] {"GIO_EXTRA_MODULES", new File(context.getFilesDir(), "gio").getAbsolutePath()});
+            List<String> envStrings = new ArrayList<>(46);
+            envStrings.add("GIO_EXTRA_MODULES");
+            envStrings.add(new File(context.getFilesDir(), "gio").getAbsolutePath());
+            if (inspectorPort > 0) {
+                String inspectorAddress = "127.0.0.1:" + inspectorPort;
+                envStrings.add("WEBKIT_INSPECTOR_SERVER");
+                envStrings.add(inspectorAddress);
+            }
+            setupNativeEnvironment(envStrings.toArray(new String[envStrings.size()]));
             nativeInit();
             looperHelperThread = new LooperHelperThread();
         }
