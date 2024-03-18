@@ -67,22 +67,22 @@ class WPEViewDriver:
 
     def _teardown(self):
         subprocess.run("adb shell am force-stop com.wpe.webdriver", capture_output=True, shell=True)
-        subprocess.run("adb forward --remove-all", capture_output=True, shell=True)
+        subprocess.run("adb forward --remove-all", capture_output=False, shell=True)
 
     def run(self):
         self._setup()
-
-        subprocess.run("adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity -e headless true", capture_output=True, shell=True)
+        print("LAUNCHING WPEVIEWDRIVER")
+        subprocess.run("adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity -e headless true", capture_output=False, shell=True)
 
         self._wait_for_open_connection()
         if not self._interrupted:
             time.sleep(1) # Add small delay to ensure webdriver server is properly up
-
-        subprocess.run("adb forward tcp:8888 tcp:8888", capture_output=True, shell=True)
+        print("RUNNING WPEVIEWDRIVER")
+        subprocess.run("adb forward tcp:8888 tcp:8888", capture_output=False, shell=True)
 
         signal.setitimer(signal.ITIMER_REAL, 20) # Timeout after 20 secs
         signal.pause()
-
+        print("TEARDOWN WPEVIEWDRIVER")
         self._teardown()
 
 

@@ -47,6 +47,9 @@ jobs:
       - name: Download latest WebDriver Preview
         run: wget https://github.com/Igalia/wpe-android/releases/download/latest-preview/webdriver-latest.apk -O webdriver-latest.apk
 
+      - name: Install ADB
+        run: sudo apt install adb
+
       - name: Run Selenium and W3C tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -63,4 +66,4 @@ jobs:
             python3 -m venv .venv
             . .venv/bin/activate
             pip install -r tools/scripts/webkitpy/requirements.txt
-            tools/scripts/run-webdriver-tests
+            tools/scripts/run-webdriver-tests --verbose
