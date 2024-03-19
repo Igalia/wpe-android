@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+import json
+
+
+def print_test_results(results_file):
+
+    # Read the results from the file
+    with open(results_file, "r") as file:
+        results = json.load(file)
+
+    test_data = json.dumps(results, indent=4, sort_keys=True)
+
+    processed_results = {
+        "errors": [],
+        "failures": [],
+        "passes": [],
+        "xpasses": [],
+        "xfails": [],
+    }
+
+    for result in results["results"]:
+        for subtest in result["subtests"]:
+            entry = f"{result['test']}-{subtest['name']}"
+            if subtest["status"] == "ERROR":
+                processed_results["errors"].append(entry)
+            elif subtest["status"] == "FAIL":
+                processed_results["failures"].append(entry)
+            elif subtest["status"] == "PASS":
+                processed_results["passes"].append(entry)
+            elif subtest["status"] == "XPASS":
+                processed_results["xpasses"].append(entry)
+            elif subtest["status"] == "XFAIL":
+                processed_results["xfails"].append(entry)
+
+    print("=============================== WebDriver Test Results  ===============================")
+    print()
+    print("Unexpected errors: {}".format(len(processed_results["errors"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["errors"]))
+    print()
+    print("Unexpected failures: {}".format(len(processed_results["failures"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["failures"]))
+    print()
+    print("Unexpected passes: {}".format(len(processed_results["xpasses"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["xpasses"]))
+    print()
+    print("Tests that passed:: {}".format(len(processed_results["passes"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["passes"]))
+    print()
+    print("Tests that failed as expected: {}".format(len(processed_results["xfails"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["xfails"]))
+    print()
+
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description="Print WebDriver test results")
+    parser.add_argument("results", help="Path to the WebDriver test results file")
+    return parser.parse_args()
+
+def main(args):
+    # Format and print JSON content
+    print_test_results(args.results)
+
+# Example usage:
+if __name__ == "__main__":
+    ARGS = parse_args()
+    main(ARGS)
