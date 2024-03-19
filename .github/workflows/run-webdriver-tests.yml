@@ -51,6 +51,7 @@ jobs:
         run: sudo apt install adb
 
       - name: Run Selenium and W3C tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}

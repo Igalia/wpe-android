@@ -17,23 +17,39 @@ def print_test_results(results_file):
         "passes": [],
         "xpasses": [],
         "xfails": [],
+        "skips": [],
+        "timeouts": []
     }
 
     for result in results["results"]:
-        for subtest in result["subtests"]:
-            entry = f"{result['test']}-{subtest['name']}"
-            if subtest["status"] == "ERROR":
-                processed_results["errors"].append(entry)
-            elif subtest["status"] == "FAIL":
-                processed_results["failures"].append(entry)
-            elif subtest["status"] == "PASS":
-                processed_results["passes"].append(entry)
-            elif subtest["status"] == "XPASS":
-                processed_results["xpasses"].append(entry)
-            elif subtest["status"] == "XFAIL":
-                processed_results["xfails"].append(entry)
+        if (result["status"] == "OK"):
+            for subtest in result["subtests"]:
+                entry = f"{result['test']}-{subtest['name']}"
+                if subtest["status"] == "ERROR":
+                    processed_results["errors"].append(entry)
+                elif subtest["status"] == "FAIL":
+                    processed_results["failures"].append(entry)
+                elif subtest["status"] == "PASS":
+                    processed_results["passes"].append(entry)
+                elif subtest["status"] in ["XPASS", "XPASS_TIMEOUT"]:
+                    processed_results["xpasses"].append(entry)
+                elif subtest["status"] == "XFAIL":
+                    processed_results["xfails"].append(entry)
+                elif subtest["status"] == "SKIP":
+                    processed_results["skips"].append(entry)
+                elif subtest["status"] == "TIMEOUT":
+                    processed_results["timeouts"].append(entry)
+        elif (result["status"] == "ERROR"):
+            processed_results["errors"].append(result['test'])
+        else:
+            # FIXME: handle other results.
+            pass
 
+    expected_count = len(processed_results["passes"]) + len(processed_results["xfails"]) + len(processed_results["skips"])
+    fail_count = len(processed_results["errors"]) + len(processed_results["failures"]) + len(processed_results["timeouts"]) + len(processed_results["xpasses"])
     print("=============================== WebDriver Test Results  ===============================")
+    print()
+    print("{} tests ran as expected, {} didn't".format(expected_count, fail_count))
     print()
     print("Unexpected errors: {}".format(len(processed_results["errors"])))
     print()
@@ -43,17 +59,13 @@ def print_test_results(results_file):
     print()
     print("\n".join(f'{test}' for test in processed_results["failures"]))
     print()
-    print("Unexpected passes: {}".format(len(processed_results["xpasses"])))
+    print("Unexpected timeout: {}".format(len(processed_results["timeouts"])))
+    print()
+    print("\n".join(f'{test}' for test in processed_results["timeouts"]))
+    print()
+    print("Expected to fail, but passed: {}".format(len(processed_results["xpasses"])))
     print()
     print("\n".join(f'{test}' for test in processed_results["xpasses"]))
-    print()
-    print("Tests that passed:: {}".format(len(processed_results["passes"])))
-    print()
-    print("\n".join(f'{test}' for test in processed_results["passes"]))
-    print()
-    print("Tests that failed as expected: {}".format(len(processed_results["xfails"])))
-    print()
-    print("\n".join(f'{test}' for test in processed_results["xfails"]))
     print()
 
 def parse_args():
