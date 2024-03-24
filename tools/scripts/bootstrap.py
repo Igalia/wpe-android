@@ -28,7 +28,7 @@
 This script takes care of fetching, building and installing all WPE Android dependencies,
 including libwpe, WPEBackend-android and WPEWebKit.
 
-The cross-compilation work is done by Cerbero: https://github.com/Igalia/cerbero.git
+The cross-compilation work is done by Cerbero: https://github.com/Igalia/wpe-android-cerbero.git
 
 After cloning Cerbero's source through git in the `build` folder, the process starts with
 the following Cerbero command:
@@ -36,7 +36,7 @@ the following Cerbero command:
 `./cerbero-uninstalled -c config/cross-android-<arch> package -f wpewebkit`
 
 The logic for this command is in the WPEWebKit packaging recipe in Cerbero's repo:
-https://github.com/Igalia/cerbero/blob/wpe-android/packages/wpewebkit.package
+https://github.com/Igalia/wpe-android-cerbero/blob/wpe-android/packages/wpewebkit.package
 
 This command triggers the build for all WPEWebKit dependencies. After that WPEWebKit itself
 is built. You can find the recipes for all dependencies and WPEWebKit build in the
@@ -83,8 +83,8 @@ class Bootstrap:
     default_arch = "arm64"
     default_version = "2.42.1"
 
-    _cerbero_origin = "https://github.com/Igalia/cerbero.git"
-    _cerbero_branch = "wpe-android"
+    _cerbero_origin = "https://github.com/Igalia/wpe-android-cerbero.git"
+    _cerbero_branch = "main"
 
     _packages_url_template = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
     _devel_package_name_template = "wpewebkit-android-{arch}-{version}.tar.xz"
