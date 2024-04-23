@@ -115,6 +115,7 @@ private:
         }
     }
 
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void()> m_onClose;
     const JNI::Method<void(jint)> m_onLoadChanged;
     const JNI::Method<void(jdouble)> m_onLoadProgress;
@@ -124,6 +125,7 @@ private:
     const JNI::Method<void()> m_onInputMethodContextOut;
     const JNI::Method<void()> m_onEnterFullscreenMode;
     const JNI::Method<void()> m_onExitFullscreenMode;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     static jlong nativeInit(
         JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height, jboolean headless);
@@ -280,8 +282,8 @@ void JNIPageCache::nativeSurfaceChanged(
     Logging::logDebug("Page::nativeSurfaceChanged(%d, %d, %d) [tid %d]", format, width, height, gettid());
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
     if ((page != nullptr) && (page->m_viewBackend != nullptr) && page->m_renderer) {
-        uint32_t uWidth = std::max(0, width);
-        uint32_t uHeight = std::max(0, height);
+        const uint32_t uWidth = std::max(0, width);
+        const uint32_t uHeight = std::max(0, height);
         wpe_view_backend_dispatch_set_size(
             WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend), uWidth, uHeight);
         page->m_renderer->onSurfaceChanged(format, uWidth, uHeight);
@@ -335,7 +337,7 @@ void JNIPageCache::nativeOnTouchEvent(
             break;
         }
 
-        wpe_input_touch_event_raw touchEventRaw = {.type = touchEventType,
+        const wpe_input_touch_event_raw touchEventRaw = {.type = touchEventType,
             .time = static_cast<uint32_t>(time),
             .id = 0,
             .x = static_cast<int32_t>(xCoord),
@@ -393,8 +395,8 @@ Page::Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, 
     , m_inputMethodContext(this)
     , m_isHeadless(headless)
 {
-    uint32_t uWidth = std::max(0, width);
-    uint32_t uHeight = std::max(0, height);
+    const uint32_t uWidth = std::max(0, width);
+    const uint32_t uHeight = std::max(0, height);
 
     m_viewBackend = WPEAndroidViewBackend_create(uWidth, uHeight);
 
@@ -451,7 +453,7 @@ void Page::onInputMethodContextIn() noexcept { getJNIPageCache().onInputMethodCo
 
 void Page::onInputMethodContextOut() noexcept { getJNIPageCache().onInputMethodContextOut(m_pageJavaInstance.get()); }
 
-void Page::commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept
+void Page::commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept // NOLINT(bugprone-exception-escape)
 {
     auto scopedFenceFD = std::make_shared<ScopedFD>(fenceFD);
     if (m_viewBackend != nullptr) {

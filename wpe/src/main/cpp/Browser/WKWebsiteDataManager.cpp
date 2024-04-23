@@ -33,7 +33,9 @@ public:
     }
 
 private:
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jboolean)> m_commitResult;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 const JNIWKWebsiteDataManagerCallbackHolderCache& getJNIWKWebsiteDataManagerCallbackHolderCache()
@@ -56,7 +58,7 @@ public:
     static void onRemoveAllCookiesReady(
         WebKitWebsiteDataManager* manager, GAsyncResult* result, JNIWKWebsiteDataManagerCallbackHolder callbackHolder)
     {
-        gboolean clearResult = webkit_website_data_manager_clear_finish(manager, result, nullptr);
+        const gboolean clearResult = webkit_website_data_manager_clear_finish(manager, result, nullptr);
         getJNIWKWebsiteDataManagerCallbackHolderCache().onResult(callbackHolder, static_cast<jboolean>(clearResult));
     }
 

@@ -69,7 +69,7 @@ size_t JNI::String::getLength() const
         return 0;
 
     auto* env = getCurrentThreadJNIEnv();
-    jsize length = env->GetStringUTFLength(m_javaStringRef.get());
+    const jsize length = env->GetStringUTFLength(m_javaStringRef.get());
     checkJavaException(env);
     return (length > 0) ? static_cast<size_t>(length) : 0;
 }

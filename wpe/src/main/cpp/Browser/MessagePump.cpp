@@ -102,7 +102,7 @@ MessagePump::~MessagePump()
 {
     flush();
 
-    for (int fileDesc : m_looperAttachedPollFds)
+    for (const int fileDesc : m_looperAttachedPollFds)
         ALooper_removeFd(m_looper, fileDesc);
     m_looperAttachedPollFds.clear();
 
@@ -206,7 +206,7 @@ void MessagePump::prepare()
         }
     }
 
-    for (int fileDesc : unusedAttachedFds) {
+    for (const int fileDesc : unusedAttachedFds) {
         ALooper_removeFd(m_looper, fileDesc);
         m_looperAttachedPollFds.erase(fileDesc);
     }

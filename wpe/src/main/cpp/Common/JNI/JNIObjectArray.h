@@ -86,7 +86,9 @@ public:
         {
         }
 
+        // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
         const ConstObjectSpan& m_span;
+        // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
         size_t m_currentIndex;
     };
 
@@ -102,7 +104,9 @@ private:
     {
     }
 
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const size_t m_size;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
     ProtectedArrayType<T> m_javaArrayRef;
 };
 
@@ -166,7 +170,7 @@ public:
             return {0, {}};
 
         auto* env = getCurrentThreadJNIEnv();
-        jsize size = env->GetArrayLength(m_javaArrayRef.get());
+        const jsize size = env->GetArrayLength(m_javaArrayRef.get());
         checkJavaException(env);
         if (size <= 0)
             return {0, {}};

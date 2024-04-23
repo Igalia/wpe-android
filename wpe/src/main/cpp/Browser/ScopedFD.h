@@ -47,7 +47,7 @@ public:
 
     int release()
     {
-        int releasedFD = m_fd;
+        const int releasedFD = m_fd;
         m_fd = -1;
         return releasedFD;
     }

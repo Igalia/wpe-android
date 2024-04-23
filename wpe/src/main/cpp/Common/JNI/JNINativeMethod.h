@@ -39,10 +39,12 @@ struct GenericNativeMethod<Ret(Params...), U,
     {
     }
 
-    // NOLINTBEGIN(misc-non-private-member-variables-in-classes, readability-identifier-naming)
+    // NOLINTBEGIN(misc-non-private-member-variables-in-classes, readability-identifier-naming,
+    // cppcoreguidelines-avoid-const-or-ref-data-members)
     const char* const methodName;
     const FunctionPtrType nativeFunction;
-    // NOLINTEND(misc-non-private-member-variables-in-classes, readability-identifier-naming)
+    // NOLINTEND(misc-non-private-member-variables-in-classes, readability-identifier-naming,
+    // cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 template <typename T> using NativeMethod = GenericNativeMethod<T, jobject>;

@@ -51,7 +51,7 @@ public:
     void onInputMethodContextIn() noexcept override;
     void onInputMethodContextOut() noexcept override;
 
-    void commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept;
+    void commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept; // NOLINT(bugprone-exception-escape)
 
 private:
     friend class JNIPageCache;

@@ -62,8 +62,10 @@ public:
 private:
     mutable JNI::ProtectedType<JNIBrowser> m_browserJavaInstance;
 
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jlong, jint, jint)> m_launchProcessMethod;
     const JNI::Method<void(jlong)> m_terminateProcessMethod;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 const JNIBrowserCache& getJNIBrowserCache()
@@ -116,8 +118,8 @@ int64_t wpeLaunchProcess(void* /*backend*/, wpe_process_type wpeProcessType, voi
     if ((options == nullptr) || (options[0] == nullptr) || (options[1] == nullptr))
         return -1;
 
-    jlong pid = std::strtoll(options[0], nullptr, 10); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
-    jint fileDesc = std::stoi(options[1]);
+    const jlong pid = std::strtoll(options[0], nullptr, 10); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
+    const jint fileDesc = std::stoi(options[1]);
 
     auto processType = ProcessType::TypesCount;
     if (wpeProcessType == WPE_PROCESS_TYPE_WEB) {

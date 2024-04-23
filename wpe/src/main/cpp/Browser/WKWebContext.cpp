@@ -47,7 +47,9 @@ public:
     }
 
 private:
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<jlong()> m_createPageForAutomation;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     static jlong nativeInit(JNIEnv* env, jobject obj, jlong nativeWebsiteDataManagerPtr, jboolean automationMode);
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong wkWebContextPtr) noexcept;
