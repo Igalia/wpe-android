@@ -5,7 +5,7 @@ plugins {
 android {
     namespace 'com.wpe.wpe'
     compileSdk 34
-    ndkVersion '26.1.10909125'
+    ndkVersion '26.3.11579264'
 
     defaultConfig {
         minSdk 31
