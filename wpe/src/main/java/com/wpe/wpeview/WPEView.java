@@ -29,6 +29,7 @@ import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.SurfaceView;
+import android.view.View;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -47,35 +48,37 @@ import com.wpe.wpe.Page;
 public class WPEView extends FrameLayout {
     private static final String LOGTAG = "WPEView";
 
-    private final WPEContext wpeContext;
-    private final boolean ownsContext;
+    private WPEContext wpeContext;
+    private boolean ownsContext;
 
-    private final Page page;
+    private Page page;
 
     public WPEView(@NonNull Context context) {
         super(context);
-
-        wpeContext = new WPEContext(context);
-        ownsContext = true;
-        page = new Page(this, wpeContext.getWebContext(), false);
+        init(new WPEContext(context), true, false);
     }
 
     public WPEView(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-
-        wpeContext = new WPEContext(context);
-        ownsContext = true;
-        page = new Page(this, wpeContext.getWebContext(), false);
+        init(new WPEContext(context), true, false);
     }
 
     public WPEView(@NonNull WPEContext context) { this(context, false); }
 
     public WPEView(@NonNull WPEContext context, boolean headless) {
         super(context.getApplicationContext());
+        init(context, false, false);
+    }
 
+    private void init(@NonNull WPEContext context, boolean ownsContext, boolean headless) {
         wpeContext = context;
-        ownsContext = false;
-        page = new Page(this, wpeContext.getWebContext(), headless);
+        this.ownsContext = ownsContext;
+        page = new Page(this, wpeContext.getWebContext(), false);
+
+        setFocusable(true);
+        setFocusableInTouchMode(true);
+        setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
     }
 
     private SurfaceView surfaceView = null;

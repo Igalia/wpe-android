@@ -25,6 +25,8 @@ package com.wpe.wpe;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -38,6 +40,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpeview.WPEView;
+
+import java.lang.ref.WeakReference;
 
 /**
  * A Page roughly corresponds with a tab in a regular browser UI.
@@ -192,16 +196,32 @@ public final class Page {
 
     @Keep
     public void onInputMethodContextIn() {
-        InputMethodManager imm =
-            (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.showSoftInput(wpeView, 0);
+        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.post(() -> {
+            WPEView view = weakRefecence.get();
+            if (view != null) {
+                if (view.requestFocus()) {
+                    InputMethodManager imm =
+                        (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.showSoftInput(wpeView, InputMethodManager.SHOW_IMPLICIT);
+                }
+            }
+        });
     }
 
     @Keep
     public void onInputMethodContextOut() {
-        InputMethodManager imm =
-            (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(surfaceView.getWindowToken(), 0);
+        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.post(() -> {
+            WPEView view = weakRefecence.get();
+            if (view != null) {
+                InputMethodManager imm =
+                    (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.hideSoftInputFromWindow(wpeView.getWindowToken(), 0);
+            }
+        });
     }
 
     @Keep
