@@ -27,6 +27,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -62,7 +63,7 @@ public final class Page {
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
-    private native long nativeInit(long nativeContextPtr, int width, int height, boolean headless);
+    private native long nativeInit(long nativeContextPtr, int width, int height, float deviceScale, boolean headless);
     private native void nativeClose(long nativePtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, @NonNull String url);
@@ -109,7 +110,9 @@ public final class Page {
             height = kHeadlessHeight;
         }
 
-        nativePtr = nativeInit(context.getNativePtr(), width, height, headless);
+        DisplayMetrics displayMetrics = context.getApplicationContext().getResources().getDisplayMetrics();
+
+        nativePtr = nativeInit(context.getNativePtr(), width, height, displayMetrics.density, headless);
 
         Context ctx = wpeView.getContext();
         surfaceView = new PageSurfaceView(ctx);
