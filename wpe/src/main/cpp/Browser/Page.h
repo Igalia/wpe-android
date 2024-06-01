@@ -46,6 +46,7 @@ public:
 
     void close() noexcept;
 
+    float deviceScale() const noexcept { return m_deviceScale; }
     WebKitWebView* webView() const noexcept { return m_webView; }
 
     void onInputMethodContextIn() noexcept override;
@@ -56,7 +57,8 @@ public:
 private:
     friend class JNIPageCache;
 
-    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, bool headless);
+    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, float deviceScale,
+        bool headless);
 
     JNI::ProtectedType<JNIPage> m_pageJavaInstance;
     InputMethodContext m_inputMethodContext;
@@ -67,4 +69,5 @@ private:
     std::vector<gulong> m_signalHandlers;
     bool m_isFullscreenRequested = false;
     bool m_isHeadless = false;
+    float m_deviceScale;
 };

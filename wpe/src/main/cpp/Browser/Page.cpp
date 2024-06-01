@@ -127,8 +127,8 @@ private:
     const JNI::Method<void()> m_onExitFullscreenMode;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-    static jlong nativeInit(
-        JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height, jboolean headless);
+    static jlong nativeInit(JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height,
+        jfloat deviceScale, jboolean headless);
     static void nativeClose(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeLoadUrl(JNIEnv* env, jobject obj, jlong pagePtr, jstring url) noexcept;
@@ -168,7 +168,8 @@ JNIPageCache::JNIPageCache()
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
     , m_onExitFullscreenMode(getMethod<void()>("onExitFullscreenMode"))
 {
-    registerNativeMethods(JNI::NativeMethod<jlong(jlong, jint, jint, jboolean)>("nativeInit", JNIPageCache::nativeInit),
+    registerNativeMethods(
+        JNI::NativeMethod<jlong(jlong, jint, jint, jfloat, jboolean)>("nativeInit", JNIPageCache::nativeInit),
         JNI::NativeMethod<void(jlong)>("nativeClose", JNIPageCache::nativeClose),
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIPageCache::nativeDestroy),
         JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", JNIPageCache::nativeLoadUrl),
@@ -192,13 +193,13 @@ JNIPageCache::JNIPageCache()
 }
 
 jlong JNIPageCache::nativeInit(
-    JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height, jboolean headless)
+    JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height, jfloat deviceScale, jboolean headless)
 {
-    Logging::logDebug("Page::nativeInit(%p, %d, %d) [tid %d]", obj, width, height, gettid());
+    Logging::logDebug("Page::nativeInit(%p, %d, %d, [density %f] [tid %d]", obj, width, height, deviceScale, gettid());
     auto* wkWebContext = reinterpret_cast<WKWebContext*>(wkWebContextPtr); // NOLINT(performance-no-int-to-ptr)
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    Page* page
-        = new Page(env, reinterpret_cast<JNIPage>(obj), wkWebContext, width, height, static_cast<bool>(headless));
+    Page* page = new Page(
+        env, reinterpret_cast<JNIPage>(obj), wkWebContext, width, height, deviceScale, static_cast<bool>(headless));
     return reinterpret_cast<jlong>(page);
 }
 
@@ -282,11 +283,14 @@ void JNIPageCache::nativeSurfaceChanged(
     Logging::logDebug("Page::nativeSurfaceChanged(%d, %d, %d) [tid %d]", format, width, height, gettid());
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
     if ((page != nullptr) && (page->m_viewBackend != nullptr) && page->m_renderer) {
-        const uint32_t uWidth = std::max(0, width);
-        const uint32_t uHeight = std::max(0, height);
+        const uint32_t physicalWidth = std::max(0, width);
+        const uint32_t physicalHeight = std::max(0, height);
+        const uint32_t logicalWidth = std::floor(static_cast<float>(physicalWidth) / page->deviceScale());
+        const uint32_t logicalHeight = std::floor(static_cast<float>(physicalHeight) / page->deviceScale());
+
         wpe_view_backend_dispatch_set_size(
-            WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend), uWidth, uHeight);
-        page->m_renderer->onSurfaceChanged(format, uWidth, uHeight);
+            WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend), logicalWidth, logicalHeight);
+        page->m_renderer->onSurfaceChanged(format, physicalWidth, physicalHeight);
     }
 }
 
@@ -390,10 +394,12 @@ void JNIPageCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*ob
 
 void Page::configureJNIMappings() { getJNIPageCache(); }
 
-Page::Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, bool headless)
+Page::Page(
+    JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, float deviceScale, bool headless)
     : m_pageJavaInstance(JNI::createTypedProtectedRef(env, jniPage, true))
     , m_inputMethodContext(this)
     , m_isHeadless(headless)
+    , m_deviceScale(deviceScale)
 {
     const uint32_t uWidth = std::max(0, width);
     const uint32_t uHeight = std::max(0, height);
@@ -427,6 +433,9 @@ Page::Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, 
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);
 
     WPEAndroidViewBackend_setCommitBufferHandler(m_viewBackend, this, handleCommitBuffer);
+
+    wpe_view_backend_dispatch_set_device_scale_factor(
+        WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend), deviceScale);
 }
 
 void Page::close() noexcept
