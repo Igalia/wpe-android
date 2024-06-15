@@ -25,6 +25,7 @@
 #include "Browser.h"
 #include "Logging.h"
 #include "RendererSurfaceControl.h"
+#include "WKCallback.h"
 #include "WKWebContext.h"
 
 #include <android/native_window_jni.h>
@@ -104,6 +105,38 @@ public:
 
     void onInputMethodContextOut(jobject obj) const noexcept { callJavaMethod(m_onInputMethodContextOut, obj); }
 
+    static void onEvaluateJavascriptReady(WebKitWebView* webView, GAsyncResult* result, JNIWKCallback callback)
+    {
+        GError* error = nullptr;
+        JSCValue* value = webkit_web_view_evaluate_javascript_finish(webView, result, &error);
+        if (value == nullptr) {
+            g_error_free(error);
+            WKCallback::onStringResult(callback, nullptr);
+        } else {
+            if (jsc_value_is_string(value) != 0) {
+                gchar* strValue = jsc_value_to_string(value);
+                JSCException* exception = jsc_context_get_exception(jsc_value_get_context(value));
+                if (exception != nullptr) {
+                    WKCallback::onStringResult(callback, nullptr);
+                } else {
+                    auto resultValue = JNI::String(strValue);
+                    WKCallback::onStringResult(callback, resultValue);
+                }
+                g_free(strValue);
+            } else {
+                WKCallback::onStringResult(callback, nullptr);
+            }
+        }
+        g_object_unref(value);
+
+        try {
+            JNIEnv* env = JNI::getCurrentThreadJNIEnv();
+            env->DeleteGlobalRef(callback);
+        } catch (const std::exception& ex) {
+            Logging::logError("Failed to release WKCallback reference (%s)", ex.what());
+        }
+    }
+
 private:
     template <typename T, typename... Args>
     static void callJavaMethod(const JNI::Method<T> method, jobject obj, Args&&... args) noexcept
@@ -148,6 +181,8 @@ private:
     static void nativeSetInputMethodContent(JNIEnv* env, jobject obj, jlong pagePtr, jint unicodeChar) noexcept;
     static void nativeDeleteInputMethodContent(JNIEnv* env, jobject obj, jlong pagePtr, jint offset) noexcept;
     static void nativeRequestExitFullscreenMode(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
+    static void nativeEvaluateJavascript(
+        JNIEnv* env, jobject obj, jlong pagePtr, jstring script, JNIWKCallback callback) noexcept;
 };
 
 const JNIPageCache& getJNIPageCache()
@@ -189,7 +224,9 @@ JNIPageCache::JNIPageCache()
         JNI::NativeMethod<void(jlong, jint)>(
             "nativeDeleteInputMethodContent", JNIPageCache::nativeDeleteInputMethodContent),
         JNI::NativeMethod<void(jlong)>(
-            "nativeRequestExitFullscreenMode", JNIPageCache::nativeRequestExitFullscreenMode));
+            "nativeRequestExitFullscreenMode", JNIPageCache::nativeRequestExitFullscreenMode),
+        JNI::NativeMethod<void(jlong, jstring, JNIWKCallback)>(
+            "nativeEvaluateJavascript", JNIPageCache::nativeEvaluateJavascript));
 }
 
 jlong JNIPageCache::nativeInit(
@@ -385,6 +422,19 @@ void JNIPageCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*ob
     Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
     if ((page != nullptr) && (page->m_viewBackend != nullptr)) {
         wpe_view_backend_dispatch_request_exit_fullscreen(WPEAndroidViewBackend_getWPEViewBackend(page->m_viewBackend));
+    }
+}
+
+void JNIPageCache::nativeEvaluateJavascript(
+    JNIEnv* env, jobject /*obj*/, jlong pagePtr, jstring script, JNIWKCallback callback) noexcept
+{
+    Logging::logDebug("Page::nativeEvaluateJavascript() [tid %d]", gettid());
+    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
+    if (page != nullptr) {
+        webkit_web_view_evaluate_javascript(page->webView(), JNI::String(script).getContent().get(), -1, nullptr,
+            nullptr, nullptr,
+            callback != nullptr ? reinterpret_cast<GAsyncReadyCallback>(onEvaluateJavascriptReady) : nullptr,
+            env->NewGlobalRef(callback));
     }
 }
 

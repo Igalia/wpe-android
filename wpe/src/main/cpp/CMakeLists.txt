@@ -110,6 +110,7 @@ add_library(
     Browser/PageSettings.cpp
     Browser/RendererSurfaceControl.cpp
     Browser/SurfaceControl.cpp
+    Browser/WKCallback.cpp
     Browser/WKCookieManager.cpp
     Browser/WKWebContext.cpp
     Browser/WKWebsiteDataManager.cpp)

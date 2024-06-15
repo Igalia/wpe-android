@@ -20,6 +20,7 @@
 #include "Browser.h"
 #include "Page.h"
 #include "PageSettings.h"
+#include "WKCallback.h"
 #include "WKCookieManager.h"
 #include "WKWebContext.h"
 #include "WKWebsiteDataManager.h"
@@ -30,6 +31,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         JNI::initVM(javaVM);
 
         Browser::configureJNIMappings();
+        WKCallback::configureJNIMappings();
         WKCookieManager::configureJNIMappings();
         WKWebContext::configureJNIMappings();
         WKWebsiteDataManager::configureJNIMappings();

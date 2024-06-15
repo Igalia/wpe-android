@@ -37,6 +37,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpe.Page;
+import com.wpe.wpe.WKCallback;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
@@ -333,5 +334,25 @@ public class WPEView extends FrameLayout {
      */
     public void setSurfaceClient(@Nullable SurfaceClient client) { surfaceClient = client; }
 
+    /**
+     * Gets the WPECookieManager instance associated with WPEContext of this view.
+     *
+     * @return the WPECookieManager instance
+     */
     public @NonNull WPECookieManager getCookieManager() { return wpeContext.getCookieManager(); }
+
+    /**
+     * Asynchronously evaluates JavaScript in the context of the currently displayed page.
+     * If non-null, {@code resultCallback} will be invoked with any result returned from that
+     * execution. This method must be called on the UI thread and the callback will
+     * be made on the UI thread.
+     *
+     * @param script the JavaScript to execute.
+     * @param resultCallback A callback to be invoked when the script execution
+     *                       completes with the result of the execution (if any).
+     *                       May be {@code null} if no notification of the result is required.
+     */
+    public void evaluateJavascript(String script, WPECallback<String> resultCallback) {
+        page.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
+    }
 }

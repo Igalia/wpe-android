@@ -81,6 +81,7 @@ public final class Page {
     private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
     private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
     private native void nativeRequestExitFullscreenMode(long nativePtr);
+    private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
 
     private final WPEView wpeView;
     private final PageSurfaceView surfaceView;
@@ -256,6 +257,10 @@ public final class Page {
     public void setInputMethodContent(int unicodeChar) { nativeSetInputMethodContent(nativePtr, unicodeChar); }
 
     public void deleteInputMethodContent(int offset) { nativeDeleteInputMethodContent(nativePtr, offset); }
+
+    public void evaluateJavascript(String script, WKCallback<String> callback) {
+        nativeEvaluateJavascript(nativePtr, script, callback);
+    }
 
     protected final class PageSurfaceHolderCallback implements SurfaceHolder.Callback2 {
         @Override
