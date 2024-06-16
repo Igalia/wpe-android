@@ -23,6 +23,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.wpe.wpe.WKCookieManager;
+import com.wpe.wpe.WKNetworkSession;
 import com.wpe.wpe.WKWebsiteDataManager;
 
 import java.util.EnumSet;
@@ -46,12 +47,14 @@ public final class WPECookieManager {
         void onResult(boolean result);
     }
 
-    private WKWebsiteDataManager dataManager;
+    private WKNetworkSession networkSession;
     private WKCookieManager cookieManager;
+    private WKWebsiteDataManager websiteDataManager;
 
-    WPECookieManager(WKWebsiteDataManager dataManager) {
-        this.dataManager = dataManager;
-        this.cookieManager = dataManager.getCookieManager();
+    WPECookieManager(WKNetworkSession networkSession) {
+        this.networkSession = networkSession;
+        this.cookieManager = networkSession.getCookieManager();
+        this.websiteDataManager = networkSession.getWebsiteDataManager();
     }
 
     public @NonNull CookieAcceptPolicy getCookieAcceptPolicy() {
@@ -66,6 +69,6 @@ public final class WPECookieManager {
         EnumSet<WKWebsiteDataManager.WebsiteDataType> valuesToClear =
             EnumSet.of(WKWebsiteDataManager.WebsiteDataType.Cookies);
         WKWebsiteDataManager.Callback callbackImpl = callback == null ? null : callback::onResult;
-        dataManager.clear(valuesToClear, callbackImpl);
+        websiteDataManager.clear(valuesToClear, callbackImpl);
     }
 }

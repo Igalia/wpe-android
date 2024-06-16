@@ -36,6 +36,7 @@ import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
 
+
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 

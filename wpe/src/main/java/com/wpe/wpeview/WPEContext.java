@@ -34,7 +34,7 @@ public class WPEContext {
     public @NonNull Context getApplicationContext() { return context.getApplicationContext(); }
     public @NonNull WPECookieManager getCookieManager() {
         if (cookieManager == null)
-            cookieManager = new WPECookieManager(this.context.getWebsiteDataManager());
+            cookieManager = new WPECookieManager(this.context.getNetworkSession());
         return cookieManager;
     }
 

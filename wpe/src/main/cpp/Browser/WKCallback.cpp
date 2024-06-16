@@ -29,46 +29,22 @@ class JNIWKCallbackCache final : public JNI::TypedClass<JNIWKCallback> {
 public:
     JNIWKCallbackCache()
         : JNI::TypedClass<JNIWKCallback>(true)
-        , m_onStringResult(getStaticMethod<void(JNIWKCallback, jstring)>("onStringResult"))
+        , m_onStringResult(getStaticMethod<void(jstring, JNIWKCallback)>("onStringResult"))
     {
     }
 
     void onStringResult(JNIWKCallback callback, jstring result) const noexcept
     {
         try {
-            m_onStringResult.invoke(callback, result);
+            m_onStringResult.invoke(result, callback);
         } catch (const std::exception& ex) {
             Logging::logError("cannot call WKCallback callback result (%s)", ex.what());
         }
-        /*
-                try {
-                    JNIEnv* env = JNI::getCurrentThreadJNIEnv();
-                    //env->DeleteGlobalRef(callback);
-                } catch (const std::exception& ex) {
-                    Logging::logError("Failed to release WKCallback reference (%s)", ex.what());
-                }
-        */
     }
-    /*
-        void onResult(JNIWKWebsiteDataManagerCallbackHolder callbackHolder, jboolean result) const noexcept
-        {
-            try {
-                m_commitResult.invoke(callbackHolder, result);
-            } catch (const std::exception& ex) {
-                Logging::logError("cannot call WKWebsiteDataManager callback result (%s)", ex.what());
-            }
 
-            try {
-                JNIEnv* env = JNI::getCurrentThreadJNIEnv();
-                env->DeleteGlobalRef(callbackHolder);
-            } catch (const std::exception& ex) {
-                Logging::logError("Failed to release WKWebsiteDataManager.CallbackHolder reference (%s)", ex.what());
-            }
-        }
-    */
 private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
-    const JNI::StaticMethod<void(JNIWKCallback, jstring)> m_onStringResult;
+    const JNI::StaticMethod<void(jstring, JNIWKCallback)> m_onStringResult;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 

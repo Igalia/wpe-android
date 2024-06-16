@@ -22,32 +22,31 @@ public class WKWebContext {
 
     private Client client;
 
-    private final WKWebsiteDataManager websiteDataManager;
+    private final WKNetworkSession networkSession;
 
     public WKWebContext(@NonNull Context context, int inspectorPort, boolean automationMode) {
         this.context = context;
 
         Browser.getInstance().initialize(context, inspectorPort);
 
-        websiteDataManager = new WKWebsiteDataManager(automationMode, context.getDataDir().getAbsolutePath(),
-                                                      context.getCacheDir().getAbsolutePath());
+        nativePtr = nativeInit(automationMode);
 
-        nativePtr = nativeInit(websiteDataManager.getNativePtr(), automationMode);
+        networkSession = new WKNetworkSession(this, automationMode, context.getDataDir().getAbsolutePath(),
+                                              context.getCacheDir().getAbsolutePath());
 
-        websiteDataManager.getCookieManager().setCookieAcceptPolicy(
-            WKCookieManager.CookieAcceptPolicy.AcceptNoThirdParty);
+        networkSession.getCookieManager().setCookieAcceptPolicy(WKCookieManager.CookieAcceptPolicy.AcceptNoThirdParty);
     }
 
     public void destroy() {
         if (nativePtr != 0) {
+            networkSession.destroy();
             nativeDestroy(nativePtr);
-            websiteDataManager.destroy();
         }
     }
 
     public @NonNull Context getApplicationContext() { return context.getApplicationContext(); }
 
-    public @NonNull WKWebsiteDataManager getWebsiteDataManager() { return websiteDataManager; }
+    public @NonNull WKNetworkSession getNetworkSession() { return networkSession; }
 
     public void setClient(@Nullable Client client) { this.client = client; }
 
@@ -62,7 +61,7 @@ public class WKWebContext {
         return 0;
     }
 
-    private native long nativeInit(long nativeWebsiteDataManagerPtr, boolean automationMode);
+    private native long nativeInit(boolean automationMode);
 
     private native void nativeDestroy(long nativePtr);
 }

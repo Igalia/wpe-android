@@ -25,7 +25,8 @@
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWKCookieManager, "com/wpe/wpe/WKCookieManager");
 
-class WKCookieManager final {
-public:
-    static void configureJNIMappings();
-};
+namespace WKCookieManager {
+
+void configureJNIMappings();
+
+} // namespace WKCookieManager

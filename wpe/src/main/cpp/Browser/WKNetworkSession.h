@@ -23,33 +23,32 @@
 
 #include <wpe/webkit.h>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebContext, "com/wpe/wpe/WKWebContext");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKNetworkSession, "com/wpe/wpe/WKNetworkSession");
 
-class WKWebContext final {
+class WKWebContext;
+
+class WKNetworkSession final {
 public:
     static void configureJNIMappings();
 
-    WKWebContext(WKWebContext&&) = delete;
-    WKWebContext& operator=(WKWebContext&&) = delete;
-    WKWebContext(const WKWebContext&) = delete;
-    WKWebContext& operator=(const WKWebContext&) = delete;
+    WKNetworkSession(WKNetworkSession&&) = delete;
+    WKNetworkSession& operator=(WKNetworkSession&&) = delete;
+    WKNetworkSession(const WKNetworkSession&) = delete;
+    WKNetworkSession& operator=(const WKNetworkSession&) = delete;
 
-    ~WKWebContext() = default;
+    ~WKNetworkSession() = default;
 
-    WebKitWebContext* webContext() const noexcept { return m_webContext.get(); }
-
-    bool automationMode() const { return m_automationMode; }
+    WebKitNetworkSession* networkSession() const noexcept { return m_networkSession.get(); }
 
 private:
-    friend class JNIWKWebContextCache;
+    friend class JNIWKNetworkSessionCache;
 
-    WKWebContext(JNIEnv* env, JNIWKWebContext jniWKWebContext, bool automationMode);
+    WKNetworkSession(JNIEnv* env, JNIWKNetworkSession jniWKNetworkSession, WKWebContext* wkWebContext,
+        bool automationMode, const char* dataDir, const char* cacheDir);
 
     template <typename T> using ProtectedUniquePointer = std::unique_ptr<T, std::function<void(T*)>>;
 
-    JNI::ProtectedType<JNIWKWebContext> m_webContextJavaInstance;
+    JNI::ProtectedType<JNIWKNetworkSession> m_networkSessionJavaInstance;
 
-    bool m_automationMode = false;
-
-    ProtectedUniquePointer<WebKitWebContext> m_webContext {};
+    ProtectedUniquePointer<WebKitNetworkSession> m_networkSession {};
 };

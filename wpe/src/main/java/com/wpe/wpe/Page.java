@@ -38,6 +38,7 @@ import android.view.inputmethod.InputMethodManager;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpeview.WPEView;
@@ -258,7 +259,7 @@ public final class Page {
 
     public void deleteInputMethodContent(int offset) { nativeDeleteInputMethodContent(nativePtr, offset); }
 
-    public void evaluateJavascript(String script, WKCallback<String> callback) {
+    public void evaluateJavascript(@NonNull String script, @Nullable WKCallback<String> callback) {
         nativeEvaluateJavascript(nativePtr, script, callback);
     }
 

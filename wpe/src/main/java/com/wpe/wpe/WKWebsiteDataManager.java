@@ -34,25 +34,10 @@ public class WKWebsiteDataManager {
         public int getValue() { return value == All.value ? (1 << value) - 1 : (1 << value); }
     }
 
-    private WKCookieManager cookieManager;
-
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
-    WKWebsiteDataManager(boolean isEphemeral, String dataDir, String cacheDir) {
-        nativePtr = nativeInit(isEphemeral, dataDir, cacheDir);
-    }
-
-    void destroy() {
-        if (nativePtr != 0)
-            nativeDestroy(nativePtr);
-    }
-
-    public @NonNull WKCookieManager getCookieManager() {
-        if (cookieManager == null)
-            cookieManager = new WKCookieManager(nativeCookieManager(nativePtr));
-        return cookieManager;
-    }
+    WKWebsiteDataManager(long nativePtr) { this.nativePtr = nativePtr; }
 
     public void clear(@NonNull EnumSet<WebsiteDataType> websiteDataTypes, @Nullable Callback callback) {
         int flags = websiteDataTypes.stream().map(WebsiteDataType::getValue).reduce(0, (x, y) -> x | y);
@@ -81,8 +66,5 @@ public class WKWebsiteDataManager {
         }
     }
 
-    private native long nativeInit(boolean ephemeral, @NonNull String dataDir, @NonNull String cacheDir);
-    private native void nativeDestroy(long nativePtr);
-    private native long nativeCookieManager(long nativePtr);
     private native void nativeClear(long nativePtr, int typesToClear, CallbackHolder callbackHolder);
 }

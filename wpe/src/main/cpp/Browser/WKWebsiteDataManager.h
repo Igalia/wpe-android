@@ -26,28 +26,8 @@
 DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebsiteDataManager, "com/wpe/wpe/WKWebsiteDataManager");
 DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebsiteDataManagerCallbackHolder, "com/wpe/wpe/WKWebsiteDataManager$CallbackHolder");
 
-class WKWebsiteDataManager final {
-public:
-    static void configureJNIMappings();
+namespace WKWebsiteDataManager {
 
-    WKWebsiteDataManager(WKWebsiteDataManager&&) = delete;
-    WKWebsiteDataManager& operator=(WKWebsiteDataManager&&) = delete;
-    WKWebsiteDataManager(const WKWebsiteDataManager&) = delete;
-    WKWebsiteDataManager& operator=(const WKWebsiteDataManager&) = delete;
+void configureJNIMappings();
 
-    ~WKWebsiteDataManager() = default;
-
-    WebKitWebsiteDataManager* websiteDataManager() const noexcept { return m_websiteDataManager.get(); }
-
-private:
-    friend class JNIWKWebsiteDataManagerCache;
-
-    WKWebsiteDataManager(JNIEnv* env, JNIWKWebsiteDataManager jniWKWebsiteDataManager, bool ephemeral,
-        const char* dataDir, const char* cacheDir);
-
-    template <typename T> using ProtectedUniquePointer = std::unique_ptr<T, std::function<void(T*)>>;
-
-    JNI::ProtectedType<JNIWKWebsiteDataManager> m_websiteDataManagerJavaInstance;
-
-    ProtectedUniquePointer<WebKitWebsiteDataManager> m_websiteDataManager {};
-};
+} // namespace WKWebsiteDataManager

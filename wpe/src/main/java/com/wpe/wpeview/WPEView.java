@@ -352,7 +352,7 @@ public class WPEView extends FrameLayout {
      *                       completes with the result of the execution (if any).
      *                       May be {@code null} if no notification of the result is required.
      */
-    public void evaluateJavascript(String script, WPECallback<String> resultCallback) {
+    public void evaluateJavascript(@NonNull String script, @Nullable WPECallback<String> resultCallback) {
         page.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
     }
 }

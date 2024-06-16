@@ -45,4 +45,8 @@ JNIWKCookieManagerCache::JNIWKCookieManagerCache()
  * Native WKCookieManager class implementation
  **********************************************************************************************************************/
 
-void WKCookieManager::configureJNIMappings() { JNIWKCookieManagerCache(); }
+namespace WKCookieManager {
+
+void configureJNIMappings() { getJNIWKCookieManagerCache(); }
+
+} // namespace WKCookieManager

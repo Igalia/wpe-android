@@ -100,21 +100,21 @@ class Bootstrap:
         "libgobject-2.0.so",
         "libwpe-1.0.so",
         "libWPEBackend-android.so",
-        "libWPEWebKit-1.0_3.so"
+        "libWPEWebKit-2.0_1.so"
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
-        ("libsoup-2.4", "libsoup-2.4"),
+        ("libsoup-3.0", "libsoup-3.0"),
         ("wpe-1.0", "wpe"),
         ("wpe-android", "wpe-android"),
-        ("wpe-webkit-1.0", "wpe-webkit"),
+        ("wpe-webkit-2.0", "wpe-webkit"),
         ("xkbcommon", "xkbcommon")
     ]
     _soname_replacements = [
         ("libnettle.so.8", "libnettle_8.so"),  # This entry is not retrievable from the packaged libnettle.so
-        ("libWPEWebKit-1.0.so.3", "libWPEWebKit-1.0_3.so")  # This is for libWPEInjectedBundle.so
+        ("libWPEWebKit-2.0.so.1", "libWPEWebKit-2.0_1.so")  # This is for libWPEInjectedBundle.so
     ]
-    _base_needed = ["libWPEWebKit-1.0_3.so"]
+    _base_needed = ["libWPEWebKit-2.0_1.so"]
 
     def __init__(self, args=None):
         args = args or {}
@@ -352,8 +352,8 @@ class Bootstrap:
         sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
 
         libs_paths = list(Path(sysroot_lib_dir).glob("*.so"))
-        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-1.0")).glob("*.so")))
-        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-1.0", "injected-bundle")).glob("*.so")))
+        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-2.0")).glob("*.so")))
+        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-2.0", "injected-bundle")).glob("*.so")))
 
         self._soname_replacements = Bootstrap._soname_replacements.copy()
 

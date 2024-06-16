@@ -65,12 +65,12 @@ add_library(gmodule-2.0 SHARED IMPORTED)
 set_target_properties(gmodule-2.0 PROPERTIES IMPORTED_LOCATION
                                              "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgmodule-2.0.so")
 
-add_library(WPEWebKit-1.0 SHARED IMPORTED)
+add_library(WPEWebKit-2.0 SHARED IMPORTED)
 set_target_properties(
-    WPEWebKit-1.0
-    PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit-1.0_3.so"
+    WPEWebKit-2.0
+    PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit-2.0_1.so"
                INTERFACE_INCLUDE_DIRECTORIES
-               "${CMAKE_SOURCE_DIR}/imported/include/wpe-webkit;${CMAKE_SOURCE_DIR}/imported/include/libsoup-2.4")
+               "${CMAKE_SOURCE_DIR}/imported/include/wpe-webkit;${CMAKE_SOURCE_DIR}/imported/include/libsoup-3.0")
 
 add_library(libwpe-1.0 SHARED IMPORTED)
 set_target_properties(
@@ -112,6 +112,7 @@ add_library(
     Browser/SurfaceControl.cpp
     Browser/WKCallback.cpp
     Browser/WKCookieManager.cpp
+    Browser/WKNetworkSession.cpp
     Browser/WKWebContext.cpp
     Browser/WKWebsiteDataManager.cpp)
 target_configure_quality(WPEAndroidBrowser)
@@ -125,7 +126,7 @@ target_link_libraries(
     gobject-2.0
     libwpe-1.0
     WPEBackend
-    WPEWebKit-1.0
+    WPEWebKit-2.0
     WPEAndroidCommon)
 
 # libWPEAndroidService
@@ -137,6 +138,6 @@ target_link_libraries(
     glib-2.0
     gmodule-2.0
     WPEBackend
-    WPEWebKit-1.0
+    WPEWebKit-2.0
     WPEAndroidCommon
     WPEWebDriver)

@@ -51,7 +51,7 @@ private:
     const JNI::Method<jlong()> m_createPageForAutomation;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
-    static jlong nativeInit(JNIEnv* env, jobject obj, jlong nativeWebsiteDataManagerPtr, jboolean automationMode);
+    static jlong nativeInit(JNIEnv* env, jobject obj, jboolean automationMode);
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong wkWebContextPtr) noexcept;
 };
 
@@ -65,19 +65,16 @@ JNIWKWebContextCache::JNIWKWebContextCache()
     : JNI::TypedClass<JNIWKWebContext>(true)
     , m_createPageForAutomation(getMethod<jlong()>("createPageForAutomation"))
 {
-    registerNativeMethods(JNI::NativeMethod<jlong(jlong, jboolean)>("nativeInit", JNIWKWebContextCache::nativeInit),
+    registerNativeMethods(JNI::NativeMethod<jlong(jboolean)>("nativeInit", JNIWKWebContextCache::nativeInit),
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIWKWebContextCache::nativeDestroy));
 }
 
-jlong JNIWKWebContextCache::nativeInit(
-    JNIEnv* env, jobject obj, jlong nativeWebsiteDataManagerPtr, jboolean automationMode)
+jlong JNIWKWebContextCache::nativeInit(JNIEnv* env, jobject obj, jboolean automationMode)
 {
     Logging::logDebug("WKWebContext::nativeInit(%p, %d, %d) [tid %d]", obj, gettid());
-    auto* wkWebsiteDataManager = reinterpret_cast<WKWebsiteDataManager*>(nativeWebsiteDataManagerPtr); // NOLINT
-    // (performance-no-int-to-ptr)
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    auto* wkWebContext = new WKWebContext(env, reinterpret_cast<JNIWKWebContext>(obj), wkWebsiteDataManager,
-        static_cast<unsigned int>(automationMode) != 0U);
+    auto* wkWebContext = new WKWebContext(
+        env, reinterpret_cast<JNIWKWebContext>(obj), static_cast<unsigned int>(automationMode) != 0U);
     return reinterpret_cast<jlong>(wkWebContext);
 }
 
@@ -94,14 +91,12 @@ void JNIWKWebContextCache::nativeDestroy(JNIEnv* /*env*/, jobject /*obj*/, jlong
 
 void WKWebContext::configureJNIMappings() { getJNIWKWebContextCache(); }
 
-WKWebContext::WKWebContext(
-    JNIEnv* env, JNIWKWebContext jniWKWebContext, WKWebsiteDataManager* wkWebsiteDataManager, bool automationMode)
+WKWebContext::WKWebContext(JNIEnv* env, JNIWKWebContext jniWKWebContext, bool automationMode)
     : m_webContextJavaInstance(JNI::createTypedProtectedRef(env, jniWKWebContext, true))
 {
     m_automationMode = automationMode;
 
-    m_webContext = {webkit_web_context_new_with_website_data_manager(wkWebsiteDataManager->websiteDataManager()),
-        [](auto* ptr) { g_object_unref(ptr); }};
+    m_webContext = {webkit_web_context_new(), [](auto* ptr) { g_object_unref(ptr); }};
     webkit_web_context_set_automation_allowed(m_webContext.get(), automationMode ? TRUE : FALSE);
     if (automationMode) {
         g_signal_connect_swapped(
