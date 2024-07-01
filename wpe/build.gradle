@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.wpe.wpe'
-    compileSdk 34
+    compileSdk 35
     ndkVersion '26.3.11579264'
 
     defaultConfig {
         minSdk 31
-        targetSdk 34
+        targetSdk 35
     }
 
     lintOptions {
