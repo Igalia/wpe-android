@@ -30,6 +30,7 @@ import android.widget.FrameLayout
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
+import com.wpe.tools.minibrowse.Utils
 import com.wpe.tools.minibrowser.databinding.FragmentBrowserBinding
 import com.wpe.wpeview.WPECallback
 import com.wpe.wpeview.WPEChromeClient
@@ -216,7 +217,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
     private fun onCommit(text: String) {
         val url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
-            text
+            Utils.normalizeAddress(text)
         } else {
             SEARCH_URI_BASE + text
         }
