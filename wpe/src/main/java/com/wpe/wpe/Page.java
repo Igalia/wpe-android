@@ -24,7 +24,9 @@
 package com.wpe.wpe;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -41,9 +43,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import com.wpe.wpeview.WPEJsResult;
 import com.wpe.wpeview.WPEView;
 
 import java.lang.ref.WeakReference;
+import java.net.MalformedURLException;
+import java.net.URL;
 
 /**
  * A Page roughly corresponds with a tab in a regular browser UI.
@@ -60,6 +65,11 @@ public final class Page {
     public static final int LOAD_REDIRECTED = 1;
     public static final int LOAD_COMMITTED = 2;
     public static final int LOAD_FINISHED = 3;
+
+    public static final int WEBKIT_SCRIPT_DIALOG_ALERT = 0;
+    public static final int WEBKIT_SCRIPT_DIALOG_CONFIRM = 1;
+    public static final int WEBKIT_SCRIPT_DIALOG_PROMPT = 2;
+    public static final int WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM = 3;
 
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
@@ -83,6 +93,8 @@ public final class Page {
     private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
     private native void nativeRequestExitFullscreenMode(long nativePtr);
     private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
+    private native void nativeScriptDialogClose(long nativeDialogPtr);
+    private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm);
 
     private final WPEView wpeView;
     private final PageSurfaceView surfaceView;
@@ -197,6 +209,79 @@ public final class Page {
         this.canGoBack = canGoBack;
         this.canGoForward = canGoForward;
         wpeView.onTitleChanged(title);
+    }
+
+    private class ScriptDialogResult implements WPEJsResult {
+
+        private final long nativeScriptDialogPtr;
+
+        public ScriptDialogResult(long nativeScriptDialogPtr) { this.nativeScriptDialogPtr = nativeScriptDialogPtr; }
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void cancel() {
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, false);
+            nativeScriptDialogClose(nativeScriptDialogPtr);
+        }
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void confirm() {
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, true);
+            nativeScriptDialogClose(nativeScriptDialogPtr);
+        }
+    }
+
+    private static class ScriptDialogCancelListener
+        implements DialogInterface.OnCancelListener, DialogInterface.OnClickListener {
+        private final WPEJsResult result;
+
+        public ScriptDialogCancelListener(@NonNull WPEJsResult result) { this.result = result; }
+        @Override
+        public void onCancel(DialogInterface dialogInterface) {
+            result.cancel();
+        }
+        @Override
+        public void onClick(DialogInterface dialogInterface, int which) {
+            result.cancel();
+        }
+    }
+
+    private static class ScriptDialogPositiveListener implements DialogInterface.OnClickListener {
+        private final WPEJsResult result;
+
+        public ScriptDialogPositiveListener(@NonNull WPEJsResult result) { this.result = result; }
+
+        @Override
+        public void onClick(DialogInterface dialogInterface, int which) {
+            result.confirm();
+        }
+    }
+
+    @Keep
+    public boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message) {
+        ScriptDialogResult result = new ScriptDialogResult(nativeDialogPtr);
+        if (!wpeView.onDialogScript(dialogType, url, message, result)) {
+            if (dialogType == Page.WEBKIT_SCRIPT_DIALOG_ALERT || dialogType == Page.WEBKIT_SCRIPT_DIALOG_CONFIRM) {
+                final AlertDialog.Builder builder = new AlertDialog.Builder(wpeView.getContext());
+                String title = url;
+                try {
+                    URL alertUrl = new URL(url);
+                    title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
+                } catch (MalformedURLException ex) {
+                    // NOOP
+                }
+                builder.setTitle(title);
+                builder.setMessage(message);
+                builder.setOnCancelListener(new ScriptDialogCancelListener(result));
+                builder.setPositiveButton("Yes", new ScriptDialogPositiveListener(result));
+                if (dialogType != Page.WEBKIT_SCRIPT_DIALOG_ALERT) {
+                    builder.setNegativeButton("No", new ScriptDialogCancelListener(result));
+                }
+                builder.show();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Keep

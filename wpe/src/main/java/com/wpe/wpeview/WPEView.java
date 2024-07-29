@@ -164,6 +164,18 @@ public class WPEView extends FrameLayout {
             wpeChromeClient.onReceivedTitle(this, title);
     }
 
+    public boolean onDialogScript(int dialogType, @NonNull String url, @NonNull String message,
+                                  @NonNull WPEJsResult result) {
+        if (wpeChromeClient != null) {
+            if (dialogType == Page.WEBKIT_SCRIPT_DIALOG_ALERT) {
+                return wpeChromeClient.onJsAlert(this, url, message, result);
+            } else if (dialogType == Page.WEBKIT_SCRIPT_DIALOG_CONFIRM) {
+                return wpeChromeClient.onJsConfirm(this, url, message, result);
+            }
+        }
+        return false;
+    }
+
     public void onEnterFullscreenMode() {
         if ((surfaceView != null) && (wpeChromeClient != null)) {
             removeView(surfaceView);

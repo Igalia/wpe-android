@@ -54,6 +54,18 @@ public interface WPEChromeClient {
     default void onReceivedTitle(@NonNull WPEView view, @NonNull String title) {}
 
     /**
+     * A callback interface used by the host application to notify
+     * the current page that its custom view has been dismissed.
+     */
+    interface CustomViewCallback {
+        /**
+         * Invoked when the host application dismisses the
+         * custom view.
+         */
+        void onCustomViewHidden();
+    }
+
+    /**
      * Notify the host application that the current page has entered full screen mode.
      * @param view is the View object to be shown.
      * @param callback invoke this callback to request the page to exit
@@ -67,14 +79,72 @@ public interface WPEChromeClient {
     default void onHideCustomView() {}
 
     /**
-     * A callback interface used by the host application to notify
-     * the current page that its custom view has been dismissed.
+     * Notify the host application that the web page wants to display a
+     * JavaScript {@code alert()} dialog.
+     * <p>The default behavior if this method returns {@code false} or is not
+     * overridden is to show a dialog containing the alert message and suspend
+     * JavaScript execution until the dialog is dismissed.
+     * <p>To show a custom dialog, the app should return {@code true} from this
+     * method, in which case the default dialog will not be shown and JavaScript
+     * execution will be suspended. The app should call
+     * {@code WPEJsResult.confirm()} when the custom dialog is dismissed such that
+     * JavaScript execution can be resumed.
+     * <p>To suppress the dialog and allow JavaScript execution to
+     * continue, call {@code WPEJsResult.confirm()} immediately and then return
+     * {@code true}.
+     * <p>Note that if the {@link WPEChromeClient} is set to be {@code null},
+     * or if {@link WPEChromeClient} is not set at all, the default dialog will
+     * be suppressed and Javascript execution will continue immediately.
+     * <p>Note that the default dialog does not inherit the {@link
+     * android.view.Display#FLAG_SECURE} flag from the parent window.
+     *
+     * @param view The WPEView that initiated the callback.
+     * @param url The url of the page requesting the dialog.
+     * @param message Message to be displayed in the window.
+     * @param result A WPEJsResult to confirm that the user closed the window.
+     * @return boolean {@code true} if the request is handled or ignored.
+     * {@code false} if WPEView needs to show the default dialog.
      */
-    interface CustomViewCallback {
-        /**
-         * Invoked when the host application dismisses the
-         * custom view.
-         */
-        void onCustomViewHidden();
+    default boolean onJsAlert(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                              @NonNull WPEJsResult result) {
+        return false;
+    }
+
+    /**
+     * Notify the host application that the web page wants to display a
+     * JavaScript {@code confirm()} dialog.
+     * <p>The default behavior if this method returns {@code false} or is not
+     * overridden is to show a dialog containing the message and suspend
+     * JavaScript execution until the dialog is dismissed. The default dialog
+     * will return {@code true} to the JavaScript {@code confirm()} code when
+     * the user presses the 'confirm' button, and will return {@code false} to
+     * the JavaScript code when the user presses the 'cancel' button or
+     * dismisses the dialog.
+     * <p>To show a custom dialog, the app should return {@code true} from this
+     * method, in which case the default dialog will not be shown and JavaScript
+     * execution will be suspended. The app should call
+     * {@code WPEJsResult.confirm()} or {@code WPEJsResult.cancel()} when the custom
+     * dialog is dismissed.
+     * <p>To suppress the dialog and allow JavaScript execution to continue,
+     * call {@code WPEJsResult.confirm()} or {@code WPEJsResult.cancel()} immediately
+     * and then return {@code true}.
+     * <p>Note that if the {@link WPEChromeClient} is set to be {@code null},
+     * or if {@link WPEChromeClient} is not set at all, the default dialog will
+     * be suppressed and the default value of {@code false} will be returned to
+     * the JavaScript code immediately.
+     * <p>Note that the default dialog does not inherit the {@link
+     * android.view.Display#FLAG_SECURE} flag from the parent window.
+     *
+     * @param view The WPEView that initiated the callback.
+     * @param url The url of the page requesting the dialog.
+     * @param message Message to be displayed in the window.
+     * @param result A WPEJsResult used to send the user's response to
+     *               javascript.
+     * @return boolean {@code true} if the request is handled or ignored.
+     * {@code false} if WPEView needs to show the default dialog.
+     */
+    default boolean onJsConfirm(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                                @NonNull WPEJsResult result) {
+        return false;
     }
 }

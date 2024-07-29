@@ -85,6 +85,18 @@ public:
             static_cast<jboolean>(webkit_web_view_can_go_forward(webView)));
     }
 
+    static gboolean onScriptDialog(Page* page, WebKitScriptDialog* dialog, WebKitWebView* webView)
+    {
+        auto dialogPtr = static_cast<jlong>(webkit_script_dialog_ref(dialog));
+        auto jActiveURL = JNI::String(webkit_web_view_get_uri(webView));
+        auto jMessage = JNI::String(webkit_script_dialog_get_message(dialog));
+        callJavaMethod(getJNIPageCache().m_onScriptDialog, page->m_pageJavaInstance.get(), dialogPtr,
+            webkit_script_dialog_get_dialog_type(dialog), static_cast<jstring>(jActiveURL),
+            static_cast<jstring>(jMessage));
+
+        return TRUE;
+    }
+
     static bool onFullscreenRequest(Page* page, bool fullscreen) noexcept
     {
         if (page->m_viewBackend != nullptr) {
@@ -154,6 +166,7 @@ private:
     const JNI::Method<void(jdouble)> m_onLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
+    const JNI::Method<jboolean(jlong, jint, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void()> m_onInputMethodContextIn;
     const JNI::Method<void()> m_onInputMethodContextOut;
     const JNI::Method<void()> m_onEnterFullscreenMode;
@@ -183,6 +196,8 @@ private:
     static void nativeRequestExitFullscreenMode(JNIEnv* env, jobject obj, jlong pagePtr) noexcept;
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject obj, jlong pagePtr, jstring script, JNIWKCallback callback) noexcept;
+    static void nativeScriptDialogClose(JNIEnv* env, jobject obj, jlong dialogPtr) noexcept;
+    static void nativeScriptDialogConfirm(JNIEnv* env, jobject obj, jlong dialogPtr, jboolean confirm) noexcept;
 };
 
 const JNIPageCache& getJNIPageCache()
@@ -198,6 +213,7 @@ JNIPageCache::JNIPageCache()
     , m_onLoadProgress(getMethod<void(jdouble)>("onLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
+    , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring)>("onScriptDialog"))
     , m_onInputMethodContextIn(getMethod<void()>("onInputMethodContextIn"))
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
@@ -226,7 +242,9 @@ JNIPageCache::JNIPageCache()
         JNI::NativeMethod<void(jlong)>(
             "nativeRequestExitFullscreenMode", JNIPageCache::nativeRequestExitFullscreenMode),
         JNI::NativeMethod<void(jlong, jstring, JNIWKCallback)>(
-            "nativeEvaluateJavascript", JNIPageCache::nativeEvaluateJavascript));
+            "nativeEvaluateJavascript", JNIPageCache::nativeEvaluateJavascript),
+        JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", JNIPageCache::nativeScriptDialogClose),
+        JNI::NativeMethod<void(jlong, jboolean)>("nativeScriptDialogConfirm", JNIPageCache::nativeScriptDialogConfirm));
 }
 
 jlong JNIPageCache::nativeInit(
@@ -438,6 +456,21 @@ void JNIPageCache::nativeEvaluateJavascript(
     }
 }
 
+void JNIPageCache::nativeScriptDialogClose(JNIEnv* /*env*/, jobject /*obj*/, jlong dialogPtr) noexcept
+{
+    Logging::logDebug("Page::nativeScriptDialogClose() [tid %d]", gettid());
+    auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
+    webkit_script_dialog_close(dialog);
+}
+
+void JNIPageCache::nativeScriptDialogConfirm(
+    JNIEnv* /*env*/, jobject /*obj*/, jlong dialogPtr, jboolean confirm) noexcept
+{
+    Logging::logDebug("Page::nativeScriptDialogConfirm() [tid %d]", gettid());
+    auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
+    webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
+}
+
 /***********************************************************************************************************************
  * Native Page class implementation
  **********************************************************************************************************************/
@@ -478,6 +511,8 @@ Page::Page(
         g_signal_connect_swapped(m_webView, "notify::uri", G_CALLBACK(JNIPageCache::onUriChanged), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIPageCache::onTitleChanged), this));
+    m_signalHandlers.push_back(
+        g_signal_connect_swapped(m_webView, "script-dialog", G_CALLBACK(JNIPageCache::onScriptDialog), this));
 
     wpe_view_backend_set_fullscreen_handler(
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);
