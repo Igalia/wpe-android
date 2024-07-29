@@ -460,6 +460,7 @@ void JNIPageCache::nativeScriptDialogClose(JNIEnv* /*env*/, jobject /*obj*/, jlo
 {
     Logging::logDebug("Page::nativeScriptDialogClose() [tid %d]", gettid());
     auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
+    webkit_script_dialog_unref(dialog);
     webkit_script_dialog_close(dialog);
 }
 
