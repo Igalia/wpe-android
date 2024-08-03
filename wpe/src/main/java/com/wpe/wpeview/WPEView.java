@@ -235,7 +235,7 @@ public class WPEView extends FrameLayout {
      * @param content The HTML content to load.
      * @param baseUri The base URI for the content loaded.
      */
-    public void loadHtml(@NonNull String content, @NonNull String baseUri) {
+    public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         originalUrl = baseUri;
         page.loadHtml(content, baseUri);
     }

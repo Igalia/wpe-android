@@ -32,7 +32,6 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.wpe.tools.minibrowse.Utils
 import com.wpe.tools.minibrowser.databinding.FragmentBrowserBinding
-import com.wpe.wpeview.WPECallback
 import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
