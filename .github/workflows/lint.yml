@@ -1,0 +1,25 @@
+name: Lint
+on:
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
+
+jobs:
+  lint-checks:
+      runs-on: ubuntu-22.04
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+        - name: Fetch Dependencies (WPE Bootstrap)
+          run: python3 tools/scripts/bootstrap.py -a all
+        - name: Java™ Setup
+          uses: actions/setup-java@v4
+          with:
+            distribution: temurin
+            java-version: 17
+        - name: Setup Gradle
+          uses: gradle/actions/setup-gradle@v4
+        - name: Lint checks
+          run: ./gradlew lint${{ inputs.build_type }}
