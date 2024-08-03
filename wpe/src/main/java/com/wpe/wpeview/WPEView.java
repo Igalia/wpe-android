@@ -131,6 +131,7 @@ public class WPEView extends FrameLayout {
     }
 
     public void onLoadChanged(int loadEvent) {
+        Log.v("Page", "onLoadChanged: " + loadEvent);
         switch (loadEvent) {
         case Page.LOAD_STARTED:
             if (wpeViewClient != null)
@@ -152,8 +153,10 @@ public class WPEView extends FrameLayout {
 
     public void onLoadProgress(double progress) {
         currentLoadProgress = Math.max(0, Math.min(100, (int)Math.round(progress * 100)));
+        Log.v("Page", "currentLoadProgress: " + currentLoadProgress);
         if (wpeChromeClient != null)
             wpeChromeClient.onProgressChanged(this, currentLoadProgress);
+        Log.v("Page", "currentLoadProgress: " + currentLoadProgress);
     }
 
     public void onUriChanged(@NonNull String uri) { url = uri; }
@@ -235,7 +238,7 @@ public class WPEView extends FrameLayout {
      * @param content The HTML content to load.
      * @param baseUri The base URI for the content loaded.
      */
-    public void loadHtml(@NonNull String content, @NonNull String baseUri) {
+    public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         originalUrl = baseUri;
         page.loadHtml(content, baseUri);
     }

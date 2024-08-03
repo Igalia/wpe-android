@@ -52,6 +52,7 @@ public final class Browser {
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     private native void nativeInit();
     private native void nativeShut();
+    public native void nativeInvokeOnUiThread(@NonNull Object task);
 
     private static final Browser singleton = new Browser();
 

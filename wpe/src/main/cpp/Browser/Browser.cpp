@@ -66,6 +66,8 @@ private:
     const JNI::Method<void(jlong, jint, jint)> m_launchProcessMethod;
     const JNI::Method<void(jlong)> m_terminateProcessMethod;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+
+    static void nativeInvokeOnUiThread(JNIEnv* env, jobject obj, jobject task) noexcept;
 };
 
 const JNIBrowserCache& getJNIBrowserCache()
@@ -100,10 +102,40 @@ JNIBrowserCache::JNIBrowserCache()
                 Browser::instance().jniInit();
             }),
         JNI::NativeMethod<void()>(
-            "nativeShut", +[](JNIEnv*, jobject) {
+            "nativeShut",
+            +[](JNIEnv*, jobject) {
                 Browser::instance().jniShut();
                 getJNIBrowserCache().m_browserJavaInstance = nullptr;
-            }));
+            }),
+        JNI::NativeMethod<void(jobject)>("nativeInvokeOnUiThread", JNIBrowserCache::nativeInvokeOnUiThread));
+}
+
+void JNIBrowserCache::nativeInvokeOnUiThread(JNIEnv* env, jobject /*obj*/, jobject task) noexcept
+{
+    struct PostTaskInfo {
+        JNIEnv* m_env;
+        jobject m_task;
+    };
+
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
+    auto* info = new PostTaskInfo {env, env->NewGlobalRef(task)};
+    Browser::instance().invokeOnUiThread(
+        +[](void* userData) {
+            auto* info = reinterpret_cast<PostTaskInfo*>(userData);
+            JavaVM* jvm = nullptr;
+            info->m_env->GetJavaVM(&jvm);
+
+            jvm->AttachCurrentThread(&info->m_env, nullptr);
+
+            jclass runnableClass = info->m_env->FindClass("java/lang/Runnable");
+            jmethodID runMethod = info->m_env->GetMethodID(runnableClass, "run", "()V");
+
+            info->m_env->CallVoidMethod(info->m_task, runMethod);
+
+            // jvm->DetachCurrentThread();
+        },
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        +[](void* userData) { delete reinterpret_cast<PostTaskInfo*>(userData); }, info);
 }
 
 namespace {

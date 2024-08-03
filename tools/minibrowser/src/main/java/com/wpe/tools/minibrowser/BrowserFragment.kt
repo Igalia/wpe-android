@@ -32,13 +32,14 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.wpe.tools.minibrowse.Utils
 import com.wpe.tools.minibrowser.databinding.FragmentBrowserBinding
-import com.wpe.wpeview.WPECallback
+import com.wpe.wpe.Browser
 import com.wpe.wpeview.WPEChromeClient
 import com.wpe.wpeview.WPEView
 import com.wpe.wpeview.WPEViewClient
 
 
-const val INITIAL_URL = "https://igalia.com"
+//const val INITIAL_URL = "https://igalia.com"
+const val INITIAL_URL = "http://10.0.2.2/test.html"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 
 class BrowserFragment : Fragment(R.layout.fragment_browser) {
@@ -175,6 +176,22 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
                 override fun onPageFinished(view: WPEView, url: String) {
                     // DO nothing for now
                     super.onPageFinished(view, url)
+                    val script = """
+                        function onDocumentFocused() {
+                          document.getElementById('editor').focus();
+                          test.onEditorFocused();
+                        }
+                        (function() {
+                           if (document.hasFocus()) {
+                             onDocumentFocused();
+                       } else {
+                         window.addEventListener('focus', onDocumentFocused);
+                       }})();
+                     """
+
+                    view.evaluateJavascript(script) {
+                        Log.v(TAG, "FOOBAR")
+                    }
                 }
             }
         }

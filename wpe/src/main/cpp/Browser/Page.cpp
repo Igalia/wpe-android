@@ -62,11 +62,13 @@ public:
 
     static void onLoadChanged(Page* page, WebKitLoadEvent loadEvent, WebKitWebView* /*webView*/) noexcept
     {
+        Logging::logDebug("Page::onLoadChanged() [tid %d]", gettid());
         callJavaMethod(getJNIPageCache().m_onLoadChanged, page->m_pageJavaInstance.get(), static_cast<int>(loadEvent));
     }
 
     static void onLoadProgress(Page* page, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
     {
+        Logging::logDebug("Page::onLoadProgress() [tid %d]", gettid());
         callJavaMethod(getJNIPageCache().m_onLoadProgress, page->m_pageJavaInstance.get(),
             static_cast<jdouble>(webkit_web_view_get_estimated_load_progress(webView)));
     }

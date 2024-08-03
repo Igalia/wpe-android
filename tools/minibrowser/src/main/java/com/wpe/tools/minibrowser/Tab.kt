@@ -35,7 +35,9 @@ data class Tab(
             return Tab(
                 UUID.randomUUID().toString(),
                 WPEView(context).apply {
-                    loadUrl(url)
+                    //loadUrl(url)
+                    val htmlDocument = "<html><body contenteditable id='editor'></body></html>"
+                    loadHtml(htmlDocument, null)
                 }
             )
         }
