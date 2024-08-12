@@ -87,7 +87,7 @@ public:
 
     static gboolean onScriptDialog(Page* page, WebKitScriptDialog* dialog, WebKitWebView* webView)
     {
-        auto dialogPtr = static_cast<jlong>(webkit_script_dialog_ref(dialog));
+        auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
         auto jActiveURL = JNI::String(webkit_web_view_get_uri(webView));
         auto jMessage = JNI::String(webkit_script_dialog_get_message(dialog));
         callJavaMethod(getJNIPageCache().m_onScriptDialog, page->m_pageJavaInstance.get(), dialogPtr,
