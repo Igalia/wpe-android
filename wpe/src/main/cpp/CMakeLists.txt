@@ -65,6 +65,10 @@ add_library(gmodule-2.0 SHARED IMPORTED)
 set_target_properties(gmodule-2.0 PROPERTIES IMPORTED_LOCATION
                                              "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgmodule-2.0.so")
 
+add_library(soup-3.0 SHARED IMPORTED)
+set_target_properties(soup-3.0 PROPERTIES IMPORTED_LOCATION
+                                          "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libsoup-3.0.so")
+
 add_library(WPEWebKit-2.0 SHARED IMPORTED)
 set_target_properties(
     WPEWebKit-2.0
@@ -125,6 +129,7 @@ target_link_libraries(
     glib-2.0
     gobject-2.0
     libwpe-1.0
+    soup-3.0
     WPEBackend
     WPEWebKit-2.0
     WPEAndroidCommon)

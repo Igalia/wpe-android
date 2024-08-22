@@ -201,6 +201,11 @@ public class WPEView extends FrameLayout {
         }
     }
 
+    public void onReceivedHttpError(@NonNull WPEResourceRequest request, @NonNull WPEResourceResponse response) {
+        if (wpeViewClient != null)
+            wpeViewClient.onReceivedHttpError(this, request, response);
+    }
+
     /************** PUBLIC WPEView API *******************/
 
     /**

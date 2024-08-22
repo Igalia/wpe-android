@@ -27,6 +27,7 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -44,11 +45,15 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import com.wpe.wpeview.WPEJsResult;
+import com.wpe.wpeview.WPEResourceRequest;
+import com.wpe.wpeview.WPEResourceResponse;
 import com.wpe.wpeview.WPEView;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A Page roughly corresponds with a tab in a regular browser UI.
@@ -324,6 +329,58 @@ public final class Page {
     public void onExitFullscreenMode() {
         Log.d(LOGTAG, "onExitFullscreenMode()");
         wpeView.onExitFullscreenMode();
+    }
+
+    private static class PageResourceRequest implements WPEResourceRequest {
+
+        private final Uri uri;
+        private final String method;
+        private final HashMap<String, String> requestHeaders = new HashMap<>();
+
+        PageResourceRequest(String uri, String method, String[] headers) {
+            this.uri = Uri.parse(uri);
+            this.method = method;
+
+            int i = 0;
+            while (i < headers.length) {
+                requestHeaders.put(headers[i++], headers[i++]);
+            }
+        }
+
+        @NonNull
+        @Override
+        public Uri getUrl() {
+            return uri;
+        }
+
+        @NonNull
+        @Override
+        public String getMethod() {
+            return method;
+        }
+
+        @NonNull
+        @Override
+        public Map<String, String> getRequestHeaders() {
+            return requestHeaders;
+        }
+    }
+
+    @Keep
+    public void onReceivedHttpError( // WPEResourceRequest
+        @NonNull String requestUri, @NonNull String requestMethod, @NonNull String[] requestHeaders,
+        // WPEResourceResponse
+        @NonNull String responseMimeType, int responseStatusCode, @NonNull String[] responseHeaders) {
+        PageResourceRequest request = new PageResourceRequest(requestUri, requestMethod, requestHeaders);
+
+        HashMap<String, String> responseHeadersMap = new HashMap<>();
+        int i = 0;
+        while (i < responseHeaders.length) {
+            responseHeadersMap.put(responseHeaders[i++], responseHeaders[i++]);
+        }
+        WPEResourceResponse response =
+            new WPEResourceResponse(responseMimeType, responseStatusCode, responseHeadersMap);
+        wpeView.onReceivedHttpError(request, response);
     }
 
     public void requestExitFullscreenMode() { nativeRequestExitFullscreenMode(nativePtr); }

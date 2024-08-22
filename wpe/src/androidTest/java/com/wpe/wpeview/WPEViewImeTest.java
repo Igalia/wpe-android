@@ -84,7 +84,7 @@ public class WPEViewImeTest {
         });
 
         try {
-            secondLatch.await(10, TimeUnit.SECONDS);
+            secondLatch.await(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
