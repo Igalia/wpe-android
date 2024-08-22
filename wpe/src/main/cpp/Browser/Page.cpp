@@ -29,6 +29,7 @@
 #include "WKWebContext.h"
 
 #include <android/native_window_jni.h>
+#include <libsoup/soup.h>
 #include <unistd.h>
 #include <wpe-android/view-backend.h>
 
@@ -39,6 +40,8 @@ void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
     auto* page = static_cast<Page*>(context);
     page->commitBuffer(buffer, fenceID);
 }
+
+const int httpErrorsStart = 400;
 
 } // namespace
 
@@ -97,6 +100,63 @@ public:
             static_cast<jstring>(jMessage));
 
         return TRUE;
+    }
+
+    static gboolean onDecidePolicy(
+        Page* page, WebKitPolicyDecision* decision, WebKitPolicyDecisionType decisionType, WebKitWebView* /*webView*/)
+    {
+        if (decisionType != WEBKIT_POLICY_DECISION_TYPE_RESPONSE)
+            return FALSE;
+        auto* responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
+        auto* uriRequest = webkit_response_policy_decision_get_request(responseDecision);
+        auto* uriResponse = webkit_response_policy_decision_get_response(responseDecision);
+
+        guint const responseStatusCode = webkit_uri_response_get_status_code(uriResponse);
+        if (responseStatusCode >= httpErrorsStart) {
+            // Request
+            SoupMessageHeadersIter requestHeadersIter;
+            soup_message_headers_iter_init(&requestHeadersIter, webkit_uri_request_get_http_headers(uriRequest));
+            const char* requestHeaderName = nullptr;
+            const char* requestHeaderValue = nullptr;
+            std::vector<JNI::String> jniStringRequestHeaders;
+            while (soup_message_headers_iter_next(&requestHeadersIter, &requestHeaderName, &requestHeaderValue) != 0) {
+                jniStringRequestHeaders.emplace_back(requestHeaderName);
+                jniStringRequestHeaders.emplace_back(requestHeaderValue);
+            }
+
+            auto jRequestUri = JNI::String(webkit_uri_request_get_uri(uriRequest));
+            auto jRequestMethod = JNI::String(webkit_uri_request_get_http_method(uriRequest));
+            auto jRequestHeaders
+                = JNI::ObjectArray<jstring>(TypedClass<jstring>().createArray(jniStringRequestHeaders.size()));
+            for (std::vector<JNI::String>::size_type i = 0; i != jniStringRequestHeaders.size(); i++) {
+                jRequestHeaders.setValue(i, static_cast<jstring>(jniStringRequestHeaders[i]));
+            }
+
+            // Response
+
+            SoupMessageHeadersIter responseHeadersIter;
+            soup_message_headers_iter_init(&responseHeadersIter, webkit_uri_response_get_http_headers(uriResponse));
+            const char* responseHeaderName = nullptr;
+            const char* responseHeaderValue = nullptr;
+            std::vector<JNI::String> jniStringResponseHeaders;
+            while (
+                soup_message_headers_iter_next(&responseHeadersIter, &responseHeaderName, &responseHeaderValue) != 0) {
+                jniStringResponseHeaders.emplace_back(responseHeaderName);
+                jniStringResponseHeaders.emplace_back(responseHeaderValue);
+            }
+            auto jResponseMimeType = JNI::String(webkit_uri_response_get_mime_type(uriResponse));
+            auto jResponseHeaders
+                = JNI::ObjectArray<jstring>(TypedClass<jstring>().createArray(jniStringResponseHeaders.size()));
+            for (std::vector<JNI::String>::size_type i = 0; i != jniStringResponseHeaders.size(); i++) {
+                jResponseHeaders.setValue(i, static_cast<jstring>(jniStringResponseHeaders[i]));
+            }
+            callJavaMethod(getJNIPageCache().m_onReceivedHttpError, page->m_pageJavaInstance.get(),
+                static_cast<jstring>(jRequestUri), static_cast<jstring>(jRequestMethod),
+                static_cast<jstringArray>(jRequestHeaders), static_cast<jstring>(jResponseMimeType), responseStatusCode,
+                static_cast<jstringArray>(jResponseHeaders));
+        }
+
+        return FALSE;
     }
 
     static bool onFullscreenRequest(Page* page, bool fullscreen) noexcept
@@ -173,6 +233,7 @@ private:
     const JNI::Method<void()> m_onInputMethodContextOut;
     const JNI::Method<void()> m_onEnterFullscreenMode;
     const JNI::Method<void()> m_onExitFullscreenMode;
+    const JNI::Method<void(jstring, jstring, jstringArray, jstring, jint, jstringArray)> m_onReceivedHttpError;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 
     static jlong nativeInit(JNIEnv* env, jobject obj, jlong wkWebContextPtr, jint width, jint height,
@@ -220,6 +281,8 @@ JNIPageCache::JNIPageCache()
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
     , m_onExitFullscreenMode(getMethod<void()>("onExitFullscreenMode"))
+    , m_onReceivedHttpError(
+          getMethod<void(jstring, jstring, jstringArray, jstring, jint, jstringArray)>("onReceivedHttpError"))
 {
     registerNativeMethods(
         JNI::NativeMethod<jlong(jlong, jint, jint, jfloat, jboolean)>("nativeInit", JNIPageCache::nativeInit),
@@ -516,6 +579,8 @@ Page::Page(
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIPageCache::onTitleChanged), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "script-dialog", G_CALLBACK(JNIPageCache::onScriptDialog), this));
+    m_signalHandlers.push_back(
+        g_signal_connect_swapped(m_webView, "decide-policy", G_CALLBACK(JNIPageCache::onDecidePolicy), this));
 
     wpe_view_backend_set_fullscreen_handler(
         wpeBackend, reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIPageCache::onFullscreenRequest), this);

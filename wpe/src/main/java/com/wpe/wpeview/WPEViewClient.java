@@ -48,4 +48,17 @@ public interface WPEViewClient {
      * and it's ready to render to it's surface.
      */
     default void onViewReady(@NonNull WPEView view) {}
+
+    /**
+     * Notify the host application that an HTTP error has been received from the server while
+     * loading a resource.  HTTP errors have status codes &gt;= 400.  This callback will be called
+     * for any resource (iframe, image, etc.), not just for the main page. Thus, it is recommended
+     * to perform minimum required work in this callback. Note that the content of the server
+     * response may not be provided within the {@code errorResponse} parameter.
+     * @param view The WPEView that is initiating the callback.
+     * @param request The originating request.
+     * @param errorResponse Information about the error occurred.
+     */
+    default void onReceivedHttpError(@NonNull WPEView view, @NonNull WPEResourceRequest request,
+                                     @NonNull WPEResourceResponse errorResponse) {}
 }
