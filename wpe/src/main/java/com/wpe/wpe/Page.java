@@ -32,18 +32,24 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.TextView;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import com.wpe.wpeview.WPEChromeClient;
+import com.wpe.wpeview.WPEJsPromptResult;
 import com.wpe.wpeview.WPEJsResult;
 import com.wpe.wpeview.WPEResourceRequest;
 import com.wpe.wpeview.WPEResourceResponse;
@@ -99,7 +105,7 @@ public final class Page {
     private native void nativeRequestExitFullscreenMode(long nativePtr);
     private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
     private native void nativeScriptDialogClose(long nativeDialogPtr);
-    private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm);
+    private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm, @Nullable String text);
 
     private final WPEView wpeView;
     private final PageSurfaceView surfaceView;
@@ -216,22 +222,36 @@ public final class Page {
         wpeView.onTitleChanged(title);
     }
 
-    private class ScriptDialogResult implements WPEJsResult {
+    private class ScriptDialogResult implements WPEJsPromptResult {
 
         private final long nativeScriptDialogPtr;
+
+        private String stringResult;
 
         public ScriptDialogResult(long nativeScriptDialogPtr) { this.nativeScriptDialogPtr = nativeScriptDialogPtr; }
         @Override
         @SuppressWarnings("SyntheticAccessor")
         public void cancel() {
-            nativeScriptDialogConfirm(nativeScriptDialogPtr, false);
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, false, stringResult);
             nativeScriptDialogClose(nativeScriptDialogPtr);
         }
         @Override
         @SuppressWarnings("SyntheticAccessor")
         public void confirm() {
-            nativeScriptDialogConfirm(nativeScriptDialogPtr, true);
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, true, stringResult);
             nativeScriptDialogClose(nativeScriptDialogPtr);
+        }
+
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void confirm(String result) {
+            stringResult = result;
+            confirm();
+        }
+
+        @SuppressWarnings("SyntheticAccessor")
+        public String getStringResult() {
+            return stringResult;
         }
     }
 
@@ -251,41 +271,85 @@ public final class Page {
     }
 
     private static class ScriptDialogPositiveListener implements DialogInterface.OnClickListener {
-        private final WPEJsResult result;
+        private final WPEJsPromptResult result;
 
-        public ScriptDialogPositiveListener(@NonNull WPEJsResult result) { this.result = result; }
+        private final EditText edit;
+
+        public ScriptDialogPositiveListener(@NonNull WPEJsPromptResult result, @Nullable EditText edit) {
+            this.result = result;
+            this.edit = edit;
+        }
 
         @Override
         public void onClick(DialogInterface dialogInterface, int which) {
-            result.confirm();
+            if (edit != null) {
+                result.confirm(edit.getText().toString());
+            } else {
+                result.confirm();
+            }
         }
     }
 
+    @SuppressLint("StringFormatInvalid")
     @Keep
-    public boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message) {
-        ScriptDialogResult result = new ScriptDialogResult(nativeDialogPtr);
-        if (!wpeView.onDialogScript(dialogType, url, message, result)) {
-            if (dialogType == Page.WEBKIT_SCRIPT_DIALOG_ALERT || dialogType == Page.WEBKIT_SCRIPT_DIALOG_CONFIRM) {
-                final AlertDialog.Builder builder = new AlertDialog.Builder(wpeView.getContext());
+    public boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message,
+                                  @NonNull String defaultText) {
+        WPEChromeClient client = wpeView.getWPEChromeClient();
+        if (client != null) {
+            boolean clientHandledDialog = false;
+            ScriptDialogResult result = new ScriptDialogResult(nativeDialogPtr);
+            if (dialogType == WEBKIT_SCRIPT_DIALOG_ALERT) {
+                clientHandledDialog = client.onJsAlert(wpeView, url, message, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_CONFIRM) {
+                clientHandledDialog = client.onJsConfirm(wpeView, url, message, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_PROMPT) {
+                clientHandledDialog = client.onJsPrompt(wpeView, url, message, defaultText, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+                clientHandledDialog = client.onJsBeforeUnload(wpeView, url, message, result);
+            }
+
+            if (!clientHandledDialog) {
                 String title = url;
-                try {
-                    URL alertUrl = new URL(url);
-                    title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
-                } catch (MalformedURLException ex) {
-                    // NOOP
+                String displayMessage;
+                int positiveTextId, negativeTextId;
+                if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+                    title = wpeView.getContext().getString(R.string.js_dialog_before_unload_title);
+                    displayMessage = wpeView.getContext().getString(R.string.js_dialog_before_unload, message);
+                    positiveTextId = R.string.js_dialog_before_unload_positive_button;
+                    negativeTextId = R.string.js_dialog_before_unload_negative_button;
+                } else {
+                    try {
+                        URL alertUrl = new URL(url);
+                        title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
+                    } catch (MalformedURLException ex) {
+                        // NOOP
+                    }
+                    displayMessage = message;
+                    positiveTextId = R.string.ok;
+                    negativeTextId = R.string.cancel;
                 }
+
+                final AlertDialog.Builder builder = new AlertDialog.Builder(wpeView.getContext());
                 builder.setTitle(title);
-                builder.setMessage(message);
                 builder.setOnCancelListener(new ScriptDialogCancelListener(result));
-                builder.setPositiveButton("Yes", new ScriptDialogPositiveListener(result));
-                if (dialogType != Page.WEBKIT_SCRIPT_DIALOG_ALERT) {
-                    builder.setNegativeButton("No", new ScriptDialogCancelListener(result));
+                if (dialogType != WEBKIT_SCRIPT_DIALOG_PROMPT) {
+                    builder.setMessage(displayMessage);
+                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, null));
+                } else {
+                    @SuppressLint("InflateParams")
+                    final View view = LayoutInflater.from(wpeView.getContext()).inflate(R.layout.js_prompt, null);
+                    EditText edit = ((EditText)view.findViewById(R.id.value));
+                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, edit));
+                    ((TextView)view.findViewById(R.id.message)).setText(message);
+                    builder.setView(view);
+                }
+                if (dialogType != WEBKIT_SCRIPT_DIALOG_ALERT) {
+                    builder.setNegativeButton(negativeTextId, new ScriptDialogCancelListener(result));
                 }
                 builder.show();
-                return true;
             }
+            return true;
         }
-
         return false;
     }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="js_dialog_before_unload_title">Confirm Navigation</string>
+    <string name="js_dialog_before_unload_positive_button">Leave this Page</string>
+    <string name="js_dialog_before_unload_negative_button">Stay on this Page</string>
+    <string name="js_dialog_before_unload"><xliff:g id="message">%s</xliff:g>\n\nAre you sure you want to navigate away from this page?</string>
+</resources>
