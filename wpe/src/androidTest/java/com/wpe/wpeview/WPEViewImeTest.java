@@ -32,34 +32,29 @@ public class WPEViewImeTest {
     public void testIMEVisible() {
         CountDownLatch latch = new CountDownLatch(1);
         ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
-        scenario.onActivity(activity -> {
-            activity.getWPEView().setWPEViewClient(new WPEViewClient() {
-                @Override
-                public void onPageFinished(@NonNull WPEView view, @NonNull String url) {
-                    String focusScript = "function onDocumentFocused() {\n"
-                                         + "  document.getElementById('editor').focus();\n"
-                                         + "  test.onEditorFocused();\n"
-                                         + "}\n"
-                                         + "(function() {\n"
-                                         + "if (document.hasFocus()) {\n"
-                                         + "  onDocumentFocused();"
-                                         + "} else {\n"
-                                         + "  window.addEventListener('focus', onDocumentFocused);\n"
-                                         + "}})();";
-                    view.evaluateJavascript(focusScript, new WPECallback<String>() {
-                        @Override
-                        public void onResult(String value) {
-                            latch.countDown();
-                        }
-                    });
-                }
-            });
+        scenario
+            .onActivity(activity -> {
+                activity.getWPEView().setWPEViewClient(new WPEViewClient() {
+                    @Override
+                    public void onPageFinished(@NonNull WPEView view, @NonNull String url) {
+                        String focusScript = "function onDocumentFocused() {\n"
+                                             + "  document.getElementById('editor').focus();\n"
+                                             + "  test.onEditorFocused();\n"
+                                             + "}\n"
+                                             + "(function() {\n"
+                                             + "if (document.hasFocus()) {\n"
+                                             + "  onDocumentFocused();"
+                                             + "} else {\n"
+                                             + "  window.addEventListener('focus', onDocumentFocused);\n"
+                                             + "}})();";
+                        view.evaluateJavascript(focusScript, value -> latch.countDown());
+                    }
+                });
 
-            String htmlDocument = "<html><body contenteditable id='editor'></body></html>";
-            activity.getWPEView().loadHtml(htmlDocument, null);
-        });
-
-        scenario.moveToState(Lifecycle.State.RESUMED);
+                String htmlDocument = "<html><body contenteditable id='editor'></body></html>";
+                activity.getWPEView().loadHtml(htmlDocument, null);
+            })
+            .moveToState(Lifecycle.State.RESUMED);
 
         try {
             latch.await(10, TimeUnit.SECONDS);

@@ -95,9 +95,12 @@ public:
         auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
         auto jActiveURL = JNI::String(webkit_web_view_get_uri(webView));
         auto jMessage = JNI::String(webkit_script_dialog_get_message(dialog));
+        JNI::String const jDefaultText = webkit_script_dialog_get_dialog_type(dialog) == WEBKIT_SCRIPT_DIALOG_PROMPT
+            ? JNI::String(webkit_script_dialog_prompt_get_default_text(dialog))
+            : "";
         callJavaMethod(getJNIPageCache().m_onScriptDialog, page->m_pageJavaInstance.get(), dialogPtr,
             webkit_script_dialog_get_dialog_type(dialog), static_cast<jstring>(jActiveURL),
-            static_cast<jstring>(jMessage));
+            static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText));
 
         return TRUE;
     }
@@ -187,21 +190,17 @@ public:
             g_error_free(error);
             WKCallback::onStringResult(callback, nullptr);
         } else {
-            if (jsc_value_is_string(value) != 0) {
-                gchar* strValue = jsc_value_to_string(value);
-                JSCException* exception = jsc_context_get_exception(jsc_value_get_context(value));
-                if (exception != nullptr) {
-                    WKCallback::onStringResult(callback, nullptr);
-                } else {
-                    auto resultValue = JNI::String(strValue);
-                    WKCallback::onStringResult(callback, resultValue);
-                }
-                g_free(strValue);
+            JSCException* exception = jsc_context_get_exception(jsc_value_get_context(value));
+            if (exception != nullptr || jsc_value_is_null(value) == TRUE || jsc_value_is_undefined(value) == TRUE) {
+                WKCallback::onStringResult(callback, JNI::String("null"));
             } else {
-                WKCallback::onStringResult(callback, nullptr);
+                gchar* strValue = jsc_value_to_json(value, 0);
+                auto resultValue = JNI::String(strValue);
+                g_free(strValue);
+                WKCallback::onStringResult(callback, resultValue);
             }
+            g_object_unref(value);
         }
-        g_object_unref(value);
 
         try {
             JNIEnv* env = JNI::getCurrentThreadJNIEnv();
@@ -228,7 +227,7 @@ private:
     const JNI::Method<void(jdouble)> m_onLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
-    const JNI::Method<jboolean(jlong, jint, jstring, jstring)> m_onScriptDialog;
+    const JNI::Method<jboolean(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void()> m_onInputMethodContextIn;
     const JNI::Method<void()> m_onInputMethodContextOut;
     const JNI::Method<void()> m_onEnterFullscreenMode;
@@ -260,7 +259,8 @@ private:
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject obj, jlong pagePtr, jstring script, JNIWKCallback callback) noexcept;
     static void nativeScriptDialogClose(JNIEnv* env, jobject obj, jlong dialogPtr) noexcept;
-    static void nativeScriptDialogConfirm(JNIEnv* env, jobject obj, jlong dialogPtr, jboolean confirm) noexcept;
+    static void nativeScriptDialogConfirm(
+        JNIEnv* env, jobject obj, jlong dialogPtr, jboolean confirm, jstring text) noexcept;
 };
 
 const JNIPageCache& getJNIPageCache()
@@ -276,7 +276,7 @@ JNIPageCache::JNIPageCache()
     , m_onLoadProgress(getMethod<void(jdouble)>("onLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
-    , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring)>("onScriptDialog"))
+    , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     , m_onInputMethodContextIn(getMethod<void()>("onInputMethodContextIn"))
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
@@ -309,7 +309,8 @@ JNIPageCache::JNIPageCache()
         JNI::NativeMethod<void(jlong, jstring, JNIWKCallback)>(
             "nativeEvaluateJavascript", JNIPageCache::nativeEvaluateJavascript),
         JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", JNIPageCache::nativeScriptDialogClose),
-        JNI::NativeMethod<void(jlong, jboolean)>("nativeScriptDialogConfirm", JNIPageCache::nativeScriptDialogConfirm));
+        JNI::NativeMethod<void(jlong, jboolean, jstring)>(
+            "nativeScriptDialogConfirm", JNIPageCache::nativeScriptDialogConfirm));
 }
 
 jlong JNIPageCache::nativeInit(
@@ -525,15 +526,16 @@ void JNIPageCache::nativeScriptDialogClose(JNIEnv* /*env*/, jobject /*obj*/, jlo
 {
     Logging::logDebug("Page::nativeScriptDialogClose() [tid %d]", gettid());
     auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
-    webkit_script_dialog_unref(dialog);
-    webkit_script_dialog_close(dialog);
+    webkit_script_dialog_unref(dialog); // Will call webkit_script_dialog_close if ref count is zero
 }
 
 void JNIPageCache::nativeScriptDialogConfirm(
-    JNIEnv* /*env*/, jobject /*obj*/, jlong dialogPtr, jboolean confirm) noexcept
+    JNIEnv* /*env*/, jobject /*obj*/, jlong dialogPtr, jboolean confirm, jstring text) noexcept
 {
     Logging::logDebug("Page::nativeScriptDialogConfirm() [tid %d]", gettid());
     auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
+    if (webkit_script_dialog_get_dialog_type(dialog) == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
+        webkit_script_dialog_prompt_set_text(dialog, JNI::String(text).getContent().get());
     webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
 }
 

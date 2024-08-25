@@ -70,17 +70,30 @@ public class HttpServer {
         private Socket currentRequestSocket;
 
         public ServerThread(int port) throws Exception {
-            int retry = 3;
-            while (true) {
+            int retryCount = 3;
+            int delay = 1000; // Initial delay in milliseconds
+
+            tryToCreateServerSocket(port, retryCount, delay);
+        }
+
+        private void tryToCreateServerSocket(int port, int retryCount, int delay) throws Exception {
+            while (retryCount > 0) {
                 try {
                     serverSocket = new ServerSocket(port);
+                    Log.i(TAG, "ServerSocket created successfully on port: " + port);
                     return;
                 } catch (IOException e) {
-                    Log.w(TAG, "Http.ServerThread exception: " + e.getMessage());
-                    if (--retry == 0) {
+                    retryCount--;
+                    Log.w(TAG, "Failed to create ServerSocket (retries left: " + retryCount + "): " + e.getMessage(),
+                          e);
+
+                    if (retryCount == 0) {
+                        Log.e(TAG, "All retries failed. Throwing exception.");
                         throw e;
                     }
-                    Thread.sleep(1000);
+
+                    Thread.sleep(delay);
+                    delay *= 2; // Exponential backoff: double the delay after each retry
                 }
             }
         }
@@ -93,32 +106,68 @@ public class HttpServer {
             synchronized (lock) {
                 isCancelled = true;
                 if (currentRequestSocket != null) {
-                    try {
-                        currentRequestSocket.close();
-                    } catch (IOException ignored) {
-                    }
+                    closeSocket(currentRequestSocket);
                 }
             }
-            serverSocket.close();
+            cleanUp();
         }
 
         @Override
         public void run() {
             try {
                 while (!isCancelled()) {
-                    Socket socket = serverSocket.accept();
-                    try (InputStream inputStream = socket.getInputStream();
-                         PrintStream outputstream = new PrintStream(socket.getOutputStream())) {
-                        synchronized (lock) { currentRequestSocket = socket; }
-                        HttpRequest request = HttpRequest.parse(inputStream);
-                        handleRequest(request, outputstream);
-                    } catch (HttpRequest.InvalidRequest | IOException e) {
-                        Log.e(TAG, "" + e.getMessage());
+                    try {
+                        Socket socket = serverSocket.accept();
+                        handleSocketConnection(socket);
+                    } catch (SocketException e) {
+                        if (isCancelled()) {
+                            Log.i(TAG, "Server thread cancelled, exiting gracefully.");
+                        } else {
+                            Log.w(TAG, "SocketException occurred: " + e.getMessage(), e);
+                        }
+                        break; // Exit loop if server is cancelled or socket error occurs
                     }
                 }
-            } catch (SocketException ignored) {
             } catch (IOException e) {
-                Log.w(TAG, "" + e.getMessage());
+                Log.e(TAG, "I/O error occurred in server thread: " + e.getMessage(), e);
+            } finally {
+                cleanUp();
+            }
+        }
+
+        private void handleSocketConnection(Socket socket) {
+            try (InputStream inputStream = socket.getInputStream();
+                 PrintStream outputStream = new PrintStream(socket.getOutputStream())) {
+
+                synchronized (lock) { currentRequestSocket = socket; }
+
+                HttpRequest request = HttpRequest.parse(inputStream);
+                handleRequest(request, outputStream);
+
+            } catch (HttpRequest.InvalidRequest | IOException e) {
+                Log.e(TAG, "Error processing request: " + e.getMessage(), e);
+            } finally {
+                closeSocket(socket);
+            }
+        }
+
+        private void closeSocket(Socket socket) {
+            try {
+                if (socket != null && !socket.isClosed()) {
+                    socket.close();
+                }
+            } catch (IOException e) {
+                Log.w(TAG, "Error closing socket: " + e.getMessage(), e);
+            }
+        }
+
+        private void cleanUp() {
+            try {
+                if (serverSocket != null && !serverSocket.isClosed()) {
+                    serverSocket.close();
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing server socket: " + e.getMessage(), e);
             }
         }
 
