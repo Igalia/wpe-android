@@ -57,7 +57,7 @@ void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jbo
 
 void PageSettings::configureJNIMappings()
 {
-    JNI::Class("com/wpe/wpe/PageSettings")
+    JNI::Class("org/wpewebkit/wpe/PageSettings")
         .registerNativeMethods(JNI::NativeMethod<void(jlong, jstring)>("setNativeUserAgent", setNativeUserAgent),
             JNI::NativeMethod<void(jlong, jboolean)>(
                 "setNativeMediaPlaybackRequiresUserGesture", setNativeMediaPlaybackRequiresUserGesture),

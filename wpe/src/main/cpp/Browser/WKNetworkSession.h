@@ -23,7 +23,7 @@
 
 #include <wpe/webkit.h>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKNetworkSession, "com/wpe/wpe/WKNetworkSession");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKNetworkSession, "org/wpewebkit/wpe/WKNetworkSession");
 
 class WKWebContext;
 

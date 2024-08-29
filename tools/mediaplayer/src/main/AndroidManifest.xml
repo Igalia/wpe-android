@@ -10,7 +10,7 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.AppCompat.NoActionBar">
         <activity
-            android:name=".MainActivity"
+            android:name="org.wpewebkit.tools.mediaplayer.MainActivity"
             android:exported="true"
             android:launchMode="singleInstance"
             android:screenOrientation="landscape">

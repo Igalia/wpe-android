@@ -46,7 +46,7 @@ options, args = option_parser.parse_args()
 configure_logging(logging.DEBUG if options.verbose else logging.INFO)
 
 # Ensure proper clean state on emulator
-subprocess.run("adb shell am force-stop com.wpe.webdriver", shell=True)
+subprocess.run("adb shell am force-stop org.wpewebkit.tools.webdriver", shell=True)
 subprocess.run("adb forward --remove-all", shell=True)
 subprocess.run("adb reverse --remove-all", capture_output=True, shell=True)
 

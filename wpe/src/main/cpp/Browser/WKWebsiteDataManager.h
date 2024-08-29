@@ -23,8 +23,9 @@
 
 #include <wpe/webkit.h>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebsiteDataManager, "com/wpe/wpe/WKWebsiteDataManager");
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebsiteDataManagerCallbackHolder, "com/wpe/wpe/WKWebsiteDataManager$CallbackHolder");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebsiteDataManager, "org/wpewebkit/wpe/WKWebsiteDataManager");
+DECLARE_JNI_CLASS_SIGNATURE(
+    JNIWKWebsiteDataManagerCallbackHolder, "org/wpewebkit/wpe/WKWebsiteDataManager$CallbackHolder");
 
 namespace WKWebsiteDataManager {
 

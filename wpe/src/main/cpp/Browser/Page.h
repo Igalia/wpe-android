@@ -28,7 +28,7 @@
 
 #include <vector>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "com/wpe/wpe/Page");
+DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "org/wpewebkit/wpe/Page");
 
 struct WPEAndroidViewBackend;
 class WKWebContext;

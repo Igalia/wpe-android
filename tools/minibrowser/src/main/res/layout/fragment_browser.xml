@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context=".MainActivity">
+    tools:context="org.wpewebkit.tools.minibrowser.MainActivity">
 
     <FrameLayout
         android:id="@+id/tab_container_view"

@@ -21,7 +21,7 @@
 
 #include "JNI/JNI.h"
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKCallback, "com/wpe/wpe/WKCallback");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKCallback, "org/wpewebkit/wpe/WKCallback");
 
 namespace WKCallback {
 

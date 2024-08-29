@@ -30,7 +30,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
-                <com.wpe.tools.minibrowser.settings.clearbrowsingdata.ClearBrowsingDataItem
+                <org.wpewebkit.tools.minibrowser.settings.clearbrowsingdata.ClearBrowsingDataItem
                     android:id="@+id/cookies_item"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
