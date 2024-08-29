@@ -97,7 +97,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
     try {
         JNI::initVM(javaVM);
 
-        JNI::Class("com/wpe/wpe/services/WPEService")
+        JNI::Class("org/wpewebkit/wpe/services/WPEService")
             .registerNativeMethods(
                 JNI::StaticNativeMethod<void(jstringArray)>("setupNativeEnvironment", setupNativeEnvironment),
                 JNI::StaticNativeMethod<void(jlong, jint, jint)>("initializeNativeMain", initializeNativeMain));

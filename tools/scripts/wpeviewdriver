@@ -63,16 +63,16 @@ class WPEViewDriver:
 
     def _setup(self):
         self._teardown() # Just in case app is still running
-        #subprocess.run("adb shell pm clear com.wpe.webdriver", capture_output=True, shell=True) # Clears too much like for example gstreamer libs
+        #subprocess.run("adb shell pm clear org.wpewebkit.tools.webdriver", capture_output=True, shell=True) # Clears too much like for example gstreamer libs
 
     def _teardown(self):
-        subprocess.run("adb shell am force-stop com.wpe.webdriver", capture_output=True, shell=True)
+        subprocess.run("adb shell am force-stop org.wpewebkit.tools.webdriver", capture_output=True, shell=True)
         subprocess.run("adb forward --remove-all", capture_output=True, shell=True)
 
     def run(self):
         self._setup()
 
-        subprocess.run("adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity -e headless true", capture_output=True, shell=True)
+        subprocess.run("adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity -e headless true", capture_output=True, shell=True)
 
         self._wait_for_open_connection()
         if not self._interrupted:

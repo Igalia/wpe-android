@@ -23,7 +23,7 @@
 
 #include <wpe/webkit.h>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWKCookieManager, "com/wpe/wpe/WKCookieManager");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKCookieManager, "org/wpewebkit/wpe/WKCookieManager");
 
 namespace WKCookieManager {
 

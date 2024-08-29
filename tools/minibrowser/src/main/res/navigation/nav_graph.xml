@@ -11,7 +11,7 @@
 
     <fragment
         android:id="@+id/settingsFragment"
-        android:name="com.wpe.tools.minibrowser.settings.SettingsFragment"
+        android:name="org.wpewebkit.tools.minibrowser.settings.SettingsFragment"
         android:label="fragment_settings" >
         <action
             android:id="@+id/action_settingsFragment_to_deleteBrowsingDataFragment"
@@ -19,12 +19,12 @@
     </fragment>
     <fragment
         android:id="@+id/clearBrowsingDataFragment"
-        android:name="com.wpe.tools.minibrowser.settings.clearbrowsingdata.ClearBrowsingDataFragment"
+        android:name="org.wpewebkit.tools.minibrowser.settings.clearbrowsingdata.ClearBrowsingDataFragment"
         android:label="fragment_delete_browsing_data"
         tools:layout="@layout/fragment_clear_browsing_data" />
     <fragment
         android:id="@+id/browserFragment"
-        android:name="com.wpe.tools.minibrowser.BrowserFragment"
+        android:name="org.wpewebkit.tools.minibrowser.BrowserFragment"
         android:label="BrowserFragment" >
         <action
             android:id="@+id/action_browserFragment_to_settingsFragment"

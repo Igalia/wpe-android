@@ -20,7 +20,7 @@
         </activity>
 
         <service
-            android:name="com.wpe.wpe.services.WebDriverProcessService"
+            android:name="org.wpewebkit.wpe.services.WebDriverProcessService"
             android:process=":WPEWebDriverProcess"/>
 
     </application>

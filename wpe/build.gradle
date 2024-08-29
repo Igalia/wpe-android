@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'com.wpe.wpe'
+    namespace 'org.wpewebkit'
     compileSdk 35
     ndkVersion '26.3.11579264'
 
@@ -52,7 +52,7 @@ android {
         def genDir = new File(project.buildDir, "generated/source/services/${variant.name}")
 
         def wpeGenServicesTask = tasks.create("wpeGenServices${variant.name.capitalize()}").doLast({
-            def templateFileContent = file("src/main/java/com/wpe/wpe/services/WPEServices.java.template").getText()
+            def templateFileContent = file("src/main/java/org/wpewebkit/wpe/services/WPEServices.java.template").getText()
             def services = ""
             for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
                 services += "    public static final class WebProcessService$i extends WebProcessService {}\n" +
@@ -60,7 +60,7 @@ android {
             }
             templateFileContent = templateFileContent.replace("    // SERVICES PLACEHOLDER", services)
 
-            def servicesDir = new File(genDir, "com/wpe/wpe/services")
+            def servicesDir = new File(genDir, "org/wpewebkit/wpe/services")
             servicesDir.mkdirs()
             new File(servicesDir, "WPEServices.java").write(templateFileContent)
         })
@@ -76,10 +76,10 @@ android {
                 def services = ""
                 for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
                     services += "        <service\n" +
-                        "            android:name=\"com.wpe.wpe.services.WPEServices\$NetworkProcessService$i\"\n" +
+                        "            android:name=\"org.wpewebkit.wpe.services.WPEServices\$NetworkProcessService$i\"\n" +
                         "            android:process=\":WPENetworkProcess$i\"/>\n" +
                         "        <service\n" +
-                        "            android:name=\"com.wpe.wpe.services.WPEServices\$WebProcessService$i\"\n" +
+                        "            android:name=\"org.wpewebkit.wpe.services.WPEServices\$WebProcessService$i\"\n" +
                         "            android:process=\":WPEWebProcess$i\"/>\n\n"
                 }
                 manifestContent = manifestContent.replace("        <!-- SERVICES PLACEHOLDER -->", services)

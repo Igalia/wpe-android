@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace 'com.wpe.tools.minibrowser'
+    namespace 'org.wpewebkit.tools.minibrowser'
     compileSdk 35
 
     defaultConfig {

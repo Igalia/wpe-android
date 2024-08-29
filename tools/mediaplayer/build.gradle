@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'com.wpe.tools.mediaplayer'
+    namespace 'org.wpewebkit.tools.mediaplayer'
     compileSdk 35
 
     defaultConfig {

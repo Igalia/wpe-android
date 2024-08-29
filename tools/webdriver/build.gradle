@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.wpe.webdriver'
+    namespace 'org.wpewebkit.tools.webdriver'
     compileSdk 35
 
     defaultConfig {
-        applicationId "com.wpe.webdriver"
+        applicationId "org.wpewebkit.tools.webdriver"
         minSdk 31
         targetSdk 35
         versionCode 1

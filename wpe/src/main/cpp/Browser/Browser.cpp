@@ -33,7 +33,7 @@
  * JNI mapping with Java Browser class
  **********************************************************************************************************************/
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIBrowser, "com/wpe/wpe/Browser");
+DECLARE_JNI_CLASS_SIGNATURE(JNIBrowser, "org/wpewebkit/wpe/Browser");
 
 class JNIBrowserCache final : public JNI::TypedClass<JNIBrowser> {
 public:

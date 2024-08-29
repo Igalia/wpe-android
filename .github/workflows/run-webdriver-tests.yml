@@ -62,9 +62,9 @@ jobs:
           disable-animations: true
           script: |
             adb install --abi x86_64 webdriver-latest.apk
-            adb shell am start -W -n com.wpe.webdriver/.WebDriverActivity
+            adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity
             sleep 5
-            adb shell am force-stop com.wpe.webdriver
+            adb shell am force-stop org.wpewebkit.tools.webdriver
             python3 -m venv .venv
             . .venv/bin/activate
             pip install -r tools/scripts/webkitpy/requirements.txt

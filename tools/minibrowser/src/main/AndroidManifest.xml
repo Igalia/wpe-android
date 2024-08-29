@@ -19,7 +19,7 @@
         android:theme="@style/Theme.MiniBrowser"
         android:usesCleartextTraffic="true">
         <activity
-            android:name=".MainActivity"
+            android:name="org.wpewebkit.tools.minibrowser.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|keyboardHidden"
             android:launchMode="singleTask"

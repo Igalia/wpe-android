@@ -29,7 +29,7 @@ When a native crash occurs running WPE Android the adb logcat prints something l
 03-12 12:20:39.345  F  [30472/30472] DEBUG    Revision: 'MP1.0'
 03-12 12:20:39.345  F  [30472/30472] DEBUG    ABI: 'arm64'
 03-12 12:20:39.346  F  [30472/30472] DEBUG    Timestamp: 2021-03-12 12:20:39+0100
-03-12 12:20:39.346  F  [30472/30472] DEBUG    pid: 30164, tid: 30465, name: Thread-5  >>> com.wpe.tools.minibrowser <<<
+03-12 12:20:39.346  F  [30472/30472] DEBUG    pid: 30164, tid: 30465, name: Thread-5  >>> org.wpewebkit.tools.minibrowser <<<
 03-12 12:20:39.346  F  [30472/30472] DEBUG    uid: 10393
 03-12 12:20:39.346  F  [30472/30472] DEBUG    signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
 03-12 12:20:39.346  F  [30472/30472] DEBUG        x0  0000000000000000  x1  0000000000007701  x2  0000000000000006  x3  0000007260758900
@@ -46,18 +46,18 @@ When a native crash occurs running WPE Android the adb logcat prints something l
 03-12 12:20:39.499  D  [4505/5555] GRIL-S   [8730]< UPDATE_REGULATORY_DOMAIN
 03-12 12:20:39.515  F  [30472/30472] DEBUG    backtrace:
 03-12 12:20:39.515  F  [30472/30472] DEBUG          #00 pc 000000000004e178  /apex/com.android.runtime/lib64/bionic/libc.so (abort+168) (BuildId: bca874ad82277777df5c95ca3b0f6e6f)
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #01 pc 0000000000601a24  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #02 pc 000000000088fd1c  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #03 pc 000000000088c804  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #04 pc 00000000008fdff4  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #05 pc 00000000008eccfc  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #06 pc 00000000008e81cc  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #07 pc 00000000008f354c  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #08 pc 000000000001a580  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #09 pc 000000000001a2c8  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so (g_object_new_valist+760)
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #10 pc 0000000000019dd0  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so (g_object_new+112)
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #11 pc 00000000008ff7e0  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so (webkit_web_view_new+64)
-03-12 12:20:39.515  F  [30472/30472] DEBUG          #12 pc 0000000000043220  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEPageGlue.so (BuildId: f7e820673ca7de23f522c1742eca350cbb41d82d)
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #01 pc 0000000000601a24  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #02 pc 000000000088fd1c  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #03 pc 000000000088c804  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #04 pc 00000000008fdff4  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #05 pc 00000000008eccfc  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #06 pc 00000000008e81cc  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #07 pc 00000000008f354c  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #08 pc 000000000001a580  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #09 pc 000000000001a2c8  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so (g_object_new_valist+760)
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #10 pc 0000000000019dd0  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so (g_object_new+112)
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #11 pc 00000000008ff7e0  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so (webkit_web_view_new+64)
+03-12 12:20:39.515  F  [30472/30472] DEBUG          #12 pc 0000000000043220  /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEPageGlue.so (BuildId: f7e820673ca7de23f522c1742eca350cbb41d82d)
 ```
 
 This is not specially helpful, as it shows shared library addresses instead of the usual `<source-file>:<line-number`.
@@ -77,32 +77,32 @@ WARNING: Mismatched build id for wpe/imported/lib/arm64-v8a/libc.so
 WARNING:   Expected bca874ad82277777df5c95ca3b0f6e6f
 WARNING:   Found    c790eec6e15870bab2cf223ed3cfa192
 #00 0x000000000004e178 /apex/com.android.runtime/lib64/bionic/libc.so (abort+168) (BuildId: bca874ad82277777df5c95ca3b0f6e6f)
-#01 0x0000000000601a24 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#01 0x0000000000601a24 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 WTFCrashWithInfo(int, char const*, char const*, int)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/DerivedSources/ForwardingHeaders/wtf/Assertions.h:673:5
-#02 0x000000000088fd1c /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#02 0x000000000088fd1c /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 WebKit::WebProcessProxy::WebProcessProxy(WebKit::WebProcessPool&, WebKit::WebsiteDataStore*, WebKit::WebProcessProxy::IsPrewarmed)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/WebProcessProxy.cpp:205:5
-#03 0x000000000088c804 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#03 0x000000000088c804 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 WebKit::WebProcessProxy::create(WebKit::WebProcessPool&, WebKit::WebsiteDataStore*, WebKit::WebProcessProxy::IsPrewarmed, WebKit::WebProcessProxy::ShouldLaunchProcess)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/WebProcessProxy.cpp:141:32
 WebKit::WebProcessPool::createWebPage(WebKit::PageClient&, WTF::Ref<API::PageConfiguration, WTF::DumbPtrTraits<API::PageConfiguration> >&&)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/WebProcessPool.cpp:1320:0
-#04 0x00000000008fdff4 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#04 0x00000000008fdff4 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 WKWPE::View::View(wpe_view_backend*, API::PageConfiguration const&)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/API/wpe/WPEView.cpp:74:25
-#05 0x00000000008eccfc /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#05 0x00000000008eccfc /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 WKWPE::View::create(wpe_view_backend*, API::PageConfiguration const&)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/API/wpe/WPEView.h:70:20
 webkitWebViewCreatePage(_WebKitWebView*, WTF::Ref<API::PageConfiguration, WTF::DumbPtrTraits<API::PageConfiguration> >&&)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/API/glib/WebKitWebView.cpp:2276:0
-#06 0x00000000008e81cc /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#06 0x00000000008e81cc /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 webkitWebContextCreatePageForWebView(_WebKitWebContext*, _WebKitWebView*, _WebKitUserContentManager*, _WebKitWebView*, _WebKitWebsitePolicies*)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/API/glib/WebKitWebContext.cpp:1926:5
-#07 0x00000000008f354c /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
+#07 0x00000000008f354c /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libWPEWebKit-1.0_3.so
 webkitWebViewConstructed(_GObject*)
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/wpewebkit-2.30.4/_builddir/../Source/WebKit/UIProcess/API/glib/WebKitWebView.cpp:765:5
-#08 0x000000000001a580 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/com.wpe.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so
+#08 0x000000000001a580 /data/app/~~WJLHau6kHswZ6spsTXvQUw==/org.wpewebkit.tools.minibrowser-VIWitBTgpOsWgxNfsbpj1Q==/lib/arm64/libgobject-2.0.so
 g_object_new_internal
 /home/ferjm/dev/igalia/wpe-android/cerbero/build/sources/android_arm64/glib-2.62.6/_builddir/../gobject/gobject.c:1867:5
 
@@ -125,34 +125,34 @@ adb logcat -v time | egrep -i '(wpe|WPE|webkit|WebKit|WEBKIT)' | logcat-colorize
 To find the internal name of Java classes run this command from the root path:
 
 ```ssh
-javap -p -s wpe/build/intermediates/javac/debug/classes/com/wpe/wpe/<.class file>
+javap -p -s wpe/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/<.class file>
 ```
 
 replacing `<.class file>` with the name of the `.class` file containing the method you want to call. For example:
 
 ```ssh
-javap -p -s wpe/build/intermediates/javac/debug/classes/com/wpe/wpe/Page.class
+javap -p -s wpe/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/Page.class
 ```
 
 This gives an output like:
 
 ```
 Compiled from "Page.java"
-public class com.wpe.wpe.Page {
+public class org.wpewebkit.wpe.Page {
   private final java.lang.String LOGTAG;
     descriptor: Ljava/lang/String;
-  private final com.wpe.wpe.BrowserGlue glue;
-    descriptor: Lcom/wpe/wpe/BrowserGlue;
-  private final com.wpe.wpe.gfx.WPESurfaceView view;
-    descriptor: Lcom/wpe/wpe/gfx/View;
+  private final org.wpewebkit.wpe.BrowserGlue glue;
+    descriptor: Lorg/wpewebkit/wpe/BrowserGlue;
+  private final org.wpewebkit.wpe.gfx.WPESurfaceView view;
+    descriptor: Lorg/wpewebkit/wpe/gfx/View;
   private final android.content.Context context;
     descriptor: Landroid/content/Context;
-  private final java.util.ArrayList<com.wpe.wpe.services.WPEServiceConnection> services;
+  private final java.util.ArrayList<org.wpewebkit.wpe.services.WPEServiceConnection> services;
     descriptor: Ljava/util/ArrayList;
   private long webViewRef;
     descriptor: J
-  public com.wpe.wpe.Page(android.content.Context, java.lang.String, com.wpe.wpe.gfx.WPESurfaceView, com.wpe.wpe.BrowserGlue);
-    descriptor: (Landroid/content/Context;Ljava/lang/String;Lcom/wpe/wpe/gfx/View;Lcom/wpe/wpe/BrowserGlue;)V
+  public org.wpewebkit.wpe.Page(android.content.Context, java.lang.String, org.wpewebkit.wpe.gfx.WPESurfaceView, org.wpewebkit.wpe.BrowserGlue);
+    descriptor: (Landroid/content/Context;Ljava/lang/String;Lorg/wpewebkit/wpe/gfx/View;Lorg/wpewebkit/wpe/BrowserGlue;)V
 
   public void close();
     descriptor: ()V
@@ -166,11 +166,11 @@ public class com.wpe.wpe.Page {
   public void launchService(int, android.os.Parcelable[], java.lang.Class);
     descriptor: (I[Landroid/os/Parcelable;Ljava/lang/Class;)V
 
-  public void dropService(com.wpe.wpe.services.WPEServiceConnection);
-    descriptor: (Lcom/wpe/wpe/services/WPEServiceConnection;)V
+  public void dropService(org.wpewebkit.wpe.services.WPEServiceConnection);
+    descriptor: (Lorg/wpewebkit/wpe/services/WPEServiceConnection;)V
 
-  public com.wpe.wpe.gfx.WPESurfaceView view();
-    descriptor: ()Lcom/wpe/wpe/gfx/View;
+  public org.wpewebkit.wpe.gfx.WPESurfaceView view();
+    descriptor: ()Lorg/wpewebkit/wpe/gfx/View;
 
   public void loadUrl(java.lang.String);
     descriptor: (Ljava/lang/String;)V
@@ -185,8 +185,8 @@ The procedure is for the [Android Studio](https://developer.android.com/studio) 
 1- Uncomment the `android.os.Debug.waitForDebugger();` instruction in the `loadNativeLibraries()` method of the
 corresponding service Java code. That is to say:
 
-- wpe/src/main/java/com/wpe/wpe/services/WebProcessService, or
-- wpe/src/main/java/com/wpe/wpe/services/NetworkProcessService
+- wpe/src/main/java/org/wpewebkit/wpe/services/WebProcessService, or
+- wpe/src/main/java/org/wpewebkit/wpe/services/NetworkProcessService
 
 This instruction will wait for the Android debugger when the service native code is loaded at the moment the
 corresponding process is attached to the JVM.
