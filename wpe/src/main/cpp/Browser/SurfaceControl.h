@@ -87,7 +87,7 @@ public:
         Transaction(Transaction&& other) noexcept;
         Transaction& operator=(Transaction&& other) noexcept;
 
-        void setVisibility(const Surface& surface, int8_t visibility);
+        void setVisibility(const Surface& surface, ASurfaceTransactionVisibility visibility);
         void setZOrder(const Surface& surface, int32_t zOrder);
         void setBuffer(const Surface& surface, AHardwareBuffer* buffer, int fenceFD);
         void setParent(const Surface& surface, Surface* newParent);

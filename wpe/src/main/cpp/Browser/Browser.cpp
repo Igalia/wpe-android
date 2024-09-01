@@ -149,8 +149,15 @@ void Browser::configureJNIMappings()
 {
     getJNIBrowserCache();
 
-    static const wpe_process_provider_interface s_processProviderInterface
-        = {.create = nullptr, .destroy = nullptr, .launch = wpeLaunchProcess, .terminate = wpeTerminateProcess};
+    static const wpe_process_provider_interface s_processProviderInterface = {.create = nullptr,
+        .destroy = nullptr,
+        .launch = wpeLaunchProcess,
+        .terminate = wpeTerminateProcess,
+        ._wpe_reserved1 = nullptr,
+        ._wpe_reserved2 = nullptr,
+        ._wpe_reserved3 = nullptr,
+        ._wpe_reserved4 = nullptr,
+        ._wpe_reserved5 = nullptr};
     wpe_process_provider_register_interface(&s_processProviderInterface);
 }
 
