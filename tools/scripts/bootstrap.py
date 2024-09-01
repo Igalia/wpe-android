@@ -332,7 +332,7 @@ class Bootstrap:
     def _copy_gio_modules(self, target_dir):
         shutil.rmtree(target_dir, True)
         os.makedirs(target_dir)
-        sysroot_gio_module_file = os.path.join(self._sysroot_dir, "lib", "gio", "modules", "libgiognutls.so")
+        sysroot_gio_module_file = os.path.join(self._sysroot_dir, "lib", "gio", "modules", "libgioopenssl.so")
         shutil.copy(sysroot_gio_module_file, target_dir)
         for plugin_path in Path(target_dir).rglob("*.so"):
             self._replace_soname_values(plugin_path)

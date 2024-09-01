@@ -79,7 +79,7 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
         (void)snprintf(arg3String, NUMBER_BUFFER_SIZE, "--target=127.0.0.1:%d", static_cast<uint32_t>(pid));
     }
 
-    char* argv[numArgs];
+    auto argv = new char*[numArgs];
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     argv[0] = const_cast<char*>(processName[static_cast<int>(processType)]);
     argv[1] = arg1String;
@@ -89,6 +89,7 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
     }
 
     (*entrypoint)(numArgs, argv);
+    delete[] argv;
 }
 } // namespace
 

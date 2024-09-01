@@ -16,7 +16,7 @@ public class WebDriverProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the gio
     // modules or else they won't be applied.
-    private static final String assetsVersion = "webdriver_process_assets_gst1.21.1";
+    private static final String assetsVersion = "webdriver_process_assets_gst1.24.7";
 
     @Override
     protected void loadNativeLibraries() {

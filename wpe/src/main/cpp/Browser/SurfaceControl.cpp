@@ -141,7 +141,7 @@ SurfaceControl::Transaction& SurfaceControl::Transaction::operator=(Transaction&
     return *this;
 }
 
-void SurfaceControl::Transaction::setVisibility(const Surface& surface, int8_t visibility)
+void SurfaceControl::Transaction::setVisibility(const Surface& surface, ASurfaceTransactionVisibility visibility)
 {
     ASurfaceTransaction_setVisibility(m_transaction, surface.surfaceControl(), visibility);
 }
