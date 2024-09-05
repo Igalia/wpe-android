@@ -102,7 +102,7 @@ void internal_input_method_context_class_init(InternalInputMethodContextClass* k
 
     static GParamSpec* s_properties[static_cast<size_t>(InternalInputMethodContextProperty::NumberOfProperties)]
         = {nullptr,
-            g_param_spec_pointer("observer", "Observer", "Page event observer",
+            g_param_spec_pointer("observer", "Observer", "WKWebView event observer",
                 static_cast<GParamFlags>(G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE))}; // NOLINT(hicpp-signed-bitwise)
     g_object_class_install_properties(
         objectKlass, static_cast<guint>(InternalInputMethodContextProperty::NumberOfProperties), s_properties);

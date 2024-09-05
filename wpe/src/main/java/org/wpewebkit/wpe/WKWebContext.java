@@ -9,7 +9,7 @@ import androidx.annotation.Nullable;
 public class WKWebContext {
 
     public interface Client {
-        public @Nullable Page createPageForAutomation();
+        public @Nullable WKWebView createWKWebViewForAutomation();
     }
 
     private static final String LOGTAG = "WKWebContext";
@@ -50,11 +50,11 @@ public class WKWebContext {
     public void setClient(@Nullable Client client) { this.client = client; }
 
     @Keep
-    private long createPageForAutomation() {
+    private long createWKWebViewForAutomation() {
         if (client != null) {
-            Page page = client.createPageForAutomation();
-            if (page != null) {
-                return page.getNativePtr();
+            WKWebView wkWebView = client.createWKWebViewForAutomation();
+            if (wkWebView != null) {
+                return wkWebView.getNativePtr();
             }
         }
         return 0;

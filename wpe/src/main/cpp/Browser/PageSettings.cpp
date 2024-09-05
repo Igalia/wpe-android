@@ -19,36 +19,33 @@
 
 #include "PageSettings.h"
 
-#include "Page.h"
+#include "WKWebView.h"
 
 namespace {
-void setNativeUserAgent(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jstring userAgent) noexcept
+void setNativeUserAgent(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jstring userAgent) noexcept
 {
-    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if (page != nullptr) {
-        WebKitWebView* webView = page->webView();
-        WebKitSettings* settings = webkit_web_view_get_settings(webView);
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
         webkit_settings_set_user_agent(settings, JNI::String(userAgent).getContent().get());
     }
 }
 
 void setNativeMediaPlaybackRequiresUserGesture(
-    JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jboolean require) noexcept
+    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean require) noexcept
 {
-    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if (page != nullptr) {
-        WebKitWebView* webView = page->webView();
-        WebKitSettings* settings = webkit_web_view_get_settings(webView);
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
         webkit_settings_set_media_playback_requires_user_gesture(settings, static_cast<gboolean>(require));
     }
 }
 
-void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong pagePtr, jboolean allow) noexcept
+void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean allow) noexcept
 {
-    Page* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-    if (page != nullptr) {
-        WebKitWebView* webView = page->webView();
-        WebKitSettings* settings = webkit_web_view_get_settings(webView);
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
         webkit_settings_set_allow_file_access_from_file_urls(settings, static_cast<gboolean>(allow));
         webkit_settings_set_allow_universal_access_from_file_urls(settings, static_cast<gboolean>(allow));
     }

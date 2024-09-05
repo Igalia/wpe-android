@@ -63,15 +63,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A Page roughly corresponds with a tab in a regular browser UI.
- * There is a 1:1 relationship between WPEView and Page.
- * Each Page instance has its own wpe.wpe.gfx.View and WebKitWebView instances associated.
+ * A WKWebView roughly corresponds with a tab in a regular browser UI.
+ * There is a 1:1 relationship between WPEView and WKWebView.
+ * Each WKWebView instance has its own wpe.wpe.gfx.View and WebKitWebView instances associated.
  * It also keeps references to the Services that host the logic of WebKit's auxiliary
  * processes (WebProcess and NetworkProcess).
  */
 @UiThread
-public final class Page {
-    private static final String LOGTAG = "WPEPage";
+public final class WKWebView {
+    private static final String LOGTAG = "WKWebView";
 
     public static final int LOAD_STARTED = 0;
     public static final int LOAD_REDIRECTED = 1;
@@ -123,8 +123,8 @@ public final class Page {
     private static int kHeadlessWidth = 1080;
     private static int kHeadlessHeight = 2274;
 
-    public Page(@NonNull WPEView wpeView, @NonNull WKWebContext context, boolean headless) {
-        Log.v(LOGTAG, "Creating Page: " + this);
+    public WKWebView(@NonNull WPEView wpeView, @NonNull WKWebContext context, boolean headless) {
+        Log.v(LOGTAG, "Creating WKWebView: " + this);
 
         this.wpeView = wpeView;
 
@@ -146,7 +146,7 @@ public final class Page {
             wpeView.getSurfaceClient().addCallback(wpeView, new PageSurfaceHolderCallback());
         } else {
             SurfaceHolder holder = surfaceView.getHolder();
-            Log.d(LOGTAG, "Page: " + this + " surface holder: " + holder);
+            Log.d(LOGTAG, "WKWebView: " + this + " surface holder: " + holder);
             holder.addCallback(new PageSurfaceHolderCallback());
         }
         surfaceView.requestLayout();
@@ -162,7 +162,7 @@ public final class Page {
     public void close() {
         if (!isClosed) {
             isClosed = true;
-            Log.v(LOGTAG, "Closing Page: " + this);
+            Log.v(LOGTAG, "Closing WKWebView: " + this);
             nativeClose(nativePtr);
         }
     }
@@ -197,7 +197,7 @@ public final class Page {
     @Keep
     public void onLoadChanged(int loadEvent) {
         wpeView.onLoadChanged(loadEvent);
-        if (loadEvent == Page.LOAD_STARTED) {
+        if (loadEvent == WKWebView.LOAD_STARTED) {
             onInputMethodContextOut();
         }
     }

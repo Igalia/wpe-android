@@ -28,21 +28,21 @@
 
 #include <vector>
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIPage, "org/wpewebkit/wpe/Page");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebView, "org/wpewebkit/wpe/WKWebView");
 
 struct WPEAndroidViewBackend;
 class WKWebContext;
 
-class Page final : public InputMethodContextObserver {
+class WKWebView final : public InputMethodContextObserver {
 public:
     static void configureJNIMappings();
 
-    Page(Page&&) = delete;
-    Page& operator=(Page&&) = delete;
-    Page(const Page&) = delete;
-    Page& operator=(const Page&) = delete;
+    WKWebView(WKWebView&&) = delete;
+    WKWebView& operator=(WKWebView&&) = delete;
+    WKWebView(const WKWebView&) = delete;
+    WKWebView& operator=(const WKWebView&) = delete;
 
-    ~Page() override { close(); }
+    ~WKWebView() override { close(); }
 
     void close() noexcept;
 
@@ -55,12 +55,12 @@ public:
     void commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept; // NOLINT(bugprone-exception-escape)
 
 private:
-    friend class JNIPageCache;
+    friend class JNIWKWebViewCache;
 
-    Page(JNIEnv* env, JNIPage jniPage, WKWebContext* wkWebContext, int width, int height, float deviceScale,
-        bool headless);
+    WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWebContext, int width, int height,
+        float deviceScale, bool headless);
 
-    JNI::ProtectedType<JNIPage> m_pageJavaInstance;
+    JNI::ProtectedType<JNIWKWebView> m_webViewJavaInstance;
     InputMethodContext m_inputMethodContext;
     std::shared_ptr<Renderer> m_renderer;
 

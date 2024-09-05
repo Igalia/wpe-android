@@ -36,8 +36,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
-import org.wpewebkit.wpe.Page;
 import org.wpewebkit.wpe.WKCallback;
+import org.wpewebkit.wpe.WKWebView;
 
 /**
  * WPEView wraps WPE WebKit browser engine in a reusable Android library.
@@ -52,7 +52,7 @@ public class WPEView extends FrameLayout {
     private WPEContext wpeContext;
     private boolean ownsContext;
 
-    private Page page;
+    private WKWebView wkWebView;
 
     public WPEView(@NonNull Context context) {
         super(context);
@@ -74,7 +74,7 @@ public class WPEView extends FrameLayout {
     private void init(@NonNull WPEContext context, boolean ownsContext, boolean headless) {
         wpeContext = context;
         this.ownsContext = ownsContext;
-        page = new Page(this, wpeContext.getWebContext(), false);
+        wkWebView = new WKWebView(this, wpeContext.getWebContext(), false);
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -121,23 +121,23 @@ public class WPEView extends FrameLayout {
     @Override
     public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
-            page.deleteInputMethodContent(-1);
+            wkWebView.deleteInputMethodContent(-1);
             return true;
         }
 
         KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
-        page.setInputMethodContent(map.get(keyCode, event.getMetaState()));
+        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
         return true;
     }
 
     public void onLoadChanged(int loadEvent) {
         switch (loadEvent) {
-        case Page.LOAD_STARTED:
+        case WKWebView.LOAD_STARTED:
             if (wpeViewClient != null)
                 wpeViewClient.onPageStarted(this, url);
             break;
 
-        case Page.LOAD_FINISHED:
+        case WKWebView.LOAD_FINISHED:
             onLoadProgress(100);
             if (wpeViewClient != null)
                 wpeViewClient.onPageFinished(this, url);
@@ -175,7 +175,7 @@ public class WPEView extends FrameLayout {
 
             wpeChromeClient.onShowCustomView(customView, () -> {
                 if (customView != null)
-                    page.requestExitFullscreenMode();
+                    wkWebView.requestExitFullscreenMode();
             });
         }
     }
@@ -202,17 +202,17 @@ public class WPEView extends FrameLayout {
      * methods may be called on this WebView after destroy.
      */
     public void destroy() {
-        page.destroy();
+        wkWebView.destroy();
         if (ownsContext) {
             wpeContext.destroy();
         }
     }
 
     /**
-     * Gets the page associated with this WPEView.
+     * Gets the wkWebView associated with this WPEView.
      * @return the associated page.
      */
-    public @NonNull Page getPage() { return page; }
+    public @NonNull WKWebView getWKWebView() { return wkWebView; }
 
     /**
      * Loads the given URL.
@@ -220,7 +220,7 @@ public class WPEView extends FrameLayout {
      */
     public void loadUrl(@NonNull String url) {
         originalUrl = url;
-        page.loadUrl(url);
+        wkWebView.loadUrl(url);
     }
 
     /**
@@ -230,40 +230,40 @@ public class WPEView extends FrameLayout {
      */
     public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         originalUrl = baseUri;
-        page.loadHtml(content, baseUri);
+        wkWebView.loadHtml(content, baseUri);
     }
 
     /**
      * Gets whether this WPEView has a back history item.
      * @return true if this WPEView has a back history item.
      */
-    public boolean canGoBack() { return page.canGoBack(); }
+    public boolean canGoBack() { return wkWebView.canGoBack(); }
 
     /**
      * Gets whether this WPEView has a forward history item.
      * @return true if this WPEView has a forward history item.
      */
-    public boolean canGoForward() { return page.canGoForward(); }
+    public boolean canGoForward() { return wkWebView.canGoForward(); }
 
     /**
      * Goes back in the history of this WPEView.
      */
-    public void goBack() { page.goBack(); }
+    public void goBack() { wkWebView.goBack(); }
 
     /**
      * Goes forward in the history of this WPEView.
      */
-    public void goForward() { page.goForward(); }
+    public void goForward() { wkWebView.goForward(); }
 
     /**
      * Stop current loading process.
      */
-    public void stopLoading() { page.stopLoading(); }
+    public void stopLoading() { wkWebView.stopLoading(); }
 
     /**
      * Reloads the current page.
      */
-    public void reload() { page.reload(); }
+    public void reload() { wkWebView.reload(); }
 
     /**
      * Gets loading progress for the current page.
@@ -358,6 +358,6 @@ public class WPEView extends FrameLayout {
      *                       May be {@code null} if no notification of the result is required.
      */
     public void evaluateJavascript(@NonNull String script, @Nullable WPECallback<String> resultCallback) {
-        page.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
+        wkWebView.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
     }
 }

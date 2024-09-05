@@ -52,16 +52,16 @@ public final class PageSettings {
     private static final String DEFAUlT_USER_AGENT = "Mozilla/5.0 (Linux; Android " + getOsVersion() +
                                                      ") AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 "
                                                      + "Mobile Safari/605.1.15";
-    private final Page page;
+    private final WKWebView wkWebView;
 
-    public @NonNull Page getPage() { return page; }
+    public @NonNull WKWebView getWKWebView() { return wkWebView; }
 
     private native void setNativeUserAgent(long nativePtr, String userAgent);
     private native void setNativeMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
     private native void setNativeAllowFileUrls(long nativePtr, boolean allow);
 
-    public PageSettings(@NonNull Page page) {
-        this.page = page;
+    public PageSettings(@NonNull WKWebView wkWebView) {
+        this.wkWebView = wkWebView;
         setUserAgent(null);
         setMediaPlaybackRequiresUserGesture(true);
     }
@@ -86,7 +86,7 @@ public final class PageSettings {
 
         if (!str.equals(userAgent)) {
             userAgent = str;
-            setNativeUserAgent(page.getNativePtr(), userAgent);
+            setNativeUserAgent(wkWebView.getNativePtr(), userAgent);
         }
     }
 
@@ -107,7 +107,7 @@ public final class PageSettings {
     public void setMediaPlaybackRequiresUserGesture(boolean requires) {
         if (requires != mediaPlaybackRequiresUserGesture) {
             mediaPlaybackRequiresUserGesture = requires;
-            setNativeMediaPlaybackRequiresUserGesture(page.getNativePtr(), mediaPlaybackRequiresUserGesture);
+            setNativeMediaPlaybackRequiresUserGesture(wkWebView.getNativePtr(), mediaPlaybackRequiresUserGesture);
         }
     }
 
@@ -128,7 +128,7 @@ public final class PageSettings {
     public void setAllowFileUrls(boolean allow) {
         if (allow != allowFileUrls) {
             allowFileUrls = allow;
-            setNativeAllowFileUrls(page.getNativePtr(), allowFileUrls);
+            setNativeAllowFileUrls(wkWebView.getNativePtr(), allowFileUrls);
         }
     }
 }

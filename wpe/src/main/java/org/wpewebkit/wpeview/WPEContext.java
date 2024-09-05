@@ -45,7 +45,7 @@ public class WPEContext {
             this.context.setClient(() -> {
                 WPEView view = this.client.createWPEViewForAutomation();
                 if (view != null)
-                    return view.getPage();
+                    return view.getWKWebView();
                 return null;
             });
         } else {

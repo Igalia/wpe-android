@@ -30,7 +30,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import org.wpewebkit.tools.mediaplayer.R;
 import org.wpewebkit.wpeview.WPEView;
 
 import java.io.IOException;
@@ -58,7 +57,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             String content = getHtmlContent();
             WPEView view = findViewById(R.id.wpe_view);
-            view.getPage().getPageSettings().setAllowFileUrls(true);
+            view.getWKWebView().getPageSettings().setAllowFileUrls(true);
             view.loadHtml(content, "file:///");
         } catch (IOException ex) {
             String message = "Cannot initialize web application";

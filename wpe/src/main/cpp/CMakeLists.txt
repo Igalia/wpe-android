@@ -110,7 +110,7 @@ add_library(
     Browser/InputMethodContext.cpp
     Browser/LooperThread.cpp
     Browser/MessagePump.cpp
-    Browser/Page.cpp
+    Browser/WKWebView.cpp
     Browser/PageSettings.cpp
     Browser/RendererSurfaceControl.cpp
     Browser/SurfaceControl.cpp

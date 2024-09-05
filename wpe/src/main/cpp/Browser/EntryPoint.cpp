@@ -18,12 +18,12 @@
  */
 
 #include "Browser.h"
-#include "Page.h"
 #include "PageSettings.h"
 #include "WKCallback.h"
 #include "WKCookieManager.h"
 #include "WKNetworkSession.h"
 #include "WKWebContext.h"
+#include "WKWebView.h"
 #include "WKWebsiteDataManager.h"
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
@@ -37,7 +37,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         WKNetworkSession::configureJNIMappings();
         WKWebContext::configureJNIMappings();
         WKWebsiteDataManager::configureJNIMappings();
-        Page::configureJNIMappings();
+        WKWebView::configureJNIMappings();
         PageSettings::configureJNIMappings();
 
         return JNI::VERSION;

@@ -1,7 +1,7 @@
 #include "WKWebContext.h"
 
 #include "Logging.h"
-#include "Page.h"
+#include "WKWebView.h"
 #include "WKWebsiteDataManager.h"
 
 #include <unistd.h>
@@ -21,14 +21,14 @@ public:
     {
         WebKitWebView* view = nullptr;
         try {
-            const jlong pagePtr = getJNIWKWebContextCache().m_createPageForAutomation.invoke(
+            const jlong wkWebViewPtr = getJNIWKWebContextCache().m_createPageForAutomation.invoke(
                 wkWebContext->m_webContextJavaInstance.get());
-            if (pagePtr > 0) {
-                auto* page = reinterpret_cast<Page*>(pagePtr); // NOLINT(performance-no-int-to-ptr)
-                view = page->webView();
+            if (wkWebViewPtr > 0) {
+                auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+                view = wkWebView->webView();
             }
         } catch (const std::exception& ex) {
-            Logging::logError("Cannot send page event to Java runtime (%s)", ex.what());
+            Logging::logError("Cannot send web view event to Java runtime (%s)", ex.what());
         }
         return view;
     }
@@ -63,7 +63,7 @@ const JNIWKWebContextCache& getJNIWKWebContextCache()
 
 JNIWKWebContextCache::JNIWKWebContextCache()
     : JNI::TypedClass<JNIWKWebContext>(true)
-    , m_createPageForAutomation(getMethod<jlong()>("createPageForAutomation"))
+    , m_createPageForAutomation(getMethod<jlong()>("createWKWebViewForAutomation"))
 {
     registerNativeMethods(JNI::NativeMethod<jlong(jboolean)>("nativeInit", JNIWKWebContextCache::nativeInit),
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIWKWebContextCache::nativeDestroy));
