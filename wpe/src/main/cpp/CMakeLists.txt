@@ -111,7 +111,7 @@ add_library(
     Browser/LooperThread.cpp
     Browser/MessagePump.cpp
     Browser/WKWebView.cpp
-    Browser/PageSettings.cpp
+    Browser/WKSettings.cpp
     Browser/RendererSurfaceControl.cpp
     Browser/SurfaceControl.cpp
     Browser/WKCallback.cpp

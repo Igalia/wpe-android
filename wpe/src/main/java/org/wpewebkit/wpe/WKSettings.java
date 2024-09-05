@@ -27,7 +27,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public final class PageSettings {
+public final class WKSettings {
     private static final int DEFAULT_MAJOR_VERSION = 12;
     private static final int DEFAULT_MINOR_VERSION = 0;
     private static final int DEFAULT_BUGFIX_VERSION = 0;
@@ -60,7 +60,7 @@ public final class PageSettings {
     private native void setNativeMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
     private native void setNativeAllowFileUrls(long nativePtr, boolean allow);
 
-    public PageSettings(@NonNull WKWebView wkWebView) {
+    public WKSettings(@NonNull WKWebView wkWebView) {
         this.wkWebView = wkWebView;
         setUserAgent(null);
         setMediaPlaybackRequiresUserGesture(true);

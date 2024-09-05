@@ -17,7 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "PageSettings.h"
+#include "WKSettings.h"
 
 #include "WKWebView.h"
 
@@ -52,9 +52,9 @@ void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr
 }
 } // namespace
 
-void PageSettings::configureJNIMappings()
+void WKSettings::configureJNIMappings()
 {
-    JNI::Class("org/wpewebkit/wpe/PageSettings")
+    JNI::Class("org/wpewebkit/wpe/WKSettings")
         .registerNativeMethods(JNI::NativeMethod<void(jlong, jstring)>("setNativeUserAgent", setNativeUserAgent),
             JNI::NativeMethod<void(jlong, jboolean)>(
                 "setNativeMediaPlaybackRequiresUserGesture", setNativeMediaPlaybackRequiresUserGesture),

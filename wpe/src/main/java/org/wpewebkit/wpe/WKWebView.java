@@ -111,9 +111,9 @@ public final class WKWebView {
     private final WPEView wpeView;
     private final PageSurfaceView surfaceView;
     protected final ScaleGestureDetector scaleDetector;
-    private final PageSettings pageSettings;
+    private final WKSettings wkSettings;
 
-    public @NonNull PageSettings getPageSettings() { return pageSettings; }
+    public @NonNull WKSettings getWKSettings() { return wkSettings; }
 
     private boolean isClosed = false;
     private boolean canGoBack = true;
@@ -156,7 +156,7 @@ public final class WKWebView {
         wpeView.onPageSurfaceViewCreated(surfaceView);
         wpeView.onPageSurfaceViewReady(surfaceView);
 
-        pageSettings = new PageSettings(this);
+        wkSettings = new WKSettings(this);
     }
 
     public void close() {

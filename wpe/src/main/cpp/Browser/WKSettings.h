@@ -20,9 +20,9 @@
 
 #pragma once
 
-class PageSettings final {
+class WKSettings final {
 public:
-    PageSettings() = delete;
+    WKSettings() = delete;
 
     static void configureJNIMappings();
 };
