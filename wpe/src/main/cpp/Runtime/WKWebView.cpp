@@ -22,10 +22,10 @@
 
 #include "WKWebView.h"
 
-#include "Browser.h"
 #include "Logging.h"
 #include "RendererSurfaceControl.h"
 #include "WKCallback.h"
+#include "WKRuntime.h"
 #include "WKWebContext.h"
 
 #include <android/native_window_jni.h>

@@ -29,11 +29,12 @@ import java.util.Map;
 final class AuxiliaryProcessesContainer {
     private static final int MAX_AUX_PROCESSES = 40;
 
-    private final AuxiliaryProcess[][] processes = new AuxiliaryProcess[ProcessType.values().length][MAX_AUX_PROCESSES];
+    private final AuxiliaryProcess[][] processes =
+        new AuxiliaryProcess[WKProcessType.values().length][MAX_AUX_PROCESSES];
     private final Map<Long, AuxiliaryProcess> pidToProcessMap = new HashMap<>();
-    private final int[] firstAvailableSlot = new int[ProcessType.values().length];
+    private final int[] firstAvailableSlot = new int[WKProcessType.values().length];
 
-    public int getFirstAvailableSlot(@NonNull ProcessType processType) {
+    public int getFirstAvailableSlot(@NonNull WKProcessType processType) {
         return firstAvailableSlot[processType.getValue()];
     }
 
@@ -77,8 +78,8 @@ final class AuxiliaryProcessesContainer {
 
         public int getProcessSlot() { return processSlot; }
 
-        public ProcessType getProcessType() { return serviceConnection.getProcessType(); }
+        public WKProcessType getProcessType() { return serviceConnection.getProcessType(); }
 
-        public void terminate() { Browser.getInstance().getApplicationContext().unbindService(serviceConnection); }
+        public void terminate() { WKRuntime.getInstance().getApplicationContext().unbindService(serviceConnection); }
     }
 }

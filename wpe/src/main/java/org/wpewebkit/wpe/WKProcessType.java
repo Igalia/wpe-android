@@ -22,17 +22,17 @@ package org.wpewebkit.wpe;
 
 import androidx.annotation.NonNull;
 
-public enum ProcessType {
+public enum WKProcessType {
     WebProcess(0),
     NetworkProcess(1),
     WebDriverProcess(2);
 
     private final int value;
 
-    ProcessType(int value) { this.value = value; }
+    WKProcessType(int value) { this.value = value; }
 
-    public static @NonNull ProcessType fromValue(int value) {
-        for (ProcessType entry : ProcessType.values()) {
+    public static @NonNull WKProcessType fromValue(int value) {
+        for (WKProcessType entry : WKProcessType.values()) {
             if (entry.getValue() == value)
                 return entry;
         }

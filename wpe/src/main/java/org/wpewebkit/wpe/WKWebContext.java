@@ -26,7 +26,7 @@ public class WKWebContext {
     public WKWebContext(@NonNull Context context, int inspectorPort, boolean automationMode) {
         this.context = context;
 
-        Browser.getInstance().initialize(context, inspectorPort);
+        WKRuntime.getInstance().initialize(context, inspectorPort);
 
         nativePtr = nativeInit(automationMode);
 

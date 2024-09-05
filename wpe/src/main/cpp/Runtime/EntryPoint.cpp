@@ -17,10 +17,10 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "Browser.h"
 #include "WKCallback.h"
 #include "WKCookieManager.h"
 #include "WKNetworkSession.h"
+#include "WKRuntime.h"
 #include "WKSettings.h"
 #include "WKWebContext.h"
 #include "WKWebView.h"
@@ -31,7 +31,7 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
     try {
         JNI::initVM(javaVM);
 
-        Browser::configureJNIMappings();
+        WKRuntime::configureJNIMappings();
         WKCallback::configureJNIMappings();
         WKCookieManager::configureJNIMappings();
         WKNetworkSession::configureJNIMappings();

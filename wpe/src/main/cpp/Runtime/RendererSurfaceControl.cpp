@@ -24,10 +24,10 @@
 #include <cassert>
 #include <utility>
 
-#include "Browser.h"
 #include "Fence.h"
 #include "Logging.h"
 #include "SurfaceControl.h"
+#include "WKRuntime.h"
 
 RendererSurfaceControl::RendererSurfaceControl(WPEAndroidViewBackend* viewBackend, uint32_t width, uint32_t height)
     : m_viewBackend(viewBackend)

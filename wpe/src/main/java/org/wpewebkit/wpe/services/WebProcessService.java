@@ -31,7 +31,7 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import org.freedesktop.gstreamer.GStreamer;
-import org.wpewebkit.wpe.ProcessType;
+import org.wpewebkit.wpe.WKProcessType;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -176,6 +176,6 @@ public class WebProcessService extends WPEService {
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
         Log.d(LOGTAG,
               "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeNativeMain(pid, ProcessType.WebProcess.getValue(), parcelFd.detachFd());
+        initializeNativeMain(pid, WKProcessType.WebProcess.getValue(), parcelFd.detachFd());
     }
 }

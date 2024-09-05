@@ -35,7 +35,6 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
-import org.wpewebkit.wpe.AuxiliaryProcessesContainer;
 import org.wpewebkit.wpe.services.WPEServiceConnection;
 import org.wpewebkit.wpe.services.WPEServiceConnectionListener;
 
@@ -44,7 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @UiThread
-public final class Browser {
+public final class WKRuntime {
     private static final String LOGTAG = "WPEBrowser";
 
     static { System.loadLibrary("WPEAndroidBrowser"); }
@@ -54,11 +53,11 @@ public final class Browser {
     private native void nativeInit();
     private native void nativeShut();
 
-    private static final Browser singleton = new Browser();
+    private static final WKRuntime singleton = new WKRuntime();
 
-    public static @NonNull Browser getInstance() { return singleton; }
+    public static @NonNull WKRuntime getInstance() { return singleton; }
 
-    private Browser() { Log.v(LOGTAG, "WPE Browser creation"); }
+    private WKRuntime() { Log.v(LOGTAG, "WPE WKRuntime creation"); }
 
     private Context applicationContext = null;
 
@@ -134,7 +133,7 @@ public final class Browser {
     @Keep
     @WorkerThread
     public void launchProcess(long pid, int type, int fd) {
-        ProcessType processType = ProcessType.fromValue(type);
+        WKProcessType processType = WKProcessType.fromValue(type);
         Log.d(LOGTAG, "launchProcess " + processType.name() + " (pid: " + pid + ", fd: " + fd + ")");
 
         int processSlot = auxiliaryProcesses.getFirstAvailableSlot(processType);

@@ -28,11 +28,12 @@ import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.fragment.NavHostFragment
-import org.wpewebkit.tools.minibrowser.R
 import org.wpewebkit.tools.minibrowser.databinding.ActivityMainBinding
 
 
 class MainActivity : AppCompatActivity(R.layout.activity_main) {
+
+    private val TAG = "MiniBrowser"
 
     private val navHost by lazy {
         supportFragmentManager.primaryNavigationFragment as NavHostFragment
@@ -42,12 +43,12 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("Browser", "onCreate")
+        Log.d(TAG, "onCreate")
         binding = ActivityMainBinding.inflate(layoutInflater)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        Log.d("Browser", "onConfigurationChanged")
+        Log.d(TAG, "onConfigurationChanged")
     }
 }

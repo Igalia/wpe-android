@@ -24,27 +24,27 @@
 
 #include "MessagePump.h"
 
-class Browser final {
+class WKRuntime final {
 public:
     static void configureJNIMappings();
 
-    static Browser& instance() noexcept
+    static WKRuntime& instance() noexcept
     {
-        static Browser s_singleton;
+        static WKRuntime s_singleton;
         return s_singleton;
     }
 
-    Browser(Browser&&) = delete;
-    Browser& operator=(Browser&&) = delete;
-    Browser(const Browser&) = delete;
-    Browser& operator=(const Browser&) = delete;
+    WKRuntime(WKRuntime&&) = delete;
+    WKRuntime& operator=(WKRuntime&&) = delete;
+    WKRuntime(const WKRuntime&) = delete;
+    WKRuntime& operator=(const WKRuntime&) = delete;
 
-    ~Browser() { jniShut(); }
+    ~WKRuntime() { jniShut(); }
 
     void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
-    Browser() = default;
+    WKRuntime() = default;
 
     friend class JNIBrowserCache;
     void jniInit();

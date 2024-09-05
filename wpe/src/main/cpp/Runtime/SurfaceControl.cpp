@@ -19,8 +19,8 @@
 
 #include "SurfaceControl.h"
 
-#include "Browser.h"
 #include "ScopedWPEAndroidBuffer.h"
+#include "WKRuntime.h"
 
 namespace {
 
@@ -58,7 +58,7 @@ void onTransactionCommitedOnAnyThread(void* context, ASurfaceTransactionStats* /
 
     // API documentation states that this callback can be dispatched from any thread.
     // Let's relay the transaction completion to the UI thread.
-    Browser::instance().invokeOnUiThread(
+    WKRuntime::instance().invokeOnUiThread(
         +[](void* userData) {
             auto* ackCtx = reinterpret_cast<TransactionContext*>(userData);
             std::move(ackCtx->m_commitCallback)();
@@ -74,7 +74,7 @@ void onTransactionCompletedOnAnyThread(void* context, ASurfaceTransactionStats* 
 
     // API documentation states that this callback can be dispatched from any thread.
     // Let's relay the transaction completion to the UI thread.
-    Browser::instance().invokeOnUiThread(
+    WKRuntime::instance().invokeOnUiThread(
         +[](void* userData) {
             auto* ackCtx = reinterpret_cast<TransactionContext*>(userData);
             std::move(ackCtx->m_completeCallback)(std::move(ackCtx->m_stats));

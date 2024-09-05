@@ -20,7 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "Browser.h"
+#include "WKRuntime.h"
 
 #include "Environment.h"
 #include "Logging.h"
@@ -30,10 +30,10 @@
 #include <wpe/webkit.h>
 
 /***********************************************************************************************************************
- * JNI mapping with Java Browser class
+ * JNI mapping with Java WKRuntime class
  **********************************************************************************************************************/
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIBrowser, "org/wpewebkit/wpe/Browser");
+DECLARE_JNI_CLASS_SIGNATURE(JNIBrowser, "org/wpewebkit/wpe/WKRuntime");
 
 class JNIBrowserCache final : public JNI::TypedClass<JNIBrowser> {
 public:
@@ -82,13 +82,13 @@ JNIBrowserCache::JNIBrowserCache()
     registerNativeMethods(JNI::StaticNativeMethod<void()>(
                               "startNativeLooper",
                               +[](JNIEnv* /*env*/, jclass /*klass*/) {
-                                  Logging::logDebug("Browser::startNativeLooper() [tid %d]", gettid());
+                                  Logging::logDebug("WKRuntime::startNativeLooper() [tid %d]", gettid());
                                   LooperThread::instance().startLooper();
                               }),
         JNI::StaticNativeMethod<void(jstringArray)>(
             "setupNativeEnvironment",
             +[](JNIEnv* /*env*/, jclass /*klass*/, jstringArray envStringsArray) {
-                Logging::logDebug("Browser::setupNativeEnvironment() [tid %d]", gettid());
+                Logging::logDebug("WKRuntime::setupNativeEnvironment() [tid %d]", gettid());
                 Logging::pipeStdoutToLogcat();
                 Environment::configureEnvironment(envStringsArray);
             }),
@@ -97,11 +97,11 @@ JNIBrowserCache::JNIBrowserCache()
             +[](JNIEnv* env, jobject obj) {
                 getJNIBrowserCache().m_browserJavaInstance
                     = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIBrowser>(obj), true);
-                Browser::instance().jniInit();
+                WKRuntime::instance().jniInit();
             }),
         JNI::NativeMethod<void()>(
             "nativeShut", +[](JNIEnv*, jobject) {
-                Browser::instance().jniShut();
+                WKRuntime::instance().jniShut();
                 getJNIBrowserCache().m_browserJavaInstance = nullptr;
             }));
 }
@@ -145,7 +145,7 @@ void wpeTerminateProcess(void* /*backend*/, int64_t pid)
 }
 } // namespace
 
-void Browser::configureJNIMappings()
+void WKRuntime::configureJNIMappings()
 {
     getJNIBrowserCache();
 
@@ -161,22 +161,22 @@ void Browser::configureJNIMappings()
     wpe_process_provider_register_interface(&s_processProviderInterface);
 }
 
-void Browser::jniInit()
+void WKRuntime::jniInit()
 {
-    Logging::logDebug("Browser::jniInit() [tid %d]", gettid());
+    Logging::logDebug("WKRuntime::jniInit() [tid %d]", gettid());
     m_messagePump = std::make_unique<MessagePump>();
 }
 
-void Browser::jniShut() noexcept
+void WKRuntime::jniShut() noexcept
 {
     try {
-        Logging::logDebug("Browser::jniShut() [tid %d]", gettid());
+        Logging::logDebug("WKRuntime::jniShut() [tid %d]", gettid());
         m_messagePump = nullptr;
     } catch (...) {
     }
 }
 
-void Browser::invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
+void WKRuntime::invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
 {
     m_messagePump->invoke(onExec, onDestroy, userData);
 }

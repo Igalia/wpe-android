@@ -27,7 +27,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import org.wpewebkit.wpe.ProcessType
+import org.wpewebkit.wpe.WKProcessType
 import org.wpewebkit.wpe.services.WPEServiceConnection
 import org.wpewebkit.wpe.services.WPEServiceConnectionListener
 import org.wpewebkit.wpeview.WPEChromeClient
@@ -109,7 +109,7 @@ class WebDriverActivity : AppCompatActivity() {
         }
 
         try {
-            val processType = ProcessType.WebDriverProcess
+            val processType = WKProcessType.WebDriverProcess
             val serviceClass =
                 Class.forName("org.wpewebkit.wpe.services." + processType.name + "Service")
             val parcelFd = ParcelFileDescriptor.fromFd(0)

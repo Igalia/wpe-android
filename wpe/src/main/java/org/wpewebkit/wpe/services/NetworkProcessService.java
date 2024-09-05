@@ -27,7 +27,7 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import org.wpewebkit.wpe.ProcessType;
+import org.wpewebkit.wpe.WKProcessType;
 
 import java.io.File;
 
@@ -69,6 +69,6 @@ public class NetworkProcessService extends WPEService {
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
         Log.d(LOGTAG,
               "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeNativeMain(pid, ProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
+        initializeNativeMain(pid, WKProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }
