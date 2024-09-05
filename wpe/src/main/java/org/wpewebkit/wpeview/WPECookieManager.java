@@ -42,11 +42,6 @@ public final class WPECookieManager {
         int getValue() { return value; }
     }
 
-    @FunctionalInterface
-    public interface Callback {
-        void onResult(boolean result);
-    }
-
     private WKNetworkSession networkSession;
     private WKCookieManager cookieManager;
     private WKWebsiteDataManager websiteDataManager;
@@ -65,7 +60,7 @@ public final class WPECookieManager {
         cookieManager.setCookieAcceptPolicy(WKCookieManager.CookieAcceptPolicy.values()[policy.ordinal()]);
     }
 
-    public void removeAllCookies(@Nullable Callback callback) {
+    public void removeAllCookies(@Nullable WPECallback<Boolean> callback) {
         EnumSet<WKWebsiteDataManager.WebsiteDataType> valuesToClear =
             EnumSet.of(WKWebsiteDataManager.WebsiteDataType.Cookies);
         WKWebsiteDataManager.Callback callbackImpl = callback == null ? null : callback::onResult;
