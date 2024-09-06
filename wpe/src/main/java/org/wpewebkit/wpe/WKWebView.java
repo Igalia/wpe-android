@@ -238,12 +238,14 @@ public final class WKWebView {
 
     protected final class PageSurfaceHolderCallback implements SurfaceHolder.Callback2 {
         @Override
+        @SuppressWarnings("SyntheticAccessor")
         public void surfaceCreated(SurfaceHolder holder) {
             Log.d(LOGTAG, "PageSurfaceHolderCallback::surfaceCreated()");
             nativeSurfaceCreated(nativePtr, holder.getSurface());
         }
 
         @Override
+        @SuppressWarnings("SyntheticAccessor")
         public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             Log.d(LOGTAG, "PageSurfaceHolderCallback::surfaceChanged() with format: " + format + " and size: " + width +
                               " x " + height);
@@ -251,12 +253,14 @@ public final class WKWebView {
         }
 
         @Override
+        @SuppressWarnings("SyntheticAccessor")
         public void surfaceRedrawNeeded(SurfaceHolder holder) {
             Log.d(LOGTAG, "PageSurfaceHolderCallback::surfaceRedrawNeeded()");
             nativeSurfaceRedrawNeeded(nativePtr);
         }
 
         @Override
+        @SuppressWarnings("SyntheticAccessor")
         public void surfaceDestroyed(SurfaceHolder holder) {
             Log.d(LOGTAG, "PageSurfaceHolderCallback::surfaceDestroyed()");
             nativeSurfaceDestroyed(nativePtr);
@@ -267,6 +271,7 @@ public final class WKWebView {
         private float m_scaleFactor = 1.f;
 
         @Override
+        @SuppressWarnings("SyntheticAccessor")
         public boolean onScale(ScaleGestureDetector detector) {
             Log.d(LOGTAG, "PageScaleListener::onScale()");
 
@@ -284,6 +289,7 @@ public final class WKWebView {
 
         @Override
         @SuppressLint("ClickableViewAccessibility")
+        @SuppressWarnings("SyntheticAccessor")
         public boolean onTouchEvent(MotionEvent event) {
             int pointerCount = event.getPointerCount();
             if (pointerCount < 1)

@@ -41,7 +41,7 @@ public class WPEViewClientOnReceiveHttpErrorTest {
     }
 
     @Test
-    public void testOnReceiveHttpError404() {
+    public void testOnReceiveHttpError404() throws Throwable {
         AtomicBoolean received404 = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
         ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();

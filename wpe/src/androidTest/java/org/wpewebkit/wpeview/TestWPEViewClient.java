@@ -7,7 +7,7 @@ import org.wpewebkit.wpe.util.CallbackHelper;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class TestWPEViewClient implements WPEViewClient {
+public class TestWPEViewClient extends WPEViewClient {
 
     private final CallbackHelper onPageFinishedHelper;
     private final OnEvaluateJavaScriptResultHelper onEvaluateJavascriptResultHelper;

@@ -25,7 +25,7 @@ public class WPEViewImeTest {
     public ActivityScenarioRule<WPEViewTestActivity> wpeViewActivityTestRule =
         new ActivityScenarioRule<>(WPEViewTestActivity.class);
     @Test
-    public void testIMEVisible() {
+    public void testIMEVisible() throws Throwable {
         CountDownLatch latch = new CountDownLatch(1);
         ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
         scenario
