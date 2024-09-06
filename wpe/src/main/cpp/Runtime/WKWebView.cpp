@@ -70,10 +70,10 @@ public:
             getJNIPageCache().m_onLoadChanged, wkWebView->m_webViewJavaInstance.get(), static_cast<int>(loadEvent));
     }
 
-    static void onLoadProgress(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    static void onEstimatedLoadProgress(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
     {
-        Logging::logDebug("WKWebView::onLoadProgress() [tid %d]", gettid());
-        callJavaMethod(getJNIPageCache().m_onLoadProgress, wkWebView->m_webViewJavaInstance.get(),
+        Logging::logDebug("WKWebView::onEstimatedLoadProgress() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onEstimatedLoadProgress, wkWebView->m_webViewJavaInstance.get(),
             static_cast<jdouble>(webkit_web_view_get_estimated_load_progress(webView)));
     }
 
@@ -226,7 +226,7 @@ private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void()> m_onClose;
     const JNI::Method<void(jint)> m_onLoadChanged;
-    const JNI::Method<void(jdouble)> m_onLoadProgress;
+    const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
     const JNI::Method<jboolean(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
@@ -243,6 +243,7 @@ private:
     static void nativeDestroy(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeLoadUrl(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jstring url) noexcept;
     static void nativeLoadHtml(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jstring content, jstring baseUri) noexcept;
+    static jdouble nativeGetEstimatedLoadProgress(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeGoBack(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeGoForward(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeStopLoading(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
@@ -275,7 +276,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     : JNI::TypedClass<JNIWKWebView>(true)
     , m_onClose(getMethod<void()>("onClose"))
     , m_onLoadChanged(getMethod<void(jint)>("onLoadChanged"))
-    , m_onLoadProgress(getMethod<void(jdouble)>("onLoadProgress"))
+    , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
     , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
@@ -292,6 +293,8 @@ JNIWKWebViewCache::JNIWKWebViewCache()
         JNI::NativeMethod<void(jlong)>("nativeDestroy", JNIWKWebViewCache::nativeDestroy),
         JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", JNIWKWebViewCache::nativeLoadUrl),
         JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", JNIWKWebViewCache::nativeLoadHtml),
+        JNI::NativeMethod<jdouble(jlong)>(
+            "nativeGetEstimatedLoadProgress", JNIWKWebViewCache::nativeGetEstimatedLoadProgress),
         JNI::NativeMethod<void(jlong)>("nativeGoBack", JNIWKWebViewCache::nativeGoBack),
         JNI::NativeMethod<void(jlong)>("nativeGoForward", JNIWKWebViewCache::nativeGoForward),
         JNI::NativeMethod<void(jlong)>("nativeStopLoading", JNIWKWebViewCache::nativeStopLoading),
@@ -361,6 +364,15 @@ void JNIWKWebViewCache::nativeLoadHtml(
         webkit_web_view_load_html(
             wkWebView->m_webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
     }
+}
+
+jdouble JNIWKWebViewCache::nativeGetEstimatedLoadProgress(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
+{
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if ((wkWebView != nullptr) && (wkWebView->m_webView != nullptr)) {
+        return webkit_web_view_get_estimated_load_progress(wkWebView->m_webView);
+    }
+    return 0;
 }
 
 void JNIWKWebViewCache::nativeGoBack(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
@@ -584,7 +596,7 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "load-changed", G_CALLBACK(JNIWKWebViewCache::onLoadChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
-        m_webView, "notify::estimated-load-progress", G_CALLBACK(JNIWKWebViewCache::onLoadProgress), this));
+        m_webView, "notify::estimated-load-progress", G_CALLBACK(JNIWKWebViewCache::onEstimatedLoadProgress), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "notify::uri", G_CALLBACK(JNIWKWebViewCache::onUriChanged), this));
     m_signalHandlers.push_back(

@@ -53,6 +53,7 @@ public class WPEView extends FrameLayout {
     private boolean ownsContext;
 
     private WKWebView wkWebView;
+    private SurfaceClient surfaceClient = null;
 
     public WPEView(@NonNull Context context) {
         super(context);
@@ -82,120 +83,6 @@ public class WPEView extends FrameLayout {
         setDescendantFocusability(FOCUS_BLOCK_DESCENDANTS);
     }
 
-    private SurfaceView surfaceView = null;
-    private WPEViewClient wpeViewClient = null;
-    private WPEChromeClient wpeChromeClient = null;
-    private SurfaceClient surfaceClient = null;
-    private int currentLoadProgress = 0;
-    private String url = "about:blank";
-    private String originalUrl = url;
-    private String title = url;
-    private FrameLayout customView = null;
-
-    public void onPageSurfaceViewCreated(@NonNull SurfaceView view) {
-        Log.d(LOGTAG,
-              "onPageSurfaceViewCreated() for view: " + view + " (number of children: " + getChildCount() + ")");
-        surfaceView = view;
-
-        post(() -> {
-            // Add the view during the next UI cycle
-            try {
-                addView(view);
-            } catch (Exception e) {
-                Log.e(LOGTAG, "Error while adding the surface view", e);
-            }
-        });
-    }
-
-    public void onPageSurfaceViewReady(@NonNull SurfaceView view) {
-        Log.d(LOGTAG, "onPageSurfaceViewReady() for view: " + view + " (number of children: " + getChildCount() + ")");
-
-        // FIXME: Once PSON is enabled we may want to do something smarter here and not
-        //        display the view until this point.
-        post(() -> {
-            if (wpeViewClient != null)
-                wpeViewClient.onViewReady(WPEView.this);
-        });
-    }
-
-    @Override
-    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            wkWebView.deleteInputMethodContent(-1);
-            return true;
-        }
-
-        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
-        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
-        return true;
-    }
-
-    public void onLoadChanged(int loadEvent) {
-        switch (loadEvent) {
-        case WKWebView.LOAD_STARTED:
-            if (wpeViewClient != null)
-                wpeViewClient.onPageStarted(this, url);
-            break;
-
-        case WKWebView.LOAD_FINISHED:
-            onLoadProgress(100);
-            if (wpeViewClient != null)
-                wpeViewClient.onPageFinished(this, url);
-            break;
-        }
-    }
-
-    public void onClose() {
-        if (wpeChromeClient != null)
-            wpeChromeClient.onCloseWindow(this);
-    }
-
-    public void onLoadProgress(double progress) {
-        currentLoadProgress = Math.max(0, Math.min(100, (int)Math.round(progress * 100)));
-        if (wpeChromeClient != null)
-            wpeChromeClient.onProgressChanged(this, currentLoadProgress);
-    }
-
-    public void onUriChanged(@NonNull String uri) { url = uri; }
-
-    public void onTitleChanged(@NonNull String title) {
-        this.title = title;
-        if (wpeChromeClient != null)
-            wpeChromeClient.onReceivedTitle(this, title);
-    }
-
-    public void onEnterFullscreenMode() {
-        if ((surfaceView != null) && (wpeChromeClient != null)) {
-            removeView(surfaceView);
-
-            customView = new FrameLayout(getContext());
-            customView.addView(surfaceView);
-            customView.setFocusable(true);
-            customView.setFocusableInTouchMode(true);
-
-            wpeChromeClient.onShowCustomView(customView, () -> {
-                if (customView != null)
-                    wkWebView.requestExitFullscreenMode();
-            });
-        }
-    }
-
-    public void onExitFullscreenMode() {
-        if ((customView != null) && (surfaceView != null) && (wpeChromeClient != null)) {
-            customView.removeView(surfaceView);
-            addView(surfaceView);
-            customView = null;
-            wpeChromeClient.onHideCustomView();
-        }
-    }
-
-    public void onReceivedHttpError(@NonNull WPEResourceRequest request, @NonNull WPEResourceResponse response) {
-        if (wpeViewClient != null)
-            wpeViewClient.onReceivedHttpError(this, request, response);
-    }
-
-    /************** PUBLIC WPEView API *******************/
-
     /**
      * Destroys the internal state of this WebView. This method should be called
      * after this WebView has been removed from the view system. No other
@@ -218,20 +105,14 @@ public class WPEView extends FrameLayout {
      * Loads the given URL.
      * @param url The URL of the resource to load.
      */
-    public void loadUrl(@NonNull String url) {
-        originalUrl = url;
-        wkWebView.loadUrl(url);
-    }
+    public void loadUrl(@NonNull String url) { wkWebView.loadUrl(url); }
 
     /**
      * Loads an HTML page from its content.
      * @param content The HTML content to load.
      * @param baseUri The base URI for the content loaded.
      */
-    public void loadHtml(@NonNull String content, @Nullable String baseUri) {
-        originalUrl = baseUri;
-        wkWebView.loadHtml(content, baseUri);
-    }
+    public void loadHtml(@NonNull String content, @Nullable String baseUri) { wkWebView.loadHtml(content, baseUri); }
 
     /**
      * Gets whether this WPEView has a back history item.
@@ -269,38 +150,43 @@ public class WPEView extends FrameLayout {
      * Gets loading progress for the current page.
      * @return the loading progress for the current page (between 0 and 100).
      */
-    public int getProgress() { return currentLoadProgress; }
+    public int getProgress() { return wkWebView.getEstimatedLoadProgress(); }
 
     /**
-     * Gets current page title (until WebViewClient.onReceivedTitle is called).
-     * @return the title for the current page
+     * Gets the title for the current page. This is the title of the current page
+     * until WPEViewClient.onReceivedTitle is called.
+     *
+     * @return the title for the current page or {@code null} if no page has been loaded
      */
-    public @NonNull String getTitle() { return title; }
+    public @Nullable String getTitle() { return wkWebView.getTitle(); }
 
     /**
-     * Get the url for the current page. This is not always the same as the url
-     * passed to WebViewClient.onPageStarted because although the load for
-     * that url has begun, the current page may not have changed.
-     * @return The url for the current page.
+     * Gets the URL for the current page. This is not always the same as the URL
+     * passed to WPEViewClient.onPageStarted because although the load for
+     * that URL has begun, the current page may not have changed.
+     *
+     * @return the URL for the current page or {@code null} if no page has been loaded
      */
-    public @NonNull String getUrl() { return url; }
+    public @Nullable String getUrl() { return wkWebView.getUrl(); }
 
     /**
-     * Get the original url for the current page. This is not always the same
-     * as the url passed to WebViewClient.onPageStarted because although the
-     * load for that url has begun, the current page may not have changed.
-     * Also, there may have been redirects resulting in a different url to that
+     * Gets the original URL for the current page. This is not always the same
+     * as the URL passed to WPEViewClient.onPageStarted because although the
+     * load for that URL has begun, the current page may not have changed.
+     * Also, there may have been redirects resulting in a different URL to that
      * originally requested.
-     * @return The url that was originally requested for the current page.
+     *
+     * @return the URL that was originally requested for the current page or
+     * {@code null} if no page has been loaded
      */
-    public @NonNull String getOriginalUrl() { return originalUrl; }
+    public @Nullable String getOriginalUrl() { return wkWebView.getOriginalUrl(); }
 
     /**
      * Gets the chrome handler.
      * @return the WPEChromeClient, or {@code null} if it has not been set yet.
      * @see #setWPEChromeClient
      */
-    public @Nullable WPEChromeClient getWPEChromeClient() { return wpeChromeClient; }
+    public @Nullable WPEChromeClient getWPEChromeClient() { return wkWebView.getWPEChromeClient(); }
 
     /**
      * Sets the chrome handler. This is an implementation of WPEChromeClient for
@@ -309,21 +195,24 @@ public class WPEView extends FrameLayout {
      * @param client an implementation of WPEChromeClient
      * @see #getWPEChromeClient
      */
-    public void setWPEChromeClient(@Nullable WPEChromeClient client) { wpeChromeClient = client; }
+    public void setWPEChromeClient(@Nullable WPEChromeClient client) { wkWebView.setWPEChromeClient(client); }
 
     /**
      * Gets the WPEViewClient.
-     * @return the WPEViewClient, or {@code null} if it has not been set yet.
+     *
+     * @return the WPEViewClient, or a default client if not yet set
      * @see #setWPEViewClient
      */
-    public @Nullable WPEViewClient getWPEViewClient() { return wpeViewClient; }
+    public @NonNull WPEViewClient getWPEViewClient() { return wkWebView.getWPEViewClient(); }
 
     /**
-     * Set the WPEViewClient that will receive various notifications and
+     * Sets the WPEViewClient that will receive various notifications and
      * requests. This will replace the current handler.
-     * @param client An implementation of WPEViewClient.
+     *
+     * @param client an implementation of WPEViewClient
+     * @see #getWPEViewClient
      */
-    public void setWPEViewClient(@Nullable WPEViewClient client) { wpeViewClient = client; }
+    public void setWPEViewClient(@NonNull WPEViewClient client) { wkWebView.setWPEViewClient(client); }
 
     /**
      * Gets the SurfaceClient.
@@ -359,5 +248,17 @@ public class WPEView extends FrameLayout {
      */
     public void evaluateJavascript(@NonNull String script, @Nullable WPECallback<String> resultCallback) {
         wkWebView.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            wkWebView.deleteInputMethodContent(-1);
+            return true;
+        }
+
+        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
+        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
+        return true;
     }
 }

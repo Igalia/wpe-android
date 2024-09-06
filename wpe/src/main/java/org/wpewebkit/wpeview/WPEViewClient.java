@@ -23,7 +23,7 @@ package org.wpewebkit.wpeview;
 
 import androidx.annotation.NonNull;
 
-public interface WPEViewClient {
+public class WPEViewClient {
     /**
      * Notify the host application that a page has started loading. This method
      * is called once for each main frame load so a page with iframes or
@@ -33,7 +33,7 @@ public interface WPEViewClient {
      * @param view The WPEView that is initiating the callback.
      * @param url The url to be loaded.
      */
-    default void onPageStarted(@NonNull WPEView view, @NonNull String url) {}
+    public void onPageStarted(@NonNull WPEView view, @NonNull String url) {}
 
     /**
      * Notify the host application that a page has finished loading. This method
@@ -41,13 +41,13 @@ public interface WPEViewClient {
      * @param view The WPEView that is initiating the callback.
      * @param url The url of the page.
      */
-    default void onPageFinished(@NonNull WPEView view, @NonNull String url) {}
+    public void onPageFinished(@NonNull WPEView view, @NonNull String url) {}
 
     /**
      * Notify the host application that the internal SurfaceView has been created
      * and it's ready to render to it's surface.
      */
-    default void onViewReady(@NonNull WPEView view) {}
+    public void onViewReady(@NonNull WPEView view) {}
 
     /**
      * Notify the host application that an HTTP error has been received from the server while
@@ -59,6 +59,6 @@ public interface WPEViewClient {
      * @param request The originating request.
      * @param errorResponse Information about the error occurred.
      */
-    default void onReceivedHttpError(@NonNull WPEView view, @NonNull WPEResourceRequest request,
-                                     @NonNull WPEResourceResponse errorResponse) {}
+    public void onReceivedHttpError(@NonNull WPEView view, @NonNull WPEResourceRequest request,
+                                    @NonNull WPEResourceResponse errorResponse) {}
 }

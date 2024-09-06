@@ -37,7 +37,7 @@ import org.wpewebkit.wpeview.WPEView
 import org.wpewebkit.wpeview.WPEViewClient
 
 
-const val INITIAL_URL = "https://igalia.com"
+const val INITIAL_URL = "https://davidwalsh.name/demo/fullscreen.php"///"https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 
 class BrowserFragment : Fragment(R.layout.fragment_browser) {
@@ -160,20 +160,6 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
                         (it.parent as ViewGroup).removeView(it)
                     }
                     fullscreenView = null
-                }
-            }
-        }
-
-        if (selectedTab.webview.wpeViewClient == null) {
-            selectedTab.webview.wpeViewClient = object : WPEViewClient {
-                override fun onPageStarted(view: WPEView, url: String) {
-                    // DO nothing for now
-                    super.onPageStarted(view, url)
-                }
-
-                override fun onPageFinished(view: WPEView, url: String) {
-                    // DO nothing for now
-                    super.onPageFinished(view, url)
                 }
             }
         }

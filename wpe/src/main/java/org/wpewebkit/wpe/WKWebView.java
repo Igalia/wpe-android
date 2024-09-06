@@ -41,6 +41,7 @@ import android.view.SurfaceView;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import androidx.annotation.Keep;
@@ -55,6 +56,7 @@ import org.wpewebkit.wpeview.WPEJsResult;
 import org.wpewebkit.wpeview.WPEResourceRequest;
 import org.wpewebkit.wpeview.WPEResourceResponse;
 import org.wpewebkit.wpeview.WPEView;
+import org.wpewebkit.wpeview.WPEViewClient;
 
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
@@ -86,34 +88,21 @@ public final class WKWebView {
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
-    private native long nativeInit(long nativeContextPtr, int width, int height, float deviceScale, boolean headless);
-    private native void nativeClose(long nativePtr);
-    private native void nativeDestroy(long nativePtr);
-    private native void nativeLoadUrl(long nativePtr, @NonNull String url);
-    private native void nativeLoadHtml(long nativePtr, @NonNull String content, @Nullable String baseUri);
-    private native void nativeGoBack(long nativePtr);
-    private native void nativeGoForward(long nativePtr);
-    private native void nativeStopLoading(long nativePtr);
-    private native void nativeReload(long nativePtr);
-    protected native void nativeSurfaceCreated(long nativePtr, @NonNull Surface surface);
-    protected native void nativeSurfaceChanged(long nativePtr, int format, int width, int height);
-    protected native void nativeSurfaceRedrawNeeded(long nativePtr);
-    protected native void nativeSurfaceDestroyed(long nativePtr);
-    protected native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
-    protected native void nativeOnTouchEvent(long nativePtr, long time, int type, float x, float y);
-    private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
-    private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
-    private native void nativeRequestExitFullscreenMode(long nativePtr);
-    private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
-    private native void nativeScriptDialogClose(long nativeDialogPtr);
-    private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm, @Nullable String text);
-
     private final WPEView wpeView;
+    private WPEViewClient wpeViewClient = new WPEViewClient();
+    private WPEChromeClient wpeChromeClient = null;
+
     private final PageSurfaceView surfaceView;
     protected final ScaleGestureDetector scaleDetector;
     private final WKSettings wkSettings;
 
+    private FrameLayout customView = null;
+
     public @NonNull WKSettings getWKSettings() { return wkSettings; }
+
+    private String uri = "about:blank";
+    private String originalUrl = uri;
+    private String title = uri;
 
     private boolean isClosed = false;
     private boolean canGoBack = true;
@@ -151,12 +140,22 @@ public final class WKWebView {
         }
         surfaceView.requestLayout();
 
+        wkSettings = new WKSettings(this);
         scaleDetector = new ScaleGestureDetector(ctx, new PageScaleListener());
 
-        wpeView.onPageSurfaceViewCreated(surfaceView);
-        wpeView.onPageSurfaceViewReady(surfaceView);
+        wpeView.post(() -> {
+            // Add the view during the next UI cycle
+            try {
+                wpeView.addView(surfaceView);
+            } catch (Exception e) {
+                Log.e(LOGTAG, "Error while adding the surface view", e);
+            }
+        });
 
-        wkSettings = new WKSettings(this);
+        wpeView.post(() -> {
+            if (wpeViewClient != null)
+                wpeViewClient.onViewReady(wpeView);
+        });
     }
 
     public void close() {
@@ -168,6 +167,9 @@ public final class WKWebView {
     }
 
     public void destroy() {
+        // Make sure that we do not trigger any callbacks after destruction
+        wpeChromeClient = null;
+        wpeViewClient = null;
         if (nativePtr != 0) {
             close();
             nativeDestroy(nativePtr);
@@ -184,268 +186,32 @@ public final class WKWebView {
         }
     }
 
+    public void setWPEViewClient(@NonNull WPEViewClient wpeViewClient) { this.wpeViewClient = wpeViewClient; }
+
+    public @NonNull WPEViewClient getWPEViewClient() { return wpeViewClient; }
+
+    public @Nullable WPEChromeClient getWPEChromeClient() { return wpeChromeClient; }
+
+    public void setWPEChromeClient(@Nullable WPEChromeClient client) { wpeChromeClient = client; }
+
+    public @Nullable String getTitle() { return title; }
+
+    public @Nullable String getUrl() { return uri; }
+
+    public @Nullable String getOriginalUrl() { return originalUrl; }
+
+    public int getEstimatedLoadProgress() { return (int)Math.round(nativeGetEstimatedLoadProgress(nativePtr) * 100); }
+
     public void loadUrl(@NonNull String url) {
         Log.d(LOGTAG, "loadUrl('" + url + "')");
+        originalUrl = url;
         nativeLoadUrl(nativePtr, url);
     }
 
     public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         Log.d(LOGTAG, "loadHtml(..., '" + baseUri + "')");
+        originalUrl = baseUri;
         nativeLoadHtml(nativePtr, content, baseUri);
-    }
-
-    @Keep
-    public void onLoadChanged(int loadEvent) {
-        wpeView.onLoadChanged(loadEvent);
-        if (loadEvent == WKWebView.LOAD_STARTED) {
-            onInputMethodContextOut();
-        }
-    }
-
-    @Keep
-    public void onClose() {
-        wpeView.onClose();
-    }
-    @Keep
-    public void onLoadProgress(double progress) {
-        wpeView.onLoadProgress(progress);
-    }
-
-    @Keep
-    public void onUriChanged(@NonNull String uri) {
-        wpeView.onUriChanged(uri);
-    }
-
-    @Keep
-    public void onTitleChanged(@NonNull String title, boolean canGoBack, boolean canGoForward) {
-        this.canGoBack = canGoBack;
-        this.canGoForward = canGoForward;
-        wpeView.onTitleChanged(title);
-    }
-
-    private class ScriptDialogResult implements WPEJsPromptResult {
-
-        private final long nativeScriptDialogPtr;
-
-        private String stringResult;
-
-        public ScriptDialogResult(long nativeScriptDialogPtr) { this.nativeScriptDialogPtr = nativeScriptDialogPtr; }
-        @Override
-        @SuppressWarnings("SyntheticAccessor")
-        public void cancel() {
-            nativeScriptDialogConfirm(nativeScriptDialogPtr, false, stringResult);
-            nativeScriptDialogClose(nativeScriptDialogPtr);
-        }
-        @Override
-        @SuppressWarnings("SyntheticAccessor")
-        public void confirm() {
-            nativeScriptDialogConfirm(nativeScriptDialogPtr, true, stringResult);
-            nativeScriptDialogClose(nativeScriptDialogPtr);
-        }
-
-        @Override
-        @SuppressWarnings("SyntheticAccessor")
-        public void confirm(String result) {
-            stringResult = result;
-            confirm();
-        }
-
-        @SuppressWarnings("SyntheticAccessor")
-        public String getStringResult() {
-            return stringResult;
-        }
-    }
-
-    private static class ScriptDialogCancelListener
-        implements DialogInterface.OnCancelListener, DialogInterface.OnClickListener {
-        private final WPEJsResult result;
-
-        public ScriptDialogCancelListener(@NonNull WPEJsResult result) { this.result = result; }
-        @Override
-        public void onCancel(DialogInterface dialogInterface) {
-            result.cancel();
-        }
-        @Override
-        public void onClick(DialogInterface dialogInterface, int which) {
-            result.cancel();
-        }
-    }
-
-    private static class ScriptDialogPositiveListener implements DialogInterface.OnClickListener {
-        private final WPEJsPromptResult result;
-
-        private final EditText edit;
-
-        public ScriptDialogPositiveListener(@NonNull WPEJsPromptResult result, @Nullable EditText edit) {
-            this.result = result;
-            this.edit = edit;
-        }
-
-        @Override
-        public void onClick(DialogInterface dialogInterface, int which) {
-            if (edit != null) {
-                result.confirm(edit.getText().toString());
-            } else {
-                result.confirm();
-            }
-        }
-    }
-
-    @SuppressLint("StringFormatInvalid")
-    @Keep
-    public boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message,
-                                  @NonNull String defaultText) {
-        WPEChromeClient client = wpeView.getWPEChromeClient();
-        if (client != null) {
-            boolean clientHandledDialog = false;
-            ScriptDialogResult result = new ScriptDialogResult(nativeDialogPtr);
-            if (dialogType == WEBKIT_SCRIPT_DIALOG_ALERT) {
-                clientHandledDialog = client.onJsAlert(wpeView, url, message, result);
-            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_CONFIRM) {
-                clientHandledDialog = client.onJsConfirm(wpeView, url, message, result);
-            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_PROMPT) {
-                clientHandledDialog = client.onJsPrompt(wpeView, url, message, defaultText, result);
-            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
-                clientHandledDialog = client.onJsBeforeUnload(wpeView, url, message, result);
-            }
-
-            if (!clientHandledDialog) {
-                String title = url;
-                String displayMessage;
-                int positiveTextId, negativeTextId;
-                if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
-                    title = wpeView.getContext().getString(R.string.js_dialog_before_unload_title);
-                    displayMessage = wpeView.getContext().getString(R.string.js_dialog_before_unload, message);
-                    positiveTextId = R.string.js_dialog_before_unload_positive_button;
-                    negativeTextId = R.string.js_dialog_before_unload_negative_button;
-                } else {
-                    try {
-                        URL alertUrl = new URL(url);
-                        title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
-                    } catch (MalformedURLException ex) {
-                        // NOOP
-                    }
-                    displayMessage = message;
-                    positiveTextId = R.string.ok;
-                    negativeTextId = R.string.cancel;
-                }
-
-                final AlertDialog.Builder builder = new AlertDialog.Builder(wpeView.getContext());
-                builder.setTitle(title);
-                builder.setOnCancelListener(new ScriptDialogCancelListener(result));
-                if (dialogType != WEBKIT_SCRIPT_DIALOG_PROMPT) {
-                    builder.setMessage(displayMessage);
-                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, null));
-                } else {
-                    @SuppressLint("InflateParams")
-                    final View view = LayoutInflater.from(wpeView.getContext()).inflate(R.layout.js_prompt, null);
-                    EditText edit = ((EditText)view.findViewById(R.id.value));
-                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, edit));
-                    ((TextView)view.findViewById(R.id.message)).setText(message);
-                    builder.setView(view);
-                }
-                if (dialogType != WEBKIT_SCRIPT_DIALOG_ALERT) {
-                    builder.setNegativeButton(negativeTextId, new ScriptDialogCancelListener(result));
-                }
-                builder.show();
-            }
-            return true;
-        }
-        return false;
-    }
-
-    @Keep
-    public void onInputMethodContextIn() {
-        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.post(() -> {
-            WPEView view = weakRefecence.get();
-            if (view != null) {
-                if (view.requestFocus()) {
-                    InputMethodManager imm =
-                        (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-                    imm.showSoftInput(wpeView, InputMethodManager.SHOW_IMPLICIT);
-                }
-            }
-        });
-    }
-
-    @Keep
-    public void onInputMethodContextOut() {
-        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
-        Handler handler = new Handler(Looper.getMainLooper());
-        handler.post(() -> {
-            WPEView view = weakRefecence.get();
-            if (view != null) {
-                InputMethodManager imm =
-                    (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-                imm.hideSoftInputFromWindow(wpeView.getWindowToken(), 0);
-            }
-        });
-    }
-
-    @Keep
-    public void onEnterFullscreenMode() {
-        Log.d(LOGTAG, "onEnterFullscreenMode()");
-        wpeView.onEnterFullscreenMode();
-    }
-
-    @Keep
-    public void onExitFullscreenMode() {
-        Log.d(LOGTAG, "onExitFullscreenMode()");
-        wpeView.onExitFullscreenMode();
-    }
-
-    private static class PageResourceRequest implements WPEResourceRequest {
-
-        private final Uri uri;
-        private final String method;
-        private final HashMap<String, String> requestHeaders = new HashMap<>();
-
-        PageResourceRequest(String uri, String method, String[] headers) {
-            this.uri = Uri.parse(uri);
-            this.method = method;
-
-            int i = 0;
-            while (i < headers.length) {
-                requestHeaders.put(headers[i++], headers[i++]);
-            }
-        }
-
-        @NonNull
-        @Override
-        public Uri getUrl() {
-            return uri;
-        }
-
-        @NonNull
-        @Override
-        public String getMethod() {
-            return method;
-        }
-
-        @NonNull
-        @Override
-        public Map<String, String> getRequestHeaders() {
-            return requestHeaders;
-        }
-    }
-
-    @Keep
-    public void onReceivedHttpError( // WPEResourceRequest
-        @NonNull String requestUri, @NonNull String requestMethod, @NonNull String[] requestHeaders,
-        // WPEResourceResponse
-        @NonNull String responseMimeType, int responseStatusCode, @NonNull String[] responseHeaders) {
-        PageResourceRequest request = new PageResourceRequest(requestUri, requestMethod, requestHeaders);
-
-        HashMap<String, String> responseHeadersMap = new HashMap<>();
-        int i = 0;
-        while (i < responseHeaders.length) {
-            responseHeadersMap.put(responseHeaders[i++], responseHeaders[i++]);
-        }
-        WPEResourceResponse response =
-            new WPEResourceResponse(responseMimeType, responseStatusCode, responseHeadersMap);
-        wpeView.onReceivedHttpError(request, response);
     }
 
     public void requestExitFullscreenMode() { nativeRequestExitFullscreenMode(nativePtr); }
@@ -550,4 +316,320 @@ public final class WKWebView {
             return true;
         }
     }
+
+    /**
+     * --------------------------------------------------------------------------------------------
+     *  Methods called from native via JNI
+     * --------------------------------------------------------------------------------------------
+     */
+
+    private class ScriptDialogResult implements WPEJsPromptResult {
+
+        private final long nativeScriptDialogPtr;
+
+        private String stringResult;
+
+        public ScriptDialogResult(long nativeScriptDialogPtr) { this.nativeScriptDialogPtr = nativeScriptDialogPtr; }
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void cancel() {
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, false, stringResult);
+            nativeScriptDialogClose(nativeScriptDialogPtr);
+        }
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void confirm() {
+            nativeScriptDialogConfirm(nativeScriptDialogPtr, true, stringResult);
+            nativeScriptDialogClose(nativeScriptDialogPtr);
+        }
+
+        @Override
+        @SuppressWarnings("SyntheticAccessor")
+        public void confirm(String result) {
+            stringResult = result;
+            confirm();
+        }
+
+        @SuppressWarnings("SyntheticAccessor")
+        public String getStringResult() {
+            return stringResult;
+        }
+    }
+
+    private static class ScriptDialogCancelListener
+        implements DialogInterface.OnCancelListener, DialogInterface.OnClickListener {
+        private final WPEJsResult result;
+
+        public ScriptDialogCancelListener(@NonNull WPEJsResult result) { this.result = result; }
+        @Override
+        public void onCancel(DialogInterface dialogInterface) {
+            result.cancel();
+        }
+        @Override
+        public void onClick(DialogInterface dialogInterface, int which) {
+            result.cancel();
+        }
+    }
+
+    private static class ScriptDialogPositiveListener implements DialogInterface.OnClickListener {
+        private final WPEJsPromptResult result;
+
+        private final EditText edit;
+
+        public ScriptDialogPositiveListener(@NonNull WPEJsPromptResult result, @Nullable EditText edit) {
+            this.result = result;
+            this.edit = edit;
+        }
+
+        @Override
+        public void onClick(DialogInterface dialogInterface, int which) {
+            if (edit != null) {
+                result.confirm(edit.getText().toString());
+            } else {
+                result.confirm();
+            }
+        }
+    }
+
+    private static class PageResourceRequest implements WPEResourceRequest {
+
+        private final Uri uri;
+        private final String method;
+        private final HashMap<String, String> requestHeaders = new HashMap<>();
+
+        PageResourceRequest(String uri, String method, String[] headers) {
+            this.uri = Uri.parse(uri);
+            this.method = method;
+
+            int i = 0;
+            while (i < headers.length) {
+                requestHeaders.put(headers[i++], headers[i++]);
+            }
+        }
+
+        @NonNull
+        @Override
+        public Uri getUrl() {
+            return uri;
+        }
+
+        @NonNull
+        @Override
+        public String getMethod() {
+            return method;
+        }
+
+        @NonNull
+        @Override
+        public Map<String, String> getRequestHeaders() {
+            return requestHeaders;
+        }
+    }
+
+    @Keep
+    private void onLoadChanged(int loadEvent) {
+        switch (loadEvent) {
+        case WKWebView.LOAD_STARTED:
+            if (wpeViewClient != null)
+                wpeViewClient.onPageStarted(wpeView, uri);
+            onInputMethodContextOut();
+            break;
+        case WKWebView.LOAD_FINISHED:
+            if (wpeViewClient != null)
+                wpeViewClient.onPageFinished(wpeView, uri);
+            break;
+        }
+    }
+
+    @Keep
+    private void onClose() {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onCloseWindow(wpeView);
+    }
+
+    @Keep
+    private void onEstimatedLoadProgress(double progress) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onProgressChanged(wpeView, (int)Math.round(progress * 100));
+    }
+
+    @Keep
+    private void onUriChanged(@NonNull String uri) {
+        this.uri = uri;
+    }
+
+    @Keep
+    private void onTitleChanged(@NonNull String title, boolean canGoBack, boolean canGoForward) {
+        this.title = title;
+        this.canGoBack = canGoBack;
+        this.canGoForward = canGoForward;
+        if (wpeChromeClient != null)
+            wpeChromeClient.onReceivedTitle(wpeView, title);
+    }
+
+    @SuppressLint("StringFormatInvalid")
+    @Keep
+    private boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message,
+                                   @NonNull String defaultText) {
+        WPEChromeClient client = wpeView.getWPEChromeClient();
+        if (client != null) {
+            boolean clientHandledDialog = false;
+            ScriptDialogResult result = new ScriptDialogResult(nativeDialogPtr);
+            if (dialogType == WEBKIT_SCRIPT_DIALOG_ALERT) {
+                clientHandledDialog = client.onJsAlert(wpeView, url, message, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_CONFIRM) {
+                clientHandledDialog = client.onJsConfirm(wpeView, url, message, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_PROMPT) {
+                clientHandledDialog = client.onJsPrompt(wpeView, url, message, defaultText, result);
+            } else if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+                clientHandledDialog = client.onJsBeforeUnload(wpeView, url, message, result);
+            }
+
+            if (!clientHandledDialog) {
+                String title = url;
+                String displayMessage;
+                int positiveTextId, negativeTextId;
+                if (dialogType == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+                    title = wpeView.getContext().getString(R.string.js_dialog_before_unload_title);
+                    displayMessage = wpeView.getContext().getString(R.string.js_dialog_before_unload, message);
+                    positiveTextId = R.string.js_dialog_before_unload_positive_button;
+                    negativeTextId = R.string.js_dialog_before_unload_negative_button;
+                } else {
+                    try {
+                        URL alertUrl = new URL(url);
+                        title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
+                    } catch (MalformedURLException ex) {
+                        // NOOP
+                    }
+                    displayMessage = message;
+                    positiveTextId = R.string.ok;
+                    negativeTextId = R.string.cancel;
+                }
+
+                final AlertDialog.Builder builder = new AlertDialog.Builder(wpeView.getContext());
+                builder.setTitle(title);
+                builder.setOnCancelListener(new ScriptDialogCancelListener(result));
+                if (dialogType != WEBKIT_SCRIPT_DIALOG_PROMPT) {
+                    builder.setMessage(displayMessage);
+                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, null));
+                } else {
+                    @SuppressLint("InflateParams")
+                    final View view = LayoutInflater.from(wpeView.getContext()).inflate(R.layout.js_prompt, null);
+                    EditText edit = ((EditText)view.findViewById(R.id.value));
+                    builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, edit));
+                    ((TextView)view.findViewById(R.id.message)).setText(message);
+                    builder.setView(view);
+                }
+                if (dialogType != WEBKIT_SCRIPT_DIALOG_ALERT) {
+                    builder.setNegativeButton(negativeTextId, new ScriptDialogCancelListener(result));
+                }
+                builder.show();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    @Keep
+    private void onInputMethodContextIn() {
+        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.post(() -> {
+            WPEView view = weakRefecence.get();
+            if (view != null) {
+                if (view.requestFocus()) {
+                    InputMethodManager imm =
+                        (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                    imm.showSoftInput(wpeView, InputMethodManager.SHOW_IMPLICIT);
+                }
+            }
+        });
+    }
+
+    @Keep
+    private void onInputMethodContextOut() {
+        WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
+        Handler handler = new Handler(Looper.getMainLooper());
+        handler.post(() -> {
+            WPEView view = weakRefecence.get();
+            if (view != null) {
+                InputMethodManager imm =
+                    (InputMethodManager)wpeView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                imm.hideSoftInputFromWindow(wpeView.getWindowToken(), 0);
+            }
+        });
+    }
+
+    @Keep
+    private void onEnterFullscreenMode() {
+        Log.d(LOGTAG, "onEnterFullscreenMode()");
+        if ((surfaceView != null) && (wpeChromeClient != null)) {
+            wpeView.removeView(surfaceView);
+
+            customView = new FrameLayout(wpeView.getContext());
+            customView.addView(surfaceView);
+            customView.setFocusable(true);
+            customView.setFocusableInTouchMode(true);
+
+            wpeChromeClient.onShowCustomView(customView, () -> {
+                if (customView != null)
+                    requestExitFullscreenMode();
+            });
+        }
+    }
+
+    @Keep
+    private void onExitFullscreenMode() {
+        Log.d(LOGTAG, "onExitFullscreenMode()");
+        if ((customView != null) && (surfaceView != null) && (wpeChromeClient != null)) {
+            customView.removeView(surfaceView);
+            wpeView.addView(surfaceView);
+            customView = null;
+            wpeChromeClient.onHideCustomView();
+        }
+    }
+
+    @Keep
+    private void onReceivedHttpError( // WPEResourceRequest
+        @NonNull String requestUri, @NonNull String requestMethod, @NonNull String[] requestHeaders,
+        // WPEResourceResponse
+        @NonNull String responseMimeType, int responseStatusCode, @NonNull String[] responseHeaders) {
+
+        if (wpeViewClient != null) {
+            PageResourceRequest request = new PageResourceRequest(requestUri, requestMethod, requestHeaders);
+
+            HashMap<String, String> responseHeadersMap = new HashMap<>();
+            int i = 0;
+            while (i < responseHeaders.length) {
+                responseHeadersMap.put(responseHeaders[i++], responseHeaders[i++]);
+            }
+            WPEResourceResponse response =
+                new WPEResourceResponse(responseMimeType, responseStatusCode, responseHeadersMap);
+
+            wpeViewClient.onReceivedHttpError(wpeView, request, response);
+        }
+    }
+
+    private native long nativeInit(long nativeContextPtr, int width, int height, float deviceScale, boolean headless);
+    private native void nativeClose(long nativePtr);
+    private native void nativeDestroy(long nativePtr);
+    private native void nativeLoadUrl(long nativePtr, @NonNull String url);
+    private native void nativeLoadHtml(long nativePtr, @NonNull String content, @Nullable String baseUri);
+    private native double nativeGetEstimatedLoadProgress(long nativePtr);
+    private native void nativeGoBack(long nativePtr);
+    private native void nativeGoForward(long nativePtr);
+    private native void nativeStopLoading(long nativePtr);
+    private native void nativeReload(long nativePtr);
+    private native void nativeSurfaceCreated(long nativePtr, @NonNull Surface surface);
+    private native void nativeSurfaceChanged(long nativePtr, int format, int width, int height);
+    private native void nativeSurfaceRedrawNeeded(long nativePtr);
+    private native void nativeSurfaceDestroyed(long nativePtr);
+    private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
+    private native void nativeOnTouchEvent(long nativePtr, long time, int type, float x, float y);
+    private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
+    private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
+    private native void nativeRequestExitFullscreenMode(long nativePtr);
+    private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
+    private native void nativeScriptDialogClose(long nativeDialogPtr);
+    private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm, @Nullable String text);
 }
