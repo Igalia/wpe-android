@@ -25,6 +25,7 @@ package org.wpewebkit.wpe;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
@@ -35,6 +36,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.annotation.WorkerThread;
 
+import org.wpewebkit.wpe.services.ServiceUtils;
 import org.wpewebkit.wpe.services.WPEServiceConnection;
 import org.wpewebkit.wpe.services.WPEServiceConnectionListener;
 
@@ -44,7 +46,11 @@ import java.util.List;
 
 @UiThread
 public final class WKRuntime {
-    private static final String LOGTAG = "WPEBrowser";
+    private static final String LOGTAG = "WKRuntime";
+
+    // Bump this version number if you make any changes to the font config
+    // or the gstreamer plugins or else they won't be applied.
+    private static final String assetsVersion = "ui_process_assets_2.44.1";
 
     static { System.loadLibrary("WPEAndroidBrowser"); }
 
@@ -68,9 +74,19 @@ public final class WKRuntime {
     public void initialize(@NonNull Context context, int inspectorPort) {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
+
+            if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
+                ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "injected-bundles",
+                                           true);
+                ServiceUtils.saveAssetsVersion(applicationContext, assetsVersion);
+            }
+
+            ApplicationInfo appInfo = applicationContext.getApplicationInfo();
             List<String> envStrings = new ArrayList<>(46);
             envStrings.add("GIO_EXTRA_MODULES");
             envStrings.add(new File(context.getFilesDir(), "gio").getAbsolutePath());
+            envStrings.add("WEBKIT_INJECTED_BUNDLE_PATH");
+            envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
             if (inspectorPort > 0) {
                 String inspectorAddress = "127.0.0.1:" + inspectorPort;
                 envStrings.add("WEBKIT_INSPECTOR_SERVER");

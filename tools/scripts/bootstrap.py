@@ -337,6 +337,18 @@ class Bootstrap:
         for plugin_path in Path(target_dir).rglob("*.so"):
             self._replace_soname_values(plugin_path)
 
+    def _copy_wpe_injected_modules(self, target_dir):
+        shutil.rmtree(target_dir, True)
+        os.makedirs(target_dir)
+        sysroot_inspector_resources_file = os.path.join(
+            self._sysroot_dir, "lib", "wpe-webkit-2.0", "libWPEWebInspectorResources.so")
+        shutil.copy(sysroot_inspector_resources_file, target_dir)
+        sysroot_injected_bundle_file = os.path.join(
+            self._sysroot_dir, "lib", "wpe-webkit-2.0", "injected-bundle", "libWPEInjectedBundle.so")
+        shutil.copy(sysroot_injected_bundle_file, target_dir)
+        for injected_module_path in Path(target_dir).rglob("*.so"):
+            self._replace_soname_values(injected_module_path)
+
     def _copy_gst_android_classes(self, target_dir):
         shutil.rmtree(target_dir, True)
         os.makedirs(target_dir)
@@ -352,8 +364,6 @@ class Bootstrap:
         sysroot_lib_dir = os.path.join(self._sysroot_dir, "lib")
 
         libs_paths = list(Path(sysroot_lib_dir).glob("*.so"))
-        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-2.0")).glob("*.so")))
-        libs_paths.extend(list(Path(os.path.join(sysroot_lib_dir, "wpe-webkit-2.0", "injected-bundle")).glob("*.so")))
 
         self._soname_replacements = Bootstrap._soname_replacements.copy()
 
@@ -463,6 +473,9 @@ class Bootstrap:
 
         wpe_assets_gio_dir = os.path.join(wpe_src_main_dir, "assets", "gio", android_abi)
         self._copy_gio_modules(wpe_assets_gio_dir)
+
+        wpe_assets_injected_bundle_dir = os.path.join(wpe_src_main_dir, "assets", "injected-bundles", android_abi)
+        self._copy_wpe_injected_modules(wpe_assets_injected_bundle_dir)
 
         self._copy_gst_android_classes(os.path.join(wpe_src_main_dir, "java", "org", "freedesktop", "gstreamer"))
         self._resolve_deps(wpe_imported_lib_dir, [wpe_assets_gst_dir, wpe_assets_gio_dir])
