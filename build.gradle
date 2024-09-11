@@ -12,7 +12,7 @@ tasks.register("clean", Delete) {
 def installQATools = tasks.register("installQATools", Exec) {
     def cacheFile = new File(rootProject.buildDir, ".qaToolsInstalled")
     outputs.file(cacheFile)
-    commandLine "python3", "-m", "pip", "install", "--user", "--upgrade", "editorconfig-checker", "pycodestyle", "cmakelang"
+    commandLine "python3", "-m", "pip", "install", "--upgrade", "editorconfig-checker", "pycodestyle", "cmakelang"
     doLast {
         cacheFile.createNewFile()
     }
