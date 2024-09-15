@@ -78,6 +78,7 @@ public final class WKRuntime {
             if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
                 ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "injected-bundles",
                                            true);
+                ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "mime", false);
                 ServiceUtils.saveAssetsVersion(applicationContext, assetsVersion);
             }
 
@@ -87,6 +88,11 @@ public final class WKRuntime {
             envStrings.add(new File(context.getFilesDir(), "gio").getAbsolutePath());
             envStrings.add("WEBKIT_INJECTED_BUNDLE_PATH");
             envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
+
+            String filesPath = context.getFilesDir().getAbsolutePath();
+            envStrings.add("XDG_DATA_DIRS");
+            envStrings.add(filesPath);
+
             if (inspectorPort > 0) {
                 String inspectorAddress = "127.0.0.1:" + inspectorPort;
                 envStrings.add("WEBKIT_INSPECTOR_SERVER");
