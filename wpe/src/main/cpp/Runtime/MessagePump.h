@@ -22,7 +22,8 @@
 
 #include <android/looper.h>
 #include <glib.h>
-#include <set>
+#include <unordered_map>
+#include <vector>
 
 class MessagePump final {
 public:
@@ -35,14 +36,18 @@ public:
 
     ~MessagePump();
 
-    void flush() const;
+    void flush() const noexcept;
     void invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
-    void prepare();
+    void prepare() noexcept;
+    void collectPollFDChanges(const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs,
+        std::vector<int>& removedPollFDs) noexcept;
+    void scheduleDispatch() noexcept;
     void dispatch() const noexcept;
 
     int m_dispatchFd = 0;
+    bool m_pendingDispatch = false;
     ALooper* m_looper = nullptr;
 
     GMainContext* m_context = nullptr;
@@ -51,5 +56,5 @@ private:
     gint m_pollFdsSize = 0;
     gint m_pollFdsCapacity = 0;
 
-    std::set<int> m_looperAttachedPollFds {};
+    std::unordered_map<int, int> m_looperFdEvents {};
 };

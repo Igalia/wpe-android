@@ -86,6 +86,7 @@ MessagePump::MessagePump()
             read(fileDesc, &value, sizeof(value));
 
             auto* pump = reinterpret_cast<MessagePump*>(userData);
+            pump->m_pendingDispatch = false;
             pump->dispatch();
             pump->prepare();
 
@@ -102,9 +103,9 @@ MessagePump::~MessagePump()
 {
     flush();
 
-    for (const int fileDesc : m_looperAttachedPollFds)
-        ALooper_removeFd(m_looper, fileDesc);
-    m_looperAttachedPollFds.clear();
+    for (const auto& pollFD : m_looperFdEvents)
+        ALooper_removeFd(m_looper, pollFD.first);
+    m_looperFdEvents.clear();
 
     m_pollFdsSize = 0;
     m_pollFdsCapacity = 0;
@@ -124,7 +125,7 @@ MessagePump::~MessagePump()
     m_dispatchFd = 0;
 }
 
-void MessagePump::flush() const
+void MessagePump::flush() const noexcept
 {
     // Clear the eventfd and reset its counter to 0
     int64_t value = 0;
@@ -159,7 +160,7 @@ void MessagePump::invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* 
         });
 }
 
-void MessagePump::prepare()
+void MessagePump::prepare() noexcept
 {
     g_main_context_prepare(m_context, &m_maxPriority);
 
@@ -176,39 +177,81 @@ void MessagePump::prepare()
         m_pollFds = g_new(GPollFD, m_pollFdsCapacity);
     }
 
-    std::set<int> unusedAttachedFds = m_looperAttachedPollFds;
-    for (int i = 0; i < m_pollFdsSize; ++i) {
-        GPollFD& pollFd = m_pollFds[i];
-        pollFd.revents = 0;
-        unusedAttachedFds.erase(pollFd.fd);
+    std::vector<GPollFD> changedPollFDs;
+    std::vector<int> removedFds;
+    collectPollFDChanges(m_pollFds, m_pollFdsSize, changedPollFDs, removedFds);
 
-        if (m_looperAttachedPollFds.find(pollFd.fd) == m_looperAttachedPollFds.end()) {
-            m_looperAttachedPollFds.emplace(pollFd.fd);
-            ALooper_addFd(
-                m_looper, pollFd.fd, ALOOPER_POLL_CALLBACK,
-                static_cast<int>(glibEventsToLooperEvents(pollFd.events) | ALOOPER_EVENT_OUTPUT),
-                +[](int fileDesc, int events, void* userData) -> int {
-                    auto* pump = reinterpret_cast<MessagePump*>(userData);
-                    for (int j = 0; j < pump->m_pollFdsSize; ++j) {
-                        if (pump->m_pollFds[j].fd == fileDesc) {
-                            pump->m_pollFds[j].revents = looperEventsToGLibEvents(events);
-                            break;
-                        }
+    for (const auto& pollFD : changedPollFDs) {
+        ALooper_addFd(
+            m_looper, pollFD.fd, ALOOPER_POLL_CALLBACK,
+            static_cast<int>(glibEventsToLooperEvents(pollFD.events) | ALOOPER_EVENT_OUTPUT),
+            +[](int fileDesc, int events, void* userData) -> int {
+                auto* pump = reinterpret_cast<MessagePump*>(userData);
+                for (int j = 0; j < pump->m_pollFdsSize; ++j) {
+                    if (pump->m_pollFds[j].fd == fileDesc) {
+                        pump->m_pollFds[j].revents = looperEventsToGLibEvents(events);
+                        break;
                     }
+                }
+                pump->scheduleDispatch();
+                return 1; // Continue listening for events
+            },
+            reinterpret_cast<void*>(this));
+    }
 
-                    // Schedule dispatching
-                    uint64_t value = 1;
-                    write(pump->m_dispatchFd, &value, sizeof(value));
+    for (const auto& fd : removedFds) {
+        ALooper_removeFd(m_looper, fd);
+    }
+}
 
-                    return 1; // Continue listening for events
-                },
-                reinterpret_cast<void*>(this));
+void MessagePump::collectPollFDChanges(
+    const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs, std::vector<int>& removedFds) noexcept
+{
+    std::unordered_map<int, int> currFdEvents; // Current fd to mask map
+
+    // Build currFdMask by combining masks for the same fd
+    for (int i = 0; i < numPollFDs; ++i) {
+        int fd = pollFDs[i].fd;
+        gushort events = pollFDs[i].events;
+        currFdEvents[fd] |= events;
+    }
+
+    // Detect changes and new fds
+    for (const auto& kv : currFdEvents) {
+        int fd = kv.first;
+        gushort events = kv.second;
+
+        auto it = m_looperFdEvents.find(fd);
+        if (it == m_looperFdEvents.end()) {
+            // New fd detected
+            GPollFD e {fd, events, 0};
+            changedPollFDs.push_back(e);
+        } else if (events != it->second) {
+            // Events has changed
+            GPollFD e {fd, events, 0};
+            changedPollFDs.push_back(e);
         }
     }
 
-    for (const int fileDesc : unusedAttachedFds) {
-        ALooper_removeFd(m_looper, fileDesc);
-        m_looperAttachedPollFds.erase(fileDesc);
+    // Detect removed fds
+    for (const auto& kv : m_looperFdEvents) {
+        int fd = kv.first;
+        if (currFdEvents.find(fd) == currFdEvents.end()) {
+            // fd was in previous but not in current
+            removedFds.push_back(fd);
+        }
+    }
+
+    // Update m_looperFdEvents for the next call
+    m_looperFdEvents = currFdEvents;
+}
+
+void MessagePump::scheduleDispatch() noexcept
+{
+    if (!m_pendingDispatch) {
+        uint64_t value = 1;
+        write(m_dispatchFd, &value, sizeof(value));
+        m_pendingDispatch = true;
     }
 }
 
