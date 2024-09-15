@@ -22,7 +22,7 @@
 #include "WKWebView.h"
 
 namespace {
-void setNativeUserAgent(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jstring userAgent) noexcept
+void nativeSetNativeUserAgentString(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jstring userAgent) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if (wkWebView != nullptr) {
@@ -31,7 +31,7 @@ void setNativeUserAgent(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, js
     }
 }
 
-void setNativeMediaPlaybackRequiresUserGesture(
+void nativeSetMediaPlaybackRequiresUserGesture(
     JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean require) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
@@ -41,13 +41,22 @@ void setNativeMediaPlaybackRequiresUserGesture(
     }
 }
 
-void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean allow) noexcept
+void nativeSetAllowFileAccessFromFileURLs(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean flag) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if (wkWebView != nullptr) {
         WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
-        webkit_settings_set_allow_file_access_from_file_urls(settings, static_cast<gboolean>(allow));
-        webkit_settings_set_allow_universal_access_from_file_urls(settings, static_cast<gboolean>(allow));
+        webkit_settings_set_allow_file_access_from_file_urls(settings, static_cast<gboolean>(flag));
+    }
+}
+
+void nativeSetAllowUniversalAccessFromFileURLs(
+    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean flag) noexcept
+{
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
+        webkit_settings_set_allow_universal_access_from_file_urls(settings, static_cast<gboolean>(flag));
     }
 }
 } // namespace
@@ -55,8 +64,12 @@ void setNativeAllowFileUrls(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr
 void WKSettings::configureJNIMappings()
 {
     JNI::Class("org/wpewebkit/wpe/WKSettings")
-        .registerNativeMethods(JNI::NativeMethod<void(jlong, jstring)>("setNativeUserAgent", setNativeUserAgent),
+        .registerNativeMethods(
+            JNI::NativeMethod<void(jlong, jstring)>("nativeSetUserAgentString", nativeSetNativeUserAgentString),
             JNI::NativeMethod<void(jlong, jboolean)>(
-                "setNativeMediaPlaybackRequiresUserGesture", setNativeMediaPlaybackRequiresUserGesture),
-            JNI::NativeMethod<void(jlong, jboolean)>("setNativeAllowFileUrls", setNativeAllowFileUrls));
+                "nativeSetMediaPlaybackRequiresUserGesture", nativeSetMediaPlaybackRequiresUserGesture),
+            JNI::NativeMethod<void(jlong, jboolean)>(
+                "nativeSetAllowFileAccessFromFileURLs", nativeSetAllowFileAccessFromFileURLs),
+            JNI::NativeMethod<void(jlong, jboolean)>(
+                "nativeSetAllowUniversalAccessFromFileURLs", nativeSetAllowUniversalAccessFromFileURLs));
 }

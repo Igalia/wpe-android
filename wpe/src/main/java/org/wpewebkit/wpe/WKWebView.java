@@ -98,8 +98,6 @@ public final class WKWebView {
 
     private FrameLayout customView = null;
 
-    public @NonNull WKSettings getWKSettings() { return wkSettings; }
-
     private String uri = "about:blank";
     private String originalUrl = uri;
     private String title = uri;
@@ -185,6 +183,8 @@ public final class WKWebView {
             super.finalize();
         }
     }
+
+    public @NonNull WKSettings getSettings() { return wkSettings; }
 
     public void setWPEViewClient(@NonNull WPEViewClient wpeViewClient) { this.wpeViewClient = wpeViewClient; }
 

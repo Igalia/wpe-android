@@ -54,81 +54,59 @@ public final class WKSettings {
                                                      + "Mobile Safari/605.1.15";
     private final WKWebView wkWebView;
 
-    public @NonNull WKWebView getWKWebView() { return wkWebView; }
-
-    private native void setNativeUserAgent(long nativePtr, String userAgent);
-    private native void setNativeMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
-    private native void setNativeAllowFileUrls(long nativePtr, boolean allow);
+    private String userAgent = "";
+    private boolean mediaPlaybackRequiresUserGesture = false;
+    private boolean allowUniversalAccessFromFileUrls = false;
+    private boolean allowFileAccessFromFileUrls = false;
 
     public WKSettings(@NonNull WKWebView wkWebView) {
         this.wkWebView = wkWebView;
-        setUserAgent(null);
+
+        setUserAgentString(null);
         setMediaPlaybackRequiresUserGesture(true);
     }
 
-    private String userAgent = "";
+    public @NonNull String getUserAgentString() { return userAgent; }
 
-    /**
-     * Gets the user-agent string.
-     * @return the page user-agent string
-     * @see #setUserAgent
-     */
-    public @NonNull String getUserAgent() { return userAgent; }
-
-    /**
-     * Sets the user-agent string. If the string is {@code null} or empty,
-     * the system default value will be used.
-     * @param str the new user-agent string
-     */
-    public void setUserAgent(@Nullable String str) {
+    public void setUserAgentString(@Nullable String str) {
         if ((str == null) || str.isEmpty())
             str = DEFAUlT_USER_AGENT;
 
         if (!str.equals(userAgent)) {
             userAgent = str;
-            setNativeUserAgent(wkWebView.getNativePtr(), userAgent);
+            nativeSetUserAgentString(wkWebView.getNativePtr(), userAgent);
         }
     }
 
-    private boolean mediaPlaybackRequiresUserGesture = false;
-
-    /**
-     * Gets whether the page requires a user gesture to play media.
-     * @return {@code true} if the page requires a user gesture to play media, or false otherwise.
-     * @see #setMediaPlaybackRequiresUserGesture
-     */
     public boolean getMediaPlaybackRequiresUserGesture() { return mediaPlaybackRequiresUserGesture; }
 
-    /**
-     * Sets whether the page requires a user gesture to play media.
-     * The default is {@code true}.
-     * @param requires whether the page requires a user gesture to play media, or not.
-     */
     public void setMediaPlaybackRequiresUserGesture(boolean requires) {
         if (requires != mediaPlaybackRequiresUserGesture) {
             mediaPlaybackRequiresUserGesture = requires;
-            setNativeMediaPlaybackRequiresUserGesture(wkWebView.getNativePtr(), mediaPlaybackRequiresUserGesture);
+            nativeSetMediaPlaybackRequiresUserGesture(wkWebView.getNativePtr(), mediaPlaybackRequiresUserGesture);
         }
     }
 
-    private boolean allowFileUrls = false;
+    public boolean getAllowUniversalAccessFromFileURLs() { return allowUniversalAccessFromFileUrls; }
 
-    /**
-     * Gets whether the page allows file Urls.
-     * @return {@code true} if the page allows file Urls, or false otherwise.
-     * @see #setAllowFileUrls
-     */
-    public boolean getAllowFileUrls() { return allowFileUrls; }
-
-    /**
-     * Sets whether the page allows file Urls.
-     * The default is {@code false}.
-     * @param allow whether the page allows file Urls, or not.
-     */
-    public void setAllowFileUrls(boolean allow) {
-        if (allow != allowFileUrls) {
-            allowFileUrls = allow;
-            setNativeAllowFileUrls(wkWebView.getNativePtr(), allowFileUrls);
+    public void setAllowUniversalAccessFromFileURLs(boolean flag) {
+        if (flag != allowFileAccessFromFileUrls) {
+            allowFileAccessFromFileUrls = flag;
+            nativeSetAllowUniversalAccessFromFileURLs(wkWebView.getNativePtr(), flag);
         }
     }
+
+    public boolean getAllowFileAccessFromFileURLs() { return allowFileAccessFromFileUrls; }
+
+    public void setAllowFileAccessFromFileURLs(boolean flag) {
+        if (flag != allowFileAccessFromFileUrls) {
+            allowFileAccessFromFileUrls = flag;
+            nativeSetAllowFileAccessFromFileURLs(wkWebView.getNativePtr(), flag);
+        }
+    }
+
+    private native void nativeSetUserAgentString(long nativePtr, String userAgent);
+    private native void nativeSetMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
+    private native void nativeSetAllowFileAccessFromFileURLs(long nativePtr, boolean flag);
+    private native void nativeSetAllowUniversalAccessFromFileURLs(long nativePtr, boolean flag);
 }

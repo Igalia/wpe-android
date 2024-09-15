@@ -25,10 +25,8 @@ package org.wpewebkit.wpeview;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
-import android.view.SurfaceView;
 import android.view.View;
 import android.widget.FrameLayout;
 
@@ -53,6 +51,7 @@ public class WPEView extends FrameLayout {
     private boolean ownsContext;
 
     private WKWebView wkWebView;
+    private WPESettings wpeSettings;
     private SurfaceClient surfaceClient = null;
 
     public WPEView(@NonNull Context context) {
@@ -76,6 +75,7 @@ public class WPEView extends FrameLayout {
         wpeContext = context;
         this.ownsContext = ownsContext;
         wkWebView = new WKWebView(this, wpeContext.getWebContext(), false);
+        wpeSettings = new WPESettings(wkWebView.getSettings());
 
         setFocusable(true);
         setFocusableInTouchMode(true);
@@ -94,12 +94,6 @@ public class WPEView extends FrameLayout {
             wpeContext.destroy();
         }
     }
-
-    /**
-     * Gets the wkWebView associated with this WPEView.
-     * @return the associated page.
-     */
-    public @NonNull WKWebView getWKWebView() { return wkWebView; }
 
     /**
      * Loads the given URL.
@@ -250,6 +244,14 @@ public class WPEView extends FrameLayout {
         wkWebView.evaluateJavascript(script, WKCallback.fromWPECallback(resultCallback));
     }
 
+    /**
+     * Return the WPESettings object used to control the settings for this
+     * WPEView.
+     * @return A WPESettings object that can be used to control this WPEView's
+     *         settings.
+     */
+    public @NonNull WPESettings getSettings() { return wpeSettings; }
+
     @Override
     public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DEL) {
@@ -260,5 +262,12 @@ public class WPEView extends FrameLayout {
         KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
         wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
         return true;
+    }
+
+    // Internal API
+
+    @NonNull
+    WKWebView getWKWebView() {
+        return wkWebView;
     }
 }

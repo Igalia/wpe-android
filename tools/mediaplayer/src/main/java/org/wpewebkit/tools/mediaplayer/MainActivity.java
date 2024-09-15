@@ -57,7 +57,8 @@ public class MainActivity extends AppCompatActivity {
         try {
             String content = getHtmlContent();
             WPEView view = findViewById(R.id.wpe_view);
-            view.getWKWebView().getWKSettings().setAllowFileUrls(true);
+            view.getSettings().setAllowFileAccessFromFileURLs(true);
+            view.getSettings().setAllowUniversalAccessFromFileURLs(true);
             view.loadHtml(content, "file:///");
         } catch (IOException ex) {
             String message = "Cannot initialize web application";
