@@ -254,8 +254,8 @@ private:
         JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint format, jint width, jint height) noexcept;
     static void nativeSurfaceRedrawNeeded(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeSetZoomLevel(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jdouble zoomLevel) noexcept;
-    static void nativeOnTouchEvent(
-        JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint type, jfloat xCoord, jfloat yCoord) noexcept;
+    static void nativeOnTouchEvent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint type,
+        jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept;
     static void nativeSetInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint unicodeChar) noexcept;
     static void nativeDeleteInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint offset) noexcept;
     static void nativeRequestExitFullscreenMode(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
@@ -305,7 +305,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
         JNI::NativeMethod<void(jlong)>("nativeSurfaceRedrawNeeded", JNIWKWebViewCache::nativeSurfaceRedrawNeeded),
         JNI::NativeMethod<void(jlong)>("nativeSurfaceDestroyed", JNIWKWebViewCache::nativeSurfaceDestroyed),
         JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", JNIWKWebViewCache::nativeSetZoomLevel),
-        JNI::NativeMethod<void(jlong, jlong, jint, jfloat, jfloat)>(
+        JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
             "nativeOnTouchEvent", JNIWKWebViewCache::nativeOnTouchEvent),
         JNI::NativeMethod<void(jlong, jint)>(
             "nativeSetInputMethodContent", JNIWKWebViewCache::nativeSetInputMethodContent),
@@ -458,8 +458,8 @@ void JNIWKWebViewCache::nativeSetZoomLevel(
         webkit_web_view_set_zoom_level(wkWebView->m_webView, zoomLevel);
 }
 
-void JNIWKWebViewCache::nativeOnTouchEvent(
-    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint type, jfloat xCoord, jfloat yCoord) noexcept
+void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint type,
+    jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if ((wkWebView != nullptr) && (wkWebView->m_viewBackend != nullptr)) {
@@ -481,20 +481,35 @@ void JNIWKWebViewCache::nativeOnTouchEvent(
             break;
         }
 
-        const wpe_input_touch_event_raw touchEventRaw = {.type = touchEventType,
+        std::vector<jint> idsVector(pointerCount);
+        std::vector<jfloat> xsVector(pointerCount);
+        std::vector<jfloat> ysVector(pointerCount);
+        env->GetIntArrayRegion(ids, 0, pointerCount, idsVector.data());
+        env->GetFloatArrayRegion(xs, 0, pointerCount, xsVector.data());
+        env->GetFloatArrayRegion(ys, 0, pointerCount, ysVector.data());
+
+        auto* touchPoints = new wpe_input_touch_event_raw[pointerCount];
+        for (int i = 0; i < pointerCount; ++i) {
+            touchPoints[i].type = touchEventType;
+            touchPoints[i].time = static_cast<uint32_t>(time);
+            touchPoints[i].id = idsVector[i];
+            touchPoints[i].x = static_cast<int32_t>(std::round(xsVector[i]));
+            touchPoints[i].y = static_cast<int32_t>(std::round(ysVector[i]));
+        }
+
+        wpe_input_touch_event touchEvent {
+            .touchpoints = touchPoints,
+            .touchpoints_length = static_cast<uint64_t>(pointerCount),
+            .type = static_cast<wpe_input_touch_event_type>(type),
+            .id = touchPoints[0].id, // Use the first touchpoint's ID
             .time = static_cast<uint32_t>(time),
-            .id = 0,
-            .x = static_cast<int32_t>(xCoord),
-            .y = static_cast<int32_t>(yCoord)};
-        wpe_input_touch_event touchEvent = {.touchpoints = &touchEventRaw,
-            .touchpoints_length = 1,
-            .type = touchEventType,
-            .id = 0,
-            .time = touchEventRaw.time,
-            .modifiers = 0};
+            .modifiers = 0, // Set modifiers if any
+        };
 
         wpe_view_backend_dispatch_touch_event(
             WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend), &touchEvent);
+
+        delete[] touchPoints;
     }
 }
 

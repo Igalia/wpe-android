@@ -318,7 +318,16 @@ public final class WKWebView {
                 return false;
             }
 
-            nativeOnTouchEvent(nativePtr, event.getEventTime(), eventType, event.getX(0), event.getY(0));
+            int[] ids = new int[pointerCount];
+            float[] xs = new float[pointerCount];
+            float[] ys = new float[pointerCount];
+            for (int i = 0; i < pointerCount; i++) {
+                ids[i] = event.getPointerId(i);
+                xs[i] = event.getX(i);
+                ys[i] = event.getY(i);
+            }
+
+            nativeOnTouchEvent(nativePtr, event.getEventTime(), eventType, pointerCount, ids, xs, ys);
             return true;
         }
     }
@@ -631,7 +640,8 @@ public final class WKWebView {
     private native void nativeSurfaceRedrawNeeded(long nativePtr);
     private native void nativeSurfaceDestroyed(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
-    private native void nativeOnTouchEvent(long nativePtr, long time, int type, float x, float y);
+    private native void nativeOnTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids, float[] xs,
+                                           float[] ys);
     private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
     private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
     private native void nativeRequestExitFullscreenMode(long nativePtr);
