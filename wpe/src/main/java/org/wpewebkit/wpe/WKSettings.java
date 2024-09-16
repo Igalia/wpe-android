@@ -58,6 +58,7 @@ public final class WKSettings {
     private boolean mediaPlaybackRequiresUserGesture = false;
     private boolean allowUniversalAccessFromFileUrls = false;
     private boolean allowFileAccessFromFileUrls = false;
+    private boolean developerExtrasEnabled = false;
 
     public WKSettings(@NonNull WKWebView wkWebView) {
         this.wkWebView = wkWebView;
@@ -90,8 +91,8 @@ public final class WKSettings {
     public boolean getAllowUniversalAccessFromFileURLs() { return allowUniversalAccessFromFileUrls; }
 
     public void setAllowUniversalAccessFromFileURLs(boolean flag) {
-        if (flag != allowFileAccessFromFileUrls) {
-            allowFileAccessFromFileUrls = flag;
+        if (flag != allowUniversalAccessFromFileUrls) {
+            allowUniversalAccessFromFileUrls = flag;
             nativeSetAllowUniversalAccessFromFileURLs(wkWebView.getNativePtr(), flag);
         }
     }
@@ -105,8 +106,18 @@ public final class WKSettings {
         }
     }
 
+    public boolean getDeveloperExtrasEnabled() { return developerExtrasEnabled; }
+
+    public void setDeveloperExtrasEnabled(boolean flag) {
+        if (flag != developerExtrasEnabled) {
+            developerExtrasEnabled = flag;
+            nativeSetDeveloperExtrasEnabled(wkWebView.getNativePtr(), flag);
+        }
+    }
+
     private native void nativeSetUserAgentString(long nativePtr, String userAgent);
     private native void nativeSetMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
     private native void nativeSetAllowFileAccessFromFileURLs(long nativePtr, boolean flag);
     private native void nativeSetAllowUniversalAccessFromFileURLs(long nativePtr, boolean flag);
+    private native void nativeSetDeveloperExtrasEnabled(long nativePtr, boolean flag);
 }

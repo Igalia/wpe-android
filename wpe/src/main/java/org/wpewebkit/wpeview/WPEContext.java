@@ -19,14 +19,10 @@ public class WPEContext {
 
     private WPEContext.Client client;
 
-    public WPEContext(@NonNull Context context) { this(context, 0, false); }
+    public WPEContext(@NonNull Context context) { this(context, false); }
 
-    public WPEContext(@NonNull Context context, int inspectorPort) {
-        this.context = new WKWebContext(context, inspectorPort, false);
-    }
-
-    public WPEContext(@NonNull Context context, int inspectorPort, boolean automationMode) {
-        this.context = new WKWebContext(context, inspectorPort, automationMode);
+    public WPEContext(@NonNull Context context, boolean automationMode) {
+        this.context = new WKWebContext(context, automationMode);
     }
 
     public void destroy() { context.destroy(); }

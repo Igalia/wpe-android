@@ -127,7 +127,9 @@ class WebDriverActivity : AppCompatActivity() {
             Log.e(LOGTAG, "Cannot launch webdriver process", e)
         }
 
-        wpeContext = WPEContext(applicationContext, freePort, true)
+        WPEView.enableRemoteInspector(freePort, false)
+
+        wpeContext = WPEContext(applicationContext, true)
         wpeContext.setClient(wpeContextClient)
     }
 

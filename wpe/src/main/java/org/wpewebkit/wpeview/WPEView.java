@@ -35,6 +35,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import org.wpewebkit.wpe.WKCallback;
+import org.wpewebkit.wpe.WKRuntime;
 import org.wpewebkit.wpe.WKWebView;
 
 /**
@@ -68,13 +69,13 @@ public class WPEView extends FrameLayout {
 
     public WPEView(@NonNull WPEContext context, boolean headless) {
         super(context.getApplicationContext());
-        init(context, false, false);
+        init(context, false, headless);
     }
 
     private void init(@NonNull WPEContext context, boolean ownsContext, boolean headless) {
         wpeContext = context;
         this.ownsContext = ownsContext;
-        wkWebView = new WKWebView(this, wpeContext.getWebContext(), false);
+        wkWebView = new WKWebView(this, wpeContext.getWebContext(), headless);
         wpeSettings = new WPESettings(wkWebView.getSettings());
 
         setFocusable(true);
@@ -93,6 +94,22 @@ public class WPEView extends FrameLayout {
         if (ownsContext) {
             wpeContext.destroy();
         }
+    }
+
+    /**
+     * Enables remote inspector for debugging WPEView from remote machine (from desktop machine for example).
+     * If useHttpInspector is true then HTTP protocol is used to connect to inspector server, otherwise
+     * inspector:// protocol is used. With HTTP protocol any browser can connect to remote inspector. Inspector://
+     * protocol only works with WebKit browsers.
+     * <p>
+     * NOTE! This needs to be called before any WPEView or WPEContext is created.
+     *
+     * @param inspectorPort The port for which inspector server listens
+     * @param useHttpInspector Whether to use HTTP protocol for remote inspector server connection. If false then
+     *                         inspector:// protocol is used.
+     */
+    public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
+        WKRuntime.enableRemoteInspector(inspectorPort, useHttpInspector);
     }
 
     /**

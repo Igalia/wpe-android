@@ -98,4 +98,19 @@ public class WPESettings {
      *             scheme URLs
      */
     public void setAllowFileAccessFromFileURLs(boolean flag) { wkSettings.setAllowFileAccessFromFileURLs(flag); }
+
+    /**
+     * Gets whether developer tools, such as the Web Inspector, are enabled.
+     * @return whether developer tools, such as the Web Inspector, are enabled
+     * @see #setDeveloperExtrasEnabled
+     */
+    public boolean getDeveloperExtrasEnabled() { return wkSettings.getDeveloperExtrasEnabled(); }
+
+    /**
+     * Sets whether developer tools, such as the Web Inspector, are enabled.
+     * <p>
+     * The default value is false.
+     * @param flag whether developer tools, such as the Web Inspector, are enabled
+     */
+    public void setDeveloperExtrasEnabled(boolean flag) { wkSettings.setDeveloperExtrasEnabled(flag); }
 }

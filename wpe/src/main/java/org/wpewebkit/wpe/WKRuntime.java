@@ -59,6 +59,9 @@ public final class WKRuntime {
     private native void nativeInit();
     private native void nativeShut();
 
+    private static int inspectorPort = 0;
+    private static boolean useHttpInspector = true;
+
     private static final WKRuntime singleton = new WKRuntime();
 
     public static @NonNull WKRuntime getInstance() { return singleton; }
@@ -71,7 +74,12 @@ public final class WKRuntime {
 
     private LooperHelperThread looperHelperThread = null;
 
-    public void initialize(@NonNull Context context, int inspectorPort) {
+    public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
+        WKRuntime.inspectorPort = inspectorPort;
+        WKRuntime.useHttpInspector = useHttpInspector;
+    }
+
+    public void initialize(@NonNull Context context) {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
 
@@ -95,7 +103,11 @@ public final class WKRuntime {
 
             if (inspectorPort > 0) {
                 String inspectorAddress = "127.0.0.1:" + inspectorPort;
-                envStrings.add("WEBKIT_INSPECTOR_SERVER");
+                if (useHttpInspector) {
+                    envStrings.add("WEBKIT_INSPECTOR_HTTP_SERVER");
+                } else {
+                    envStrings.add("WEBKIT_INSPECTOR_SERVER");
+                }
                 envStrings.add(inspectorAddress);
             }
             setupNativeEnvironment(envStrings.toArray(new String[envStrings.size()]));

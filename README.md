@@ -86,6 +86,36 @@ Currently supported architectures are `arm64` and `x86_64`.
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
 you should be able to open the `launcher` demo with Android Studio and run it on a real device.
 
+## Web Inspector
+
+To enable Web Inspector access, you need to enable the remote inspector server and developer extras.
+
+#### **1. Forward the Remote Inspector Port**
+
+Before launching the application, ensure that the attached device or emulator is started. In the terminal, issue the following command:
+
+```bash
+adb forward tcp:5000 tcp:5000
+```
+
+#### **2. Enable Remote Inspector and Developer Extras**
+
+Before creating any `WPEView` instance, enable the remote inspector server and developer extras:
+
+```kotlin
+WPEView.enableRemoteInspector(5000, true);
+val view = WPEView().apply {
+    settings.developerExtrasEnabled = true
+    loadUrl("https://www.wpewebkit.org")
+}
+```
+
+#### **3. Access the Web Inspector**
+
+After completing the above steps, you can access the Web Inspector by opening the following URL in any browser:
+
+[http://127.0.0.1:5000](http://127.0.0.1:5000)
+
 ## WebDriver
 
 Following demostrates how to run a simple webdriver script on emulator

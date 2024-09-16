@@ -23,10 +23,10 @@ public class WKWebContext {
 
     private final WKNetworkSession networkSession;
 
-    public WKWebContext(@NonNull Context context, int inspectorPort, boolean automationMode) {
+    public WKWebContext(@NonNull Context context, boolean automationMode) {
         this.context = context;
 
-        WKRuntime.getInstance().initialize(context, inspectorPort);
+        WKRuntime.getInstance().initialize(context);
 
         nativePtr = nativeInit(automationMode);
 
