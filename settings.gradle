@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = 'wpe-android'
-include ':wpe'
+include ':wpeview'
 include ':tools:minibrowser'
 include ':tools:mediaplayer'
 include ':tools:webdriver'

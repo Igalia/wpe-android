@@ -1,12 +1,12 @@
 # Project artifacts
 /.idea/*
 !/.idea/codeStyles/
-/wpe/src/main/cpp/imported/
-/wpe/src/main/jniLibs/
-/wpe/src/main/assets/gstreamer-1.0
-/wpe/src/main/assets/gio
-/wpe/src/main/assets/injected-bundles
-/wpe/src/main/java/org/freedesktop/gstreamer
+/wpeview/src/main/cpp/imported/
+/wpeview/src/main/jniLibs/
+/wpeview/src/main/assets/gstreamer-1.0
+/wpeview/src/main/assets/gio
+/wpeview/src/main/assets/injected-bundles
+/wpeview/src/main/java/org/freedesktop/gstreamer
 /tools/minibrowser/src/main/resources/
 
 # Gradle artifacts
