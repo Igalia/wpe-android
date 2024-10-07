@@ -454,7 +454,7 @@ class Bootstrap:
     def install_deps(self):
         print("Installing dependencies into wpe-android project...")
 
-        wpe_src_main_dir = os.path.join(self._project_root_dir, "wpe", "src", "main")
+        wpe_src_main_dir = os.path.join(self._project_root_dir, "wpeview", "src", "main")
         self._copy_headers(os.path.join(wpe_src_main_dir, "cpp", "imported", "include"))
 
         if self._arch == "arm64":
