@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.library'
+    id 'maven-publish'
+    id 'signing'
 }
 
 android {
@@ -88,6 +90,14 @@ android {
             })
         }
     }
+
+    publishing {
+        singleVariant('release') {
+            // This ensures only the release variant is published
+            withSourcesJar() // Include sources JAR
+            withJavadocJar() // Include Javadoc JAR (optional)
+        }
+    }
 }
 
 dependencies {
@@ -95,6 +105,78 @@ dependencies {
     androidTestImplementation "androidx.test:runner:1.6.2"
     androidTestImplementation "androidx.test:rules:1.6.1"
     androidTestImplementation "androidx.test.ext:junit:1.2.1"
+}
+
+publishing {
+    publications {
+        release(MavenPublication) {
+            afterEvaluate {
+                from components.release
+            }
+
+            groupId 'org.wpewebkit.wpeview'
+            artifactId 'wpeview'
+            version '0.1.0'
+
+            // The sources and Javadoc JARs are automatically added because of `withSourcesJar()` and `withJavadocJar()` above
+
+            pom {
+                name = 'WPEView'
+                description = 'WPE WebKit for Android'
+                url = 'https://github.com/Igalia/wpe-android'
+
+                licenses {
+                    license {
+                        name = 'GNU Lesser General Public License v2.1'
+                        url = 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt'
+                        distribution = 'repo'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git@github.com/Igalia/wpe-android.git'
+                    url = 'https://github.com/Igalia/wpe-android.git'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "OSSRH"
+            url = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
+
+            credentials {
+                username = project.findProperty("ossrhUsername") ?: System.getenv("OSSRH_USERNAME")
+                password = project.findProperty("ossrhPassword") ?: System.getenv("OSSRH_PASSWORD")
+            }
+        }
+    }
+}
+
+signing {
+    def signingKey = project.findProperty("signing.secretKey") ?: System.getenv("SIGNING_KEY")
+    def signingPassword = project.findProperty("signing.password")?: System.getenv("SIGNING_PASSWORD")
+
+    if (signingKey && signingPassword) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign publishing.publications
+    } else {
+        logger.warn("Signing key or password not found, signing will be skipped.")
+    }
+}
+
+tasks.withType(Javadoc).configureEach {
+    enabled = false // Disable Javadoc if not needed
+}
+
+tasks.register('javadocJar', Jar) {
+    archiveClassifier.set('javadoc')
+}
+
+tasks.register('sourcesJar', Jar) {
+    from android.sourceSets.main.java.srcDirs
+    archiveClassifier.set('sources')
 }
 
 gradle.afterProject { project ->
