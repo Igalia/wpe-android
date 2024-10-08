@@ -119,6 +119,14 @@ mavenPublishing {
             }
         }
 
+        developers {
+            developer {
+                id = "zhani"
+                name = "Jani Hautakangas"
+                url = "https://github.com/zhani"
+            }
+        }
+
         scm {
             connection = 'scm:git@github.com/Igalia/wpe-android.git'
             url = 'https://github.com/Igalia/wpe-android.git'
