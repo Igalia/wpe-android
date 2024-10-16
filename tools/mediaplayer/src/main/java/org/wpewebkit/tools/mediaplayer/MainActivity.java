@@ -22,6 +22,7 @@ package org.wpewebkit.tools.mediaplayer;
 import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowInsets;
 import android.widget.Toast;
@@ -80,5 +81,36 @@ public class MainActivity extends AppCompatActivity {
                                                           WindowInsets.Type.navigationBars());
             }
         }
+    }
+
+    // Workaround for too sensitive touch move events which break
+    // embedded youtube view touch tap detection.
+    // When tapping play button we need MotionEvent.ACTION_DOWN and MotionEvent.ACTION_UP
+    // in sequence. Without this workaround we get MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE...,
+    // MotionEvent.ACTION_UP and that doesn't work with play button
+    private static final int TOUCH_MOVE_THRESHOLD = 10;
+    private float initialX;
+    private float initialY;
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        switch (ev.getAction()) {
+        case MotionEvent.ACTION_DOWN:
+            // Store the initial touch coordinates
+            initialX = ev.getX();
+            initialY = ev.getY();
+            break;
+        case MotionEvent.ACTION_MOVE:
+            // Calculate the movement distance
+            float deltaX = Math.abs(ev.getX() - initialX);
+            float deltaY = Math.abs(ev.getY() - initialY);
+            // If movement is within the threshold, ignore the MOVE event
+            if (deltaX < TOUCH_MOVE_THRESHOLD && deltaY < TOUCH_MOVE_THRESHOLD) {
+                return true; // Consume the event and stop it from propagating
+            }
+            break;
+        }
+
+        return super.dispatchTouchEvent(ev);
     }
 }
