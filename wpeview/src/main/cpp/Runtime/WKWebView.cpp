@@ -500,7 +500,7 @@ void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong w
         wpe_input_touch_event touchEvent {
             .touchpoints = touchPoints,
             .touchpoints_length = static_cast<uint64_t>(pointerCount),
-            .type = static_cast<wpe_input_touch_event_type>(type),
+            .type = touchEventType,
             .id = touchPoints[0].id, // Use the first touchpoint's ID
             .time = static_cast<uint32_t>(time),
             .modifiers = 0, // Set modifiers if any
