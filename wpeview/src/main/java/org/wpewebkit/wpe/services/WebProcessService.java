@@ -120,6 +120,8 @@ public class WebProcessService extends WPEService {
         envStrings.add(filesPath);
         envStrings.add("XDG_DATA_HOME");
         envStrings.add(filesPath);
+        envStrings.add("WEBKIT_INJECTED_BUNDLE_PATH");
+        envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
 
         if ((appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == ApplicationInfo.FLAG_DEBUGGABLE) {
             String gstDebugLevels = "*:FIXME";
