@@ -170,6 +170,8 @@ python3 ./simple_test.py
 
 To add a dependency on WPEView, you must add the Maven Central repository to your project. Read [Maven Central repository](https://central.sonatype.org/consume/consume-gradle/) for more information.
 
+Add the dependencies for the artifacts you need in the `build.gradle` file for your app or module:
+
 ```groovy
 dependencies {
     implementation "org.wpewebkit.wpeview:wpeview:0.1.0"
