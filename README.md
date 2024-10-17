@@ -103,7 +103,7 @@ adb forward tcp:5000 tcp:5000
 Before creating any `WPEView` instance, enable the remote inspector server and developer extras:
 
 ```kotlin
-WPEView.enableRemoteInspector(5000, true);
+WPEView.enableRemoteInspector(5000, true)
 val view = WPEView().apply {
     settings.developerExtrasEnabled = true
     loadUrl("https://www.wpewebkit.org")
@@ -165,6 +165,19 @@ From Selenium directory created previously run
 ```bash
 python3 ./simple_test.py
 ```
+
+## Declaring dependencies
+
+To add a dependency on WPEView, you must add the Maven Central repository to your project. Read [Maven Central repository](https://central.sonatype.org/consume/consume-gradle/) for more information.
+
+```groovy
+dependencies {
+    implementation "org.wpewebkit.wpeview:wpeview:0.1.0"
+}
+```
+
+For more information about dependencies, see [Add build dependencies](https://developer.android.com/studio/build/dependencies).
+
 
 ## Known issues and limitations
 * The universal wpewebkit bootstrap package is not yet supported.
