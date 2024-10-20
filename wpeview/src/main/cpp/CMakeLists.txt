@@ -101,9 +101,9 @@ target_configure_quality(WPEAndroidCommon)
 target_include_directories(WPEAndroidCommon INTERFACE Common)
 target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib} ${sync-lib})
 
-# libWPEAndroidBrowser
+# libWPEAndroidRuntime
 add_library(
-    WPEAndroidBrowser SHARED
+    WPEAndroidRuntime SHARED
     Runtime/EntryPoint.cpp
     Runtime/Fence.cpp
     Runtime/InputMethodContext.cpp
@@ -119,10 +119,10 @@ add_library(
     Runtime/WKSettings.cpp
     Runtime/WKWebsiteDataManager.cpp
     Runtime/WKWebView.cpp)
-target_configure_quality(WPEAndroidBrowser)
-target_compile_definitions(WPEAndroidBrowser PRIVATE WPE_ENABLE_PROCESS)
+target_configure_quality(WPEAndroidRuntime)
+target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
-    WPEAndroidBrowser
+    WPEAndroidRuntime
     EGL
     GLESv2
     gio-2.0

@@ -52,7 +52,7 @@ public final class WKRuntime {
     // or the gstreamer plugins or else they won't be applied.
     private static final String assetsVersion = "ui_process_assets_2.46.0";
 
-    static { System.loadLibrary("WPEAndroidBrowser"); }
+    static { System.loadLibrary("WPEAndroidRuntime"); }
 
     protected static native void startNativeLooper();
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
