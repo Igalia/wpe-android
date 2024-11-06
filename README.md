@@ -174,7 +174,7 @@ Add the dependencies for the artifacts you need in the `build.gradle` file for y
 
 ```groovy
 dependencies {
-    implementation "org.wpewebkit.wpeview:wpeview:0.1.0"
+    implementation "org.wpewebkit.wpeview:wpeview:0.1.1"
 }
 ```
 
