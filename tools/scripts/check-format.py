@@ -150,7 +150,8 @@ class CheckFormat:
                          "README.md", "LICENSE.md", ".clang-format", ".clang-tidy",
                          ".cmake-format.json", ".editorconfig", ".gitattributes",
                          ".gitignore", "gradlew", "gradlew.bat", "setup.cfg",
-                         "WPEServices.java.template", "__init__.py"]:
+                         "WPEServices.java.template", "__init__.py",
+                         "CHANGELOG.md"]:
             return True
 
         top_level_path = file
