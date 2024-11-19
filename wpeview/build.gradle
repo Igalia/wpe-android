@@ -104,7 +104,7 @@ dependencies {
 mavenPublishing {
     configure(new AndroidSingleVariantLibrary("release", true, true))
 
-    coordinates("org.wpewebkit.wpeview", "wpeview", "0.1.1")
+    coordinates("org.wpewebkit.wpeview", "wpeview", "0.1.2")
 
     pom {
         name = 'WPEView'
