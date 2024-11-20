@@ -2,6 +2,8 @@ name: Publish GitHub Release
 
 on:
   workflow_dispatch:
+    tags:
+      - v*.*.*
     inputs:
       draftRelease:
         description: 'Mark as draft'
