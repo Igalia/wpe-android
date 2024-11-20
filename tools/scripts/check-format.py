@@ -180,7 +180,7 @@ class CheckFormat:
             return self._check_pascal_case_name(file)
         if file_ext in [".conf", ".xml", ".png", ".md", ".webp", ".jpg"]:
             return self._check_snake_case_name(file)
-        if file_ext in [".pro", ".gradle", ".properties", ".jar", ".yml", ".json", ".html", ".js"]:
+        if file_ext in [".pro", ".gradle", ".properties", ".jar", ".yml", ".json", ".html", ".js", ".awk", ".sh"]:
             return self._check_kebab_case_name(file)
         if base_name == "CMakeLists.txt":
             return self._check_cmake_format(file)

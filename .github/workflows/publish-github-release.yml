@@ -1,0 +1,53 @@
+name: Publish GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      draftRelease:
+        description: 'Mark as draft'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: Release
+  upload:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+      - name: Prepare Release
+        id: changelog
+        run: |
+          awk -f .github/changelog-last-content.awk CHANGELOG.md > release-notes.md
+          eval "$(bash .github/changelog-last-version.sh CHANGELOG.md | tee -a "$GITHUB_OUTPUT")"
+          for item in minibrowser mediaplayer webdriver ; do
+            mv -vf "$item-Release/release/$item-release.apk" \
+              "wpe-android-$item-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}.apk"
+          done
+      - name: Delete Artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            minibrowser-Release
+            mediaplayer-Release
+            webdriver-Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "WPE Android ${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }} (${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }})"
+          tag_name: "${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}"
+          draft: ${{ inputs.draftRelease }}
+          body_path: release-notes.md
+          files: |
+            wpe-android-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-minibrowser.apk
+            wpe-android-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-mediaplayer.apk
+            wpe-android-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-webdriver.apk
