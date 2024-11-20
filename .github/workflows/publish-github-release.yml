@@ -46,5 +46,8 @@ jobs:
           tag_name: "${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}"
           draft: ${{ inputs.draftRelease }}
           body_path: release-notes.md
+          fail_on_unmatched_files: true
           files: |
-            wpe-android-*-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-${{ steps.changelog.output.RELEASE_WPE_ANDROID_VERSION }}.apk
+            wpe-android-minibrowser-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}.apk
+            wpe-android-mediaplayer-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}.apk
+            wpe-android-webdriver-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}.apk
