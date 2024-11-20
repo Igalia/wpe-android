@@ -30,8 +30,7 @@ jobs:
           awk -f .github/changelog-last-content.awk CHANGELOG.md > release-notes.md
           eval "$(bash .github/changelog-last-version.sh CHANGELOG.md | tee -a "$GITHUB_OUTPUT")"
           for item in minibrowser mediaplayer webdriver ; do
-            mv -vf "$item-Debug/debug/$item-debug.apk" \
-              "wpe-android-$item-${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }}-${{ steps.changelog.output.RELEASE_WPE_ANDROID_VERSION }}.apk"
+            mv -vf "$item-Debug/debug/$item-debug.apk" "wpe-android-$item-$RELEASE_WPE_WEBKIT_VERSION-$RELEASE_WPE_ANDROID_VERSION.apk"
           done
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@v5
