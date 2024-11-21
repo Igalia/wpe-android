@@ -17,8 +17,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          log-accepted-android-sdk-licenses: false
       - name: Build and publish
         run: ./gradlew wpeview:publishMavenPublicationToMavenCentralRepository
         env:
