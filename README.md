@@ -80,11 +80,22 @@ You can optionally create a debug build of WPEWebKit passing the `--debug` optio
 Finally, the bootstrap option accepts the `--arch` option to set the target architecture.
 Currently supported architectures are `arm64` and `x86_64`.
 
-
-### Android Studio
-[Android Studio](https://developer.android.com/studio/) is required to build and run WPE Android.
+For example, device debug build dependencies can be generated using
+```bash
+./tools/scripts/bootstrap.py --build --debug --arch=arm64
+```
+### Android Project
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
-you should be able to open the `launcher` demo with Android Studio and run it on a real device.
+you should be able to generate android project from gradle files.
+```bash
+./gradlew assembleDebug
+```
+This will generate APKs in directory `tools/webdriver/build/outputs/apk/debug`
+
+To install APK in device or emulator,
+```bash
+adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-debug.apk
+```
 
 ## Web Inspector
 
