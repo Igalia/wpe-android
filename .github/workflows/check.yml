@@ -15,7 +15,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: 11076708
+          cmdline-tools-version: 12266719
           log-accepted-android-sdk-licenses: false
       - name: Check Code Format
         run: ./gradlew checkFormat

@@ -1,16 +1,16 @@
 plugins {
-    id 'com.android.application' version '8.1.2' apply false
-    id 'com.android.library' version '8.1.2' apply false
+    id 'com.android.application' version '8.7.3' apply false
+    id 'com.android.library' version '8.7.3' apply false
     id 'org.jetbrains.kotlin.android' version '1.8.0' apply false
 }
 
 tasks.register("clean", Delete) {
-    delete rootProject.buildDir
+    delete rootProject.layout.buildDirectory
     delete file(".git/hooks/pre-commit")
 }
 
 def installQATools = tasks.register("installQATools", Exec) {
-    def cacheFile = new File(rootProject.buildDir, ".qaToolsInstalled")
+    def cacheFile = rootProject.layout.buildDirectory.file(".qaToolsInstalled").get().asFile
     outputs.file(cacheFile)
     commandLine "python3", "-m", "pip", "install", "--upgrade", "editorconfig-checker", "pycodestyle", "cmakelang"
     doLast {
