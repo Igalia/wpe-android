@@ -18,9 +18,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    lintOptions {
-        disable 'ChromeOsAbiSupport'
-    }
 
     buildTypes {
         release {
@@ -51,24 +48,31 @@ android {
     buildFeatures {
         aidl true
     }
+    lint {
+        disable 'ChromeOsAbiSupport'
+    }
 
-    libraryVariants.all { variant ->
-        def genDir = new File(project.buildDir, "generated/source/services/${variant.name}")
+    libraryVariants.configureEach { variant ->
+        def genDir = project.layout.buildDirectory.dir("generated/source/services/${variant.name}").get().asFile
 
-        def wpeGenServicesTask = tasks.create("wpeGenServices${variant.name.capitalize()}").doLast({
-            def templateFileContent = file("src/main/java/org/wpewebkit/wpe/services/WPEServices.java.template").getText()
-            def services = ""
-            for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
-                services += "    public static final class WebProcessService$i extends WebProcessService {}\n" +
-                    "    public static final class NetworkProcessService$i extends NetworkProcessService {}\n"
+        def wpeGenServicesTask = tasks.register("wpeGenServices${variant.name.capitalize()}") {
+            doLast {
+                def templateFileContent = file("src/main/java/org/wpewebkit/wpe/services/WPEServices.java.template").getText()
+                def services = ""
+                for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
+                    services += "    public static final class WebProcessService$i extends WebProcessService {}\n" +
+                        "    public static final class NetworkProcessService$i extends NetworkProcessService {}\n"
+                }
+                templateFileContent = templateFileContent.replace("    // SERVICES PLACEHOLDER", services)
+
+                def servicesDir = new File(genDir, "org/wpewebkit/wpe/services")
+                servicesDir.mkdirs()
+                new File(servicesDir, "WPEServices.java").write(templateFileContent)
             }
-            templateFileContent = templateFileContent.replace("    // SERVICES PLACEHOLDER", services)
-
-            def servicesDir = new File(genDir, "org/wpewebkit/wpe/services")
-            servicesDir.mkdirs()
-            new File(servicesDir, "WPEServices.java").write(templateFileContent)
-        })
-        wpeGenServicesTask.description = "Generate the code for multiple WPE auxiliary services"
+        }
+        wpeGenServicesTask.configure {
+            description = "Generate the code for multiple WPE auxiliary services"
+        }
         variant.registerJavaGeneratingTask(wpeGenServicesTask, genDir)
 
         variant.outputs.all { output ->
@@ -88,14 +92,14 @@ android {
                 }
                 manifestContent = manifestContent.replace("        <!-- SERVICES PLACEHOLDER -->", services)
                 manifestFile.write(manifestContent)
-                logger.info(manifestContent)
+                project.logger.info(manifestContent)
             })
         }
     }
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.8.2'
+    implementation 'androidx.annotation:annotation:1.9.1'
     androidTestImplementation "androidx.test:runner:1.6.2"
     androidTestImplementation "androidx.test:rules:1.6.1"
     androidTestImplementation "androidx.test.ext:junit:1.2.1"

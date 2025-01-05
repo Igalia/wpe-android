@@ -10,8 +10,7 @@
         <activity
             android:name="org.wpewebkit.tools.mediaplayer.MainActivity"
             android:exported="true"
-            android:launchMode="singleInstance"
-            android:screenOrientation="landscape">
+            android:launchMode="singleInstance">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
