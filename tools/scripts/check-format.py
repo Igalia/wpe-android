@@ -186,7 +186,7 @@ class CheckFormat:
             return self._check_cmake_format(file)
         if os.path.isdir(file) and os.path.islink(file):
             return True
-        if file_ext in [".in", ""]:
+        if file_ext in [".in", ".toml", ""]:
             return True
 
         print(f"-- Unknown file extension for {file}.", file=sys.stderr)

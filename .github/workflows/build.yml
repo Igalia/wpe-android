@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-code:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,8 +22,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          cmdline-tools-version: 12266719
           log-accepted-android-sdk-licenses: false
+          packages: "tools platform-tools cmake;3.31.1"
       - name: Build Project
         run: ./gradlew assemble${{ inputs.build_type }}
       - name: Save MiniBrowser Artifacts

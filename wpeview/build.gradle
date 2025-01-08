@@ -2,39 +2,44 @@ import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
-    id 'com.android.library'
-    id "com.vanniktech.maven.publish" version "0.29.0"
+    alias libs.plugins.android.library
+    alias libs.plugins.vanniktech.maven.publish
 }
 
 android {
-    namespace 'org.wpewebkit'
-    compileSdk 35
-    ndkVersion '27.0.12077973'
+    namespace = "org.wpewebkit"
+    compileSdk = libs.versions.target.android.sdk.get().toInteger()
+    ndkVersion = libs.versions.android.ndk.get()
+    buildToolsVersion = libs.versions.android.sdk.build.tools.get()
 
     defaultConfig {
-        minSdk 31
-        targetSdk 35
+        minSdk = libs.versions.min.android.sdk.get().toInteger()
+        targetSdk = libs.versions.target.android.sdk.get().toInteger()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
         }
     }
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    buildFeatures {
+        aidl = true
     }
 
     externalNativeBuild {
         cmake {
-            version '3.22.1'
-            path file('src/main/cpp/CMakeLists.txt')
+            version = libs.versions.cmake.get()
+            path file("src/main/cpp/CMakeLists.txt")
         }
     }
 
@@ -45,17 +50,12 @@ android {
     //        entry for each Service we expect to launch. This magic number is taken from GeckoView,
     //        which uses a similar approach.
     final NUMBER_OF_AUX_PROCESSES = 40
-    buildFeatures {
-        aidl true
-    }
-    lint {
-        disable 'ChromeOsAbiSupport'
-    }
 
     libraryVariants.configureEach { variant ->
         def genDir = project.layout.buildDirectory.dir("generated/source/services/${variant.name}").get().asFile
 
         def wpeGenServicesTask = tasks.register("wpeGenServices${variant.name.capitalize()}") {
+            description = "Generate the code for multiple WPE auxiliary services"
             doLast {
                 def templateFileContent = file("src/main/java/org/wpewebkit/wpe/services/WPEServices.java.template").getText()
                 def services = ""
@@ -69,9 +69,6 @@ android {
                 servicesDir.mkdirs()
                 new File(servicesDir, "WPEServices.java").write(templateFileContent)
             }
-        }
-        wpeGenServicesTask.configure {
-            description = "Generate the code for multiple WPE auxiliary services"
         }
         variant.registerJavaGeneratingTask(wpeGenServicesTask, genDir)
 
@@ -92,48 +89,48 @@ android {
                 }
                 manifestContent = manifestContent.replace("        <!-- SERVICES PLACEHOLDER -->", services)
                 manifestFile.write(manifestContent)
-                project.logger.info(manifestContent)
             })
         }
     }
 }
 
 dependencies {
-    implementation 'androidx.annotation:annotation:1.9.1'
-    androidTestImplementation "androidx.test:runner:1.6.2"
-    androidTestImplementation "androidx.test:rules:1.6.1"
-    androidTestImplementation "androidx.test.ext:junit:1.2.1"
+    implementation libs.androidx.annotation
+
+    androidTestImplementation libs.androidx.test.runner
+    androidTestImplementation libs.androidx.test.rules
+    androidTestImplementation libs.androidx.test.junit
 }
 
 mavenPublishing {
     configure(new AndroidSingleVariantLibrary("release", true, true))
 
-    coordinates("org.wpewebkit.wpeview", "wpeview", "0.1.2")
+    coordinates("org.wpewebkit.wpeview", "wpeview", libs.versions.wpeview.get())
 
     pom {
-        name = 'WPEView'
-        description = 'WPE WebKit for Android'
-        url = 'https://github.com/Igalia/wpe-android'
+        name = "WPEView"
+        description = "WPE WebKit for Android"
+        url = "https://github.com/Igalia/wpe-android"
 
         licenses {
             license {
-                name = 'GNU Lesser General Public License v2.1'
-                url = 'https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt'
-                distribution = 'repo'
+                name = "GNU Lesser General Public License v2.1"
+                url = "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt"
+                distribution = "repo"
             }
         }
 
         developers {
             developer {
-                id = "zhani"
-                name = "Jani Hautakangas"
-                url = "https://github.com/zhani"
+                id = "igalia"
+                name = "Igalia"
+                url = "https://github.com/Igalia"
             }
         }
 
         scm {
-            connection = 'scm:git@github.com/Igalia/wpe-android.git'
-            url = 'https://github.com/Igalia/wpe-android.git'
+            connection = "scm:git@github.com/Igalia/wpe-android.git"
+            url = "https://github.com/Igalia/wpe-android.git"
         }
     }
 
@@ -146,7 +143,7 @@ mavenPublishing {
 gradle.afterProject { project ->
     if (project == getProject()) {
         def abiList = []
-        for (abi in ['x86_64', 'arm64-v8a']) {
+        for (abi in ["x86_64", "arm64-v8a"]) {
             if (file("src/main/jniLibs/$abi").isDirectory())
                 abiList.add(abi)
         }
