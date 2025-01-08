@@ -247,6 +247,15 @@ public class WPEView extends FrameLayout {
     public @NonNull WPECookieManager getCookieManager() { return wpeContext.getCookieManager(); }
 
     /**
+     * Sets the policy to follow when connecting to a resource with an invalid SSL certificate.
+     *
+     * @param policy pass {@code WKWebView.WEBKIT_TLS_ERRORS_POLICY_IGNORE} to ignore all SSL certificates errors
+     * (it should only be used for testing purposes), or pass {@code WKWebView.WEBKIT_TLS_ERRORS_POLICY_FAIL}
+     * to fail when trying to reach a resource with an invalid SSL certificate (default behavior).
+     */
+    public void setTLSErrorsPolicy(int policy) { wkWebView.setTLSErrorsPolicy(policy); }
+
+    /**
      * Asynchronously evaluates JavaScript in the context of the currently displayed page.
      * If non-null, {@code resultCallback} will be invoked with any result returned from that
      * execution. This method must be called on the UI thread and the callback will

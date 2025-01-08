@@ -22,6 +22,12 @@
 #include "WKWebView.h"
 
 namespace {
+// FIXME: in wpe-webkit the same WebKitSettings can be shared by different
+//        WebKitView instances which is not possible here because all the next
+//        methods are attached to a single WebKitView. We should completely
+//        review the architecture of WKSettings on the native and Java sides to
+//        reflect the architecture we have in wpe-webkit.
+
 void nativeSetNativeUserAgentString(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jstring userAgent) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)

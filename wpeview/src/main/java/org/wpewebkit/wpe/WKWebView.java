@@ -85,6 +85,9 @@ public final class WKWebView {
     public static final int WEBKIT_SCRIPT_DIALOG_PROMPT = 2;
     public static final int WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM = 3;
 
+    public static final int WEBKIT_TLS_ERRORS_POLICY_IGNORE = 0;
+    public static final int WEBKIT_TLS_ERRORS_POLICY_FAIL = 1;
+
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
@@ -234,6 +237,12 @@ public final class WKWebView {
 
     public void evaluateJavascript(@NonNull String script, @Nullable WKCallback<String> callback) {
         nativeEvaluateJavascript(nativePtr, script, callback);
+    }
+
+    public void setTLSErrorsPolicy(int policy) {
+        if ((policy == WEBKIT_TLS_ERRORS_POLICY_IGNORE) || (policy == WEBKIT_TLS_ERRORS_POLICY_FAIL)) {
+            nativeSetTLSErrorsPolicy(nativePtr, policy);
+        }
     }
 
     protected final class PageSurfaceHolderCallback implements SurfaceHolder.Callback2 {
@@ -648,4 +657,5 @@ public final class WKWebView {
     private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
     private native void nativeScriptDialogClose(long nativeDialogPtr);
     private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm, @Nullable String text);
+    private native void nativeSetTLSErrorsPolicy(long nativePtr, int policy);
 }

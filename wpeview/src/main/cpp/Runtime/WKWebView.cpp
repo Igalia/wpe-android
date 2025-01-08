@@ -264,6 +264,7 @@ private:
     static void nativeScriptDialogClose(JNIEnv* env, jobject obj, jlong dialogPtr) noexcept;
     static void nativeScriptDialogConfirm(
         JNIEnv* env, jobject obj, jlong dialogPtr, jboolean confirm, jstring text) noexcept;
+    static void nativeSetTLSErrorsPolicy(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint policy) noexcept;
 };
 
 const JNIWKWebViewCache& getJNIPageCache()
@@ -317,7 +318,8 @@ JNIWKWebViewCache::JNIWKWebViewCache()
             "nativeEvaluateJavascript", JNIWKWebViewCache::nativeEvaluateJavascript),
         JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", JNIWKWebViewCache::nativeScriptDialogClose),
         JNI::NativeMethod<void(jlong, jboolean, jstring)>(
-            "nativeScriptDialogConfirm", JNIWKWebViewCache::nativeScriptDialogConfirm));
+            "nativeScriptDialogConfirm", JNIWKWebViewCache::nativeScriptDialogConfirm),
+        JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", JNIWKWebViewCache::nativeSetTLSErrorsPolicy));
 }
 
 jlong JNIWKWebViewCache::nativeInit(
@@ -573,6 +575,24 @@ void JNIWKWebViewCache::nativeScriptDialogConfirm(
     if (webkit_script_dialog_get_dialog_type(dialog) == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
         webkit_script_dialog_prompt_set_text(dialog, JNI::String(text).getContent().get());
     webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
+}
+
+void JNIWKWebViewCache::nativeSetTLSErrorsPolicy(
+    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jint policy) noexcept
+{
+    // FIXME: normally this method should be in the WKNetworkSession class as
+    //        it is related to the network session associated with this WebView.
+    //        Unfortunately, the network session wrapped in the associated
+    //        WKNetworkSession instance is sometimes different from the result
+    //        of `webkit_web_view_get_network_session(wkWebView->webView())`.
+    //        So this method has been put here until we fix the wrapping class.
+
+    Logging::logDebug("WKWebView::nativeSetTLSErrorsPolicy(%d) [tid %d]", policy, gettid());
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        auto* networkSession = webkit_web_view_get_network_session(wkWebView->webView());
+        webkit_network_session_set_tls_errors_policy(networkSession, static_cast<WebKitTLSErrorsPolicy>(policy));
+    }
 }
 
 /***********************************************************************************************************************
