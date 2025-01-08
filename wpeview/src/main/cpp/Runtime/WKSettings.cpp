@@ -69,6 +69,14 @@ void nativeSetDeveloperExtrasEnabled(JNIEnv* /*env*/, jobject /*obj*/, jlong wkW
     }
 }
 
+void nativeSetDisableWebSecurity(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean disable) noexcept
+{
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr) {
+        WebKitSettings* settings = webkit_web_view_get_settings(wkWebView->webView());
+        webkit_settings_set_disable_web_security(settings, static_cast<gboolean>(disable));
+    }
+}
 } // namespace
 
 void WKSettings::configureJNIMappings()
@@ -83,5 +91,6 @@ void WKSettings::configureJNIMappings()
             JNI::NativeMethod<void(jlong, jboolean)>(
                 "nativeSetAllowUniversalAccessFromFileURLs", nativeSetAllowUniversalAccessFromFileURLs),
             JNI::NativeMethod<void(jlong, jboolean)>(
-                "nativeSetDeveloperExtrasEnabled", nativeSetDeveloperExtrasEnabled));
+                "nativeSetDeveloperExtrasEnabled", nativeSetDeveloperExtrasEnabled),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetDisableWebSecurity", nativeSetDisableWebSecurity));
 }

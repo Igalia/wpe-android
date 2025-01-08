@@ -59,6 +59,7 @@ public final class WKSettings {
     private boolean allowUniversalAccessFromFileUrls = false;
     private boolean allowFileAccessFromFileUrls = false;
     private boolean developerExtrasEnabled = false;
+    private boolean disableWebSecurity = false;
 
     public WKSettings(@NonNull WKWebView wkWebView) {
         this.wkWebView = wkWebView;
@@ -115,9 +116,19 @@ public final class WKSettings {
         }
     }
 
+    public boolean getDisableWebSecurity() { return disableWebSecurity; }
+
+    public void setDisableWebSecurity(boolean disable) {
+        if (disable != disableWebSecurity) {
+            disableWebSecurity = disable;
+            nativeSetDisableWebSecurity(wkWebView.getNativePtr(), disable);
+        }
+    }
+
     private native void nativeSetUserAgentString(long nativePtr, String userAgent);
     private native void nativeSetMediaPlaybackRequiresUserGesture(long nativePtr, boolean requires);
     private native void nativeSetAllowFileAccessFromFileURLs(long nativePtr, boolean flag);
     private native void nativeSetAllowUniversalAccessFromFileURLs(long nativePtr, boolean flag);
     private native void nativeSetDeveloperExtrasEnabled(long nativePtr, boolean flag);
+    private native void nativeSetDisableWebSecurity(long nativePtr, boolean disable);
 }

@@ -113,4 +113,23 @@ public class WPESettings {
      * @param flag whether developer tools, such as the Web Inspector, are enabled
      */
     public void setDeveloperExtrasEnabled(boolean flag) { wkSettings.setDeveloperExtrasEnabled(flag); }
+
+    /**
+     * Gets whether the Web security is disabled. If disabled, all CORS verifications will be ignored. This should be
+     * disabled only for testing purposes.
+     *
+     * @return whether the Web security is disabled
+     * @see #setDisableWebSecurity
+     */
+    public boolean getDisableWebSecurity() { return wkSettings.getDisableWebSecurity(); }
+
+    /**
+     * Sets whether the Web security should be disabled or not. If disabled, all CORS verifications will be ignored.
+     * This should be disabled only for testing purposes.
+     * <p>
+     * The default value is false.
+     *
+     * @param disable whether to disable or not the Web security
+     */
+    public void setDisableWebSecurity(boolean disable) { wkSettings.setDisableWebSecurity(disable); }
 }
