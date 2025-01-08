@@ -12,8 +12,8 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = 'wpe-android'
-include ':wpeview'
-include ':tools:minibrowser'
-include ':tools:mediaplayer'
-include ':tools:webdriver'
+rootProject.name = "wpe-android"
+include ":wpeview"
+include ":tools:minibrowser"
+include ":tools:mediaplayer"
+include ":tools:webdriver"

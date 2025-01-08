@@ -18,8 +18,7 @@ public class HttpResponse {
     private final Map<String, String> headers = new HashMap<>();
     private String bodyText;
 
-    private final String bodyTemplate = "<html><head><title>%s</title></head>"
-                                        + "<body>%s</body></html>";
+    private static final String bodyTemplate = "<html><head><title>%s</title></head><body>%s</body></html>";
 
     public int getStatusCode() { return statusCode; }
 

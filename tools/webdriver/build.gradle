@@ -1,53 +1,54 @@
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+    alias libs.plugins.android.application
+    alias libs.plugins.kotlin.android
 }
 
 android {
-    namespace 'org.wpewebkit.tools.webdriver'
-    compileSdk 35
+    namespace = "org.wpewebkit.tools.webdriver"
+    compileSdk = libs.versions.target.android.sdk.get().toInteger()
+    buildToolsVersion = libs.versions.android.sdk.build.tools.get()
 
     defaultConfig {
-        applicationId "org.wpewebkit.tools.webdriver"
-        minSdk 31
-        targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        minSdk = libs.versions.min.android.sdk.get().toInteger()
+        targetSdk = libs.versions.target.android.sdk.get().toInteger()
+        versionName = libs.versions.app.version.name.get()
+        versionCode = libs.versions.app.version.code.get().toInteger()
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
         }
     }
+
     buildFeatures {
-        aidl true
+        aidl = true
     }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
     }
 
     packagingOptions {
         jniLibs {
-            useLegacyPackaging true
+            useLegacyPackaging = true
         }
     }
 }
 
 dependencies {
-    implementation project(':wpeview')
-    implementation 'androidx.core:core-ktx:1.15.0'
-    implementation 'androidx.appcompat:appcompat:1.7.0'
-    implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    implementation project(":wpeview")
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.appcompat
+    implementation libs.android.material
+    implementation libs.androidx.constraintlayout
+
+    testImplementation libs.junit
+    androidTestImplementation libs.androidx.test.junit
+    androidTestImplementation libs.androidx.test.espresso
 
     modules {
         module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") {

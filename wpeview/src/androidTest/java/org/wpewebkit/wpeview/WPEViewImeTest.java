@@ -6,7 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -16,7 +16,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
@@ -24,6 +23,7 @@ public class WPEViewImeTest {
     @Rule
     public ActivityScenarioRule<WPEViewTestActivity> wpeViewActivityTestRule =
         new ActivityScenarioRule<>(WPEViewTestActivity.class);
+
     @Test
     public void testIMEVisible() throws Throwable {
         CountDownLatch latch = new CountDownLatch(1);

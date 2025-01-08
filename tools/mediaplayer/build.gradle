@@ -1,40 +1,42 @@
 plugins {
-    id 'com.android.application'
+    alias libs.plugins.android.application
 }
 
 android {
-    namespace 'org.wpewebkit.tools.mediaplayer'
-    compileSdk 35
+    namespace = "org.wpewebkit.tools.mediaplayer"
+    compileSdk = libs.versions.target.android.sdk.get().toInteger()
+    buildToolsVersion = libs.versions.android.sdk.build.tools.get()
 
     defaultConfig {
-        minSdk 31
-        targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        minSdk = libs.versions.min.android.sdk.get().toInteger()
+        targetSdk = libs.versions.target.android.sdk.get().toInteger()
+        versionName = libs.versions.app.version.name.get()
+        versionCode = libs.versions.app.version.code.get().toInteger()
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
         }
     }
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
     }
 
     packagingOptions {
         jniLibs {
-            useLegacyPackaging true
+            useLegacyPackaging = true
         }
     }
 }
 
 dependencies {
-    implementation project(':wpeview')
-    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation project(":wpeview")
+    implementation libs.androidx.appcompat
 
     modules {
         module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") {
