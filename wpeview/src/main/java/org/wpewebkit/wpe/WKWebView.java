@@ -28,6 +28,7 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.net.Uri;
+import android.net.http.SslError;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
@@ -58,9 +59,12 @@ import org.wpewebkit.wpeview.WPEResourceResponse;
 import org.wpewebkit.wpeview.WPEView;
 import org.wpewebkit.wpeview.WPEViewClient;
 
+import java.io.ByteArrayInputStream;
 import java.lang.ref.WeakReference;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -584,6 +588,88 @@ public final class WKWebView {
         });
     }
 
+    private static final class SslErrorHandlerImpl implements WPEViewClient.SslErrorHandler {
+        private final Handler m_handler;
+        private long m_nativeHandlerPtr = 0;
+
+        protected SslErrorHandlerImpl(long nativeHandlerPtr) {
+            m_nativeHandlerPtr = nativeHandlerPtr;
+
+            Looper looper = Looper.myLooper();
+            if (looper == null) {
+                looper = Looper.getMainLooper();
+            }
+            m_handler = new Handler(looper);
+        }
+
+        private void triggerSslErrorHandler(boolean acceptCertificate) {
+            if (m_nativeHandlerPtr != 0) {
+                nativeTriggerSslErrorHandler(m_nativeHandlerPtr, acceptCertificate);
+                m_nativeHandlerPtr = 0;
+            }
+        }
+
+        private void executeOrPostTask(Runnable task) {
+            if (Looper.myLooper() == m_handler.getLooper()) {
+                task.run();
+            } else {
+                m_handler.post(task);
+            }
+        }
+
+        @Override
+        public void proceed() {
+            executeOrPostTask(() -> triggerSslErrorHandler(true));
+        }
+
+        @Override
+        public void cancel() {
+            executeOrPostTask(() -> triggerSslErrorHandler(false));
+        }
+
+        @Override
+        protected void finalize() throws Throwable {
+            cancel();
+        }
+    }
+
+    @Keep
+    private boolean onReceivedSslError(@NonNull String failingURI, @NonNull String certificatePEM,
+                                       @NonNull int[] sslErrors, long nativeHandlerPtr) {
+        Log.d(LOGTAG, "onReceivedSslError()");
+        if (wpeViewClient == null) {
+            return false;
+        }
+
+        SslError sslError;
+        try {
+            CertificateFactory factory = CertificateFactory.getInstance("X.509");
+            X509Certificate certificate =
+                (X509Certificate)factory.generateCertificate(new ByteArrayInputStream(certificatePEM.getBytes()));
+
+            sslError = new SslError(sslErrors[0], certificate, failingURI);
+            for (int i = 1; i < sslErrors.length; ++i) {
+                sslError.addError(sslErrors[i]);
+            }
+        } catch (Exception e) {
+            Log.e(LOGTAG, "Error while wrapping the SSL certificate in onReceivedSslError()", e);
+            return false;
+        }
+
+        SslErrorHandlerImpl handler = new SslErrorHandlerImpl(nativeHandlerPtr);
+        try {
+            wpeViewClient.onReceivedSslError(wpeView, handler, sslError);
+        } catch (Exception e) {
+            Log.e(LOGTAG,
+                  "Exception thrown while calling WPEViewClient.onReceivedSslError(), certificate is "
+                      + "automatically rejected",
+                  e);
+            handler.cancel();
+        }
+
+        return true;
+    }
+
     @Keep
     private void onEnterFullscreenMode() {
         Log.d(LOGTAG, "onEnterFullscreenMode()");
@@ -658,4 +744,6 @@ public final class WKWebView {
     private native void nativeScriptDialogClose(long nativeDialogPtr);
     private native void nativeScriptDialogConfirm(long nativeDialogPtr, boolean confirm, @Nullable String text);
     private native void nativeSetTLSErrorsPolicy(long nativePtr, int policy);
+
+    protected static native void nativeTriggerSslErrorHandler(long nativeHandlerPtr, boolean acceptCertificate);
 }

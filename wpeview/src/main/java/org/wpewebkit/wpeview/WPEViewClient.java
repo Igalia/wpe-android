@@ -21,6 +21,8 @@
 
 package org.wpewebkit.wpeview;
 
+import android.net.http.SslError;
+
 import androidx.annotation.NonNull;
 
 public class WPEViewClient {
@@ -61,4 +63,38 @@ public class WPEViewClient {
      */
     public void onReceivedHttpError(@NonNull WPEView view, @NonNull WPEResourceRequest request,
                                     @NonNull WPEResourceResponse errorResponse) {}
+
+    /**
+     * The interface used to accept or reject an invalid SSL certificate.
+     *
+     * @see #onReceivedSslError
+     */
+    public interface SslErrorHandler {
+        /**
+         * Call this method to accept an invalid SSL certificate.
+         *
+         * @see #onReceivedSslError
+         */
+        void proceed();
+
+        /**
+         * Call this method to reject an invalid SSL certificate.
+         *
+         * @see #onReceivedSslError
+         */
+        void cancel();
+    }
+
+    /**
+     * Notify the host application that the loading of an HTTPS resource has failed because of error(s) with the SSL
+     * certificate.
+     *
+     * @param view The WPEView that is initiating the callback.
+     * @param handler The host application must call either {@code SslErrorHandler.cancel()} or {@code SslErrorHandler
+     * .proceed()} to reject the invalid SSL certificate (default behavior) or to accept it (in this case it will be
+     * accepted for all further calls to the same host with the same certificate). Accepting an invalid certificate
+     * will automatically reload the web page right after registering the certificate.
+     * @param error The SSL error(s) which happened.
+     */
+    public void onReceivedSslError(@NonNull WPEView view, @NonNull SslErrorHandler handler, @NonNull SslError error) {}
 }
