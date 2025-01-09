@@ -43,6 +43,93 @@ void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
 
 const int httpErrorsStart = 400;
 
+class SslErrorHandler final {
+public:
+    static SslErrorHandler* createHandler(
+        WebKitWebView* webView, GTlsCertificate* certificate, const char* failingURI, gchar** certificatePEM) noexcept
+    {
+        if (!webView || !certificate || !failingURI || !*failingURI || !certificatePEM) {
+            return nullptr;
+        }
+
+        gchar* host = nullptr;
+        // NOLINTBEGIN(clang-analyzer-optin.core.EnumCastOutOfRange)
+        GUri* uri
+            = g_uri_parse(failingURI, static_cast<GUriFlags>(G_URI_FLAGS_PARSE_RELAXED | G_URI_FLAGS_ENCODED), nullptr);
+        // NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
+        if (uri) {
+            const char* str = g_uri_get_host(uri);
+            if (str) {
+                host = g_strdup(str);
+            }
+            g_uri_unref(uri);
+        }
+        if (!host) {
+            return nullptr;
+        }
+
+        *certificatePEM = nullptr;
+        g_object_get(certificate, "certificate-pem", certificatePEM, nullptr);
+        if (!*certificatePEM) {
+            g_free(host);
+            return nullptr;
+        }
+
+        return new SslErrorHandler(webView, certificate, g_strdup(failingURI), host);
+    }
+
+    ~SslErrorHandler()
+    {
+        handlingFinished();
+        g_weak_ref_clear(&m_webViewWeakRef);
+    }
+
+    SslErrorHandler(SslErrorHandler&&) = delete;
+    SslErrorHandler& operator=(SslErrorHandler&&) = delete;
+    SslErrorHandler(const SslErrorHandler&) = delete;
+    SslErrorHandler& operator=(const SslErrorHandler&) = delete;
+
+    void acceptCertificate() noexcept
+    {
+        auto* webView = static_cast<WebKitWebView*>(g_weak_ref_get(&m_webViewWeakRef));
+        if (webView) {
+            auto* networkSession = webkit_web_view_get_network_session(webView);
+            if (networkSession) {
+                webkit_network_session_allow_tls_certificate_for_host(networkSession, m_certificate, m_host);
+                g_object_unref(networkSession);
+
+                webkit_web_view_load_uri(webView, m_failingURI);
+            }
+            g_object_unref(webView);
+        }
+        handlingFinished();
+    }
+
+    void rejectCertificate() noexcept { handlingFinished(); }
+
+private:
+    GWeakRef m_webViewWeakRef = {};
+    GTlsCertificate* m_certificate = nullptr;
+    gchar* m_failingURI = nullptr;
+    gchar* m_host = nullptr;
+
+    SslErrorHandler(WebKitWebView* webView, GTlsCertificate* certificate, gchar* failingURI, gchar* host) noexcept
+        : m_failingURI(failingURI)
+        , m_host(host)
+    {
+        g_weak_ref_init(&m_webViewWeakRef, webView);
+        m_certificate = g_object_ref(certificate);
+    }
+
+    void handlingFinished() noexcept
+    {
+        g_weak_ref_set(&m_webViewWeakRef, nullptr);
+        g_clear_object(&m_certificate);
+        g_clear_pointer(&m_failingURI, g_free);
+        g_clear_pointer(&m_host, g_free);
+    }
+};
+
 } // namespace
 
 /***********************************************************************************************************************
@@ -92,7 +179,7 @@ public:
             static_cast<jboolean>(webkit_web_view_can_go_forward(webView)));
     }
 
-    static gboolean onScriptDialog(WKWebView* wkWebView, WebKitScriptDialog* dialog, WebKitWebView* webView)
+    static gboolean onScriptDialog(WKWebView* wkWebView, WebKitScriptDialog* dialog, WebKitWebView* webView) noexcept
     {
         auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
         auto jActiveURL = JNI::String(webkit_web_view_get_uri(webView));
@@ -108,7 +195,7 @@ public:
     }
 
     static gboolean onDecidePolicy(WKWebView* wkWebView, WebKitPolicyDecision* decision,
-        WebKitPolicyDecisionType decisionType, WebKitWebView* /*webView*/)
+        WebKitPolicyDecisionType decisionType, WebKitWebView* /*webView*/) noexcept
     {
         if (decisionType != WEBKIT_POLICY_DECISION_TYPE_RESPONSE)
             return FALSE;
@@ -164,6 +251,72 @@ public:
         return FALSE;
     }
 
+    static gboolean onReceivedSslError(WKWebView* wkWebView, char* failingURI, GTlsCertificate* certificate,
+        GTlsCertificateFlags errorFlags, WebKitWebView* webView) noexcept
+    {
+        if (wkWebView->m_webView != webView) {
+            return FALSE;
+        }
+
+        gchar* certificatePEM = nullptr;
+        SslErrorHandler* handler = SslErrorHandler::createHandler(webView, certificate, failingURI, &certificatePEM);
+        if (!handler) {
+            return FALSE;
+        }
+
+        auto jFailingURI = JNI::String(failingURI);
+        auto jCertificatePEM = JNI::String(certificatePEM);
+        g_free(certificatePEM);
+
+        // Android SslError values are:
+        // (https://developer.android.com/reference/android/net/http/SslError#constants_1)
+        //
+        // SSL_NOTYETVALID = 0x00
+        // SSL_EXPIRED = 0x01
+        // SSL_IDMISMATCH = 0x02
+        // SSL_UNTRUSTED = 0x03
+        // SSL_DATE_INVALID = 0x04
+        // SSL_INVALID = 0x05
+        int nbErrors = 0;
+        int errors[5] = {0};
+        if (errorFlags & (G_TLS_CERTIFICATE_UNKNOWN_CA | G_TLS_CERTIFICATE_REVOKED)) {
+            errors[nbErrors++] = 0x03; // SSL_UNTRUSTED
+        }
+        if (errorFlags & G_TLS_CERTIFICATE_EXPIRED) {
+            errors[nbErrors++] = 0x01; // SSL_EXPIRED
+        }
+        if (errorFlags & G_TLS_CERTIFICATE_NOT_ACTIVATED) {
+            errors[nbErrors++] = 0x00; // SSL_NOTYETVALID
+        }
+        if (errorFlags & G_TLS_CERTIFICATE_BAD_IDENTITY) {
+            errors[nbErrors++] = 0x02; // SSL_IDMISMATCH
+        }
+        if ((errorFlags & (G_TLS_CERTIFICATE_INSECURE | G_TLS_CERTIFICATE_GENERIC_ERROR)) || (nbErrors == 0)) {
+            errors[nbErrors++] = 0x05; // SSL_INVALID
+        }
+
+        auto jErrorsArray = JNI::ScalarArray<jint>(nbErrors);
+        nbErrors = 0;
+        for (auto& arrayValue : jErrorsArray.getContent()) {
+            arrayValue = errors[nbErrors++];
+        }
+
+        try {
+            if (!getJNIPageCache().m_onReceivedSslError.invoke(wkWebView->m_webViewJavaInstance.get(),
+                    static_cast<jstring>(jFailingURI), static_cast<jstring>(jCertificatePEM),
+                    static_cast<jintArray>(jErrorsArray), reinterpret_cast<jlong>(handler))) {
+                delete handler;
+                return FALSE;
+            }
+
+            return TRUE;
+        } catch (const std::exception& ex) {
+            Logging::logError("Cannot send the [received SSL error] event to Java runtime (%s)", ex.what());
+            delete handler;
+            return FALSE;
+        }
+    }
+
     static bool onFullscreenRequest(WKWebView* wkWebView, bool fullscreen) noexcept
     {
         if (wkWebView->m_viewBackend != nullptr) {
@@ -184,7 +337,7 @@ public:
 
     void onInputMethodContextOut(jobject obj) const noexcept { callJavaMethod(m_onInputMethodContextOut, obj); }
 
-    static void onEvaluateJavascriptReady(WebKitWebView* webView, GAsyncResult* result, JNIWKCallback callback)
+    static void onEvaluateJavascriptReady(WebKitWebView* webView, GAsyncResult* result, JNIWKCallback callback) noexcept
     {
         GError* error = nullptr;
         JSCValue* value = webkit_web_view_evaluate_javascript_finish(webView, result, &error);
@@ -232,6 +385,7 @@ private:
     const JNI::Method<jboolean(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void()> m_onInputMethodContextIn;
     const JNI::Method<void()> m_onInputMethodContextOut;
+    const JNI::Method<jboolean(jstring, jstring, jintArray, jlong)> m_onReceivedSslError;
     const JNI::Method<void()> m_onEnterFullscreenMode;
     const JNI::Method<void()> m_onExitFullscreenMode;
     const JNI::Method<void(jstring, jstring, jstringArray, jstring, jint, jstringArray)> m_onReceivedHttpError;
@@ -265,6 +419,9 @@ private:
     static void nativeScriptDialogConfirm(
         JNIEnv* env, jobject obj, jlong dialogPtr, jboolean confirm, jstring text) noexcept;
     static void nativeSetTLSErrorsPolicy(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint policy) noexcept;
+
+    static void nativeTriggerSslErrorHandler(
+        JNIEnv* env, jclass klass, jlong handlerPtr, jboolean acceptCertificate) noexcept;
 };
 
 const JNIWKWebViewCache& getJNIPageCache()
@@ -283,6 +440,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     , m_onInputMethodContextIn(getMethod<void()>("onInputMethodContextIn"))
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
+    , m_onReceivedSslError(getMethod<jboolean(jstring, jstring, jintArray, jlong)>("onReceivedSslError"))
     , m_onEnterFullscreenMode(getMethod<void()>("onEnterFullscreenMode"))
     , m_onExitFullscreenMode(getMethod<void()>("onExitFullscreenMode"))
     , m_onReceivedHttpError(
@@ -319,7 +477,9 @@ JNIWKWebViewCache::JNIWKWebViewCache()
         JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", JNIWKWebViewCache::nativeScriptDialogClose),
         JNI::NativeMethod<void(jlong, jboolean, jstring)>(
             "nativeScriptDialogConfirm", JNIWKWebViewCache::nativeScriptDialogConfirm),
-        JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", JNIWKWebViewCache::nativeSetTLSErrorsPolicy));
+        JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", JNIWKWebViewCache::nativeSetTLSErrorsPolicy),
+        JNI::StaticNativeMethod<void(jlong, jboolean)>(
+            "nativeTriggerSslErrorHandler", JNIWKWebViewCache::nativeTriggerSslErrorHandler));
 }
 
 jlong JNIWKWebViewCache::nativeInit(
@@ -595,6 +755,22 @@ void JNIWKWebViewCache::nativeSetTLSErrorsPolicy(
     }
 }
 
+void JNIWKWebViewCache::nativeTriggerSslErrorHandler(
+    JNIEnv* /*env*/, jclass /*klass*/, jlong handlerPtr, jboolean acceptCertificate) noexcept
+{
+    Logging::logDebug(
+        "WKWebView::nativeTriggerSslErrorHandler(%s) [tid %d]", acceptCertificate ? "true" : "false", gettid());
+    auto* handler = reinterpret_cast<SslErrorHandler*>(handlerPtr); // NOLINT(performance-no-int-to-ptr)
+    if (handler != nullptr) {
+        if (acceptCertificate) {
+            handler->acceptCertificate();
+        } else {
+            handler->rejectCertificate();
+        }
+        delete handler;
+    }
+}
+
 /***********************************************************************************************************************
  * Native WKWebView class implementation
  **********************************************************************************************************************/
@@ -640,6 +816,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "script-dialog", G_CALLBACK(JNIWKWebViewCache::onScriptDialog), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "decide-policy", G_CALLBACK(JNIWKWebViewCache::onDecidePolicy), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "load-failed-with-tls-errors", G_CALLBACK(JNIWKWebViewCache::onReceivedSslError), this));
 
     wpe_view_backend_set_fullscreen_handler(wpeBackend,
         reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIWKWebViewCache::onFullscreenRequest), this);
