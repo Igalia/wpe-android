@@ -47,6 +47,13 @@ public class HttpRequest {
             throw new InvalidRequest(); // End of stream reached, invalid request
         }
 
+        if (requestLine.isEmpty()) {
+            requestLine = reader.readLine();
+            if (requestLine == null) {
+                throw new InvalidRequest(); // End of stream reached, invalid request
+            }
+        }
+
         String[] requestLineParts = requestLine.split(" ");
         if (requestLineParts.length < 3) {
             throw new InvalidRequest(); // Malformed request line

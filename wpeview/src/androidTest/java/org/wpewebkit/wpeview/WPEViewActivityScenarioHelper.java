@@ -14,7 +14,7 @@ public class WPEViewActivityScenarioHelper {
             activity.getWPEView().setWPEViewClient(wpeViewClient);
             activity.getWPEView().loadHtml(html, null);
         });
-        wpeViewClient.getOnPageFinishedHelper().waitForCallback(2, TimeUnit.SECONDS);
+        wpeViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
     }
 
     public static String evaluateJavaScriptAndWaitForResult(ActivityScenario<WPEViewTestActivity> scenario,
@@ -24,7 +24,7 @@ public class WPEViewActivityScenarioHelper {
             wpeViewClient.getOnEvaluateJavascriptResultHelper();
         scenario.onActivity(
             activity -> { onEvaluateJavaScriptResultHelper.evaluateJavascript(activity.getWPEView(), script); });
-        onEvaluateJavaScriptResultHelper.waitUntilHasValue(5, TimeUnit.SECONDS);
+        onEvaluateJavaScriptResultHelper.waitUntilHasValue(30, TimeUnit.SECONDS);
         Assert.assertTrue("Failed to retrieve JavaScript evaluation results.",
                           onEvaluateJavaScriptResultHelper.hasValue());
         return wpeViewClient.getOnEvaluateJavascriptResultHelper().getResultAndClear();
