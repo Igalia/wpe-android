@@ -1,5 +1,5 @@
 [versions]
-wpeview = "0.1.2"
+wpeview = "0.1.3"
 min-android-sdk = "31"
 target-android-sdk = "35"
 android-ndk = "27.0.12077973"
