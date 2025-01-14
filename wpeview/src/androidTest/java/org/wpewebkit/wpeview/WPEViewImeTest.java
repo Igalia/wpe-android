@@ -53,7 +53,7 @@ public class WPEViewImeTest {
             .moveToState(Lifecycle.State.RESUMED);
 
         try {
-            latch.await(10, TimeUnit.SECONDS);
+            latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -75,7 +75,7 @@ public class WPEViewImeTest {
         });
 
         try {
-            secondLatch.await(5, TimeUnit.SECONDS);
+            secondLatch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

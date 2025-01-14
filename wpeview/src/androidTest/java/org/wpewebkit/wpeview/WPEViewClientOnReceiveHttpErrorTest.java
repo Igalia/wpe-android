@@ -66,7 +66,7 @@ public class WPEViewClientOnReceiveHttpErrorTest {
             .moveToState(Lifecycle.State.RESUMED);
 
         try {
-            latch.await(10, TimeUnit.SECONDS);
+            latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

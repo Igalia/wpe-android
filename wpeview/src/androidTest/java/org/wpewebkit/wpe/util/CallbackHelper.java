@@ -8,7 +8,7 @@ public class CallbackHelper {
 
     public void waitForCallback(long timeout, TimeUnit unit) {
         try {
-            latch.await(timeout, TimeUnit.SECONDS);
+            latch.await(timeout, unit);
         } catch (InterruptedException e) {
             // Ignore the InterruptedException.
         }

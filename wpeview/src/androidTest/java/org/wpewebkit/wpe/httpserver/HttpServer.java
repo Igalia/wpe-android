@@ -18,6 +18,7 @@ public class HttpServer {
     private static final String TAG = "HttpServer";
 
     private final ServerThread serverThread;
+    private final Object serverThreadStarted = new Object();
     private String serverUri;
 
     private final Object lock = new Object();
@@ -27,6 +28,8 @@ public class HttpServer {
         serverThread = new ServerThread(port);
         setServerHost("localhost");
         serverThread.start();
+
+        synchronized (serverThreadStarted) { serverThreadStarted.wait(10000); }
     }
 
     public static HttpServer start() throws Exception { return new HttpServer(0); }
@@ -114,6 +117,8 @@ public class HttpServer {
 
         @Override
         public void run() {
+            synchronized (serverThreadStarted) { serverThreadStarted.notify(); }
+
             try {
                 while (!isCancelled()) {
                     try {
