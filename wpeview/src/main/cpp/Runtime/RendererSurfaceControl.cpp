@@ -149,7 +149,8 @@ void RendererSurfaceControl::onTransActionAckOnBrowserThread(
             continue;
         }
 
-        resourceIterator->second.m_scopedBuffer->setReleaseFenceFD(surfaceStat.m_fence);
+        if (surfaceStat.m_fence)
+            resourceIterator->second.m_scopedBuffer->setReleaseFenceFD(surfaceStat.m_fence);
         m_releaseBufferQueue.push(std::move(resourceIterator->second.m_scopedBuffer));
     }
     releasedResources.clear();
