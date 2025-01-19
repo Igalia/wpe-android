@@ -56,7 +56,7 @@ public:
     uint32_t width() const noexcept { return m_size.m_width; }
     uint32_t height() const noexcept { return m_size.m_height; }
 
-    int getReleaseFenceFD() const { return m_releaseFenceFD->get(); }
+    int getReleaseFenceFD() const { return m_releaseFenceFD ? m_releaseFenceFD->get() : -1; }
     void setReleaseFenceFD(std::shared_ptr<ScopedFD> releaseFenceFD) { m_releaseFenceFD = std::move(releaseFenceFD); }
 
 private:
