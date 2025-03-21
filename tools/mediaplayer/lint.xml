@@ -4,4 +4,8 @@
     <issue id="LogConditional" severity="ignore" />
     <issue id="InvalidPackage" severity="ignore" />
     <issue id="MonochromeLauncherIcon" severity="ignore" />
+
+    <issue id="AndroidGradlePluginVersion" severity="warning" />
+    <issue id="NewerVersionAvailable" severity="warning" />
+    <issue id="GradleDependency" severity="warning" />
 </lint>

@@ -5,4 +5,8 @@
     </issue>
     <issue id="LogConditional" severity="ignore" />
     <issue id="ChromeOsAbiSupport" severity="ignore" />
+
+    <issue id="AndroidGradlePluginVersion" severity="warning" />
+    <issue id="NewerVersionAvailable" severity="warning" />
+    <issue id="GradleDependency" severity="warning" />
 </lint>
