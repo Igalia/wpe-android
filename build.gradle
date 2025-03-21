@@ -55,3 +55,17 @@ gradle.afterProject { project ->
         }
     }
 }
+
+subprojects {
+    afterEvaluate {
+        if (getPlugins().hasPlugin('android') || getPlugins().hasPlugin('android-library')) {
+            configure(android.lint) {
+                checkDependencies = true
+                warningsAsErrors = false
+                ignoreWarnings = false
+                sarifReport = true
+                sarifOutput = file("build/sarif-reports/lint-${name}.sarif")
+            }
+        }
+    }
+}
