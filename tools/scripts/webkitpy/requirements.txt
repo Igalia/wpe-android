@@ -5,3 +5,4 @@ pytest_timeout==2.1.0
 pytest_asyncio==0.18.3
 requests==2.24
 websockets==8.1
+urllib3==2.3
