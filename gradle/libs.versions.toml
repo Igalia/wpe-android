@@ -13,6 +13,7 @@ kotlin = "2.1.0"
 vanniktech = "0.30.0"
 androidx-navigation-safeargs = "2.8.5"
 
+androidx-activity = "1.10.1"
 androidx-annotation = "1.9.1"
 androidx-test-runner = "1.6.2"
 androidx-test-rules = "1.6.1"
@@ -36,6 +37,7 @@ vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version.ref = 
 androidx-navigation-safeargs = { id = "androidx.navigation.safeargs", version.ref = "androidx-navigation-safeargs" }
 
 [libraries]
+androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "androidx-activity" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidx-annotation" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidx-test-runner" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidx-test-rules" }

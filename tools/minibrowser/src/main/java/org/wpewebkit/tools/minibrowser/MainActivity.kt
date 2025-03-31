@@ -26,6 +26,7 @@ package org.wpewebkit.tools.minibrowser
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.fragment.NavHostFragment
 import org.wpewebkit.tools.minibrowser.databinding.ActivityMainBinding
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
+        enableEdgeToEdge();
         binding = ActivityMainBinding.inflate(layoutInflater)
     }
 
