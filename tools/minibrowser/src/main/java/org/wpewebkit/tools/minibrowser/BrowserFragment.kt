@@ -102,7 +102,12 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
         ViewCompat.setOnApplyWindowInsetsListener(binding.main) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.updatePadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            val padding = if (insets.isVisible(WindowInsetsCompat.Type.ime())) {
+                androidx.core.graphics.Insets.max(systemBars, insets.getInsets(WindowInsetsCompat.Type.ime()))
+            } else {
+                systemBars
+            }
+            v.updatePadding(padding.left, padding.top, padding.right, padding.bottom)
             WindowInsetsCompat.CONSUMED
         }
 
