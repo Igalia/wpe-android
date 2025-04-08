@@ -81,7 +81,7 @@ from urllib.request import urlretrieve
 
 class Bootstrap:
     default_arch = "arm64"
-    default_version = "2.46.7"
+    default_version = "2.48.2"
 
     _cerbero_origin = "https://github.com/Igalia/wpe-android-cerbero.git"
     _cerbero_branch = "main"
@@ -275,7 +275,7 @@ class Bootstrap:
 
         runtime_file_path = os.path.join(self._project_build_dir,
                                          self._runtime_package_name_template.format(arch=self._arch, version=version))
-        subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib"])
+        subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib", "share"])
 
     def _copy_headers(self, target_dir):
         shutil.rmtree(target_dir, True)
@@ -347,7 +347,7 @@ class Bootstrap:
         shutil.rmtree(target_dir, True)
         os.makedirs(target_dir)
         sysroot_inspector_resources_file = os.path.join(
-            self._sysroot_dir, "lib", "wpe-webkit-2.0", "libWPEWebInspectorResources.so")
+            self._sysroot_dir, "share", "wpe-webkit-2.0", "inspector.gresource")
         shutil.copy(sysroot_inspector_resources_file, target_dir)
         sysroot_injected_bundle_file = os.path.join(
             self._sysroot_dir, "lib", "wpe-webkit-2.0", "injected-bundle", "libWPEInjectedBundle.so")
