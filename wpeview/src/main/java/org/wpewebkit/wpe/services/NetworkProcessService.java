@@ -36,7 +36,7 @@ public class NetworkProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the gio
     // modules or else they won't be applied.
-    private static final String assetsVersion = "network_process_assets_gst1.24.7";
+    private static final String assetsVersion = "network_process_assets_2.48.2_gst_1.24.8";
 
     @Override
     protected void loadNativeLibraries() {

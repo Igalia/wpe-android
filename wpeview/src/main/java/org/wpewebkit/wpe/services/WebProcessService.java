@@ -44,7 +44,7 @@ public class WebProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "web_process_assets_gst1.24.7";
+    private static final String assetsVersion = "web_process_assets_2.48.2_gst_1.24.8";
 
     @Override
     protected void loadNativeLibraries() {
@@ -121,6 +121,9 @@ public class WebProcessService extends WPEService {
         envStrings.add("XDG_DATA_HOME");
         envStrings.add(filesPath);
         envStrings.add("WEBKIT_INJECTED_BUNDLE_PATH");
+        envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
+        // TODO: Move elsewhere than the injected bundle path.
+        envStrings.add("WEBKIT_INSPECTOR_RESOURCES_PATH");
         envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
 
         if ((appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == ApplicationInfo.FLAG_DEBUGGABLE) {
