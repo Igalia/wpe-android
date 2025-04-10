@@ -241,7 +241,10 @@ class Bootstrap:
             subprocess.check_call(["git", "clone", "--branch", self._cerbero_branch,
                                   self._cerbero_origin, "cerbero"], cwd=self._project_build_dir)
 
-        subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+        try:
+            subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+        except subprocess.CalledProcessError as e:
+            sys.exit(e)
         if self._debug:
             self._patch_wpewebkit_recipe_for_debug_build()
 
@@ -252,8 +255,11 @@ class Bootstrap:
         print("Building dependencies with Cerbero...")
 
         os.makedirs(self._project_build_dir, exist_ok=True)
-        subprocess.check_call(self._cerbero_command_args +
-                              ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+        try:
+            subprocess.check_call(self._cerbero_command_args +
+                                  ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+        except subprocess.CalledProcessError as e:
+            sys.exit(e)
         return self._get_package_version("wpewebkit")
 
     def extract_deps(self, version):
@@ -396,6 +402,12 @@ class Bootstrap:
                 shutil.copyfile(lib_path, os.path.join(target_dir, filename), follow_symlinks=False)
 
     def _resolve_deps(self, system_lib_dir, plugins_dir_list):
+        """This method identifies the two categories of WPE WebKit dependencies.
+
+        - "NEEDED but not provided" refers to libraries not built by Cerbero since Android already provides them.
+        - "Provided but not NEEDED" refers to libraries not listed in libWPEWebKit.so's ELF header, but packaged anyway,
+        as they are typically dlopen'd at runtime.
+        """
         soname_set = set()
         needed_set = set(self._base_needed)
 
@@ -484,7 +496,19 @@ class Bootstrap:
             self._create_android_wrapper_script(os.path.join(
                 self._project_root_dir, "tools", "minibrowser", "src", "main", "resources", "lib", android_abi))
 
+    def ensure_script_deps(self):
+        script_deps = ["readelf", "tar"]
+        if self._build:
+            script_deps += ["git"]
+        missing_deps = [dep for dep in script_deps if not shutil.which(dep)]
+        if len(missing_deps) > 0:
+            raise Exception("Unsatisfied dependencies: this script needs {0} to run".format(", ".join(missing_deps)))
+
     def run(self):
+        try:
+            self.ensure_script_deps()
+        except Exception as e:
+            sys.exit(e)
         version = self.default_version
         if self._external_cerbero_build_path:
             version = self.copy_all_packages_from_external_cerbero_build()
