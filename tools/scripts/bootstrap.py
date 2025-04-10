@@ -402,6 +402,12 @@ class Bootstrap:
                 shutil.copyfile(lib_path, os.path.join(target_dir, filename), follow_symlinks=False)
 
     def _resolve_deps(self, system_lib_dir, plugins_dir_list):
+        """This method identifies the two categories of WPE WebKit dependencies.
+
+        - "NEEDED but not provided" refers to libraries not built by Cerbero since Android already provides them.
+        - "Provided but not NEEDED" refers to libraries not listed in libWPEWebKit.so's ELF header, but packaged anyway,
+        as they are typically dlopen'd at runtime.
+        """
         soname_set = set()
         needed_set = set(self._base_needed)
 
