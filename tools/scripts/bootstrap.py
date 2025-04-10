@@ -241,7 +241,10 @@ class Bootstrap:
             subprocess.check_call(["git", "clone", "--branch", self._cerbero_branch,
                                   self._cerbero_origin, "cerbero"], cwd=self._project_build_dir)
 
-        subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+        try:
+            subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+        except subprocess.CalledProcessError as e:
+            sys.exit(e)
         if self._debug:
             self._patch_wpewebkit_recipe_for_debug_build()
 
@@ -252,8 +255,11 @@ class Bootstrap:
         print("Building dependencies with Cerbero...")
 
         os.makedirs(self._project_build_dir, exist_ok=True)
-        subprocess.check_call(self._cerbero_command_args +
-                              ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+        try:
+            subprocess.check_call(self._cerbero_command_args +
+                                  ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+        except subprocess.CalledProcessError as e:
+            sys.exit(e)
         return self._get_package_version("wpewebkit")
 
     def extract_deps(self, version):
