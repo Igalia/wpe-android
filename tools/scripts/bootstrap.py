@@ -484,7 +484,19 @@ class Bootstrap:
             self._create_android_wrapper_script(os.path.join(
                 self._project_root_dir, "tools", "minibrowser", "src", "main", "resources", "lib", android_abi))
 
+    def ensure_script_deps(self):
+        script_deps = ["readelf", "tar"]
+        if self._build:
+            script_deps += ["git"]
+        missing_deps = [dep for dep in script_deps if not shutil.which(dep)]
+        if len(missing_deps) > 0:
+            raise Exception("Unsatisfied dependencies: this script needs {0} to run".format(", ".join(missing_deps)))
+
     def run(self):
+        try:
+            self.ensure_script_deps()
+        except Exception as e:
+            sys.exit(e)
         version = self.default_version
         if self._external_cerbero_build_path:
             version = self.copy_all_packages_from_external_cerbero_build()
