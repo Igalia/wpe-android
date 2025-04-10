@@ -44,9 +44,22 @@ To see WPEView in action check the [tools](tools) folder.
 
 ## Setting up your environment
 
-### python3
+A "bootstrap" Python script is available to **fetch** or **build** the dependencies needed by wpe-android.
 
-The bootstrap script requires [python3](https://www.python.org/downloads/).
+Besides [python3](https://www.python.org/downloads/), additional dependencies are required:
+
+### Dependencies needed for fetching
+
+ * `readelf` is needed to identify wpe-android direct or indirect dependencies
+ * `tar` is needed to unpack downloaded dependencies
+
+### Dependencies needed for building
+
+ * `git` is needed to check out Cerbero
+ * `python3-distro` and `python3-venv` are needed by Cerbero
+ * `ruby` and `unifdef` are required to  build WPE WebKit
+
+## Using the bootstrap script
 
 ### Getting the dependencies
 
@@ -61,6 +74,8 @@ To ease the cross-compilation process we use
 ```
 
 This command will fetch the required binaries and place them in the expected location.
+
+### Building the dependencies
 
 If you want to build (and/or modify) the dependencies you can pass the `--build` option:
 
@@ -84,7 +99,9 @@ For example, device debug build dependencies can be generated using
 ```bash
 ./tools/scripts/bootstrap.py --build --debug --arch=arm64
 ```
-### Android Project
+
+## Android Project
+
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
 you should be able to generate android project from gradle files.
 ```bash
@@ -143,7 +160,7 @@ pip install selenium
 
 ### 2. Create python Selenium script
 
-Save following as simple_test.py
+Save the following as `simple_test.py`
 
 ```bash
 from selenium import webdriver
@@ -161,6 +178,7 @@ driver = webdriver.Remote(command_executor="http://127.0.0.1:8888", options=opti
 driver.get('http://www.wpewebkit.org')
 driver.quit()
 ```
+
 ### 3. Run webdriver application on emulator
 
 From android studio run webdriver application on x86-64 emulator.
