@@ -53,7 +53,8 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
 
     // Mangled C++ symbols for WebKit::{Web,Network}ProcessMain(int, char**)
     static constexpr const char* const entrypointName[static_cast<int>(ProcessType::TypesCount)]
-        = {"_ZN6WebKit14WebProcessMainEiPPc", "_ZN6WebKit18NetworkProcessMainEiPPc", "android_WebDriverProcess_main"};
+        = {"_ZN6WebKit14WebProcessMainEiPPc", "_ZN6WebKit18NetworkProcessMainEiPPc",
+            "_ZN6WebKit20WebDriverProcessMainEiPPc"};
 
     using ProcessEntryPoint = int(int, char**);
     auto* entrypoint
