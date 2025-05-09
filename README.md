@@ -57,7 +57,7 @@ Besides [python3](https://www.python.org/downloads/), additional dependencies ar
 
  * `git` is needed to check out Cerbero
  * `python3-distro` and `python3-venv` are needed by Cerbero
- * `ruby` and `unifdef` are required to  build WPE WebKit
+ * `ruby` and `unifdef` are required to  build WPE WebKit. On distros such as Arch Linux, you will need to include `ruby-getoptlong` and `ruby-erb`
 
 ## Using the bootstrap script
 
