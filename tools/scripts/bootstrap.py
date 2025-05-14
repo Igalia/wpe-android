@@ -81,7 +81,7 @@ from urllib.request import urlretrieve
 
 class Bootstrap:
     default_arch = "arm64"
-    default_version = "2.46.7"
+    default_version = "2.47.1"
 
     _cerbero_origin = "https://github.com/Igalia/wpe-android-cerbero.git"
     _cerbero_branch = "main"
@@ -100,7 +100,7 @@ class Bootstrap:
         "libgobject-2.0.so",
         "libwpe-1.0.so",
         "libWPEBackend-android.so",
-        "libWPEWebKit-2.0_1.so"
+        "libWPEWebKit-2.0_2.so"
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
@@ -112,9 +112,9 @@ class Bootstrap:
     ]
     _soname_replacements = [
         ("libnettle.so.8", "libnettle_8.so"),  # This entry is not retrievable from the packaged libnettle.so
-        ("libWPEWebKit-2.0.so.1", "libWPEWebKit-2.0_1.so")  # This is for libWPEInjectedBundle.so
+        ("libWPEWebKit-2.0.so.2", "libWPEWebKit-2.0_2.so")  # This is for libWPEInjectedBundle.so
     ]
-    _base_needed = ["libWPEWebKit-2.0_1.so"]
+    _base_needed = ["libWPEWebKit-2.0_2.so"]
 
     def __init__(self, args=None):
         args = args or {}
@@ -275,7 +275,7 @@ class Bootstrap:
 
         runtime_file_path = os.path.join(self._project_build_dir,
                                          self._runtime_package_name_template.format(arch=self._arch, version=version))
-        subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib"])
+        subprocess.check_call(["tar", "xf", runtime_file_path, "-C", self._sysroot_dir, "lib", "share"])
 
     def _copy_headers(self, target_dir):
         shutil.rmtree(target_dir, True)
@@ -347,7 +347,7 @@ class Bootstrap:
         shutil.rmtree(target_dir, True)
         os.makedirs(target_dir)
         sysroot_inspector_resources_file = os.path.join(
-            self._sysroot_dir, "lib", "wpe-webkit-2.0", "libWPEWebInspectorResources.so")
+            self._sysroot_dir, "share", "wpe-webkit-2.0", "inspector.gresource")
         shutil.copy(sysroot_inspector_resources_file, target_dir)
         sysroot_injected_bundle_file = os.path.join(
             self._sysroot_dir, "lib", "wpe-webkit-2.0", "injected-bundle", "libWPEInjectedBundle.so")
