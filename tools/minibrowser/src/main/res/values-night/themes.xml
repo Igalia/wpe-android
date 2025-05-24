@@ -2,5 +2,10 @@
 <resources>
     <!-- Base application theme. -->
     <style name="Theme.MiniBrowser" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="preferenceTheme">@style/PrefsTheme</item>
+    </style>
+
+    <style name="PrefsTheme" parent="@style/PreferenceThemeOverlay.v14.Material">
+        <item name="android:layout">@layout/fragment_settings</item>
     </style>
 </resources>
