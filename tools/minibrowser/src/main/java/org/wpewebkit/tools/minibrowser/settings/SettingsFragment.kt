@@ -29,6 +29,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import org.wpewebkit.tools.minibrowser.R
+import org.wpewebkit.tools.minibrowser.requestApplyStandardInsets
 
 class SettingsFragment : PreferenceFragmentCompat() {
     private val TAG = "SettingsFragment"
@@ -43,6 +44,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.requestApplyStandardInsets()
+
         val toolbar = view.findViewById<Toolbar>(R.id.settingsToolbar)
         toolbar.apply {
             title = getString(R.string.action_settings)
