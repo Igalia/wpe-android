@@ -33,6 +33,7 @@ import com.google.android.material.snackbar.Snackbar
 import org.wpewebkit.tools.minibrowser.BrowserViewModel
 import org.wpewebkit.tools.minibrowser.R
 import org.wpewebkit.tools.minibrowser.databinding.FragmentClearBrowsingDataBinding
+import org.wpewebkit.tools.minibrowser.requestApplyStandardInsets
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
 
@@ -44,6 +45,7 @@ class ClearBrowsingDataFragment : Fragment(R.layout.fragment_clear_browsing_data
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.requestApplyStandardInsets()
 
         binding = FragmentClearBrowsingDataBinding.bind(view)
 
