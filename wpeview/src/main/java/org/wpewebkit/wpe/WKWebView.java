@@ -460,7 +460,6 @@ public final class WKWebView {
         case WKWebView.LOAD_STARTED:
             if (wpeViewClient != null)
                 wpeViewClient.onPageStarted(wpeView, uri);
-            onInputMethodContextOut();
             break;
         case WKWebView.LOAD_FINISHED:
             if (wpeViewClient != null)
