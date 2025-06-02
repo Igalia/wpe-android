@@ -44,7 +44,7 @@ public class WebProcessService extends WPEService {
 
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "web_process_assets_2.48.2_gst_1.24.8";
+    private static final String assetsVersion = "web_process_assets_2.48.3_gst_1.24.8";
 
     @Override
     protected void loadNativeLibraries() {

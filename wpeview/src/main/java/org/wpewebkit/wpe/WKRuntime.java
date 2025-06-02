@@ -50,7 +50,7 @@ public final class WKRuntime {
 
     // Bump this version number if you make any changes to the font config
     // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "ui_process_assets_2.48.2";
+    private static final String assetsVersion = "ui_process_assets_2.48.3";
 
     static { System.loadLibrary("WPEAndroidRuntime"); }
 
