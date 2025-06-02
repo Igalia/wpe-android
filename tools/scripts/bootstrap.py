@@ -81,7 +81,7 @@ from urllib.request import urlretrieve
 
 class Bootstrap:
     default_arch = "arm64"
-    default_version = "2.48.2"
+    default_version = "2.48.3"
 
     _cerbero_origin = "https://github.com/Igalia/wpe-android-cerbero.git"
     _cerbero_branch = "main"
