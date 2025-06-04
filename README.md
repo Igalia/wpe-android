@@ -203,7 +203,7 @@ Add the dependencies for the artifacts you need in the `build.gradle` file for y
 
 ```groovy
 dependencies {
-    implementation "org.wpewebkit.wpeview:wpeview:0.1.3"
+    implementation "org.wpewebkit.wpeview:wpeview:0.2.0"
 }
 ```
 
