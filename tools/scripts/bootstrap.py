@@ -100,7 +100,7 @@ class Bootstrap:
         "libgobject-2.0.so",
         "libwpe-1.0.so",
         "libWPEBackend-android.so",
-        "libWPEWebKit-2.0_1.so"
+        "libWPEWebKit-2.0.so"
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
@@ -112,9 +112,8 @@ class Bootstrap:
     ]
     _soname_replacements = [
         ("libnettle.so.8", "libnettle_8.so"),  # This entry is not retrievable from the packaged libnettle.so
-        ("libWPEWebKit-2.0.so.1", "libWPEWebKit-2.0_1.so")  # This is for libWPEInjectedBundle.so
     ]
-    _base_needed = ["libWPEWebKit-2.0_1.so"]
+    _base_needed = ["libWPEWebKit-2.0.so"]
 
     def __init__(self, args=None):
         args = args or {}
