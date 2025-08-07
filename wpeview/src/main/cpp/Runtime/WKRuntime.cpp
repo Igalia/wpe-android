@@ -145,6 +145,12 @@ void wpeTerminateProcess(void* /*backend*/, int64_t pid)
 }
 } // namespace
 
+WKRuntime::WKRuntime()
+{
+    Logging::logDebug("WKRuntime [tid %d], WPE WebKit %u.%u.%u", gettid(), webkit_get_major_version(),
+        webkit_get_minor_version(), webkit_get_micro_version());
+}
+
 void WKRuntime::configureJNIMappings()
 {
     getJNIBrowserCache();
