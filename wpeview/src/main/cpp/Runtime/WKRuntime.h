@@ -44,7 +44,7 @@ public:
     void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
 
 private:
-    WKRuntime() = default;
+    WKRuntime();
 
     friend class JNIBrowserCache;
     void jniInit();
