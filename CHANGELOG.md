@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.2.1 (2.48.5) - 2025-08-11
+
+### Changed
+
+- WPE WebKit updated to [version 2.48.5](https://wpewebkit.org/release/wpewebkit-2.48.5.html) (#208).
+
+### Added
+
+- The WPE WebKit version in use at runtime is now sent to the debug log
+  during startup (#209).
+
+
 ## v0.2.0 (2.48.3) - 2024-06-04
 
 ### Changed
