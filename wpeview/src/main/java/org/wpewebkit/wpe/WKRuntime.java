@@ -177,7 +177,7 @@ public final class WKRuntime {
         try {
             Class<?> serviceClass =
                 Class.forName("org.wpewebkit.wpe.services.WPEServices$" + processType.name() + "Service" + processSlot);
-            ParcelFileDescriptor parcelFd = ParcelFileDescriptor.adoptFd(fd);
+            ParcelFileDescriptor parcelFd = ParcelFileDescriptor.fromFd(fd);
 
             Log.v(LOGTAG, "Launching service: " + processType.name());
             Intent intent = new Intent(applicationContext, serviceClass);
