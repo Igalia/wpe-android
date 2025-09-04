@@ -104,6 +104,7 @@ class Bootstrap:
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
+        ("gstreamer-1.0", "gstreamer-1.0"),
         ("libsoup-3.0", "libsoup-3.0"),
         ("wpe-1.0", "wpe"),
         ("wpe-android", "wpe-android"),

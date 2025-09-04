@@ -48,10 +48,6 @@ import java.util.List;
 public final class WKRuntime {
     private static final String LOGTAG = "WKRuntime";
 
-    // Bump this version number if you make any changes to the font config
-    // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "ui_process_assets_2.48.6";
-
     static { System.loadLibrary("WPEAndroidRuntime"); }
 
     protected static native void startNativeLooper();
@@ -66,7 +62,7 @@ public final class WKRuntime {
 
     public static @NonNull WKRuntime getInstance() { return singleton; }
 
-    private WKRuntime() { Log.v(LOGTAG, "WPE WKRuntime creation"); }
+    private WKRuntime() { Log.v(LOGTAG, "WKRuntime creation"); }
 
     private Context applicationContext = null;
 
@@ -83,6 +79,7 @@ public final class WKRuntime {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
 
+            final String assetsVersion = WKVersions.versionedAssets("ui_process");
             if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
                 ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "injected-bundles",
                                            true);

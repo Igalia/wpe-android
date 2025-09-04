@@ -65,6 +65,11 @@ add_library(gmodule-2.0 SHARED IMPORTED)
 set_target_properties(gmodule-2.0 PROPERTIES IMPORTED_LOCATION
                                              "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgmodule-2.0.so")
 
+add_library(gstreamer-1.0 SHARED IMPORTED)
+set_target_properties(
+    gstreamer-1.0 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libgstreamer-1.0.so"
+                             INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include/gstreamer-1.0")
+
 add_library(soup-3.0 SHARED IMPORTED)
 set_target_properties(soup-3.0 PROPERTIES IMPORTED_LOCATION
                                           "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libsoup-3.0.so")
@@ -95,11 +100,20 @@ set_target_properties(WPEWebDriver PROPERTIES IMPORTED_LOCATION
 # ######################################################################################################################
 
 # libWPEAndroidCommon
-add_library(WPEAndroidCommon SHARED Common/Environment.cpp Common/Logging.cpp Common/JNI/JNIClass.cpp
+add_library(WPEAndroidCommon SHARED Common/Environment.cpp Common/Init.cpp Common/Logging.cpp Common/JNI/JNIClass.cpp
                                     Common/JNI/JNIEnv.cpp Common/JNI/JNIString.cpp)
 target_configure_quality(WPEAndroidCommon)
 target_include_directories(WPEAndroidCommon INTERFACE Common)
-target_link_libraries(WPEAndroidCommon ${android-lib} ${log-lib} ${sync-lib})
+target_link_libraries(
+    WPEAndroidCommon
+    ${android-lib}
+    ${log-lib}
+    ${sync-lib}
+    glib-2.0
+    gobject-2.0
+    gstreamer-1.0
+    libwpe-1.0
+    WPEWebKit-2.0)
 
 # libWPEAndroidRuntime
 add_library(
