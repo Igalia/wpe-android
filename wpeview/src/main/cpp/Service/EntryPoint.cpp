@@ -18,6 +18,7 @@
  */
 
 #include "Environment.h"
+#include "Init.h"
 #include "Logging.h"
 
 #include <cassert>
@@ -98,7 +99,7 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
     try {
-        JNI::initVM(javaVM);
+        Init::initialize(javaVM);
 
         JNI::Class("org/wpewebkit/wpe/services/WPEService")
             .registerNativeMethods(

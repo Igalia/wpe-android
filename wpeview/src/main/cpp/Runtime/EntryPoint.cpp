@@ -17,6 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "Init.h"
 #include "WKCallback.h"
 #include "WKCookieManager.h"
 #include "WKNetworkSession.h"
@@ -29,7 +30,7 @@
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
     try {
-        JNI::initVM(javaVM);
+        Init::initialize(javaVM);
 
         WKRuntime::configureJNIMappings();
         WKCallback::configureJNIMappings();

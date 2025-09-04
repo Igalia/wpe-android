@@ -7,16 +7,13 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import org.wpewebkit.wpe.WKProcessType;
+import org.wpewebkit.wpe.WKVersions;
 
 import java.io.File;
 
 public class WebDriverProcessService extends WPEService {
 
     private static final String LOGTAG = "WPEWebDriverProcess";
-
-    // Bump this version number if you make any changes to the gio
-    // modules or else they won't be applied.
-    private static final String assetsVersion = "webdriver_process_assets_2.48.6_gst_1.24.8";
 
     @Override
     protected void loadNativeLibraries() {
@@ -33,6 +30,7 @@ public class WebDriverProcessService extends WPEService {
     }
     @Override
     protected void setupServiceEnvironment() {
+        final String assetsVersion = WKVersions.versionedAssets("webdriver_process");
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gio", true);

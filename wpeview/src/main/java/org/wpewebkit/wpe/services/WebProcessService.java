@@ -32,6 +32,7 @@ import androidx.annotation.NonNull;
 
 import org.freedesktop.gstreamer.GStreamer;
 import org.wpewebkit.wpe.WKProcessType;
+import org.wpewebkit.wpe.WKVersions;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -41,10 +42,6 @@ import java.util.Properties;
 
 public class WebProcessService extends WPEService {
     private static final String LOGTAG = "WPEWebProcess";
-
-    // Bump this version number if you make any changes to the font config
-    // or the gstreamer plugins or else they won't be applied.
-    private static final String assetsVersion = "web_process_assets_2.48.6_gst_1.24.8";
 
     @Override
     protected void loadNativeLibraries() {
@@ -62,6 +59,7 @@ public class WebProcessService extends WPEService {
 
     @Override
     protected void setupServiceEnvironment() {
+        final String assetsVersion = WKVersions.versionedAssets("web_process");
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gstreamer-1.0", true);
