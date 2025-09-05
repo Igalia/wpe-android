@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.2.2 (2.48.6) - 2025-09-05
+
+### Changed
+
+- WPE WebKit updated to [version 2.48.6](https://wpewebkit.org/release/wpewebkit-2.48.6.html) (#211).
+- Use WPE WebKit and GStreamer version information obtained at run time
+  to determine versioned identifiers for process assets. This avoids
+  manually editing them on every version update (#212).
+
+### Fixed
+
+- Fix incorrect double-close of socket file descriptor during service startup,
+  which allowed removing a workaround in WebKit (#210).
+
+
 ## v0.2.1 (2.48.5) - 2025-08-11
 
 ### Changed
