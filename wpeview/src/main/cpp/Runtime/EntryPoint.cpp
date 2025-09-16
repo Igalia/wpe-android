@@ -18,6 +18,7 @@
  */
 
 #include "Init.h"
+#include "Logging.h"
 #include "WKCallback.h"
 #include "WKCookieManager.h"
 #include "WKNetworkSession.h"
@@ -42,7 +43,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         WKSettings::configureJNIMappings();
 
         return JNI::VERSION;
-    } catch (...) {
+    } catch (const std::exception& e) {
+        Logging::logError("Runtime: JNI_OnLoad: %s", e.what());
         return JNI_ERR;
     }
 }

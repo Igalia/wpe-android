@@ -44,7 +44,7 @@ public class WebProcessService extends WPEService {
     private static final String LOGTAG = "WPEWebProcess";
 
     @Override
-    protected void loadNativeLibraries() {
+    protected void setupServiceEnvironment() {
         // To debug the sub-process with Android Studio (Java and native code), you must:
         // 1- Uncomment the following instruction to wait for the debugger before loading native code.
         // 2- Force the dual debugger (Java + Native) in Run/Debug configuration (the automatic detection won't work).
@@ -53,12 +53,6 @@ public class WebProcessService extends WPEService {
 
         // android.os.Debug.waitForDebugger();
 
-        System.loadLibrary("gstreamer-1.0");
-        System.loadLibrary("WPEAndroidService");
-    }
-
-    @Override
-    protected void setupServiceEnvironment() {
         final String assetsVersion = WKVersions.versionedAssets("web_process");
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {

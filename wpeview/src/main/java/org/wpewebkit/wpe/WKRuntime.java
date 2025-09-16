@@ -48,8 +48,6 @@ import java.util.List;
 public final class WKRuntime {
     private static final String LOGTAG = "WKRuntime";
 
-    static { System.loadLibrary("WPEAndroidRuntime"); }
-
     protected static native void startNativeLooper();
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     private native void nativeInit();

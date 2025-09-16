@@ -40,6 +40,9 @@ override fun onCreate(savedInstanceState: Bundle?) {
 }
 ```
 
+Note that applications that want to subclass `android.app.Application`
+*must* use `org.wpewebkit.WPEApplication` as their base class instead.
+
 To see WPEView in action check the [tools](tools) folder.
 
 ## Setting up your environment
