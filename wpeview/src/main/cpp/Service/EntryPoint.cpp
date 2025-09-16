@@ -107,7 +107,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
                 JNI::StaticNativeMethod<void(jlong, jint, jint)>("initializeNativeMain", initializeNativeMain));
 
         return JNI::VERSION;
-    } catch (...) {
+    } catch (const std::exception& e) {
+        Logging::logError("Service: JNI_OnLoad: %s", e.what());
         return JNI_ERR;
     }
 }

@@ -75,7 +75,6 @@ public abstract class WPEService extends Service {
     protected static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     protected static native void initializeNativeMain(long pid, int processType, int fd);
 
-    protected abstract void loadNativeLibraries();
     protected abstract void setupServiceEnvironment();
     protected abstract void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd);
 
@@ -83,7 +82,6 @@ public abstract class WPEService extends Service {
     public void onCreate() {
         Log.d(LOGTAG, "onCreate()");
         super.onCreate();
-        loadNativeLibraries();
         setupServiceEnvironment();
     }
 

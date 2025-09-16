@@ -32,6 +32,11 @@ pthread_key_t globalJNIEnvKey = 0;
 std::atomic_bool globalEnableJavaExceptionDescription = true;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+extern "C" __attribute__((visibility("default"))) JavaVM* wpe_android_runtime_get_current_java_vm()
+{
+    return globalJavaVM;
+}
+
 void detachTerminatedNativeThread(void* /*keyValue*/)
 {
     if (globalJavaVM != nullptr)
