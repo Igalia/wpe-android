@@ -84,7 +84,7 @@ class Bootstrap:
     default_version = "2.50.0"
 
     _cerbero_origin = "https://github.com/Igalia/wpe-android-cerbero.git"
-    _cerbero_branch = "main"
+    _cerbero_branch = "felipeerias/enable-wpe-platform"
 
     _packages_url_template = "https://wpewebkit.org/android/bootstrap/{version}/{filename}"
     _devel_package_name_template = "wpewebkit-android-{arch}-{version}.tar.xz"
@@ -109,6 +109,7 @@ class Bootstrap:
         ("wpe-1.0", "wpe"),
         ("wpe-android", "wpe-android"),
         ("wpe-webkit-2.0", "wpe-webkit"),
+        ("wpe-webkit-2.0/wpe-platform", "wpe-platform"),
         ("xkbcommon", "xkbcommon")
     ]
     _soname_replacements = [
