@@ -111,6 +111,7 @@ target_link_libraries(
     ${android-lib}
     ${log-lib}
     ${sync-lib}
+    gio-2.0
     glib-2.0
     gobject-2.0
     gstreamer-1.0
@@ -134,9 +135,13 @@ add_library(
     Runtime/WKWebContext.cpp
     Runtime/WKSettings.cpp
     Runtime/WKWebsiteDataManager.cpp
-    Runtime/WKWebView.cpp)
+    Runtime/WKWebView.cpp
+    Runtime/WPEViewAndroid.cpp
+    Common/WPEDisplayAndroid.cpp
+    Common/WPEToplevelAndroid.cpp)
 target_configure_quality(WPEAndroidRuntime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
+target_include_directories(WPEAndroidRuntime PRIVATE Runtime Common)
 target_link_libraries(
     WPEAndroidRuntime
     EGL
@@ -146,7 +151,6 @@ target_link_libraries(
     gobject-2.0
     libwpe-1.0
     soup-3.0
-    WPEBackend
     WPEWebKit-2.0
     WPEAndroidCommon)
 
@@ -158,7 +162,7 @@ target_link_libraries(
     gio-2.0
     glib-2.0
     gmodule-2.0
-    WPEBackend
     WPEWebKit-2.0
+    WPEAndroidRuntime
     WPEAndroidCommon
     WPEWebDriver)

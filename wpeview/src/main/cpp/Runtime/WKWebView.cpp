@@ -27,19 +27,14 @@
 #include "WKCallback.h"
 #include "WKRuntime.h"
 #include "WKWebContext.h"
+#include "WPEDisplayAndroid.h"
+#include "WPEViewAndroid.h"
 
 #include <android/native_window_jni.h>
 #include <libsoup/soup.h>
 #include <unistd.h>
-#include <wpe-android/view-backend.h>
 
 namespace {
-
-void handleCommitBuffer(void* context, WPEAndroidBuffer* buffer, int fenceID)
-{
-    auto* wkWebView = static_cast<WKWebView*>(context);
-    wkWebView->commitBuffer(buffer, fenceID);
-}
 
 const int httpErrorsStart = 400;
 
@@ -319,14 +314,14 @@ public:
 
     static bool onFullscreenRequest(WKWebView* wkWebView, bool fullscreen) noexcept
     {
-        if (wkWebView->m_viewBackend != nullptr) {
+        if (wkWebView->wpeView() != nullptr) {
             wkWebView->m_isFullscreenRequested = fullscreen;
             if (fullscreen) {
                 callJavaMethod(getJNIPageCache().m_onEnterFullscreenMode, wkWebView->m_webViewJavaInstance.get());
+                wpe_view_android_set_toplevel_state(wkWebView->wpeView(), WPE_TOPLEVEL_STATE_FULLSCREEN);
             } else {
                 callJavaMethod(getJNIPageCache().m_onExitFullscreenMode, wkWebView->m_webViewJavaInstance.get());
-                wpe_view_backend_dispatch_did_exit_fullscreen(
-                    WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend));
+                wpe_view_android_set_toplevel_state(wkWebView->wpeView(), static_cast<WPEToplevelState>(0));
             }
         }
 
@@ -574,8 +569,13 @@ void JNIWKWebViewCache::nativeSurfaceCreated(
 {
     Logging::logDebug("WKWebView::nativeSurfaceCreated(%p) [tid %d]", surface, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && wkWebView->m_renderer)
-        wkWebView->m_renderer->onSurfaceCreated(ANativeWindow_fromSurface(env, surface));
+    if ((wkWebView != nullptr) && wkWebView->wpeView()) {
+        wpe_view_android_on_surface_created(wkWebView->wpeView(), ANativeWindow_fromSurface(env, surface));
+
+        wpe_view_set_visible(WPE_VIEW(wkWebView->wpeView()), TRUE);
+        wpe_view_map(WPE_VIEW(wkWebView->wpeView()));
+        wpe_view_android_set_toplevel_state(wkWebView->wpeView(), WPE_TOPLEVEL_STATE_ACTIVE);
+    }
 }
 
 void JNIWKWebViewCache::nativeSurfaceChanged(
@@ -583,15 +583,12 @@ void JNIWKWebViewCache::nativeSurfaceChanged(
 {
     Logging::logDebug("WKWebView::nativeSurfaceChanged(%d, %d, %d) [tid %d]", format, width, height, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && (wkWebView->m_viewBackend != nullptr) && wkWebView->m_renderer) {
+    if ((wkWebView != nullptr) && wkWebView->wpeView()) {
         const uint32_t physicalWidth = std::max(0, width);
         const uint32_t physicalHeight = std::max(0, height);
-        const uint32_t logicalWidth = std::floor(static_cast<float>(physicalWidth) / wkWebView->deviceScale());
-        const uint32_t logicalHeight = std::floor(static_cast<float>(physicalHeight) / wkWebView->deviceScale());
 
-        wpe_view_backend_dispatch_set_size(
-            WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend), logicalWidth, logicalHeight);
-        wkWebView->m_renderer->onSurfaceChanged(format, physicalWidth, physicalHeight);
+        wpe_view_android_on_surface_changed(wkWebView->wpeView(), format, physicalWidth, physicalHeight);
+        wpe_view_android_resize(wkWebView->wpeView(), physicalWidth, physicalHeight);
     }
 }
 
@@ -599,16 +596,20 @@ void JNIWKWebViewCache::nativeSurfaceRedrawNeeded(JNIEnv* /*env*/, jobject /*obj
 {
     Logging::logDebug("WKWebView::nativeSurfaceRedrawNeeded() [tid %d]", gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && wkWebView->m_renderer)
-        wkWebView->m_renderer->onSurfaceRedrawNeeded();
+    if ((wkWebView != nullptr) && wkWebView->wpeView())
+        wpe_view_android_on_surface_redraw_needed(wkWebView->wpeView());
 }
 
 void JNIWKWebViewCache::nativeSurfaceDestroyed(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
 {
     Logging::logDebug("WKWebView::nativeSurfaceDestroyed() [tid %d]", gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && wkWebView->m_renderer)
-        wkWebView->m_renderer->onSurfaceDestroyed();
+    if ((wkWebView != nullptr) && wkWebView->wpeView()) {
+        wpe_view_set_visible(WPE_VIEW(wkWebView->wpeView()), FALSE);
+        wpe_view_unmap(WPE_VIEW(wkWebView->wpeView()));
+        wpe_view_android_set_toplevel_state(wkWebView->wpeView(), static_cast<WPEToplevelState>(0));
+        wpe_view_android_on_surface_destroyed(wkWebView->wpeView());
+    }
 }
 
 void JNIWKWebViewCache::nativeSetZoomLevel(
@@ -623,55 +624,39 @@ void JNIWKWebViewCache::nativeSetZoomLevel(
 void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint type,
     jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept
 {
-    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && (wkWebView->m_viewBackend != nullptr)) {
-        wpe_input_touch_event_type touchEventType = wpe_input_touch_event_type_null;
-        switch (type) {
-        case 0:
-            touchEventType = wpe_input_touch_event_type_down;
-            break;
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr);
+    if (!wkWebView || !wkWebView->wpeView())
+        return;
 
-        case 1:
-            touchEventType = wpe_input_touch_event_type_motion;
-            break;
+    WPEEventType eventType;
+    switch (type) {
+    case 0:
+        eventType = WPE_EVENT_TOUCH_DOWN;
+        break;
+    case 1:
+        eventType = WPE_EVENT_TOUCH_MOVE;
+        break;
+    case 2:
+        eventType = WPE_EVENT_TOUCH_UP;
+        break;
+    default:
+        return;
+    }
 
-        case 2:
-            touchEventType = wpe_input_touch_event_type_up;
-            break;
+    std::vector<jint> idsVector(pointerCount);
+    std::vector<jfloat> xsVector(pointerCount);
+    std::vector<jfloat> ysVector(pointerCount);
+    env->GetIntArrayRegion(ids, 0, pointerCount, idsVector.data());
+    env->GetFloatArrayRegion(xs, 0, pointerCount, xsVector.data());
+    env->GetFloatArrayRegion(ys, 0, pointerCount, ysVector.data());
 
-        default:
-            break;
-        }
-
-        std::vector<jint> idsVector(pointerCount);
-        std::vector<jfloat> xsVector(pointerCount);
-        std::vector<jfloat> ysVector(pointerCount);
-        env->GetIntArrayRegion(ids, 0, pointerCount, idsVector.data());
-        env->GetFloatArrayRegion(xs, 0, pointerCount, xsVector.data());
-        env->GetFloatArrayRegion(ys, 0, pointerCount, ysVector.data());
-
-        auto* touchPoints = new wpe_input_touch_event_raw[pointerCount];
-        for (int i = 0; i < pointerCount; ++i) {
-            touchPoints[i].type = touchEventType;
-            touchPoints[i].time = static_cast<uint32_t>(time);
-            touchPoints[i].id = idsVector[i];
-            touchPoints[i].x = static_cast<int32_t>(std::round(xsVector[i]));
-            touchPoints[i].y = static_cast<int32_t>(std::round(ysVector[i]));
-        }
-
-        wpe_input_touch_event touchEvent {
-            .touchpoints = touchPoints,
-            .touchpoints_length = static_cast<uint64_t>(pointerCount),
-            .type = touchEventType,
-            .id = touchPoints[0].id, // Use the first touchpoint's ID
-            .time = static_cast<uint32_t>(time),
-            .modifiers = 0, // Set modifiers if any
-        };
-
-        wpe_view_backend_dispatch_touch_event(
-            WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend), &touchEvent);
-
-        delete[] touchPoints;
+    // Create WPE touch events from Java touch data (coordinates are in logical pixels)
+    for (int i = 0; i < pointerCount; ++i) {
+        auto* event = wpe_event_touch_new(eventType, WPE_VIEW(wkWebView->wpeView()), WPE_INPUT_SOURCE_TOUCHSCREEN,
+            static_cast<guint32>(time), static_cast<WPEModifiers>(0), static_cast<guint32>(idsVector[i]), xsVector[i],
+            ysVector[i]);
+        wpe_view_android_dispatch_event(wkWebView->wpeView(), event);
+        wpe_event_unref(event);
     }
 }
 
@@ -697,14 +682,10 @@ void JNIWKWebViewCache::nativeDeleteInputMethodContent(
         wkWebView->m_inputMethodContext.deleteContent(offset);
 }
 
-void JNIWKWebViewCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
+void JNIWKWebViewCache::nativeRequestExitFullscreenMode(
+    JNIEnv* /*env*/, jobject /*obj*/, jlong /*wkWebViewPtr*/) noexcept
 {
     Logging::logDebug("WKWebView::nativeRequestExitFullscreenMode() [tid %d]", gettid());
-    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && (wkWebView->m_viewBackend != nullptr)) {
-        wpe_view_backend_dispatch_request_exit_fullscreen(
-            WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend));
-    }
 }
 
 void JNIWKWebViewCache::nativeEvaluateJavascript(
@@ -787,19 +768,46 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
     const uint32_t uWidth = std::max(0, width);
     const uint32_t uHeight = std::max(0, height);
 
-    m_viewBackend = WPEAndroidViewBackend_create(uWidth, uHeight);
+    // Create WPE Platform display for the UI process
+    m_wpeDisplay = wpe_display_get_primary();
+    if (!m_wpeDisplay) {
+        m_wpeDisplay = wpe_display_android_new();
+        wpe_display_set_primary(m_wpeDisplay);
 
+        GError* error = nullptr;
+        if (!wpe_display_connect(m_wpeDisplay, &error)) {
+            Logging::logError("Failed to connect WPE display: %s", error ? error->message : "unknown error");
+            g_clear_error(&error);
+        }
+    }
+
+    // Create renderer if not headless
     if (!m_isHeadless)
-        m_renderer = std::make_shared<RendererSurfaceControl>(m_viewBackend, uWidth, uHeight);
-
-    WPEViewBackend* wpeBackend = WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend);
-    WebKitWebViewBackend* viewBackend = webkit_web_view_backend_new(
-        wpeBackend, reinterpret_cast<GDestroyNotify>(WPEAndroidViewBackend_destroy), m_viewBackend);
+        m_renderer = std::make_shared<RendererSurfaceControl>(uWidth, uHeight);
 
     gboolean const automationMode = wkWebContext->automationMode() ? TRUE : FALSE;
 
-    m_webView = WEBKIT_WEB_VIEW(g_object_new(WEBKIT_TYPE_WEB_VIEW, "backend", viewBackend, "web-context",
+    // Create WebKitWebView with WPE Platform
+    m_webView = WEBKIT_WEB_VIEW(g_object_new(WEBKIT_TYPE_WEB_VIEW, "display", m_wpeDisplay, "web-context",
         wkWebContext->webContext(), "is-controlled-by-automation", automationMode, nullptr));
+
+    // Get the WPEViewAndroid that WebKit created
+    m_wpeView = WPE_VIEW_ANDROID(webkit_web_view_get_wpe_view(m_webView));
+    if (m_wpeView == nullptr) {
+        Logging::logError("Failed to get WPEViewAndroid from WebKitWebView!");
+    }
+
+    // Set up the renderer on the WPE view
+    if (m_wpeView && m_renderer) {
+        wpe_view_android_set_renderer(m_wpeView, m_renderer);
+    }
+
+    // Set initial size and scale
+    if (m_wpeView) {
+        wpe_view_android_resize(m_wpeView, uWidth, uHeight);
+        wpe_view_android_set_scale(m_wpeView, deviceScale);
+    }
+
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
 
     m_signalHandlers.push_back(
@@ -818,14 +826,6 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "decide-policy", G_CALLBACK(JNIWKWebViewCache::onDecidePolicy), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "load-failed-with-tls-errors", G_CALLBACK(JNIWKWebViewCache::onReceivedSslError), this));
-
-    wpe_view_backend_set_fullscreen_handler(wpeBackend,
-        reinterpret_cast<wpe_view_backend_fullscreen_handler>(JNIWKWebViewCache::onFullscreenRequest), this);
-
-    WPEAndroidViewBackend_setCommitBufferHandler(m_viewBackend, this, handleCommitBuffer);
-
-    wpe_view_backend_dispatch_set_device_scale_factor(
-        WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend), deviceScale);
 }
 
 void WKWebView::close() noexcept
@@ -842,9 +842,14 @@ void WKWebView::close() noexcept
 
         webkit_web_view_try_close(m_webView);
 
-        m_viewBackend = nullptr;
+        m_wpeView = nullptr; // WebKit owns the WPEView
         g_object_unref(m_webView);
         m_webView = nullptr;
+    }
+
+    if (m_wpeDisplay != nullptr) {
+        g_object_unref(m_wpeDisplay);
+        m_wpeDisplay = nullptr;
     }
 }
 
@@ -856,26 +861,4 @@ void WKWebView::onInputMethodContextIn() noexcept
 void WKWebView::onInputMethodContextOut() noexcept
 {
     getJNIPageCache().onInputMethodContextOut(m_webViewJavaInstance.get());
-}
-
-void WKWebView::commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept // NOLINT(bugprone-exception-escape)
-{
-    auto scopedFenceFD = std::make_shared<ScopedFD>(fenceFD);
-    if (m_viewBackend != nullptr) {
-        if (m_isHeadless) {
-            WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, buffer);
-            WPEAndroidViewBackend_dispatchFrameComplete(m_viewBackend);
-        } else if (m_renderer) {
-            auto scopedBuffer = std::make_shared<ScopedWPEAndroidBuffer>(buffer);
-
-            if (m_isFullscreenRequested && (scopedBuffer->width() == m_renderer->width())
-                && (scopedBuffer->height() == m_renderer->height())) {
-                Logging::logDebug("Fullscreen ready");
-                m_isFullscreenRequested = false;
-                wpe_view_backend_dispatch_did_enter_fullscreen(WPEAndroidViewBackend_getWPEViewBackend(m_viewBackend));
-            }
-
-            m_renderer->commitBuffer(scopedBuffer, scopedFenceFD);
-        }
-    }
 }

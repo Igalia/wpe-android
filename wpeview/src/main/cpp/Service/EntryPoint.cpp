@@ -20,6 +20,9 @@
 #include "Environment.h"
 #include "Init.h"
 #include "Logging.h"
+#include "WPEDisplayAndroid.h"
+
+#include <wpe-platform/wpe/wpe-platform.h>
 
 #include <cassert>
 #include <cinttypes>
@@ -89,6 +92,27 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
     argv[2] = arg2String;
     if (numArgs > 3) {
         argv[3] = arg3String;
+    }
+
+    // Initialize WPE Platform Display for WebProcess and NetworkProcess
+    if (processType == ProcessType::WebProcess || processType == ProcessType::NetworkProcess) {
+        Logging::logDebug("Initializing WPE Display for %s", processName[static_cast<int>(processType)]);
+
+        auto* display = wpe_display_get_primary();
+        if (!display) {
+            display = wpe_display_android_new();
+            wpe_display_set_primary(display);
+
+            GError* error = nullptr;
+            if (!wpe_display_connect(display, &error)) {
+                Logging::logError("Failed to connect WPE display: %s", error ? error->message : "unknown error");
+                g_clear_error(&error);
+            } else {
+                Logging::logDebug("WPE Display initialized successfully");
+            }
+        } else {
+            Logging::logDebug("WPE Display already initialized");
+        }
     }
 
     (*entrypoint)(numArgs, argv);

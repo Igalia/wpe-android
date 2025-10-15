@@ -25,8 +25,6 @@
 
 #include "ScopedFD.h"
 
-class ScopedWPEAndroidBuffer;
-
 class SurfaceControl final {
 public:
     class Surface final {

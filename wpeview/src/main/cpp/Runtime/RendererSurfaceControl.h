@@ -23,15 +23,25 @@
 
 #include "Renderer.h"
 
+#include <android/hardware_buffer.h>
+#include <functional>
 #include <map>
 #include <memory>
-#include <wpe-android/view-backend.h>
+#include <queue>
 
+#include "ScopedFD.h"
 #include "SurfaceControl.h"
+
+#include <glib-object.h>
+
+typedef struct _WPEBufferAndroid WPEBufferAndroid;
 
 class RendererSurfaceControl final : public Renderer, public std::enable_shared_from_this<RendererSurfaceControl> {
 public:
-    RendererSurfaceControl(WPEAndroidViewBackend* viewBackend, uint32_t width, uint32_t height);
+    using BufferReleaseCallback = std::function<void(WPEBufferAndroid*)>;
+    using FrameCompleteCallback = std::function<void()>;
+
+    RendererSurfaceControl(uint32_t width, uint32_t height);
     ~RendererSurfaceControl() override;
 
     RendererSurfaceControl(RendererSurfaceControl&&) = delete;
@@ -47,7 +57,11 @@ public:
     void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
-    void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) override;
+    void setBufferReleaseCallback(BufferReleaseCallback callback) { m_bufferReleaseCallback = std::move(callback); }
+    void setFrameCompleteCallback(FrameCompleteCallback callback) { m_frameCompleteCallback = std::move(callback); }
+
+    void commitBuffer(
+        AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD) override;
 
 private:
     struct ResourceRef {
@@ -61,7 +75,8 @@ private:
         ResourceRef& operator=(ResourceRef&& other) = default;
 
         std::shared_ptr<SurfaceControl::Surface> m_surface;
-        std::shared_ptr<ScopedWPEAndroidBuffer> m_scopedBuffer;
+        WPEBufferAndroid* m_wpeBuffer = nullptr;
+        AHardwareBuffer* m_hardwareBuffer = nullptr;
     };
     using ResourceRefs = std::map<ASurfaceControl*, ResourceRef>;
 
@@ -70,7 +85,9 @@ private:
 
     void processTransactionQueue();
 
-    WPEAndroidViewBackend* m_viewBackend = nullptr;
+    BufferReleaseCallback m_bufferReleaseCallback;
+    FrameCompleteCallback m_frameCompleteCallback;
+
     std::shared_ptr<SurfaceControl::Surface> m_surface;
 
     struct {
@@ -83,9 +100,10 @@ private:
 
     ResourceRefs m_currentFrameResources;
 
-    std::queue<std::shared_ptr<ScopedWPEAndroidBuffer>> m_releaseBufferQueue;
-    std::shared_ptr<ScopedWPEAndroidBuffer> m_pendingCommitBuffer;
+    std::queue<WPEBufferAndroid*> m_releaseBufferQueue;
+    WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
-    std::shared_ptr<ScopedWPEAndroidBuffer> m_frontBuffer;
+    WPEBufferAndroid* m_frontBuffer = nullptr;
+
     bool m_pendingFrontBufferRedraw = false;
 };

@@ -30,8 +30,10 @@
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebView, "org/wpewebkit/wpe/WKWebView");
 
-struct WPEAndroidViewBackend;
+typedef struct _WPEDisplay WPEDisplay;
+typedef struct _WPEViewAndroid WPEViewAndroid;
 class WKWebContext;
+class RendererSurfaceControl;
 
 class WKWebView final : public InputMethodContextObserver {
 public:
@@ -48,11 +50,10 @@ public:
 
     float deviceScale() const noexcept { return m_deviceScale; }
     WebKitWebView* webView() const noexcept { return m_webView; }
+    WPEViewAndroid* wpeView() const noexcept { return m_wpeView; }
 
     void onInputMethodContextIn() noexcept override;
     void onInputMethodContextOut() noexcept override;
-
-    void commitBuffer(WPEAndroidBuffer* buffer, int fenceFD) noexcept; // NOLINT(bugprone-exception-escape)
 
 private:
     friend class JNIWKWebViewCache;
@@ -62,9 +63,10 @@ private:
 
     JNI::ProtectedType<JNIWKWebView> m_webViewJavaInstance;
     InputMethodContext m_inputMethodContext;
-    std::shared_ptr<Renderer> m_renderer;
+    std::shared_ptr<RendererSurfaceControl> m_renderer;
 
-    WPEAndroidViewBackend* m_viewBackend = nullptr;
+    WPEDisplay* m_wpeDisplay = nullptr;
+    WPEViewAndroid* m_wpeView = nullptr;
     WebKitWebView* m_webView = nullptr;
     std::vector<gulong> m_signalHandlers;
     bool m_isFullscreenRequested = false;
