@@ -31,12 +31,15 @@
 #include "WPEViewAndroid.h"
 
 #include <android/native_window_jni.h>
+#include <cmath>
 #include <libsoup/soup.h>
 #include <unistd.h>
 
 namespace {
 
 const int httpErrorsStart = 400;
+
+inline float safeDeviceDensity(float density) noexcept { return (density > 0.0f) ? density : 1.0f; }
 
 class SslErrorHandler final {
 public:
@@ -586,9 +589,12 @@ void JNIWKWebViewCache::nativeSurfaceChanged(
     if ((wkWebView != nullptr) && wkWebView->wpeView()) {
         const uint32_t physicalWidth = std::max(0, width);
         const uint32_t physicalHeight = std::max(0, height);
-
         wpe_view_android_on_surface_changed(wkWebView->wpeView(), format, physicalWidth, physicalHeight);
-        wpe_view_android_resize(wkWebView->wpeView(), physicalWidth, physicalHeight);
+
+        const float scale = safeDeviceDensity(wkWebView->deviceScale());
+        const uint32_t logicalWidth = static_cast<uint32_t>(std::round(physicalWidth / scale));
+        const uint32_t logicalHeight = static_cast<uint32_t>(std::round(physicalHeight / scale));
+        wpe_view_android_resize(wkWebView->wpeView(), logicalWidth, logicalHeight);
     }
 }
 
@@ -650,11 +656,15 @@ void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong w
     env->GetFloatArrayRegion(xs, 0, pointerCount, xsVector.data());
     env->GetFloatArrayRegion(ys, 0, pointerCount, ysVector.data());
 
-    // Create WPE touch events from Java touch data (coordinates are in logical pixels)
+    const float scale = safeDeviceDensity(wkWebView->deviceScale());
+
     for (int i = 0; i < pointerCount; ++i) {
+        const double logicalX = static_cast<double>(xsVector[i]) / scale;
+        const double logicalY = static_cast<double>(ysVector[i]) / scale;
+
         auto* event = wpe_event_touch_new(eventType, WPE_VIEW(wkWebView->wpeView()), WPE_INPUT_SOURCE_TOUCHSCREEN,
-            static_cast<guint32>(time), static_cast<WPEModifiers>(0), static_cast<guint32>(idsVector[i]), xsVector[i],
-            ysVector[i]);
+            static_cast<guint32>(time), static_cast<WPEModifiers>(0), static_cast<guint32>(idsVector[i]), logicalX,
+            logicalY);
         wpe_view_android_dispatch_event(wkWebView->wpeView(), event);
         wpe_event_unref(event);
     }
@@ -765,8 +775,15 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
     , m_isHeadless(headless)
     , m_deviceScale(deviceScale)
 {
-    const uint32_t uWidth = std::max(0, width);
-    const uint32_t uHeight = std::max(0, height);
+    const uint32_t physicalWidth = std::max(0, width);
+    const uint32_t physicalHeight = std::max(0, height);
+
+    const float scale = safeDeviceDensity(deviceScale);
+    const uint32_t logicalWidth = static_cast<uint32_t>(std::round(physicalWidth / scale));
+    const uint32_t logicalHeight = static_cast<uint32_t>(std::round(physicalHeight / scale));
+
+    Logging::logDebug("WKWebView: physical=%ux%u, logical=%ux%u, scale=%.2f", physicalWidth, physicalHeight,
+        logicalWidth, logicalHeight, scale);
 
     // Create WPE Platform display for the UI process
     m_wpeDisplay = wpe_display_get_primary();
@@ -783,7 +800,7 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
 
     // Create renderer if not headless
     if (!m_isHeadless)
-        m_renderer = std::make_shared<RendererSurfaceControl>(uWidth, uHeight);
+        m_renderer = std::make_shared<RendererSurfaceControl>(physicalWidth, physicalHeight);
 
     gboolean const automationMode = wkWebContext->automationMode() ? TRUE : FALSE;
 
@@ -804,8 +821,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
 
     // Set initial size and scale
     if (m_wpeView) {
-        wpe_view_android_resize(m_wpeView, uWidth, uHeight);
-        wpe_view_android_set_scale(m_wpeView, deviceScale);
+        wpe_view_android_resize(m_wpeView, logicalWidth, logicalHeight);
+        wpe_view_android_set_scale(m_wpeView, scale);
     }
 
     webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
