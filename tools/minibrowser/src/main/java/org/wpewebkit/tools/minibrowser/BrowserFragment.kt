@@ -79,6 +79,8 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 hideKeyboard()
                 onCommit(binding.toolbarEditText.text.toString())
+                binding.toolbarEditText.clearFocus()
+                selectedTab().webview.requestFocus()
                 true
             } else {
                 false
