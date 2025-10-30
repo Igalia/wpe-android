@@ -113,6 +113,7 @@ public final class WKWebView {
     private boolean canGoBack = true;
     private boolean canGoForward = true;
     protected boolean ignoreTouchEvents = false;
+    private boolean isInputFieldFocused = false;
 
     private static int kHeadlessWidth = 1080;
     private static int kHeadlessHeight = 2274;
@@ -238,6 +239,8 @@ public final class WKWebView {
     public void setInputMethodContent(int unicodeChar) { nativeSetInputMethodContent(nativePtr, unicodeChar); }
 
     public void deleteInputMethodContent(int offset) { nativeDeleteInputMethodContent(nativePtr, offset); }
+
+    public boolean isInputFieldFocused() { return isInputFieldFocused; }
 
     public void evaluateJavascript(@NonNull String script, @Nullable WKCallback<String> callback) {
         nativeEvaluateJavascript(nativePtr, script, callback);
@@ -559,6 +562,7 @@ public final class WKWebView {
 
     @Keep
     private void onInputMethodContextIn() {
+        isInputFieldFocused = true;
         WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
         Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> {
@@ -575,6 +579,7 @@ public final class WKWebView {
 
     @Keep
     private void onInputMethodContextOut() {
+        isInputFieldFocused = false;
         WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
         Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> {
