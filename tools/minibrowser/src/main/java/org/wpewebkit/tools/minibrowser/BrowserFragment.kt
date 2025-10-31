@@ -165,6 +165,18 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
                     }
                     fullscreenView = null
                 }
+
+                override fun onUriChanged(view: WPEView, uri: String) {
+                    super.onUriChanged(view, uri)
+                    binding.toolbarEditText.setText(uri)
+                }
+            }
+        }
+
+        selectedTab.webview.wpeViewClient = object : WPEViewClient() {
+            override fun onPageStarted(view: WPEView, url: String) {
+                super.onPageStarted(view, url)
+                binding.toolbarEditText.setText(url)
             }
         }
     }

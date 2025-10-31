@@ -54,6 +54,13 @@ public interface WPEChromeClient {
     default void onReceivedTitle(@NonNull WPEView view, @NonNull String title) {}
 
     /**
+     * Notify the host application that the URI has changed.
+     * @param view The WPEView that initiated the callback.
+     * @param uri The new URI.
+     */
+    default void onUriChanged(@NonNull WPEView view, @NonNull String uri) {}
+
+    /**
      * A callback interface used by the host application to notify
      * the current page that its custom view has been dismissed.
      */

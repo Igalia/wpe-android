@@ -488,6 +488,8 @@ public final class WKWebView {
     @Keep
     private void onUriChanged(@NonNull String uri) {
         this.uri = uri;
+        if (wpeChromeClient != null)
+            wpeChromeClient.onUriChanged(wpeView, uri);
     }
 
     @Keep
