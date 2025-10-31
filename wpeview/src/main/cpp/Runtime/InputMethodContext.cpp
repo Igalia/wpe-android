@@ -129,7 +129,7 @@ void InputMethodContext::setContent(const char* utf8Content) const noexcept
     g_signal_emit_by_name(m_webKitInputMethodContext.get(), "committed", utf8Content);
 }
 
-void InputMethodContext::deleteContent(int offset) const noexcept
+void InputMethodContext::deleteContent(int offset, int count) const noexcept
 {
-    g_signal_emit_by_name(m_webKitInputMethodContext.get(), "delete-surrounding", offset, 1);
+    g_signal_emit_by_name(m_webKitInputMethodContext.get(), "delete-surrounding", offset, count);
 }

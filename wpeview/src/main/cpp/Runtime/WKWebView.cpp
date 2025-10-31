@@ -409,7 +409,8 @@ private:
     static void nativeOnTouchEvent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint type,
         jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept;
     static void nativeSetInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint unicodeChar) noexcept;
-    static void nativeDeleteInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint offset) noexcept;
+    static void nativeDeleteInputMethodContent(
+        JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint offset, jint count) noexcept;
     static void nativeRequestExitFullscreenMode(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject obj, jlong wkWebViewPtr, jstring script, JNIWKCallback callback) noexcept;
@@ -466,7 +467,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
             "nativeOnTouchEvent", JNIWKWebViewCache::nativeOnTouchEvent),
         JNI::NativeMethod<void(jlong, jint)>(
             "nativeSetInputMethodContent", JNIWKWebViewCache::nativeSetInputMethodContent),
-        JNI::NativeMethod<void(jlong, jint)>(
+        JNI::NativeMethod<void(jlong, jint, jint)>(
             "nativeDeleteInputMethodContent", JNIWKWebViewCache::nativeDeleteInputMethodContent),
         JNI::NativeMethod<void(jlong)>(
             "nativeRequestExitFullscreenMode", JNIWKWebViewCache::nativeRequestExitFullscreenMode),
@@ -684,12 +685,12 @@ void JNIWKWebViewCache::nativeSetInputMethodContent(
 }
 
 void JNIWKWebViewCache::nativeDeleteInputMethodContent(
-    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jint offset) noexcept
+    JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jint offset, jint count) noexcept
 {
-    Logging::logDebug("WKWebView::nativeDeleteInputMethodContent(%d) [tid %d]", offset, gettid());
+    Logging::logDebug("WKWebView::nativeDeleteInputMethodContent(%d, %d) [tid %d]", offset, count, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if ((wkWebView != nullptr) && wkWebView->m_renderer)
-        wkWebView->m_inputMethodContext.deleteContent(offset);
+        wkWebView->m_inputMethodContext.deleteContent(offset, count);
 }
 
 void JNIWKWebViewCache::nativeRequestExitFullscreenMode(
@@ -796,6 +797,9 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
             Logging::logError("Failed to connect WPE display: %s", error ? error->message : "unknown error");
             g_clear_error(&error);
         }
+    } else {
+        // Take ownership of borrowed reference from wpe_display_get_primary()
+        g_object_ref(m_wpeDisplay);
     }
 
     // Create renderer if not headless

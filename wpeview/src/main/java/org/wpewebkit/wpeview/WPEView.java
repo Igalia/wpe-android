@@ -25,8 +25,6 @@ package org.wpewebkit.wpeview;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.view.KeyCharacterMap;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -279,18 +277,6 @@ public class WPEView extends FrameLayout {
      *         settings.
      */
     public @NonNull WPESettings getSettings() { return wpeSettings; }
-
-    @Override
-    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            wkWebView.deleteInputMethodContent(-1);
-            return true;
-        }
-
-        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
-        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
-        return true;
-    }
 
     @Override
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {

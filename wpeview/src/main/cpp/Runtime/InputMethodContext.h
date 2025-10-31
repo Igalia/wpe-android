@@ -44,7 +44,7 @@ public:
     WebKitInputMethodContext* webKitInputMethodContext() const noexcept { return m_webKitInputMethodContext.get(); }
 
     void setContent(const char* utf8Content) const noexcept;
-    void deleteContent(int offset) const noexcept;
+    void deleteContent(int offset, int count) const noexcept;
 
 private:
     InputMethodContextObserver* m_observer;

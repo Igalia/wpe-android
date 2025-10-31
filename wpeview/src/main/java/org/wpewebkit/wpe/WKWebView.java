@@ -238,7 +238,9 @@ public final class WKWebView {
 
     public void setInputMethodContent(int unicodeChar) { nativeSetInputMethodContent(nativePtr, unicodeChar); }
 
-    public void deleteInputMethodContent(int offset) { nativeDeleteInputMethodContent(nativePtr, offset); }
+    public void deleteInputMethodContent(int offset, int count) {
+        nativeDeleteInputMethodContent(nativePtr, offset, count);
+    }
 
     public boolean isInputFieldFocused() { return isInputFieldFocused; }
 
@@ -742,7 +744,7 @@ public final class WKWebView {
     private native void nativeOnTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids, float[] xs,
                                            float[] ys);
     private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
-    private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
+    private native void nativeDeleteInputMethodContent(long nativePtr, int offset, int count);
     private native void nativeRequestExitFullscreenMode(long nativePtr);
     private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
     private native void nativeScriptDialogClose(long nativeDialogPtr);
