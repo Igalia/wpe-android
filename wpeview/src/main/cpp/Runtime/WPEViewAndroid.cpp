@@ -40,7 +40,7 @@ G_DEFINE_TYPE_WITH_PRIVATE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
 
 static gboolean wpeViewAndroidRenderBuffer(
     WPEView* view, WPEBuffer* buffer, const WPERectangle* damageRects, guint nDamageRects, GError** error);
-static void wpeToplevelAndroidConstructed(GObject* object);
+static void wpeViewAndroidConstructed(GObject* object);
 static void wpeViewAndroidDispose(GObject* object);
 
 static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
@@ -48,7 +48,7 @@ static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
     GObjectClass* objectClass = G_OBJECT_CLASS(klass);
     WPEViewClass* viewClass = WPE_VIEW_CLASS(klass);
 
-    objectClass->constructed = wpeToplevelAndroidConstructed;
+    objectClass->constructed = wpeViewAndroidConstructed;
     objectClass->dispose = wpeViewAndroidDispose;
     viewClass->render_buffer = wpeViewAndroidRenderBuffer;
 }
@@ -63,7 +63,7 @@ static void wpe_view_android_init(WPEViewAndroid* view)
     priv->committedBuffer = nullptr;
 }
 
-static void wpeToplevelAndroidConstructed(GObject* object)
+static void wpeViewAndroidConstructed(GObject* object)
 {
     G_OBJECT_CLASS(wpe_view_android_parent_class)->constructed(object);
 
