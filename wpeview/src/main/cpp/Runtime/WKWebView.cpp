@@ -676,7 +676,7 @@ void JNIWKWebViewCache::nativeSetInputMethodContent(
 {
     Logging::logDebug("WKWebView::nativeSetInputMethodContent(0x%08X) [tid %d]", unicodeChar, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && wkWebView->m_renderer) {
+    if (wkWebView != nullptr) {
         static constexpr size_t GUNICHAR_UTF8_BUFFER_SIZE = 8;
         char utf8Content[GUNICHAR_UTF8_BUFFER_SIZE] = {};
         g_unichar_to_utf8(static_cast<gunichar>(unicodeChar), utf8Content);
@@ -689,7 +689,7 @@ void JNIWKWebViewCache::nativeDeleteInputMethodContent(
 {
     Logging::logDebug("WKWebView::nativeDeleteInputMethodContent(%d, %d) [tid %d]", offset, count, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if ((wkWebView != nullptr) && wkWebView->m_renderer)
+    if (wkWebView != nullptr)
         wkWebView->m_inputMethodContext.deleteContent(offset, count);
 }
 

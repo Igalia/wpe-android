@@ -78,6 +78,28 @@ void getProperty(GObject* object, guint propertyId, GValue* value, GParamSpec* p
     }
 }
 
+void setEnablePreedit(WebKitInputMethodContext* /*context*/, gboolean /*enabled*/) noexcept
+{
+    // Enables/disables preedit (composition) mode, which is not needed for simple text input.
+}
+
+void getPreedit(WebKitInputMethodContext* /*context*/, gchar** text, GList** underlines, guint* cursorOffset) noexcept
+{
+    // No preedit, all text is committed immediately.
+    if (text != nullptr)
+        *text = g_strdup("");
+    if (underlines != nullptr)
+        *underlines = nullptr;
+    if (cursorOffset != nullptr)
+        *cursorOffset = 0;
+}
+
+gboolean filterKeyEvent(WebKitInputMethodContext* /*context*/, gpointer /*keyEvent*/) noexcept
+{
+    // Don't filter any key events.
+    return FALSE;
+}
+
 void notifyFocusIn(WebKitInputMethodContext* context) noexcept
 {
     InternalInputMethodContextPrivate* ctx = getInternalInputMethodContextPrivate(G_OBJECT(context));
@@ -92,6 +114,23 @@ void notifyFocusOut(WebKitInputMethodContext* context) noexcept
     Logging::logDebug("internal_input_method_context_notify_focus_out %p", ctx->m_observer);
     if (ctx->m_observer != nullptr)
         ctx->m_observer->onInputMethodContextOut();
+}
+
+void notifyCursorArea(
+    WebKitInputMethodContext* /*context*/, int /*x*/, int /*y*/, int /*width*/, int /*height*/) noexcept
+{
+    // Cursor position, not needed in our case because the keyboard is handled by Android.
+}
+
+void notifySurrounding(WebKitInputMethodContext* /*context*/, const gchar* /*text*/, guint /*length*/,
+    guint /*cursorIndex*/, guint /*selectionIndex*/) noexcept
+{
+    // Provides surrounding text context, not needed for basic text input.
+}
+
+void resetContext(WebKitInputMethodContext* /*context*/) noexcept
+{
+    // No state to reset.
 }
 
 void internal_input_method_context_class_init(InternalInputMethodContextClass* klass)
@@ -109,8 +148,14 @@ void internal_input_method_context_class_init(InternalInputMethodContextClass* k
         objectKlass, static_cast<guint>(InternalInputMethodContextProperty::NumberOfProperties), s_properties);
 
     WebKitInputMethodContextClass* webkitInputMethodContextKlass = WEBKIT_INPUT_METHOD_CONTEXT_CLASS(klass);
+    webkitInputMethodContextKlass->set_enable_preedit = setEnablePreedit;
+    webkitInputMethodContextKlass->get_preedit = getPreedit;
+    webkitInputMethodContextKlass->filter_key_event = filterKeyEvent;
     webkitInputMethodContextKlass->notify_focus_in = notifyFocusIn;
     webkitInputMethodContextKlass->notify_focus_out = notifyFocusOut;
+    webkitInputMethodContextKlass->notify_cursor_area = notifyCursorArea;
+    webkitInputMethodContextKlass->notify_surrounding = notifySurrounding;
+    webkitInputMethodContextKlass->reset = resetContext;
 }
 
 void internal_input_method_context_init(InternalInputMethodContext* /*self*/) {}
