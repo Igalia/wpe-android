@@ -231,7 +231,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         manager.hideSoftInputFromWindow(requireView().windowToken, 0)
     }
 
-    private fun selectedTab() : Tab {
+    internal fun selectedTab() : Tab {
         // For now assume we always have at least one tab
         val selectedTabId = browserViewModel.browserState.value.selectedTabId
         return browserViewModel.findTab(selectedTabId!!)
