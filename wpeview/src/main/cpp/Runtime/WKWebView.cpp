@@ -596,6 +596,7 @@ void JNIWKWebViewCache::nativeSurfaceChanged(
         const uint32_t logicalWidth = static_cast<uint32_t>(std::round(physicalWidth / scale));
         const uint32_t logicalHeight = static_cast<uint32_t>(std::round(physicalHeight / scale));
         wpe_view_android_resize(wkWebView->wpeView(), logicalWidth, logicalHeight);
+        wpe_view_android_set_scale(wkWebView->wpeView(), scale);
     }
 }
 
