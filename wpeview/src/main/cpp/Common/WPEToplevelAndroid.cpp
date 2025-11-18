@@ -37,6 +37,19 @@ typedef struct {
 
 G_DEFINE_TYPE_WITH_PRIVATE(WPEToplevelAndroid, wpe_toplevel_android, WPE_TYPE_TOPLEVEL)
 
+static void wpeToplevelAndroidConstructed(GObject* object)
+{
+    G_OBJECT_CLASS(wpe_toplevel_android_parent_class)->constructed(object);
+
+    Logging::logDebug("WPEToplevelAndroid::constructed(%p)", object);
+
+    auto* toplevel = WPE_TOPLEVEL(object);
+
+    // Initialize the toplevel with ACTIVE state
+    // Android apps start in active state when visible
+    wpe_toplevel_state_changed(toplevel, WPE_TOPLEVEL_STATE_ACTIVE);
+}
+
 static void wpeToplevelAndroidSetTitle(WPEToplevel* toplevel, const char* title)
 {
     Logging::logDebug("WPEToplevelAndroid::set_title(%p, %s)", toplevel, title ? title : "(null)");
@@ -76,19 +89,6 @@ static WPEBufferDMABufFormats* wpeToplevelAndroidGetPreferredDmaBufFormats(WPETo
 {
     Logging::logDebug("WPEToplevelAndroid::get_preferred_dma_buf_formats(%p)", toplevel);
     return nullptr;
-}
-
-static void wpeToplevelAndroidConstructed(GObject* object)
-{
-    G_OBJECT_CLASS(wpe_toplevel_android_parent_class)->constructed(object);
-
-    Logging::logDebug("WPEToplevelAndroid::constructed(%p)", object);
-
-    auto* toplevel = WPE_TOPLEVEL(object);
-
-    // Initialize the toplevel with ACTIVE state
-    // Android apps start in active state when visible
-    wpe_toplevel_state_changed(toplevel, WPE_TOPLEVEL_STATE_ACTIVE);
 }
 
 static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* toplevelAndroidClass)
