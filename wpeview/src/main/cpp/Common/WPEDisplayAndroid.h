@@ -31,9 +31,4 @@ WPE_API WPEDisplay* wpe_display_android_new(void);
 
 WPE_API WPEToplevel* wpe_display_android_get_toplevel(WPEDisplay* display);
 
-typedef struct AHardwareBuffer AHardwareBuffer;
-
-WPE_API AHardwareBuffer* wpe_display_android_allocate_buffer(
-    WPEDisplay* display, int width, int height, guint32 format);
-
 G_END_DECLS

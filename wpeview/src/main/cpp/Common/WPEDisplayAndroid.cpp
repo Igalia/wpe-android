@@ -159,52 +159,6 @@ static void wpeDisplayAndroidDispose(GObject* object)
     G_OBJECT_CLASS(wpe_display_android_parent_class)->dispose(object);
 }
 
-// Convert DRM fourcc format to AHardwareBuffer format
-static uint32_t drmFormatToAHBFormat(uint32_t drmFormat)
-{
-    switch (drmFormat) {
-    case 0x34325241: // DRM_FORMAT_RGBA8888
-        return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM;
-    case 0x34325258: // DRM_FORMAT_RGBX8888
-        return AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM;
-    case 0x34324742: // DRM_FORMAT_RGB888
-        return AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM;
-    case 0x36314752: // DRM_FORMAT_RGB565
-        return AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM;
-    default:
-        return AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM; // default to RGBA8888
-    }
-}
-
-AHardwareBuffer* wpe_display_android_allocate_buffer(WPEDisplay* display, int width, int height, guint32 format)
-{
-    g_return_val_if_fail(WPE_IS_DISPLAY_ANDROID(display), nullptr);
-    g_return_val_if_fail(width > 0 && height > 0, nullptr);
-
-    Logging::logDebug("wpe_display_android_allocate_buffer(%dx%d, format=0x%08x)", width, height, format);
-
-    AHardwareBuffer_Desc desc = {};
-    desc.width = width;
-    desc.height = height;
-    desc.layers = 1;
-    desc.format = drmFormatToAHBFormat(format);
-    desc.usage = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER | AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE
-        | AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY;
-    desc.stride = 0;
-    desc.rfu0 = 0;
-    desc.rfu1 = 0;
-
-    AHardwareBuffer* buffer = nullptr;
-    int ret = AHardwareBuffer_allocate(&desc, &buffer);
-    if (ret != 0 || buffer == nullptr) {
-        Logging::logError("Failed to allocate AHardwareBuffer: ret=%d", ret);
-        return nullptr;
-    }
-
-    Logging::logDebug("Allocated AHardwareBuffer %p", buffer);
-    return buffer;
-}
-
 WPEToplevel* wpe_display_android_get_toplevel(WPEDisplay* display)
 {
     g_return_val_if_fail(WPE_IS_DISPLAY_ANDROID(display), nullptr);
