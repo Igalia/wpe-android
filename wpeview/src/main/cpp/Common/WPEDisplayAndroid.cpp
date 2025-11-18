@@ -36,41 +36,24 @@ typedef struct {
 
 G_DEFINE_TYPE_WITH_PRIVATE(WPEDisplayAndroid, wpe_display_android, WPE_TYPE_DISPLAY)
 
-static gboolean wpeDisplayAndroidConnect(WPEDisplay* display, GError** error);
-static WPEView* wpeDisplayAndroidCreateView(WPEDisplay* display);
-static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** error);
-static WPEBufferDMABufFormats* wpeDisplayAndroidGetPreferredDMABufFormats(WPEDisplay* display);
-static void wpeDisplayAndroidDispose(GObject* object);
-
-static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
+static void wpeDisplayAndroidDispose(GObject* object)
 {
-    GObjectClass* objectClass = G_OBJECT_CLASS(klass);
-    objectClass->dispose = wpeDisplayAndroidDispose;
+    Logging::logDebug("WPEDisplayAndroid::dispose(%p)", object);
 
-    WPEDisplayClass* displayClass = WPE_DISPLAY_CLASS(klass);
-    displayClass->connect = wpeDisplayAndroidConnect;
-    displayClass->create_view = wpeDisplayAndroidCreateView;
-    displayClass->get_egl_display = wpeDisplayAndroidGetEGLDisplay;
-    displayClass->get_preferred_dma_buf_formats = wpeDisplayAndroidGetPreferredDMABufFormats;
+    auto* priv
+        = static_cast<WPEDisplayAndroidPrivate*>(wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(object)));
+
+    // Clean up toplevel
+    g_clear_object(&priv->toplevel);
+
+    // Clean up EGL display if initialized
+    if (priv->eglDisplay != nullptr) {
+        eglTerminate(static_cast<EGLDisplay>(priv->eglDisplay));
+        priv->eglDisplay = nullptr;
+    }
+
+    G_OBJECT_CLASS(wpe_display_android_parent_class)->dispose(object);
 }
-
-static void wpe_display_android_init(WPEDisplayAndroid* display)
-{
-    Logging::logDebug("WPEDisplayAndroid::init(%p)", display);
-
-    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
-        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
-
-    // Set available input devices for Android
-    auto inputDevices = static_cast<WPEAvailableInputDevices>(
-        WPE_AVAILABLE_INPUT_DEVICE_TOUCHSCREEN | WPE_AVAILABLE_INPUT_DEVICE_KEYBOARD);
-    wpe_display_set_available_input_devices(WPE_DISPLAY(display), inputDevices);
-
-    // Create the toplevel for this display
-    priv->toplevel = wpe_toplevel_android_new(WPE_DISPLAY(display));
-}
-
-WPEDisplay* wpe_display_android_new(void) { return WPE_DISPLAY(g_object_new(WPE_TYPE_DISPLAY_ANDROID, nullptr)); }
 
 static gboolean wpeDisplayAndroidConnect(WPEDisplay* display, GError** /*error*/)
 {
@@ -140,24 +123,35 @@ static WPEBufferDMABufFormats* wpeDisplayAndroidGetPreferredDMABufFormats(WPEDis
     return wpe_buffer_dma_buf_formats_builder_end(builder);
 }
 
-static void wpeDisplayAndroidDispose(GObject* object)
+static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
 {
-    Logging::logDebug("WPEDisplayAndroid::dispose(%p)", object);
+    GObjectClass* objectClass = G_OBJECT_CLASS(klass);
+    objectClass->dispose = wpeDisplayAndroidDispose;
 
-    auto* priv
-        = static_cast<WPEDisplayAndroidPrivate*>(wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(object)));
-
-    // Clean up toplevel
-    g_clear_object(&priv->toplevel);
-
-    // Clean up EGL display if initialized
-    if (priv->eglDisplay != nullptr) {
-        eglTerminate(static_cast<EGLDisplay>(priv->eglDisplay));
-        priv->eglDisplay = nullptr;
-    }
-
-    G_OBJECT_CLASS(wpe_display_android_parent_class)->dispose(object);
+    WPEDisplayClass* displayClass = WPE_DISPLAY_CLASS(klass);
+    displayClass->connect = wpeDisplayAndroidConnect;
+    displayClass->create_view = wpeDisplayAndroidCreateView;
+    displayClass->get_egl_display = wpeDisplayAndroidGetEGLDisplay;
+    displayClass->get_preferred_dma_buf_formats = wpeDisplayAndroidGetPreferredDMABufFormats;
 }
+
+static void wpe_display_android_init(WPEDisplayAndroid* display)
+{
+    Logging::logDebug("WPEDisplayAndroid::init(%p)", display);
+
+    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
+        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
+
+    // Set available input devices for Android
+    auto inputDevices = static_cast<WPEAvailableInputDevices>(
+        WPE_AVAILABLE_INPUT_DEVICE_TOUCHSCREEN | WPE_AVAILABLE_INPUT_DEVICE_KEYBOARD);
+    wpe_display_set_available_input_devices(WPE_DISPLAY(display), inputDevices);
+
+    // Create the toplevel for this display
+    priv->toplevel = wpe_toplevel_android_new(WPE_DISPLAY(display));
+}
+
+WPEDisplay* wpe_display_android_new(void) { return WPE_DISPLAY(g_object_new(WPE_TYPE_DISPLAY_ANDROID, nullptr)); }
 
 WPEToplevel* wpe_display_android_get_toplevel(WPEDisplay* display)
 {
