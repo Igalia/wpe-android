@@ -38,31 +38,6 @@ typedef struct {
 
 G_DEFINE_TYPE_WITH_PRIVATE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
 
-static gboolean wpeViewAndroidRenderBuffer(
-    WPEView* view, WPEBuffer* buffer, const WPERectangle* damageRects, guint nDamageRects, GError** error);
-static void wpeViewAndroidConstructed(GObject* object);
-static void wpeViewAndroidDispose(GObject* object);
-
-static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
-{
-    GObjectClass* objectClass = G_OBJECT_CLASS(klass);
-    WPEViewClass* viewClass = WPE_VIEW_CLASS(klass);
-
-    objectClass->constructed = wpeViewAndroidConstructed;
-    objectClass->dispose = wpeViewAndroidDispose;
-    viewClass->render_buffer = wpeViewAndroidRenderBuffer;
-}
-
-static void wpe_view_android_init(WPEViewAndroid* view)
-{
-    Logging::logDebug("WPEViewAndroid::init(%p)", view);
-
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-    priv->pendingBuffer = nullptr;
-    priv->committedBuffer = nullptr;
-}
-
 static void wpeViewAndroidConstructed(GObject* object)
 {
     G_OBJECT_CLASS(wpe_view_android_parent_class)->constructed(object);
@@ -95,11 +70,6 @@ static void wpeViewAndroidDispose(GObject* object)
     priv->renderer.reset();
 
     G_OBJECT_CLASS(wpe_view_android_parent_class)->dispose(object);
-}
-
-WPEView* wpe_view_android_new(WPEDisplay* display)
-{
-    return WPE_VIEW(g_object_new(WPE_TYPE_VIEW_ANDROID, "display", display, nullptr));
 }
 
 static gboolean wpeViewAndroidRenderBuffer(
@@ -139,6 +109,31 @@ static gboolean wpeViewAndroidRenderBuffer(
     Logging::logDebug("WPEViewAndroid: buffer committed successfully");
 
     return TRUE;
+}
+
+static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
+{
+    GObjectClass* objectClass = G_OBJECT_CLASS(klass);
+    WPEViewClass* viewClass = WPE_VIEW_CLASS(klass);
+
+    objectClass->constructed = wpeViewAndroidConstructed;
+    objectClass->dispose = wpeViewAndroidDispose;
+    viewClass->render_buffer = wpeViewAndroidRenderBuffer;
+}
+
+static void wpe_view_android_init(WPEViewAndroid* view)
+{
+    Logging::logDebug("WPEViewAndroid::init(%p)", view);
+
+    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
+
+    priv->pendingBuffer = nullptr;
+    priv->committedBuffer = nullptr;
+}
+
+WPEView* wpe_view_android_new(WPEDisplay* display)
+{
+    return WPE_VIEW(g_object_new(WPE_TYPE_VIEW_ANDROID, "display", display, nullptr));
 }
 
 void wpe_view_android_resize(WPEViewAndroid* view, int width, int height)
