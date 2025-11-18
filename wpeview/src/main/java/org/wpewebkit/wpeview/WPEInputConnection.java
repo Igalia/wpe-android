@@ -28,8 +28,8 @@ import androidx.annotation.NonNull;
 import org.wpewebkit.wpe.WKWebView;
 
 /**
- * InputConnection implementation for WPEView that bridges Android IME input
- * to the WebKit text input system.
+ * Bridges Android IME input to WebKit's input method system. Handles text commit, deletion,
+ * and special keys. Note: composition text is currently treated as committed text.
  */
 public class WPEInputConnection extends BaseInputConnection {
     private final WKWebView wkWebView;
@@ -45,14 +45,14 @@ public class WPEInputConnection extends BaseInputConnection {
             return true;
         }
 
-        // Send each character to WebKit
+        // This loop iterates by char position but we need to send whole codepoints to WebKit, so when we detect a
+        // supplementary character (emoji, etc.) we get the codepoint at that location and skip the second char.
         for (int i = 0; i < text.length(); i++) {
             int codePoint = Character.codePointAt(text, i);
             wkWebView.setInputMethodContent(codePoint);
 
-            // Handle surrogate pairs (characters outside BMP that use two Java chars)
             if (Character.isSupplementaryCodePoint(codePoint)) {
-                i++; // Skip the low surrogate
+                i++;
             }
         }
 
@@ -61,15 +61,12 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+        // Counts Java char units (supplementary chars count as 2)
         if (beforeLength > 0) {
-            // Delete characters before cursor
-            // WebKit's delete-surrounding signal: offset is negative for before cursor, count is number to delete
             wkWebView.deleteInputMethodContent(-beforeLength, beforeLength);
         }
 
         if (afterLength > 0) {
-            // Delete characters after cursor
-            // WebKit's delete-surrounding signal: offset 0 for at cursor, count is number to delete forward
             wkWebView.deleteInputMethodContent(0, afterLength);
         }
 
@@ -78,51 +75,41 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean setComposingText(CharSequence text, int newCursorPosition) {
-        // For now, treat composing text the same as committed text
-        // A more sophisticated implementation could track composition state
-        // and send it to WebKit as preedit text
+        // TODO: Implement proper preedit support via WebKit's input method context
         return commitText(text, newCursorPosition);
     }
 
     @Override
     public boolean finishComposingText() {
-        // Composition is finished, nothing special to do
-        // since we're treating composing text as committed text
+        // Nothing to do since we treat composing text as committed
         return true;
     }
 
     @Override
     public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-        // This is similar to deleteSurroundingText but counts code points instead of chars
-        // For simplicity, delegate to the regular deleteSurroundingText
+        // Counts code points (not char units), but we delegate to deleteSurroundingText
+        // since we don't track text buffer state. May not handle supplementary chars correctly.
         return deleteSurroundingText(beforeLength, afterLength);
     }
 
     @Override
     public boolean sendKeyEvent(@NonNull KeyEvent event) {
-        // Handle special keys that need to be sent to WebKit
-        // Only process ACTION_DOWN to avoid duplicate events (ACTION_DOWN + ACTION_UP)
+        // Handle ACTION_DOWN events for Enter (newline) and Delete (backspace)
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_ENTER:
-                // Send newline character (Unicode 10 = '\n')
-                wkWebView.setInputMethodContent(10);
+                wkWebView.setInputMethodContent('\n');
                 return true;
 
             case KeyEvent.KEYCODE_DEL:
-                // Delete one character before cursor
-                // This handles Delete/Backspace when sent as a key event
-                // (regular backspace during composition goes through deleteSurroundingText)
                 wkWebView.deleteInputMethodContent(-1, 1);
                 return true;
 
             default:
-                // For other keys, use the default BaseInputConnection behavior
                 break;
             }
         }
 
-        // Let BaseInputConnection handle other key events
         return super.sendKeyEvent(event);
     }
 }
