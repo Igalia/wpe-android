@@ -1,7 +1,6 @@
 package org.wpewebkit.tools.minibrowser
 
 import android.view.View
-import android.webkit.URLUtil
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -35,35 +34,18 @@ fun View.requestApplyStandardInsets() {
     requestApplyInsetsWhenAttached()
 }
 
-object Utils {
-    private fun addressHasWebScheme(address: String) : Boolean {
-        return try {
-            val uri = URI(address)
-            uri.scheme?.let {
-                it.equals("http", ignoreCase = true) || it.equals("https", ignoreCase = true)
-            } ?: false
-        } catch (e: Exception) {
-            false
-        }
+// Ensures that the address has an HTTP/HTTPS scheme, adding HTTPS if missing
+fun normalizeAddress(address: String): String {
+    // Returns true if a scheme exists and is "http" or "https" (case-insensitive)
+    val hasWebScheme = try {
+        val uri = URI(address)
+        uri.scheme?.lowercase() in listOf("http", "https")
+    } catch (_: Exception) {
+        false
     }
 
-    fun normalizeAddress(address: String) : String {
-        // If the address already has a valid HTTP/HTTPS scheme, return as-is
-        if (addressHasWebScheme(address)) {
-            return address
-        }
-
-        // Otherwise, add HTTPS scheme
-        val urlWithScheme = "https://$address"
-
-        // Validate the constructed URL using Android's URLUtil
-        return if (URLUtil.isValidUrl(urlWithScheme) &&
-                   (URLUtil.isHttpUrl(urlWithScheme) || URLUtil.isHttpsUrl(urlWithScheme))) {
-            urlWithScheme
-        } else {
-            // Fallback: return the original address with HTTPS prepended
-            // This allows the WebView to handle any errors
-            urlWithScheme
-        }
+    if (hasWebScheme) {
+        return address
     }
+    return "https://$address"
 }

@@ -218,7 +218,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
     private fun onCommit(text: String) {
         val url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
-            Utils.normalizeAddress(text)
+            normalizeAddress(text)
         } else {
             SEARCH_URI_BASE + text
         }
