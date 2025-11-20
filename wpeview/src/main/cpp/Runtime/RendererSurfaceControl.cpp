@@ -29,6 +29,8 @@
 #include "SurfaceControl.h"
 #include "WKRuntime.h"
 
+#include <wpe/wpe-platform.h>
+
 RendererSurfaceControl::RendererSurfaceControl(uint32_t width, uint32_t height)
     : m_size({width, height})
 {
@@ -69,15 +71,130 @@ void RendererSurfaceControl::onSurfaceChanged(int /*format*/, uint32_t width, ui
 
 void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept // NOLINT(bugprone-exception-escape)
 {
-    // TODO: Implement surface redraw to display last committed buffer when Android requests redraw
-    // (e.g., after surface recreation or visibility change)
+    Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded()");
+
+    // Must have a surface to draw to
+    if (m_surface == nullptr) {
+        Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded() - no surface available");
+        return;
+    }
+
+    // Case 1: Pending commit buffer exists (deferred commit after surface restoration)
+    if (m_pendingCommitBuffer != nullptr) {
+        Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded() - committing pending buffer");
+
+        // Extract hardware buffer from pending buffer
+        AHardwareBuffer* hardwareBuffer = wpe_buffer_android_get_hardware_buffer(m_pendingCommitBuffer);
+        if (hardwareBuffer == nullptr) {
+            Logging::logError("RendererSurfaceControl::onSurfaceRedrawNeeded() - failed to get hardware buffer from "
+                              "pending buffer");
+            return;
+        }
+
+        // Save buffer pointer and fence before clearing pending state
+        WPEBufferAndroid* bufferToCommit = m_pendingCommitBuffer;
+        int fenceFD = m_pendingCommitFenceFD ? m_pendingCommitFenceFD->release() : -1;
+
+        // Clear pending state
+        m_pendingCommitBuffer = nullptr;
+        m_pendingCommitFenceFD.reset();
+
+        // Create transaction
+        SurfaceControl::Transaction transaction;
+        transaction.setVisibility(*m_surface, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
+        transaction.setZOrder(*m_surface, 0);
+        transaction.setBuffer(*m_surface, hardwareBuffer, fenceFD);
+
+        // Swap resources (same pattern as commitBuffer)
+        ResourceRefs resourcesToRelease;
+        resourcesToRelease.swap(m_currentFrameResources);
+        m_currentFrameResources.clear();
+
+        auto& resourceRef = m_currentFrameResources[m_surface->surfaceControl()];
+        resourceRef.m_surface = m_surface;
+        resourceRef.m_wpeBuffer = bufferToCommit;
+        g_object_ref(bufferToCommit); // Add ref for currentFrameResources
+        resourceRef.m_hardwareBuffer = hardwareBuffer;
+
+        // Setup callbacks (same pattern as commitBuffer)
+        std::weak_ptr<RendererSurfaceControl> const weakPtr(shared_from_this());
+        auto onCompleteCallback = [weakPtr, resources = std::move(resourcesToRelease)](auto&& stats) {
+            auto ptr = weakPtr.lock();
+            if (ptr)
+                ptr->onTransActionAckOnBrowserThread(resources, std::forward<decltype(stats)>(stats));
+        };
+        transaction.setOnCompleteCallback(std::move(onCompleteCallback));
+
+        auto onCommitCallback = [weakPtr]() {
+            auto ptr = weakPtr.lock();
+            if (ptr)
+                ptr->onTransactionCommittedOnBrowserThread();
+        };
+        transaction.setOnCommitCallback(std::move(onCommitCallback));
+
+        // Apply or queue
+        if (m_numTransactionCommitOrAckPending > 0) {
+            m_pendingTransactionQueue.push(std::move(transaction));
+        } else {
+            m_numTransactionCommitOrAckPending++;
+            transaction.apply();
+            m_frontBuffer = bufferToCommit;
+            g_object_ref(bufferToCommit); // Add ref for frontBuffer
+        }
+
+        // Release the original pending buffer ref (now held by currentFrameResources and possibly frontBuffer)
+        g_object_unref(bufferToCommit);
+
+        return;
+    }
+
+    // Case 2: Front buffer redraw (refresh)
+    if (m_frontBuffer != nullptr) {
+        Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded() - redrawing front buffer");
+
+        // Skip redraw if there are pending transactions or queued updates
+        // The pending/queued buffers are newer than m_frontBuffer
+        if (m_numTransactionCommitOrAckPending > 0) {
+            Logging::logDebug(
+                "RendererSurfaceControl::onSurfaceRedrawNeeded() - skipping redraw, newer content pending");
+            return;
+        }
+
+        // Extract hardware buffer from front buffer
+        AHardwareBuffer* hardwareBuffer = wpe_buffer_android_get_hardware_buffer(m_frontBuffer);
+        if (hardwareBuffer == nullptr) {
+            Logging::logError(
+                "RendererSurfaceControl::onSurfaceRedrawNeeded() - failed to get hardware buffer from front buffer");
+            return;
+        }
+
+        // Create transaction
+        SurfaceControl::Transaction transaction;
+        transaction.setVisibility(*m_surface, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
+        transaction.setZOrder(*m_surface, 0);
+        transaction.setBuffer(*m_surface, hardwareBuffer, -1); // No fence needed (buffer already signaled)
+
+        // Setup commit callback for queue management (no complete callback - this is a refresh, not a new frame)
+        std::weak_ptr<RendererSurfaceControl> const weakPtr(shared_from_this());
+        auto onCommitCallback = [weakPtr]() {
+            auto ptr = weakPtr.lock();
+            if (ptr)
+                ptr->onTransactionCommittedOnBrowserThread();
+        };
+        transaction.setOnCommitCallback(std::move(onCommitCallback));
+
+        // Apply immediately (counter is guaranteed to be 0 here due to early return above)
+        m_numTransactionCommitOrAckPending++;
+        transaction.apply();
+
+        return;
+    }
+
+    // Case 3: No buffer available
+    Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded() - no buffer available to redraw");
 }
 
-void RendererSurfaceControl::onSurfaceDestroyed() noexcept
-{
-    m_surface.reset();
-    m_pendingFrontBufferRedraw = true;
-}
+void RendererSurfaceControl::onSurfaceDestroyed() noexcept { m_surface.reset(); }
 
 void RendererSurfaceControl::commitBuffer(
     AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD)
@@ -105,8 +222,6 @@ void RendererSurfaceControl::commitBuffer(
         m_pendingCommitBuffer = nullptr;
         m_pendingCommitFenceFD = nullptr;
     }
-
-    m_pendingFrontBufferRedraw = false;
 
     SurfaceControl::Transaction transaction;
     transaction.setVisibility(*m_surface, ASURFACE_TRANSACTION_VISIBILITY_SHOW);

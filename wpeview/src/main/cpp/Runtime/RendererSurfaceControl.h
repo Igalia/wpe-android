@@ -104,6 +104,4 @@ private:
     WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
     WPEBufferAndroid* m_frontBuffer = nullptr;
-
-    bool m_pendingFrontBufferRedraw = false;
 };
