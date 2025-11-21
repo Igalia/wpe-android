@@ -25,8 +25,8 @@
 
 #include <android/hardware_buffer.h>
 #include <functional>
-#include <map>
 #include <memory>
+#include <optional>
 #include <queue>
 
 #include "ScopedFD.h"
@@ -64,26 +64,9 @@ public:
         AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD) override;
 
 private:
-    struct ResourceRef {
-        ResourceRef() = default;
-        ~ResourceRef() = default;
-
-        ResourceRef(const ResourceRef& other) = default;
-        ResourceRef& operator=(const ResourceRef& other) = default;
-
-        ResourceRef(ResourceRef&& other) = default;
-        ResourceRef& operator=(ResourceRef&& other) = default;
-
-        std::shared_ptr<SurfaceControl::Surface> m_surface;
-        WPEBufferAndroid* m_wpeBuffer = nullptr;
-        AHardwareBuffer* m_hardwareBuffer = nullptr;
-    };
-    using ResourceRefs = std::map<ASurfaceControl*, ResourceRef>;
-
-    void onTransActionAckOnBrowserThread(ResourceRefs releasedResources, SurfaceControl::TransactionStats stats);
+    void onTransActionAckOnBrowserThread(std::optional<WPEBufferAndroid*> releasedBuffer);
     void onTransactionCommittedOnBrowserThread();
-
-    void processTransactionQueue();
+    void applyBufferTransaction(AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD);
 
     BufferReleaseCallback m_bufferReleaseCallback;
     FrameCompleteCallback m_frameCompleteCallback;
@@ -98,9 +81,8 @@ private:
     std::queue<SurfaceControl::Transaction> m_pendingTransactionQueue;
     uint32_t m_numTransactionCommitOrAckPending = 0U;
 
-    ResourceRefs m_currentFrameResources;
+    std::optional<WPEBufferAndroid*> m_currentFrameBuffer;
 
-    std::queue<WPEBufferAndroid*> m_releaseBufferQueue;
     WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
     WPEBufferAndroid* m_frontBuffer = nullptr;
