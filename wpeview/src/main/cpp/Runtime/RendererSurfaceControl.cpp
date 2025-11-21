@@ -76,6 +76,7 @@ void RendererSurfaceControl::onSurfaceChanged(int /*format*/, uint32_t width, ui
     m_size.m_height = height;
 }
 
+// Handle Android surface redraw requests by committing pending buffers or refreshing current content
 void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept // NOLINT(bugprone-exception-escape)
 {
     Logging::logDebug("onSurfaceRedrawNeeded()");
@@ -147,6 +148,7 @@ void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept // NOLINT(bugprone
 // Release the surface control when the Android surface is destroyed
 void RendererSurfaceControl::onSurfaceDestroyed() noexcept { m_surface.reset(); }
 
+// Commit a new buffer to the surface or defer if surface is unavailable
 void RendererSurfaceControl::commitBuffer(
     AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD)
 {
@@ -180,6 +182,7 @@ void RendererSurfaceControl::commitBuffer(
     applyBufferTransaction(hardwareBuffer, wpeBuffer, fenceFD->release());
 }
 
+// Handle transaction completion acknowledgment and release buffer for reuse
 void RendererSurfaceControl::onTransActionAckOnBrowserThread(std::optional<WPEBufferAndroid*> releasedBuffer)
 {
     // Android framework releases its buffer reference in this callback; wait for it before buffer reuse
@@ -197,6 +200,7 @@ void RendererSurfaceControl::onTransActionAckOnBrowserThread(std::optional<WPEBu
     }
 }
 
+// Process transaction commit completion, trigger frame callback, and apply queued transactions
 void RendererSurfaceControl::onTransactionCommittedOnBrowserThread()
 {
     if (m_frameCompleteCallback)
@@ -210,6 +214,7 @@ void RendererSurfaceControl::onTransactionCommittedOnBrowserThread()
     }
 }
 
+// Create and apply buffer transaction with callbacks, queueing if another transaction is pending
 void RendererSurfaceControl::applyBufferTransaction(
     AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD)
 {

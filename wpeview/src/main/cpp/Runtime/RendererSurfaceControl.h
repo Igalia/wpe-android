@@ -57,7 +57,9 @@ public:
     void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
+    // Set callback to notify when buffers are released and can be reused
     void setBufferReleaseCallback(BufferReleaseCallback callback) { m_bufferReleaseCallback = std::move(callback); }
+    // Set callback to notify when frame presentation completes
     void setFrameCompleteCallback(FrameCompleteCallback callback) { m_frameCompleteCallback = std::move(callback); }
 
     void commitBuffer(
