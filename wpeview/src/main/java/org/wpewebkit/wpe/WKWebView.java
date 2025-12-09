@@ -495,6 +495,14 @@ public final class WKWebView {
     }
 
     @Keep
+    private boolean onLoadFailed(int loadEvent, @NonNull String failingUri, int errorCode, @NonNull String errorDomain,
+                                 @NonNull String errorMessage) {
+        if (wpeViewClient != null)
+            return wpeViewClient.onLoadFailed(wpeView, failingUri, errorCode, errorDomain, errorMessage);
+        return false;
+    }
+
+    @Keep
     private void onWebProcessTerminated(int reason) {
         if (wpeViewClient != null)
             wpeViewClient.onRenderProcessGone(wpeView, reason);

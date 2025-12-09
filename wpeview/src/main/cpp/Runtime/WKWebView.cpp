@@ -162,6 +162,27 @@ public:
             static_cast<jboolean>(webkit_web_view_is_loading(webView)));
     }
 
+    static gboolean onLoadFailed(WKWebView* wkWebView, WebKitLoadEvent loadEvent, const char* failingURI, GError* error,
+        WebKitWebView* /*webView*/) noexcept
+    {
+        Logging::logDebug("WKWebView::onLoadFailed() [tid %d] uri=%s error=%s", gettid(), failingURI,
+            error ? error->message : "null");
+
+        auto jFailingUri = JNI::String(failingURI);
+        auto jErrorDomain = JNI::String(error ? g_quark_to_string(error->domain) : "");
+        auto jErrorMessage = JNI::String(error ? error->message : "");
+
+        try {
+            return static_cast<gboolean>(getJNIPageCache().m_onLoadFailed.invoke(wkWebView->m_webViewJavaInstance.get(),
+                static_cast<jint>(loadEvent), static_cast<jstring>(jFailingUri),
+                static_cast<jint>(error ? error->code : 0), static_cast<jstring>(jErrorDomain),
+                static_cast<jstring>(jErrorMessage)));
+        } catch (const std::exception& ex) {
+            Logging::logError("Cannot call onLoadFailed (%s)", ex.what());
+            return FALSE;
+        }
+    }
+
     static void onWebProcessTerminated(
         WKWebView* wkWebView, WebKitWebProcessTerminationReason reason, WebKitWebView* /*webView*/) noexcept
     {
@@ -453,6 +474,7 @@ private:
     const JNI::Method<void(jint)> m_onLoadChanged;
     const JNI::Method<jboolean(jstring, jboolean, jboolean)> m_shouldOverrideUrlLoading;
     const JNI::Method<void(jboolean)> m_onIsLoadingChanged;
+    const JNI::Method<jboolean(jint, jstring, jint, jstring, jstring)> m_onLoadFailed;
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
@@ -516,6 +538,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     , m_onLoadChanged(getMethod<void(jint)>("onLoadChanged"))
     , m_shouldOverrideUrlLoading(getMethod<jboolean(jstring, jboolean, jboolean)>("shouldOverrideUrlLoading"))
     , m_onIsLoadingChanged(getMethod<void(jboolean)>("onIsLoadingChanged"))
+    , m_onLoadFailed(getMethod<jboolean(jint, jstring, jint, jstring, jstring)>("onLoadFailed"))
     , m_onWebProcessTerminated(getMethod<void(jint)>("onWebProcessTerminated"))
     , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
@@ -926,6 +949,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "load-changed", G_CALLBACK(JNIWKWebViewCache::onLoadChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::is-loading", G_CALLBACK(JNIWKWebViewCache::onIsLoadingChanged), this));
+    m_signalHandlers.push_back(
+        g_signal_connect_swapped(m_webView, "load-failed", G_CALLBACK(JNIWKWebViewCache::onLoadFailed), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "web-process-terminated", G_CALLBACK(JNIWKWebViewCache::onWebProcessTerminated), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(

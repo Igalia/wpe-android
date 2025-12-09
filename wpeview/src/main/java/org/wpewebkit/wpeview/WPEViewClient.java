@@ -73,6 +73,28 @@ public class WPEViewClient {
     public void onLoadingStateChanged(@NonNull WPEView view, boolean isLoading) {}
 
     /**
+     * Notify the host application that a page failed to load.
+     * <p>
+     * This callback is invoked when an error prevents a page from loading.
+     * Common errors include network failures, DNS resolution failures,
+     * and policy errors.
+     * <p>
+     * Note that {@link #onPageFinished} will still be called after this callback.
+     *
+     * @param view The WPEView that is initiating the callback.
+     * @param failingUri The URI that failed to load.
+     * @param errorCode The error code from WebKit.
+     * @param errorDomain The error domain (e.g., "WebKitNetworkError", "WebKitPolicyError").
+     * @param errorMessage A human-readable description of the error.
+     * @return {@code true} if the error was handled and the default error page
+     *         should not be shown; {@code false} to show the default error page.
+     */
+    public boolean onLoadFailed(@NonNull WPEView view, @NonNull String failingUri, int errorCode,
+                                @NonNull String errorDomain, @NonNull String errorMessage) {
+        return false;
+    }
+
+    /**
      * Notify the host application that the renderer process has exited.
      * <p>
      * Multiple {@link WPEView} instances may be associated with a single render process.
