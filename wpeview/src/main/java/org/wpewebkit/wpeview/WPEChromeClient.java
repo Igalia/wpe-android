@@ -95,6 +95,20 @@ public interface WPEChromeClient {
     default void onHideCustomView() {}
 
     /**
+     * Notify the host application that the fullscreen mode has changed.
+     * This is called when the WebView enters or exits fullscreen mode.
+     * <p>
+     * This callback provides a simpler alternative to {@link #onShowCustomView}
+     * and {@link #onHideCustomView} when you only need to track fullscreen state
+     * without custom view management.
+     *
+     * @param view The WPEView that initiated the callback.
+     * @param isFullscreen {@code true} if the WebView is entering fullscreen mode,
+     *                     {@code false} if exiting fullscreen mode.
+     */
+    default void onFullscreenModeChanged(@NonNull WPEView view, boolean isFullscreen) {}
+
+    /**
      * Notify the host application that the web page wants to display a
      * JavaScript {@code alert()} dialog.
      * <p>The default behavior if this method returns {@code false} or is not

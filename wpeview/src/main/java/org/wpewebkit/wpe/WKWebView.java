@@ -693,6 +693,9 @@ public final class WKWebView {
     @Keep
     private void onEnterFullscreenMode() {
         Log.d(LOGTAG, "onEnterFullscreenMode()");
+        if (wpeChromeClient != null) {
+            wpeChromeClient.onFullscreenModeChanged(wpeView, true);
+        }
         if ((surfaceView != null) && (wpeChromeClient != null)) {
             wpeView.removeView(surfaceView);
 
@@ -711,6 +714,9 @@ public final class WKWebView {
     @Keep
     private void onExitFullscreenMode() {
         Log.d(LOGTAG, "onExitFullscreenMode()");
+        if (wpeChromeClient != null) {
+            wpeChromeClient.onFullscreenModeChanged(wpeView, false);
+        }
         if ((customView != null) && (surfaceView != null) && (wpeChromeClient != null)) {
             customView.removeView(surfaceView);
             wpeView.addView(surfaceView);
