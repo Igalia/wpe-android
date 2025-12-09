@@ -184,6 +184,13 @@ public:
             static_cast<jboolean>(webkit_web_view_can_go_forward(webView)));
     }
 
+    static void onIsPlayingAudioChanged(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onIsPlayingAudioChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onIsPlayingAudioChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jboolean>(webkit_web_view_is_playing_audio(webView)));
+    }
+
     static gboolean onScriptDialog(WKWebView* wkWebView, WebKitScriptDialog* dialog, WebKitWebView* webView) noexcept
     {
         auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
@@ -388,6 +395,7 @@ private:
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
+    const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
     const JNI::Method<jboolean(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void()> m_onInputMethodContextIn;
     const JNI::Method<void()> m_onInputMethodContextOut;
@@ -445,6 +453,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
+    , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
     , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     , m_onInputMethodContextIn(getMethod<void()>("onInputMethodContextIn"))
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
@@ -853,6 +862,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "notify::uri", G_CALLBACK(JNIWKWebViewCache::onUriChanged), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIWKWebViewCache::onTitleChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "notify::is-playing-audio", G_CALLBACK(JNIWKWebViewCache::onIsPlayingAudioChanged), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "script-dialog", G_CALLBACK(JNIWKWebViewCache::onScriptDialog), this));
     m_signalHandlers.push_back(

@@ -61,6 +61,15 @@ public interface WPEChromeClient {
     default void onUriChanged(@NonNull WPEView view, @NonNull String uri) {}
 
     /**
+     * Notify the host application that the audio playback state has changed.
+     * This is called when the WebView starts or stops playing audio.
+     * @param view The WPEView that initiated the callback.
+     * @param isPlayingAudio {@code true} if the WebView is currently playing audio,
+     *                       {@code false} otherwise.
+     */
+    default void onAudioStateChanged(@NonNull WPEView view, boolean isPlayingAudio) {}
+
+    /**
      * A callback interface used by the host application to notify
      * the current page that its custom view has been dismissed.
      */

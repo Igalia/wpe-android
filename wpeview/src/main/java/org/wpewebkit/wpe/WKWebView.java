@@ -507,6 +507,12 @@ public final class WKWebView {
             wpeChromeClient.onReceivedTitle(wpeView, title);
     }
 
+    @Keep
+    private void onIsPlayingAudioChanged(boolean isPlayingAudio) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onAudioStateChanged(wpeView, isPlayingAudio);
+    }
+
     @SuppressLint("StringFormatInvalid")
     @Keep
     private boolean onScriptDialog(long nativeDialogPtr, int dialogType, @NonNull String url, @NonNull String message,
