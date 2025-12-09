@@ -54,6 +54,22 @@ public class WPEViewClient {
     public void onLoadingStateChanged(@NonNull WPEView view, boolean isLoading) {}
 
     /**
+     * Notify the host application that the renderer process has exited.
+     * <p>
+     * Multiple {@link WPEView} instances may be associated with a single render process.
+     * The application should handle this by destroying all associated WebViews.
+     *
+     * @param view The WPEView that initiated the callback.
+     * @param terminationReason The reason for the termination. One of:
+     *        <ul>
+     *        <li>{@code 0} - WEB_PROCESS_CRASHED: The web process crashed.</li>
+     *        <li>{@code 1} - WEB_PROCESS_EXCEEDED_MEMORY_LIMIT: The web process exceeded memory limits.</li>
+     *        <li>{@code 2} - WEB_PROCESS_TERMINATED_BY_API: The web process was terminated by API call.</li>
+     *        </ul>
+     */
+    public void onRenderProcessGone(@NonNull WPEView view, int terminationReason) {}
+
+    /**
      * Notify the host application that the internal SurfaceView has been created
      * and it's ready to render to it's surface.
      */

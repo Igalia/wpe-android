@@ -92,6 +92,10 @@ public final class WKWebView {
     public static final int WEBKIT_TLS_ERRORS_POLICY_IGNORE = 0;
     public static final int WEBKIT_TLS_ERRORS_POLICY_FAIL = 1;
 
+    public static final int WEB_PROCESS_CRASHED = 0;
+    public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
+    public static final int WEB_PROCESS_TERMINATED_BY_API = 2;
+
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
@@ -477,6 +481,12 @@ public final class WKWebView {
     private void onIsLoadingChanged(boolean isLoading) {
         if (wpeViewClient != null)
             wpeViewClient.onLoadingStateChanged(wpeView, isLoading);
+    }
+
+    @Keep
+    private void onWebProcessTerminated(int reason) {
+        if (wpeViewClient != null)
+            wpeViewClient.onRenderProcessGone(wpeView, reason);
     }
 
     @Keep
