@@ -70,6 +70,45 @@ public interface WPEChromeClient {
     default void onAudioStateChanged(@NonNull WPEView view, boolean isPlayingAudio) {}
 
     /**
+     * Notify the host application that the camera capture state has changed.
+     * This is called when a page starts or stops capturing from the camera.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Camera capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Camera capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Camera capture is muted.</li>
+     *        </ul>
+     */
+    default void onCameraCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
+     * Notify the host application that the microphone capture state has changed.
+     * This is called when a page starts or stops capturing from the microphone.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Microphone capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Microphone capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Microphone capture is muted.</li>
+     *        </ul>
+     */
+    default void onMicrophoneCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
+     * Notify the host application that the display capture state has changed.
+     * This is called when a page starts or stops screen sharing.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Display capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Display capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Display capture is muted.</li>
+     *        </ul>
+     */
+    default void onDisplayCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
      * A callback interface used by the host application to notify
      * the current page that its custom view has been dismissed.
      */

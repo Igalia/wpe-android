@@ -199,6 +199,30 @@ public:
             static_cast<jboolean>(webkit_web_view_is_playing_audio(webView)));
     }
 
+    static void onCameraCaptureStateChanged(
+        WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onCameraCaptureStateChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onCameraCaptureStateChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jint>(webkit_web_view_get_camera_capture_state(webView)));
+    }
+
+    static void onMicrophoneCaptureStateChanged(
+        WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onMicrophoneCaptureStateChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onMicrophoneCaptureStateChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jint>(webkit_web_view_get_microphone_capture_state(webView)));
+    }
+
+    static void onDisplayCaptureStateChanged(
+        WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onDisplayCaptureStateChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onDisplayCaptureStateChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jint>(webkit_web_view_get_display_capture_state(webView)));
+    }
+
     static gboolean onScriptDialog(WKWebView* wkWebView, WebKitScriptDialog* dialog, WebKitWebView* webView) noexcept
     {
         auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
@@ -434,6 +458,9 @@ private:
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
     const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
+    const JNI::Method<void(jint)> m_onCameraCaptureStateChanged;
+    const JNI::Method<void(jint)> m_onMicrophoneCaptureStateChanged;
+    const JNI::Method<void(jint)> m_onDisplayCaptureStateChanged;
     const JNI::Method<jboolean(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void()> m_onInputMethodContextIn;
     const JNI::Method<void()> m_onInputMethodContextOut;
@@ -494,6 +521,9 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
     , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
+    , m_onCameraCaptureStateChanged(getMethod<void(jint)>("onCameraCaptureStateChanged"))
+    , m_onMicrophoneCaptureStateChanged(getMethod<void(jint)>("onMicrophoneCaptureStateChanged"))
+    , m_onDisplayCaptureStateChanged(getMethod<void(jint)>("onDisplayCaptureStateChanged"))
     , m_onScriptDialog(getMethod<jboolean(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     , m_onInputMethodContextIn(getMethod<void()>("onInputMethodContextIn"))
     , m_onInputMethodContextOut(getMethod<void()>("onInputMethodContextOut"))
@@ -906,6 +936,12 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIWKWebViewCache::onTitleChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::is-playing-audio", G_CALLBACK(JNIWKWebViewCache::onIsPlayingAudioChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "notify::camera-capture-state", G_CALLBACK(JNIWKWebViewCache::onCameraCaptureStateChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "notify::microphone-capture-state",
+        G_CALLBACK(JNIWKWebViewCache::onMicrophoneCaptureStateChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "notify::display-capture-state", G_CALLBACK(JNIWKWebViewCache::onDisplayCaptureStateChanged), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "script-dialog", G_CALLBACK(JNIWKWebViewCache::onScriptDialog), this));
     m_signalHandlers.push_back(
