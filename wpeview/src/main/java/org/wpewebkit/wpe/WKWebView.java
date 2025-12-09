@@ -474,6 +474,12 @@ public final class WKWebView {
     }
 
     @Keep
+    private void onIsLoadingChanged(boolean isLoading) {
+        if (wpeViewClient != null)
+            wpeViewClient.onLoadingStateChanged(wpeView, isLoading);
+    }
+
+    @Keep
     private void onClose() {
         if (wpeChromeClient != null)
             wpeChromeClient.onCloseWindow(wpeView);

@@ -46,6 +46,14 @@ public class WPEViewClient {
     public void onPageFinished(@NonNull WPEView view, @NonNull String url) {}
 
     /**
+     * Notify the host application that the loading state has changed.
+     * This is called whenever the WebView starts or stops loading content.
+     * @param view The WPEView that is initiating the callback.
+     * @param isLoading {@code true} if the WebView is currently loading, {@code false} otherwise.
+     */
+    public void onLoadingStateChanged(@NonNull WPEView view, boolean isLoading) {}
+
+    /**
      * Notify the host application that the internal SurfaceView has been created
      * and it's ready to render to it's surface.
      */

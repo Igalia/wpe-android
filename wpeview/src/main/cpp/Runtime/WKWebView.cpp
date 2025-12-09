@@ -155,6 +155,13 @@ public:
             getJNIPageCache().m_onLoadChanged, wkWebView->m_webViewJavaInstance.get(), static_cast<int>(loadEvent));
     }
 
+    static void onIsLoadingChanged(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onIsLoadingChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onIsLoadingChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jboolean>(webkit_web_view_is_loading(webView)));
+    }
+
     static void onEstimatedLoadProgress(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
     {
         Logging::logDebug("WKWebView::onEstimatedLoadProgress() [tid %d]", gettid());
@@ -377,6 +384,7 @@ private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void()> m_onClose;
     const JNI::Method<void(jint)> m_onLoadChanged;
+    const JNI::Method<void(jboolean)> m_onIsLoadingChanged;
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
@@ -433,6 +441,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     : JNI::TypedClass<JNIWKWebView>(true)
     , m_onClose(getMethod<void()>("onClose"))
     , m_onLoadChanged(getMethod<void(jint)>("onLoadChanged"))
+    , m_onIsLoadingChanged(getMethod<void(jboolean)>("onIsLoadingChanged"))
     , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
@@ -836,6 +845,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "close", G_CALLBACK(JNIWKWebViewCache::onClose), this));
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "load-changed", G_CALLBACK(JNIWKWebViewCache::onLoadChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "notify::is-loading", G_CALLBACK(JNIWKWebViewCache::onIsLoadingChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::estimated-load-progress", G_CALLBACK(JNIWKWebViewCache::onEstimatedLoadProgress), this));
     m_signalHandlers.push_back(
