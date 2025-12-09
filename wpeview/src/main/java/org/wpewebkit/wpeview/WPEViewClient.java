@@ -27,6 +27,25 @@ import androidx.annotation.NonNull;
 
 public class WPEViewClient {
     /**
+     * Give the host application a chance to take control when a URL is about to be loaded
+     * in the current WPEView. If a WPEViewClient is not provided, by default WPEView will
+     * allow loading any URL.
+     *
+     * <p><strong>Note:</strong> Do not call {@link WPEView#loadUrl(String)} with the same URL
+     * from within this method. Doing so triggers an infinite loop.
+     *
+     * @param view The WPEView that is initiating the callback.
+     * @param url The URL to be loaded.
+     * @param isRedirect {@code true} if the navigation was triggered by a redirect.
+     * @param isUserGesture {@code true} if the navigation was triggered by a user gesture.
+     * @return {@code true} to cancel the current load, {@code false} to continue.
+     */
+    public boolean shouldOverrideUrlLoading(@NonNull WPEView view, @NonNull String url, boolean isRedirect,
+                                            boolean isUserGesture) {
+        return false;
+    }
+
+    /**
      * Notify the host application that a page has started loading. This method
      * is called once for each main frame load so a page with iframes or
      * framesets will call onPageStarted one time for the main frame. This also

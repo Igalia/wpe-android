@@ -217,6 +217,34 @@ public:
     static gboolean onDecidePolicy(WKWebView* wkWebView, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebView* /*webView*/) noexcept
     {
+        // Handle navigation policy decisions
+        if (decisionType == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION) {
+            auto* navigationDecision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+            auto* navigationAction = webkit_navigation_policy_decision_get_navigation_action(navigationDecision);
+            auto* uriRequest = webkit_navigation_action_get_request(navigationAction);
+            const char* uri = webkit_uri_request_get_uri(uriRequest);
+
+            if (uri != nullptr) {
+                auto jUri = JNI::String(uri);
+                auto isRedirect
+                    = static_cast<jboolean>(webkit_navigation_action_is_redirect(navigationAction) ? TRUE : FALSE);
+                auto isUserGesture
+                    = static_cast<jboolean>(webkit_navigation_action_is_user_gesture(navigationAction) ? TRUE : FALSE);
+
+                try {
+                    if (getJNIPageCache().m_shouldOverrideUrlLoading.invoke(wkWebView->m_webViewJavaInstance.get(),
+                            static_cast<jstring>(jUri), isRedirect, isUserGesture)) {
+                        webkit_policy_decision_ignore(decision);
+                        return TRUE;
+                    }
+                } catch (const std::exception& ex) {
+                    Logging::logError("Cannot call shouldOverrideUrlLoading (%s)", ex.what());
+                }
+            }
+            return FALSE;
+        }
+
+        // Handle response policy decisions (HTTP errors)
         if (decisionType != WEBKIT_POLICY_DECISION_TYPE_RESPONSE)
             return FALSE;
         auto* responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
@@ -399,6 +427,7 @@ private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void()> m_onClose;
     const JNI::Method<void(jint)> m_onLoadChanged;
+    const JNI::Method<jboolean(jstring, jboolean, jboolean)> m_shouldOverrideUrlLoading;
     const JNI::Method<void(jboolean)> m_onIsLoadingChanged;
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
@@ -458,6 +487,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     : JNI::TypedClass<JNIWKWebView>(true)
     , m_onClose(getMethod<void()>("onClose"))
     , m_onLoadChanged(getMethod<void(jint)>("onLoadChanged"))
+    , m_shouldOverrideUrlLoading(getMethod<jboolean(jstring, jboolean, jboolean)>("shouldOverrideUrlLoading"))
     , m_onIsLoadingChanged(getMethod<void(jboolean)>("onIsLoadingChanged"))
     , m_onWebProcessTerminated(getMethod<void(jint)>("onWebProcessTerminated"))
     , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))

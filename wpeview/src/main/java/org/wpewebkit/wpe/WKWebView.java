@@ -478,6 +478,13 @@ public final class WKWebView {
     }
 
     @Keep
+    private boolean shouldOverrideUrlLoading(@NonNull String url, boolean isRedirect, boolean isUserGesture) {
+        if (wpeViewClient != null)
+            return wpeViewClient.shouldOverrideUrlLoading(wpeView, url, isRedirect, isUserGesture);
+        return false;
+    }
+
+    @Keep
     private void onIsLoadingChanged(boolean isLoading) {
         if (wpeViewClient != null)
             wpeViewClient.onLoadingStateChanged(wpeView, isLoading);
