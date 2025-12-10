@@ -220,6 +220,13 @@ public:
             static_cast<jboolean>(webkit_web_view_is_playing_audio(webView)));
     }
 
+    static void onIsMutedChanged(WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
+    {
+        Logging::logDebug("WKWebView::onIsMutedChanged() [tid %d]", gettid());
+        callJavaMethod(getJNIPageCache().m_onIsMutedChanged, wkWebView->m_webViewJavaInstance.get(),
+            static_cast<jboolean>(webkit_web_view_get_is_muted(webView)));
+    }
+
     static void onCameraCaptureStateChanged(
         WKWebView* wkWebView, GParamSpec* /*pspec*/, WebKitWebView* webView) noexcept
     {
@@ -480,6 +487,7 @@ private:
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
     const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
+    const JNI::Method<void(jboolean)> m_onIsMutedChanged;
     const JNI::Method<void(jint)> m_onCameraCaptureStateChanged;
     const JNI::Method<void(jint)> m_onMicrophoneCaptureStateChanged;
     const JNI::Method<void(jint)> m_onDisplayCaptureStateChanged;
@@ -509,6 +517,8 @@ private:
         JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint format, jint width, jint height) noexcept;
     static void nativeSurfaceRedrawNeeded(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeSetZoomLevel(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jdouble zoomLevel) noexcept;
+    static jboolean nativeIsMuted(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
+    static void nativeSetMuted(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jboolean muted) noexcept;
     static void nativeOnTouchEvent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint type,
         jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept;
     static void nativeSetInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint unicodeChar) noexcept;
@@ -544,6 +554,7 @@ JNIWKWebViewCache::JNIWKWebViewCache()
     , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
     , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
     , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
+    , m_onIsMutedChanged(getMethod<void(jboolean)>("onIsMutedChanged"))
     , m_onCameraCaptureStateChanged(getMethod<void(jint)>("onCameraCaptureStateChanged"))
     , m_onMicrophoneCaptureStateChanged(getMethod<void(jint)>("onMicrophoneCaptureStateChanged"))
     , m_onDisplayCaptureStateChanged(getMethod<void(jint)>("onDisplayCaptureStateChanged"))
@@ -574,6 +585,8 @@ JNIWKWebViewCache::JNIWKWebViewCache()
         JNI::NativeMethod<void(jlong)>("nativeSurfaceRedrawNeeded", JNIWKWebViewCache::nativeSurfaceRedrawNeeded),
         JNI::NativeMethod<void(jlong)>("nativeSurfaceDestroyed", JNIWKWebViewCache::nativeSurfaceDestroyed),
         JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", JNIWKWebViewCache::nativeSetZoomLevel),
+        JNI::NativeMethod<jboolean(jlong)>("nativeIsMuted", JNIWKWebViewCache::nativeIsMuted),
+        JNI::NativeMethod<void(jlong, jboolean)>("nativeSetMuted", JNIWKWebViewCache::nativeSetMuted),
         JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
             "nativeOnTouchEvent", JNIWKWebViewCache::nativeOnTouchEvent),
         JNI::NativeMethod<void(jlong, jint)>(
@@ -738,6 +751,22 @@ void JNIWKWebViewCache::nativeSetZoomLevel(
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if ((wkWebView != nullptr) && (wkWebView->m_webView != nullptr))
         webkit_web_view_set_zoom_level(wkWebView->m_webView, zoomLevel);
+}
+
+jboolean JNIWKWebViewCache::nativeIsMuted(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
+{
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if ((wkWebView != nullptr) && (wkWebView->m_webView != nullptr))
+        return webkit_web_view_get_is_muted(wkWebView->m_webView);
+    return JNI_FALSE;
+}
+
+void JNIWKWebViewCache::nativeSetMuted(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jboolean muted) noexcept
+{
+    Logging::logDebug("WKWebView::nativeSetMuted(%d) [tid %d]", muted, gettid());
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if ((wkWebView != nullptr) && (wkWebView->m_webView != nullptr))
+        webkit_web_view_set_is_muted(wkWebView->m_webView, muted);
 }
 
 void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint type,
@@ -961,6 +990,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIWKWebViewCache::onTitleChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::is-playing-audio", G_CALLBACK(JNIWKWebViewCache::onIsPlayingAudioChanged), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(
+        m_webView, "notify::is-muted", G_CALLBACK(JNIWKWebViewCache::onIsMutedChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::camera-capture-state", G_CALLBACK(JNIWKWebViewCache::onCameraCaptureStateChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "notify::microphone-capture-state",

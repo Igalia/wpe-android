@@ -70,6 +70,15 @@ public interface WPEChromeClient {
     default void onAudioStateChanged(@NonNull WPEView view, boolean isPlayingAudio) {}
 
     /**
+     * Notify the host application that the muted state has changed.
+     * This is called when the WebView is muted or unmuted.
+     * @param view The WPEView that initiated the callback.
+     * @param isMuted {@code true} if the WebView is currently muted,
+     *                {@code false} otherwise.
+     */
+    default void onMutedStateChanged(@NonNull WPEView view, boolean isMuted) {}
+
+    /**
      * Notify the host application that the camera capture state has changed.
      * This is called when a page starts or stops capturing from the camera.
      * @param view The WPEView that initiated the callback.

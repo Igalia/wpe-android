@@ -244,6 +244,10 @@ public final class WKWebView {
 
     public void reload() { nativeReload(nativePtr); }
 
+    public boolean isMuted() { return nativeIsMuted(nativePtr); }
+
+    public void setMuted(boolean muted) { nativeSetMuted(nativePtr, muted); }
+
     public void setInputMethodContent(int unicodeChar) { nativeSetInputMethodContent(nativePtr, unicodeChar); }
 
     public void deleteInputMethodContent(int offset, int count) {
@@ -543,6 +547,12 @@ public final class WKWebView {
     }
 
     @Keep
+    private void onIsMutedChanged(boolean isMuted) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onMutedStateChanged(wpeView, isMuted);
+    }
+
+    @Keep
     private void onCameraCaptureStateChanged(int state) {
         if (wpeChromeClient != null)
             wpeChromeClient.onCameraCaptureStateChanged(wpeView, state);
@@ -808,6 +818,8 @@ public final class WKWebView {
     private native void nativeSurfaceRedrawNeeded(long nativePtr);
     private native void nativeSurfaceDestroyed(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
+    private native boolean nativeIsMuted(long nativePtr);
+    private native void nativeSetMuted(long nativePtr, boolean muted);
     private native void nativeOnTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids, float[] xs,
                                            float[] ys);
     private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
