@@ -5,7 +5,14 @@ plugins {
 }
 
 tasks.register("clean", Delete) {
-    delete rootProject.layout.buildDirectory
+    def buildDir = rootProject.layout.buildDirectory.get().asFile
+    if (buildDir.exists()) {
+        buildDir.eachFile { file ->
+            if (file.name != "cerbero" && file.name != "sysroot") {
+                delete file
+            }
+        }
+    }
     delete file(".git/hooks/pre-commit")
 }
 
