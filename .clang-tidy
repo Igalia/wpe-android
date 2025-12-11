@@ -46,7 +46,6 @@ Checks:
     -llvm-header-guard
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
-AnalyzeTemporaryDtors: false
 FormatStyle: file
 CheckOptions:
     - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }
