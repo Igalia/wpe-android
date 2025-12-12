@@ -990,8 +990,8 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "notify::title", G_CALLBACK(JNIWKWebViewCache::onTitleChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::is-playing-audio", G_CALLBACK(JNIWKWebViewCache::onIsPlayingAudioChanged), this));
-    m_signalHandlers.push_back(g_signal_connect_swapped(
-        m_webView, "notify::is-muted", G_CALLBACK(JNIWKWebViewCache::onIsMutedChanged), this));
+    m_signalHandlers.push_back(
+        g_signal_connect_swapped(m_webView, "notify::is-muted", G_CALLBACK(JNIWKWebViewCache::onIsMutedChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "notify::camera-capture-state", G_CALLBACK(JNIWKWebViewCache::onCameraCaptureStateChanged), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "notify::microphone-capture-state",

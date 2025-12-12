@@ -85,9 +85,13 @@ static gboolean wpeToplevelAndroidSetMinimized(WPEToplevel* toplevel)
     return TRUE;
 }
 
-static WPEBufferDMABufFormats* wpeToplevelAndroidGetPreferredDmaBufFormats(WPEToplevel* toplevel)
+static WPEBufferFormats* wpeToplevelAndroidGetPreferredBufferFormats(WPEToplevel* toplevel)
 {
-    Logging::logDebug("WPEToplevelAndroid::get_preferred_dma_buf_formats(%p)", toplevel);
+    auto* display = wpe_toplevel_get_display(toplevel);
+
+    if (display) {
+        return wpe_display_get_preferred_buffer_formats(display);
+    }
     return nullptr;
 }
 
@@ -103,7 +107,7 @@ static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* toplevelAnd
     toplevelClass->set_fullscreen = wpeToplevelAndroidSetFullscreen;
     toplevelClass->set_maximized = wpeToplevelAndroidSetMaximized;
     toplevelClass->set_minimized = wpeToplevelAndroidSetMinimized;
-    toplevelClass->get_preferred_dma_buf_formats = wpeToplevelAndroidGetPreferredDmaBufFormats;
+    toplevelClass->get_preferred_buffer_formats = wpeToplevelAndroidGetPreferredBufferFormats;
 }
 
 static void wpe_toplevel_android_init(WPEToplevelAndroid* toplevel)

@@ -66,7 +66,8 @@ public:
         AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD) override;
 
 private:
-    void onTransActionAckOnBrowserThread(std::optional<WPEBufferAndroid*> releasedBuffer);
+    void onTransActionAckOnBrowserThread(
+        std::optional<WPEBufferAndroid*> releasedBuffer, SurfaceControl::TransactionStats stats);
     void onTransactionCommittedOnBrowserThread();
     void applyBufferTransaction(AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD);
 

@@ -67,6 +67,12 @@ RendererSurfaceControl::~RendererSurfaceControl()
 void RendererSurfaceControl::onSurfaceCreated(ANativeWindow* window) noexcept
 {
     m_surface = std::make_shared<SurfaceControl::Surface>(window, "Surface");
+
+    // Clear any existing queued transactions for the old surface.
+    m_numTransactionCommitOrAckPending = 0;
+    while (!m_pendingTransactionQueue.empty()) {
+        m_pendingTransactionQueue.pop();
+    }
 }
 
 // Update surface dimensions when the Android surface changes
@@ -183,11 +189,18 @@ void RendererSurfaceControl::commitBuffer(
 }
 
 // Handle transaction completion acknowledgment and release buffer for reuse
-void RendererSurfaceControl::onTransActionAckOnBrowserThread(std::optional<WPEBufferAndroid*> releasedBuffer)
+void RendererSurfaceControl::onTransActionAckOnBrowserThread(
+    std::optional<WPEBufferAndroid*> releasedBuffer, SurfaceControl::TransactionStats stats)
 {
     // Android framework releases its buffer reference in this callback; wait for it before buffer reuse
     if (releasedBuffer.has_value() && releasedBuffer.value() != nullptr) {
         auto* buffer = releasedBuffer.value();
+
+        // Set release fence on buffer so Web Process waits before reusing
+        if (!stats.m_surfaceStats.empty() && stats.m_surfaceStats[0].m_fence) {
+            int releaseFence = stats.m_surfaceStats[0].m_fence->release();
+            wpe_buffer_set_release_fence(WPE_BUFFER(buffer), releaseFence);
+        }
 
         if (m_frontBuffer && m_frontBuffer == buffer) {
             g_object_unref(m_frontBuffer);
@@ -206,7 +219,10 @@ void RendererSurfaceControl::onTransactionCommittedOnBrowserThread()
     if (m_frameCompleteCallback)
         m_frameCompleteCallback();
 
-    m_numTransactionCommitOrAckPending--;
+    if (m_numTransactionCommitOrAckPending > 0) {
+        m_numTransactionCommitOrAckPending--;
+    }
+
     if (!m_pendingTransactionQueue.empty()) {
         m_numTransactionCommitOrAckPending++;
         m_pendingTransactionQueue.front().apply();
@@ -228,10 +244,10 @@ void RendererSurfaceControl::applyBufferTransaction(
     g_object_ref(wpeBuffer);
 
     std::weak_ptr<RendererSurfaceControl> const weakPtr(shared_from_this());
-    auto onCompleteCallback = [weakPtr, buffer = bufferToRelease](auto&& /*stats*/) {
+    auto onCompleteCallback = [weakPtr, buffer = bufferToRelease](SurfaceControl::TransactionStats&& stats) {
         auto ptr = weakPtr.lock();
         if (ptr)
-            ptr->onTransActionAckOnBrowserThread(buffer);
+            ptr->onTransActionAckOnBrowserThread(buffer, std::move(stats));
     };
     transaction.setOnCompleteCallback(std::move(onCompleteCallback));
 

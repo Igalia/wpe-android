@@ -43,20 +43,6 @@ static void wpeViewAndroidConstructed(GObject* object)
     G_OBJECT_CLASS(wpe_view_android_parent_class)->constructed(object);
 
     Logging::logDebug("WPEViewAndroid::constructed(%p)", object);
-
-    auto* view = WPE_VIEW(object);
-    auto* display = wpe_view_get_display(view);
-    if (display) {
-        auto* toplevel = wpe_display_android_get_toplevel(display);
-        if (toplevel) {
-            Logging::logDebug("WPEViewAndroid::constructed - associating view %p with toplevel %p", view, toplevel);
-            wpe_view_set_toplevel(view, toplevel);
-        } else {
-            Logging::logDebug("WPEViewAndroid::constructed - no toplevel found for display %p", display);
-        }
-    } else {
-        Logging::logDebug("WPEViewAndroid::constructed - no display set for view %p", view);
-    }
 }
 
 static void wpeViewAndroidDispose(GObject* object)
@@ -97,8 +83,9 @@ static gboolean wpeViewAndroidRenderBuffer(
     Logging::logDebug("WPEViewAndroid: pending buffer %p", priv->pendingBuffer);
 
     if (priv->renderer) {
-        // Commit buffer to SurfaceControl for display.
-        auto fenceFD = std::make_shared<ScopedFD>(-1);
+        // Commit buffer to SurfaceControl for display with GPU rendering fence.
+        int renderingFence = wpe_buffer_take_rendering_fence(WPE_BUFFER(buffer));
+        auto fenceFD = std::make_shared<ScopedFD>(renderingFence);
         priv->renderer->commitBuffer(ahb, bufferAndroid, fenceFD);
     } else {
         // Headless rendering: signal that the buffer is available for reuse.
@@ -190,7 +177,6 @@ void wpe_view_android_set_renderer(WPEViewAndroid* view, std::shared_ptr<Rendere
     if (renderer) {
         renderer->setBufferReleaseCallback([view](WPEBufferAndroid* buffer) {
             if (buffer != nullptr) {
-                Logging::logDebug("WPEViewAndroid: buffer released %p", buffer);
                 wpe_view_buffer_released(WPE_VIEW(view), WPE_BUFFER(buffer));
             }
         });

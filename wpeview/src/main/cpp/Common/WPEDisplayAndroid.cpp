@@ -64,7 +64,15 @@ static gboolean wpeDisplayAndroidConnect(WPEDisplay* display, GError** /*error*/
 static WPEView* wpeDisplayAndroidCreateView(WPEDisplay* display)
 {
     Logging::logDebug("WPEDisplayAndroid::create_view(%p)", display);
-    return wpe_view_android_new(display);
+
+    auto* view = wpe_view_android_new(display);
+    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
+        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
+    if (priv->toplevel) {
+        wpe_view_set_toplevel(view, priv->toplevel);
+    }
+
+    return view;
 }
 
 static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** error)
@@ -101,26 +109,28 @@ static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** err
     return priv->eglDisplay;
 }
 
-static WPEBufferDMABufFormats* wpeDisplayAndroidGetPreferredDMABufFormats(WPEDisplay* /*display*/)
+static gboolean wpeDisplayAndroidUseExplicitSync(WPEDisplay* /*display*/) { return TRUE; }
+
+static WPEBufferFormats* wpeDisplayAndroidGetPreferredBufferFormats(WPEDisplay* /*display*/)
 {
     static const struct {
         uint32_t fourcc;
         uint64_t modifier;
     } formats[] = {
-        {0x34325241, 0}, // DRM_FORMAT_RGBA8888
-        {0x34325258, 0}, // DRM_FORMAT_RGBX8888
-        {0x34324742, 0}, // DRM_FORMAT_RGB888
+        {0x34324152, 0}, // DRM_FORMAT_RGBA8888
+        {0x34325852, 0}, // DRM_FORMAT_RGBX8888
+        {0x34324752, 0}, // DRM_FORMAT_RGB888
         {0x36314752, 0}, // DRM_FORMAT_RGB565
     };
 
-    auto* builder = wpe_buffer_dma_buf_formats_builder_new(nullptr);
-    wpe_buffer_dma_buf_formats_builder_append_group(builder, nullptr, WPE_BUFFER_DMA_BUF_FORMAT_USAGE_RENDERING);
+    auto* builder = wpe_buffer_formats_builder_new(nullptr);
+    wpe_buffer_formats_builder_append_group(builder, nullptr, WPE_BUFFER_FORMAT_USAGE_RENDERING);
 
     for (const auto& format : formats) {
-        wpe_buffer_dma_buf_formats_builder_append_format(builder, format.fourcc, format.modifier);
+        wpe_buffer_formats_builder_append_format(builder, format.fourcc, format.modifier);
     }
 
-    return wpe_buffer_dma_buf_formats_builder_end(builder);
+    return wpe_buffer_formats_builder_end(builder);
 }
 
 static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
@@ -132,7 +142,8 @@ static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
     displayClass->connect = wpeDisplayAndroidConnect;
     displayClass->create_view = wpeDisplayAndroidCreateView;
     displayClass->get_egl_display = wpeDisplayAndroidGetEGLDisplay;
-    displayClass->get_preferred_dma_buf_formats = wpeDisplayAndroidGetPreferredDMABufFormats;
+    displayClass->get_preferred_buffer_formats = wpeDisplayAndroidGetPreferredBufferFormats;
+    displayClass->use_explicit_sync = wpeDisplayAndroidUseExplicitSync;
 }
 
 static void wpe_display_android_init(WPEDisplayAndroid* display)

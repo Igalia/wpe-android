@@ -78,7 +78,7 @@ add_library(WPEWebKit-2.0 SHARED IMPORTED)
 set_target_properties(
     WPEWebKit-2.0
     PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit-2.0_1.so"
+        IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebKit-2.0.so"
         INTERFACE_INCLUDE_DIRECTORIES
         "${CMAKE_SOURCE_DIR}/imported/include/wpe-webkit;${CMAKE_SOURCE_DIR}/imported/include/wpe-platform;${CMAKE_SOURCE_DIR}/imported/include;${CMAKE_SOURCE_DIR}/imported/include/libsoup-3.0"
 )
