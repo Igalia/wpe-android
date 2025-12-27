@@ -31,8 +31,6 @@ struct _WPEViewAndroid {
 };
 
 typedef struct {
-    WPEBuffer* pendingBuffer;
-    WPEBuffer* committedBuffer;
     std::shared_ptr<RendererSurfaceControl> renderer;
 } WPEViewAndroidPrivate;
 
@@ -51,8 +49,6 @@ static void wpeViewAndroidDispose(GObject* object)
 
     auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(object)));
 
-    g_clear_object(&priv->pendingBuffer);
-    g_clear_object(&priv->committedBuffer);
     priv->renderer.reset();
 
     G_OBJECT_CLASS(wpe_view_android_parent_class)->dispose(object);
@@ -78,13 +74,10 @@ static gboolean wpeViewAndroidRenderBuffer(
         return FALSE;
     }
 
-    g_clear_object(&priv->pendingBuffer);
-    priv->pendingBuffer = WPE_BUFFER(g_object_ref(buffer));
-    Logging::logDebug("WPEViewAndroid: pending buffer %p", priv->pendingBuffer);
-
     if (priv->renderer) {
         // Commit buffer to SurfaceControl for display with GPU rendering fence.
-        int renderingFence = wpe_buffer_take_rendering_fence(WPE_BUFFER(buffer));
+        // Buffer ownership and lifecycle is managed by RendererSurfaceControl.
+        int renderingFence = wpe_buffer_take_rendering_fence(buffer);
         auto fenceFD = std::make_shared<ScopedFD>(renderingFence);
         priv->renderer->commitBuffer(ahb, bufferAndroid, fenceFD);
     } else {
@@ -108,15 +101,7 @@ static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
     viewClass->render_buffer = wpeViewAndroidRenderBuffer;
 }
 
-static void wpe_view_android_init(WPEViewAndroid* view)
-{
-    Logging::logDebug("WPEViewAndroid::init(%p)", view);
-
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-    priv->pendingBuffer = nullptr;
-    priv->committedBuffer = nullptr;
-}
+static void wpe_view_android_init(WPEViewAndroid* view) { Logging::logDebug("WPEViewAndroid::init(%p)", view); }
 
 WPEView* wpe_view_android_new(WPEDisplay* display)
 {
@@ -175,26 +160,8 @@ void wpe_view_android_set_renderer(WPEViewAndroid* view, std::shared_ptr<Rendere
     priv->renderer = renderer;
 
     if (renderer) {
-        renderer->setBufferReleaseCallback([view](WPEBufferAndroid* buffer) {
-            if (buffer != nullptr) {
-                wpe_view_buffer_released(WPE_VIEW(view), WPE_BUFFER(buffer));
-            }
-        });
-
-        renderer->setFrameCompleteCallback([view]() {
-            Logging::logDebug("WPEViewAndroid: frame complete");
-            auto* priv
-                = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-            g_clear_object(&priv->committedBuffer);
-            priv->committedBuffer = priv->pendingBuffer;
-            priv->pendingBuffer = nullptr;
-
-            if (priv->committedBuffer) {
-                Logging::logDebug("WPEViewAndroid: committed buffer %p", priv->committedBuffer);
-                wpe_view_buffer_rendered(WPE_VIEW(view), priv->committedBuffer);
-            }
-        });
+        // Give renderer direct access to WPEView for buffer lifecycle callbacks
+        renderer->setWPEView(WPE_VIEW(view));
     }
 }
 

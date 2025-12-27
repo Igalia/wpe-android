@@ -24,7 +24,6 @@
 #include "Renderer.h"
 
 #include <android/hardware_buffer.h>
-#include <functional>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -35,12 +34,10 @@
 #include <glib-object.h>
 
 typedef struct _WPEBufferAndroid WPEBufferAndroid;
+typedef struct _WPEView WPEView;
 
 class RendererSurfaceControl final : public Renderer, public std::enable_shared_from_this<RendererSurfaceControl> {
 public:
-    using BufferReleaseCallback = std::function<void(WPEBufferAndroid*)>;
-    using FrameCompleteCallback = std::function<void()>;
-
     RendererSurfaceControl(uint32_t width, uint32_t height);
     ~RendererSurfaceControl() override;
 
@@ -57,10 +54,8 @@ public:
     void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
-    // Set callback to notify when buffers are released and can be reused
-    void setBufferReleaseCallback(BufferReleaseCallback callback) { m_bufferReleaseCallback = std::move(callback); }
-    // Set callback to notify when frame presentation completes
-    void setFrameCompleteCallback(FrameCompleteCallback callback) { m_frameCompleteCallback = std::move(callback); }
+    // Set WPEView for direct buffer API calls
+    void setWPEView(WPEView* view) { m_wpeView = view; }
 
     void commitBuffer(
         AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD) override;
@@ -68,11 +63,10 @@ public:
 private:
     void onTransActionAckOnBrowserThread(
         std::optional<WPEBufferAndroid*> releasedBuffer, SurfaceControl::TransactionStats stats);
-    void onTransactionCommittedOnBrowserThread();
+    void onTransactionCommittedOnBrowserThread(std::optional<WPEBufferAndroid*> renderedBuffer);
     void applyBufferTransaction(AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD);
 
-    BufferReleaseCallback m_bufferReleaseCallback;
-    FrameCompleteCallback m_frameCompleteCallback;
+    WPEView* m_wpeView = nullptr;
 
     std::shared_ptr<SurfaceControl::Surface> m_surface;
 
@@ -88,5 +82,5 @@ private:
 
     WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
-    WPEBufferAndroid* m_frontBuffer = nullptr;
+    WPEBufferAndroid* m_frontBuffer = nullptr; // Holds a ref for redraw safety
 };

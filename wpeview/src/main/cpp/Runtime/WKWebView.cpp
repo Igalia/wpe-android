@@ -534,6 +534,9 @@ private:
 
     static void nativeTriggerSslErrorHandler(
         JNIEnv* env, jclass klass, jlong handlerPtr, jboolean acceptCertificate) noexcept;
+
+    static void nativeFocusIn(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
+    static void nativeFocusOut(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
 };
 
 const JNIWKWebViewCache& getJNIPageCache()
@@ -602,7 +605,9 @@ JNIWKWebViewCache::JNIWKWebViewCache()
             "nativeScriptDialogConfirm", JNIWKWebViewCache::nativeScriptDialogConfirm),
         JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", JNIWKWebViewCache::nativeSetTLSErrorsPolicy),
         JNI::StaticNativeMethod<void(jlong, jboolean)>(
-            "nativeTriggerSslErrorHandler", JNIWKWebViewCache::nativeTriggerSslErrorHandler));
+            "nativeTriggerSslErrorHandler", JNIWKWebViewCache::nativeTriggerSslErrorHandler),
+        JNI::NativeMethod<void(jlong)>("nativeFocusIn", JNIWKWebViewCache::nativeFocusIn),
+        JNI::NativeMethod<void(jlong)>("nativeFocusOut", JNIWKWebViewCache::nativeFocusOut));
 }
 
 jlong JNIWKWebViewCache::nativeInit(
@@ -902,6 +907,22 @@ void JNIWKWebViewCache::nativeTriggerSslErrorHandler(
         }
         delete handler;
     }
+}
+
+void JNIWKWebViewCache::nativeFocusIn(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
+{
+    Logging::logDebug("WKWebView::nativeFocusIn() [tid %d]", gettid());
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if ((wkWebView != nullptr) && wkWebView->wpeView())
+        wpe_view_focus_in(WPE_VIEW(wkWebView->wpeView()));
+}
+
+void JNIWKWebViewCache::nativeFocusOut(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
+{
+    Logging::logDebug("WKWebView::nativeFocusOut() [tid %d]", gettid());
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if ((wkWebView != nullptr) && wkWebView->wpeView())
+        wpe_view_focus_out(WPE_VIEW(wkWebView->wpeView()));
 }
 
 /***********************************************************************************************************************

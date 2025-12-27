@@ -315,7 +315,20 @@ public final class WKWebView {
     }
 
     private final class PageSurfaceView extends SurfaceView {
-        public PageSurfaceView(Context context) { super(context); }
+        public PageSurfaceView(Context context) {
+            super(context);
+            setFocusable(true);
+            setFocusableInTouchMode(true);
+            setOnFocusChangeListener((view, hasFocus) -> {
+                if (nativePtr != 0) {
+                    if (hasFocus) {
+                        nativeFocusIn(nativePtr);
+                    } else {
+                        nativeFocusOut(nativePtr);
+                    }
+                }
+            });
+        }
 
         @Override
         @SuppressLint("ClickableViewAccessibility")
@@ -831,4 +844,6 @@ public final class WKWebView {
     private native void nativeSetTLSErrorsPolicy(long nativePtr, int policy);
 
     protected static native void nativeTriggerSslErrorHandler(long nativeHandlerPtr, boolean acceptCertificate);
+    private native void nativeFocusIn(long nativePtr);
+    private native void nativeFocusOut(long nativePtr);
 }
