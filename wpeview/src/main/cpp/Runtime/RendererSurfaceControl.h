@@ -78,9 +78,7 @@ private:
     std::queue<SurfaceControl::Transaction> m_pendingTransactionQueue;
     uint32_t m_numTransactionCommitOrAckPending = 0U;
 
-    std::optional<WPEBufferAndroid*> m_currentFrameBuffer;
-
+    WPEBufferAndroid* m_currentFrameBuffer = nullptr;
     WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
-    WPEBufferAndroid* m_frontBuffer = nullptr; // Holds a ref for redraw safety
 };
