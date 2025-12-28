@@ -22,7 +22,7 @@
 #include "Logging.h"
 #include "WPEDisplayAndroid.h"
 
-#include <wpe-platform/wpe/wpe-platform.h>
+#include <wpe/wpe-platform.h>
 
 #include <cassert>
 #include <cinttypes>

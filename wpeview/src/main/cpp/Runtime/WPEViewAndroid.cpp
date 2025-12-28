@@ -24,7 +24,6 @@
 #include "WPEDisplayAndroid.h"
 
 #include <android/hardware_buffer.h>
-#include <wpe-platform/wpe/WPEBufferAndroid.h>
 
 struct _WPEViewAndroid {
     WPEView parent;

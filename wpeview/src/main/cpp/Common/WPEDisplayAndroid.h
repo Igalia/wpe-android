@@ -20,7 +20,7 @@
 
 #include <android/hardware_buffer.h>
 #include <glib-object.h>
-#include <wpe-platform/wpe/wpe-platform.h>
+#include <wpe/wpe-platform.h>
 
 G_BEGIN_DECLS
 
