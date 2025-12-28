@@ -31,6 +31,7 @@ Checks:
     readability-*,
     -readability-magic-numbers,
     -readability-identifier-naming,
+    -readability-implicit-bool-conversion,
     android-*,
     cert-*,
     -cert-dcl37-c,
