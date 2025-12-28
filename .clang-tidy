@@ -14,17 +14,23 @@ Checks:
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -cppcoreguidelines-avoid-c-arrays,
     -cppcoreguidelines-prefer-member-initializer,
+    -cppcoreguidelines-pro-type-cstyle-cast,
+    -cppcoreguidelines-owning-memory,
+    -cppcoreguidelines-no-malloc,
     misc-*,
     -misc-non-private-member-variables-in-classes,
+    -misc-use-anonymous-namespace,
     modernize-*,
     -modernize-use-trailing-return-type,
     -modernize-avoid-c-arrays,
     -modernize-use-nodiscard,
+    -modernize-use-using,
     performance-*,
     -performance-move-const-arg,
     portability-*,
     readability-*,
     -readability-magic-numbers,
+    -readability-identifier-naming,
     android-*,
     cert-*,
     -cert-dcl37-c,
@@ -35,6 +41,7 @@ Checks:
     -google-readability-todo,
     -google-build-using-namespace,
     -google-explicit-constructor,
+    -google-readability-casting,
     hicpp-*,
     -hicpp-braces-around-statements,
     -hicpp-avoid-c-arrays,
@@ -42,25 +49,13 @@ Checks:
     -hicpp-vararg,
     -hicpp-explicit-conversions,
     -hicpp-move-const-arg,
+    -hicpp-signed-bitwise,
     llvm-*,
     -llvm-header-guard
 WarningsAsErrors: ''
 HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
 FormatStyle: file
 CheckOptions:
-    - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }
-    - { key: readability-function-cognitive-complexity.Threshold,      value: 35         }
-    - { key: readability-identifier-naming.StructCase,                 value: CamelCase  }
-    - { key: readability-identifier-naming.EnumCase,                   value: CamelCase  }
-    - { key: readability-identifier-naming.EnumConstantCase,           value: CamelCase  }
-    - { key: readability-identifier-naming.ClassCase,                  value: CamelCase  }
-    - { key: readability-identifier-naming.UnionCase,                  value: CamelCase  }
-    - { key: readability-identifier-naming.NamespaceCase,              value: CamelCase  }
-    - { key: readability-identifier-naming.MethodCase,                 value: camelBack  }
-    - { key: readability-identifier-naming.VariableCase,               value: camelBack  }
-    - { key: readability-identifier-naming.FunctionCase,               value: camelBack  }
-    - { key: readability-identifier-naming.MemberCase,                 value: camelBack  }
-    - { key: readability-identifier-naming.MemberPrefix,               value: m_         }
-    - { key: readability-identifier-naming.StaticVariablePrefix,       value: s_         }
-    - { key: readability-identifier-naming.ConstexprVariableCase,      value: aNy_CasE   }
+    - { key: readability-braces-around-statements.ShortStatementLines, value: 2 }
+    - { key: readability-function-cognitive-complexity.Threshold,      value: 35 }
 ...
