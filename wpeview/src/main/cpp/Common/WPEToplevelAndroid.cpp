@@ -64,18 +64,45 @@ static WPEScreen* wpeToplevelAndroidGetScreen(WPEToplevel* toplevel)
 static gboolean wpeToplevelAndroidResize(WPEToplevel* toplevel, int width, int height)
 {
     Logging::logDebug("WPEToplevelAndroid::resize(%p, %d, %d)", toplevel, width, height);
+    wpe_toplevel_resized(toplevel, width, height);
     return TRUE;
 }
 
 static gboolean wpeToplevelAndroidSetFullscreen(WPEToplevel* toplevel, gboolean fullscreen)
 {
     Logging::logDebug("WPEToplevelAndroid::set_fullscreen(%p, %s)", toplevel, fullscreen ? "true" : "false");
+
+    WPEToplevelState const currentState = wpe_toplevel_get_state(toplevel);
+    WPEToplevelState newState;
+
+    if (fullscreen) {
+        newState = static_cast<WPEToplevelState>(currentState | WPE_TOPLEVEL_STATE_FULLSCREEN);
+    } else {
+        newState = static_cast<WPEToplevelState>(currentState & ~WPE_TOPLEVEL_STATE_FULLSCREEN);
+    }
+
+    if (newState != currentState)
+        wpe_toplevel_state_changed(toplevel, newState);
+
     return TRUE;
 }
 
 static gboolean wpeToplevelAndroidSetMaximized(WPEToplevel* toplevel, gboolean maximized)
 {
     Logging::logDebug("WPEToplevelAndroid::set_maximized(%p, %s)", toplevel, maximized ? "true" : "false");
+
+    WPEToplevelState const currentState = wpe_toplevel_get_state(toplevel);
+    WPEToplevelState newState;
+
+    if (maximized) {
+        newState = static_cast<WPEToplevelState>(currentState | WPE_TOPLEVEL_STATE_MAXIMIZED);
+    } else {
+        newState = static_cast<WPEToplevelState>(currentState & ~WPE_TOPLEVEL_STATE_MAXIMIZED);
+    }
+
+    if (newState != currentState)
+        wpe_toplevel_state_changed(toplevel, newState);
+
     return TRUE;
 }
 
