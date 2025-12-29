@@ -109,6 +109,13 @@ static gboolean wpeToplevelAndroidSetMaximized(WPEToplevel* toplevel, gboolean m
 static gboolean wpeToplevelAndroidSetMinimized(WPEToplevel* toplevel)
 {
     Logging::logDebug("WPEToplevelAndroid::set_minimized(%p)", toplevel);
+
+    WPEToplevelState const currentState = wpe_toplevel_get_state(toplevel);
+    auto newState = static_cast<WPEToplevelState>(currentState & ~WPE_TOPLEVEL_STATE_ACTIVE);
+
+    if (newState != currentState)
+        wpe_toplevel_state_changed(toplevel, newState);
+
     return TRUE;
 }
 

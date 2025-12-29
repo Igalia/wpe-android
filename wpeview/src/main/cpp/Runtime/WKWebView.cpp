@@ -707,7 +707,9 @@ void JNIWKWebViewCache::nativeSurfaceCreated(
 
         wpe_view_set_visible(WPE_VIEW(wkWebView->wpeView()), TRUE);
         wpe_view_map(WPE_VIEW(wkWebView->wpeView()));
-        wpe_view_android_set_toplevel_state(wkWebView->wpeView(), WPE_TOPLEVEL_STATE_ACTIVE);
+        WPEToplevelState const currentState = wpe_view_get_toplevel_state(WPE_VIEW(wkWebView->wpeView()));
+        wpe_view_android_set_toplevel_state(
+            wkWebView->wpeView(), static_cast<WPEToplevelState>(currentState | WPE_TOPLEVEL_STATE_ACTIVE));
     }
 }
 
@@ -744,7 +746,9 @@ void JNIWKWebViewCache::nativeSurfaceDestroyed(JNIEnv* /*env*/, jobject /*obj*/,
     if ((wkWebView != nullptr) && wkWebView->wpeView()) {
         wpe_view_set_visible(WPE_VIEW(wkWebView->wpeView()), FALSE);
         wpe_view_unmap(WPE_VIEW(wkWebView->wpeView()));
-        wpe_view_android_set_toplevel_state(wkWebView->wpeView(), static_cast<WPEToplevelState>(0));
+        WPEToplevelState const currentState = wpe_view_get_toplevel_state(WPE_VIEW(wkWebView->wpeView()));
+        wpe_view_android_set_toplevel_state(
+            wkWebView->wpeView(), static_cast<WPEToplevelState>(currentState & ~WPE_TOPLEVEL_STATE_ACTIVE));
         wpe_view_android_on_surface_destroyed(wkWebView->wpeView());
     }
 }
