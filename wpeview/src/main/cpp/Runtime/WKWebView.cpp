@@ -839,10 +839,15 @@ void JNIWKWebViewCache::nativeDeleteInputMethodContent(
         wkWebView->m_inputMethodContext.deleteContent(offset, count);
 }
 
-void JNIWKWebViewCache::nativeRequestExitFullscreenMode(
-    JNIEnv* /*env*/, jobject /*obj*/, jlong /*wkWebViewPtr*/) noexcept
+void JNIWKWebViewCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
 {
     Logging::logDebug("WKWebView::nativeRequestExitFullscreenMode() [tid %d]", gettid());
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView != nullptr && wkWebView->wpeView() != nullptr) {
+        auto* toplevel = wpe_view_get_toplevel(WPE_VIEW(wkWebView->wpeView()));
+        if (toplevel != nullptr)
+            wpe_toplevel_unfullscreen(toplevel);
+    }
 }
 
 void JNIWKWebViewCache::nativeEvaluateJavascript(
@@ -1025,6 +1030,18 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         g_signal_connect_swapped(m_webView, "decide-policy", G_CALLBACK(JNIWKWebViewCache::onDecidePolicy), this));
     m_signalHandlers.push_back(g_signal_connect_swapped(
         m_webView, "load-failed-with-tls-errors", G_CALLBACK(JNIWKWebViewCache::onReceivedSslError), this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "enter-fullscreen",
+        G_CALLBACK(+[](WKWebView* wkWebView, WebKitWebView*) -> gboolean {
+            JNIWKWebViewCache::onFullscreenRequest(wkWebView, true);
+            return TRUE;
+        }),
+        this));
+    m_signalHandlers.push_back(g_signal_connect_swapped(m_webView, "leave-fullscreen",
+        G_CALLBACK(+[](WKWebView* wkWebView, WebKitWebView*) -> gboolean {
+            JNIWKWebViewCache::onFullscreenRequest(wkWebView, false);
+            return TRUE;
+        }),
+        this));
 }
 
 void WKWebView::close() noexcept
