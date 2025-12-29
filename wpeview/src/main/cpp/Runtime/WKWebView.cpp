@@ -39,7 +39,7 @@ namespace {
 
 const int httpErrorsStart = 400;
 
-inline float safeDeviceDensity(float density) noexcept { return (density > 0.0f) ? density : 1.0f; }
+inline float safeDeviceDensity(float density) noexcept { return (density > 0.0F) ? density : 1.0F; }
 
 class SslErrorHandler final {
 public:
@@ -1041,7 +1041,7 @@ void WKWebView::close() noexcept
 
         webkit_web_view_try_close(m_webView);
 
-        m_wpeView = nullptr; // WebKit owns the WPEView
+        m_wpeView = nullptr;
         g_object_unref(m_webView);
         m_webView = nullptr;
     }

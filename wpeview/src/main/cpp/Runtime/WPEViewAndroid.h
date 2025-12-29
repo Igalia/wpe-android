@@ -38,7 +38,7 @@ void wpe_view_android_resize(WPEViewAndroid* view, int width, int height);
 void wpe_view_android_dispatch_event(WPEViewAndroid* view, WPEEvent* event);
 void wpe_view_android_set_scale(WPEViewAndroid* view, double scale);
 void wpe_view_android_set_toplevel_state(WPEViewAndroid* view, WPEToplevelState state);
-void wpe_view_android_set_renderer(WPEViewAndroid* view, std::shared_ptr<RendererSurfaceControl> renderer);
+void wpe_view_android_set_renderer(WPEViewAndroid* view, const std::shared_ptr<RendererSurfaceControl>& renderer);
 void wpe_view_android_on_surface_created(WPEViewAndroid* view, struct ANativeWindow* window);
 void wpe_view_android_on_surface_changed(WPEViewAndroid* view, int format, uint32_t width, uint32_t height);
 void wpe_view_android_on_surface_redraw_needed(WPEViewAndroid* view);

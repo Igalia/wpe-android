@@ -148,7 +148,7 @@ void wpe_view_android_set_toplevel_state(WPEViewAndroid* view, WPEToplevelState 
     }
 }
 
-void wpe_view_android_set_renderer(WPEViewAndroid* view, std::shared_ptr<RendererSurfaceControl> renderer)
+void wpe_view_android_set_renderer(WPEViewAndroid* view, const std::shared_ptr<RendererSurfaceControl>& renderer)
 {
     g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
 

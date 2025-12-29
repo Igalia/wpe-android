@@ -30,8 +30,8 @@
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWKWebView, "org/wpewebkit/wpe/WKWebView");
 
-typedef struct _WPEDisplay WPEDisplay;
-typedef struct _WPEViewAndroid WPEViewAndroid;
+using WPEDisplay = struct _WPEDisplay;
+using WPEViewAndroid = struct _WPEViewAndroid;
 class WKWebContext;
 class RendererSurfaceControl;
 
