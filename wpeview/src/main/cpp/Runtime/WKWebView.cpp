@@ -22,12 +22,14 @@
 
 #include "WKWebView.h"
 
+#include "AndroidKeyMap.h"
 #include "Logging.h"
 #include "RendererSurfaceControl.h"
 #include "WKCallback.h"
 #include "WKRuntime.h"
 #include "WKWebContext.h"
 #include "WPEDisplayAndroid.h"
+#include "WPEInputMethodContextAndroid.h"
 #include "WPEViewAndroid.h"
 
 #include <android/native_window_jni.h>
@@ -40,6 +42,10 @@ namespace {
 const int httpErrorsStart = 400;
 
 inline float safeDeviceDensity(float density) noexcept { return (density > 0.0F) ? density : 1.0F; }
+
+void onInputMethodFocusIn(void* userData) { static_cast<WKWebView*>(userData)->onInputMethodContextIn(); }
+
+void onInputMethodFocusOut(void* userData) { static_cast<WKWebView*>(userData)->onInputMethodContextOut(); }
 
 class SslErrorHandler final {
 public:
@@ -537,6 +543,8 @@ private:
 
     static void nativeFocusIn(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeFocusOut(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
+    static void nativeOnKeyEvent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint action, jint keyCode,
+        jint unicodeChar, jint modifiers) noexcept;
 };
 
 const JNIWKWebViewCache& getJNIPageCache()
@@ -607,7 +615,9 @@ JNIWKWebViewCache::JNIWKWebViewCache()
         JNI::StaticNativeMethod<void(jlong, jboolean)>(
             "nativeTriggerSslErrorHandler", JNIWKWebViewCache::nativeTriggerSslErrorHandler),
         JNI::NativeMethod<void(jlong)>("nativeFocusIn", JNIWKWebViewCache::nativeFocusIn),
-        JNI::NativeMethod<void(jlong)>("nativeFocusOut", JNIWKWebViewCache::nativeFocusOut));
+        JNI::NativeMethod<void(jlong)>("nativeFocusOut", JNIWKWebViewCache::nativeFocusOut),
+        JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint)>(
+            "nativeOnKeyEvent", JNIWKWebViewCache::nativeOnKeyEvent));
 }
 
 jlong JNIWKWebViewCache::nativeInit(
@@ -826,12 +836,24 @@ void JNIWKWebViewCache::nativeSetInputMethodContent(
 {
     Logging::logDebug("WKWebView::nativeSetInputMethodContent(0x%08X) [tid %d]", unicodeChar, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if (wkWebView != nullptr) {
-        static constexpr size_t GUNICHAR_UTF8_BUFFER_SIZE = 8;
-        char utf8Content[GUNICHAR_UTF8_BUFFER_SIZE] = {};
-        g_unichar_to_utf8(static_cast<gunichar>(unicodeChar), utf8Content);
-        wkWebView->m_inputMethodContext.setContent(utf8Content);
+    if (wkWebView == nullptr) {
+        Logging::logError("WKWebView::nativeSetInputMethodContent - wkWebView is null");
+        return;
     }
+    if (wkWebView->wpeView() == nullptr) {
+        Logging::logError("WKWebView::nativeSetInputMethodContent - wpeView is null");
+        return;
+    }
+    auto* context = wpe_input_method_context_android_get_for_view(WPE_VIEW(wkWebView->wpeView()));
+    if (context == nullptr) {
+        Logging::logError(
+            "WKWebView::nativeSetInputMethodContent - context is null for view %p", WPE_VIEW(wkWebView->wpeView()));
+        return;
+    }
+    static constexpr size_t GUNICHAR_UTF8_BUFFER_SIZE = 8;
+    char utf8Content[GUNICHAR_UTF8_BUFFER_SIZE] = {};
+    g_unichar_to_utf8(static_cast<gunichar>(unicodeChar), utf8Content);
+    wpe_input_method_context_android_commit_text(context, utf8Content);
 }
 
 void JNIWKWebViewCache::nativeDeleteInputMethodContent(
@@ -839,8 +861,11 @@ void JNIWKWebViewCache::nativeDeleteInputMethodContent(
 {
     Logging::logDebug("WKWebView::nativeDeleteInputMethodContent(%d, %d) [tid %d]", offset, count, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
-    if (wkWebView != nullptr)
-        wkWebView->m_inputMethodContext.deleteContent(offset, count);
+    if (wkWebView != nullptr && wkWebView->wpeView() != nullptr) {
+        auto* context = wpe_input_method_context_android_get_for_view(WPE_VIEW(wkWebView->wpeView()));
+        if (context != nullptr)
+            wpe_input_method_context_android_delete_surrounding(context, offset, static_cast<unsigned int>(count));
+    }
 }
 
 void JNIWKWebViewCache::nativeRequestExitFullscreenMode(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr) noexcept
@@ -934,6 +959,32 @@ void JNIWKWebViewCache::nativeFocusOut(JNIEnv* /*env*/, jobject /*obj*/, jlong w
         wpe_view_focus_out(WPE_VIEW(wkWebView->wpeView()));
 }
 
+void JNIWKWebViewCache::nativeOnKeyEvent(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint action,
+    jint keyCode, jint unicodeChar, jint modifiers) noexcept
+{
+    Logging::logDebug("WKWebView::nativeOnKeyEvent(action=%d, keyCode=%d, unicode=0x%04X, mods=0x%X) [tid %d]", action,
+        keyCode, unicodeChar, modifiers, gettid());
+
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView == nullptr || wkWebView->wpeView() == nullptr)
+        return;
+
+    // Map Android action to WPE event type (0 = ACTION_DOWN, 1 = ACTION_UP)
+    WPEEventType const eventType = (action == 0) ? WPE_EVENT_KEYBOARD_KEY_DOWN : WPE_EVENT_KEYBOARD_KEY_UP;
+
+    // Convert keycodes and modifiers
+    uint32_t const xkbKeycode = androidToXkbKeycode(keyCode);
+    uint32_t const keyval = androidToKeysym(keyCode, unicodeChar);
+    WPEModifiers const wpeModifiers = androidToWpeModifiers(modifiers);
+
+    // Create and dispatch the keyboard event
+    WPEEvent* event = wpe_event_keyboard_new(eventType, WPE_VIEW(wkWebView->wpeView()), WPE_INPUT_SOURCE_KEYBOARD,
+        static_cast<guint32>(time), wpeModifiers, xkbKeycode, keyval);
+
+    wpe_view_android_dispatch_event(wkWebView->wpeView(), event);
+    wpe_event_unref(event);
+}
+
 /***********************************************************************************************************************
  * Native WKWebView class implementation
  **********************************************************************************************************************/
@@ -943,7 +994,6 @@ void WKWebView::configureJNIMappings() { getJNIPageCache(); }
 WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWebContext, int width, int height,
     float deviceScale, bool headless)
     : m_webViewJavaInstance(JNI::createTypedProtectedRef(env, jniWKWebView, true))
-    , m_inputMethodContext(this)
     , m_isHeadless(headless)
     , m_deviceScale(deviceScale)
 {
@@ -998,9 +1048,11 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
     if (m_wpeView) {
         wpe_view_android_resize(m_wpeView, logicalWidth, logicalHeight);
         wpe_view_android_set_scale(m_wpeView, scale);
-    }
 
-    webkit_web_view_set_input_method_context(m_webView, m_inputMethodContext.webKitInputMethodContext());
+        // Set up focus callbacks
+        wpe_input_method_context_android_set_focus_callbacks_for_view(
+            WPE_VIEW(m_wpeView), onInputMethodFocusIn, onInputMethodFocusOut, this);
+    }
 
     m_signalHandlers.push_back(
         g_signal_connect_swapped(m_webView, "close", G_CALLBACK(JNIWKWebViewCache::onClose), this));
@@ -1054,7 +1106,10 @@ void WKWebView::close() noexcept
         // Ensure that renderer is destroyed first so that all pending commits will be cleared before page is gone
         m_renderer.reset();
 
-        webkit_web_view_set_input_method_context(m_webView, nullptr);
+        if (m_wpeView != nullptr) {
+            wpe_input_method_context_android_set_focus_callbacks_for_view(
+                WPE_VIEW(m_wpeView), nullptr, nullptr, nullptr);
+        }
 
         for (auto& handler : m_signalHandlers)
             g_signal_handler_disconnect(m_webView, handler);

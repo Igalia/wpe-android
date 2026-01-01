@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -252,6 +253,11 @@ public final class WKWebView {
 
     public void deleteInputMethodContent(int offset, int count) {
         nativeDeleteInputMethodContent(nativePtr, offset, count);
+    }
+
+    public void onKeyEvent(@NonNull KeyEvent event) {
+        nativeOnKeyEvent(nativePtr, event.getEventTime(), event.getAction(), event.getKeyCode(), event.getUnicodeChar(),
+                         event.getMetaState());
     }
 
     public boolean isInputFieldFocused() { return isInputFieldFocused; }
@@ -846,4 +852,6 @@ public final class WKWebView {
     protected static native void nativeTriggerSslErrorHandler(long nativeHandlerPtr, boolean acceptCertificate);
     private native void nativeFocusIn(long nativePtr);
     private native void nativeFocusOut(long nativePtr);
+    private native void nativeOnKeyEvent(long nativePtr, long time, int action, int keyCode, int unicodeChar,
+                                         int modifiers);
 }

@@ -123,7 +123,6 @@ add_library(
     WPEAndroidRuntime SHARED
     Runtime/EntryPoint.cpp
     Runtime/Fence.cpp
-    Runtime/InputMethodContext.cpp
     Runtime/LooperThread.cpp
     Runtime/MessagePump.cpp
     Runtime/RendererSurfaceControl.cpp
@@ -138,6 +137,7 @@ add_library(
     Runtime/WKWebView.cpp
     Runtime/WPEViewAndroid.cpp
     Common/WPEDisplayAndroid.cpp
+    Common/WPEInputMethodContextAndroid.cpp
     Common/WPEToplevelAndroid.cpp)
 target_configure_quality(WPEAndroidRuntime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)

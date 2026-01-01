@@ -19,6 +19,7 @@
 #include "WPEDisplayAndroid.h"
 
 #include "Logging.h"
+#include "WPEInputMethodContextAndroid.h"
 #include "WPEToplevelAndroid.h"
 #include "WPEViewAndroid.h"
 
@@ -111,6 +112,12 @@ static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** err
 
 static gboolean wpeDisplayAndroidUseExplicitSync(WPEDisplay* /*display*/) { return TRUE; }
 
+static WPEInputMethodContext* wpeDisplayAndroidCreateInputMethodContext(WPEDisplay* display, WPEView* view)
+{
+    Logging::logDebug("WPEDisplayAndroid::create_input_method_context(%p, %p)", display, view);
+    return wpe_input_method_context_android_new(view);
+}
+
 static WPEBufferFormats* wpeDisplayAndroidGetPreferredBufferFormats(WPEDisplay* /*display*/)
 {
     static const struct {
@@ -144,6 +151,7 @@ static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
     displayClass->get_egl_display = wpeDisplayAndroidGetEGLDisplay;
     displayClass->get_preferred_buffer_formats = wpeDisplayAndroidGetPreferredBufferFormats;
     displayClass->use_explicit_sync = wpeDisplayAndroidUseExplicitSync;
+    displayClass->create_input_method_context = wpeDisplayAndroidCreateInputMethodContext;
 }
 
 static void wpe_display_android_init(WPEDisplayAndroid* display)

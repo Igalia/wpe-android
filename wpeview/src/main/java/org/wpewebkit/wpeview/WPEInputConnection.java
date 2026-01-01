@@ -94,22 +94,8 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean sendKeyEvent(@NonNull KeyEvent event) {
-        // Handle ACTION_DOWN events for Enter (newline) and Delete (backspace)
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            switch (event.getKeyCode()) {
-            case KeyEvent.KEYCODE_ENTER:
-                wkWebView.setInputMethodContent('\n');
-                return true;
-
-            case KeyEvent.KEYCODE_DEL:
-                wkWebView.deleteInputMethodContent(-1, 1);
-                return true;
-
-            default:
-                break;
-            }
-        }
-
-        return super.sendKeyEvent(event);
+        // Forward key events to WebKit
+        wkWebView.onKeyEvent(event);
+        return true;
     }
 }
