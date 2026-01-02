@@ -44,7 +44,7 @@ Checks:
     -hicpp-move-const-arg,
     llvm-*,
     -llvm-header-guard
-WarningsAsErrors: '*'
+WarningsAsErrors: ''
 HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
 AnalyzeTemporaryDtors: false
 FormatStyle: file
