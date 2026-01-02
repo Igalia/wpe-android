@@ -34,19 +34,14 @@ fun View.requestApplyStandardInsets() {
     requestApplyInsetsWhenAttached()
 }
 
-object Utils {
-    private fun addressHasWebScheme(address: String) : Boolean {
+// If a string may be parsed as an URI that has an scheme, use it as-is.
+// Otherwise fall-back to adding http://.
+fun normalizeAddress(address: String): String {
+    val hasScheme = try {
         val uri = URI(address)
-        return uri.scheme?.let {
-            it == "http"
-        } ?: false
+        uri.scheme != null
+    } catch (_: Exception) {
+        false
     }
-
-    fun normalizeAddress(address: String) : String {
-        return if (!addressHasWebScheme(address)) {
-            return "http://$address"
-        } else {
-            address
-        }
-    }
+    return if (hasScheme) address else "http://$address"
 }
