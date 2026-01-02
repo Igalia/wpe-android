@@ -79,6 +79,8 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 hideKeyboard()
                 onCommit(binding.toolbarEditText.text.toString())
+                binding.toolbarEditText.clearFocus()
+                selectedTab().webview.requestFocus()
                 true
             } else {
                 false
@@ -163,6 +165,18 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
                     }
                     fullscreenView = null
                 }
+
+                override fun onUriChanged(view: WPEView, uri: String) {
+                    super.onUriChanged(view, uri)
+                    binding.toolbarEditText.setText(uri)
+                }
+            }
+        }
+
+        selectedTab.webview.wpeViewClient = object : WPEViewClient() {
+            override fun onPageStarted(view: WPEView, url: String) {
+                super.onPageStarted(view, url)
+                binding.toolbarEditText.setText(url)
             }
         }
     }
@@ -204,7 +218,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
     private fun onCommit(text: String) {
         val url: String = if ((text.contains(".") || text.contains(":")) && !text.contains(" ")) {
-            Utils.normalizeAddress(text)
+            normalizeAddress(text)
         } else {
             SEARCH_URI_BASE + text
         }
@@ -217,7 +231,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         manager.hideSoftInputFromWindow(requireView().windowToken, 0)
     }
 
-    private fun selectedTab() : Tab {
+    internal fun selectedTab() : Tab {
         // For now assume we always have at least one tab
         val selectedTabId = browserViewModel.browserState.value.selectedTabId
         return browserViewModel.findTab(selectedTabId!!)
