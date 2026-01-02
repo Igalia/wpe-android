@@ -33,6 +33,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
@@ -95,6 +96,9 @@ public final class WKWebView {
     public static final int WEBKIT_MEDIA_CAPTURE_STATE_NONE = 0;
     public static final int WEBKIT_MEDIA_CAPTURE_STATE_ACTIVE = 1;
     public static final int WEBKIT_MEDIA_CAPTURE_STATE_MUTED = 2;
+    public static final int WEBKIT_WEB_PROCESS_CRASHED = 0;
+    public static final int WEBKIT_WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
+    public static final int WEBKIT_WEB_PROCESS_TERMINATED_BY_API = 2;
 
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
@@ -117,6 +121,7 @@ public final class WKWebView {
     private boolean canGoBack = true;
     private boolean canGoForward = true;
     protected boolean ignoreTouchEvents = false;
+    private boolean isInputFieldFocused = false;
 
     private static int kHeadlessWidth = 1080;
     private static int kHeadlessHeight = 2274;
@@ -239,9 +244,22 @@ public final class WKWebView {
 
     public void reload() { nativeReload(nativePtr); }
 
+    public boolean isMuted() { return nativeIsMuted(nativePtr); }
+
+    public void setMuted(boolean muted) { nativeSetMuted(nativePtr, muted); }
+
     public void setInputMethodContent(int unicodeChar) { nativeSetInputMethodContent(nativePtr, unicodeChar); }
 
-    public void deleteInputMethodContent(int offset) { nativeDeleteInputMethodContent(nativePtr, offset); }
+    public void deleteInputMethodContent(int offset, int count) {
+        nativeDeleteInputMethodContent(nativePtr, offset, count);
+    }
+
+    public void onKeyEvent(@NonNull KeyEvent event) {
+        nativeOnKeyEvent(nativePtr, event.getEventTime(), event.getAction(), event.getKeyCode(), event.getUnicodeChar(),
+                         event.getMetaState());
+    }
+
+    public boolean isInputFieldFocused() { return isInputFieldFocused; }
 
     public void evaluateJavascript(@NonNull String script, @Nullable WKCallback<String> callback) {
         nativeEvaluateJavascript(nativePtr, script, callback);
@@ -302,7 +320,20 @@ public final class WKWebView {
     }
 
     private final class PageSurfaceView extends SurfaceView {
-        public PageSurfaceView(Context context) { super(context); }
+        public PageSurfaceView(Context context) {
+            super(context);
+            setFocusable(true);
+            setFocusableInTouchMode(true);
+            setOnFocusChangeListener((view, hasFocus) -> {
+                if (nativePtr != 0) {
+                    if (hasFocus) {
+                        nativeFocusIn(nativePtr);
+                    } else {
+                        nativeFocusOut(nativePtr);
+                    }
+                }
+            });
+        }
 
         @Override
         @SuppressLint("ClickableViewAccessibility")
@@ -473,6 +504,33 @@ public final class WKWebView {
     }
 
     @Keep
+    private boolean shouldOverrideUrlLoading(@NonNull String url, boolean isRedirect, boolean isUserGesture) {
+        if (wpeViewClient != null)
+            return wpeViewClient.shouldOverrideUrlLoading(wpeView, url, isRedirect, isUserGesture);
+        return false;
+    }
+
+    @Keep
+    private void onIsLoadingChanged(boolean isLoading) {
+        if (wpeViewClient != null)
+            wpeViewClient.onLoadingStateChanged(wpeView, isLoading);
+    }
+
+    @Keep
+    private boolean onLoadFailed(int loadEvent, @NonNull String failingUri, int errorCode, @NonNull String errorDomain,
+                                 @NonNull String errorMessage) {
+        if (wpeViewClient != null)
+            return wpeViewClient.onLoadFailed(wpeView, failingUri, errorCode, errorDomain, errorMessage);
+        return false;
+    }
+
+    @Keep
+    private void onWebProcessTerminated(int reason) {
+        if (wpeViewClient != null)
+            wpeViewClient.onRenderProcessGone(wpeView, reason);
+    }
+
+    @Keep
     private void onClose() {
         if (wpeChromeClient != null)
             wpeChromeClient.onCloseWindow(wpeView);
@@ -595,6 +653,7 @@ public final class WKWebView {
 
     @Keep
     private void onInputMethodContextIn() {
+        isInputFieldFocused = true;
         WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
         Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> {
@@ -611,6 +670,7 @@ public final class WKWebView {
 
     @Keep
     private void onInputMethodContextOut() {
+        isInputFieldFocused = false;
         WeakReference<WPEView> weakRefecence = new WeakReference<>(wpeView);
         Handler handler = new Handler(Looper.getMainLooper());
         handler.post(() -> {
@@ -708,6 +768,9 @@ public final class WKWebView {
     @Keep
     private void onEnterFullscreenMode() {
         Log.d(LOGTAG, "onEnterFullscreenMode()");
+        if (wpeChromeClient != null) {
+            wpeChromeClient.onFullscreenModeChanged(wpeView, true);
+        }
         if ((surfaceView != null) && (wpeChromeClient != null)) {
             wpeView.removeView(surfaceView);
 
@@ -726,6 +789,9 @@ public final class WKWebView {
     @Keep
     private void onExitFullscreenMode() {
         Log.d(LOGTAG, "onExitFullscreenMode()");
+        if (wpeChromeClient != null) {
+            wpeChromeClient.onFullscreenModeChanged(wpeView, false);
+        }
         if ((customView != null) && (surfaceView != null) && (wpeChromeClient != null)) {
             customView.removeView(surfaceView);
             wpeView.addView(surfaceView);
@@ -770,10 +836,12 @@ public final class WKWebView {
     private native void nativeSurfaceRedrawNeeded(long nativePtr);
     private native void nativeSurfaceDestroyed(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
+    private native boolean nativeIsMuted(long nativePtr);
+    private native void nativeSetMuted(long nativePtr, boolean muted);
     private native void nativeOnTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids, float[] xs,
                                            float[] ys);
     private native void nativeSetInputMethodContent(long nativePtr, int unicodeChar);
-    private native void nativeDeleteInputMethodContent(long nativePtr, int offset);
+    private native void nativeDeleteInputMethodContent(long nativePtr, int offset, int count);
     private native void nativeRequestExitFullscreenMode(long nativePtr);
     private native void nativeEvaluateJavascript(long nativePtr, String script, WKCallback<String> callback);
     private native void nativeScriptDialogClose(long nativeDialogPtr);
@@ -781,4 +849,8 @@ public final class WKWebView {
     private native void nativeSetTLSErrorsPolicy(long nativePtr, int policy);
 
     protected static native void nativeTriggerSslErrorHandler(long nativeHandlerPtr, boolean acceptCertificate);
+    private native void nativeFocusIn(long nativePtr);
+    private native void nativeFocusOut(long nativePtr);
+    private native void nativeOnKeyEvent(long nativePtr, long time, int action, int keyCode, int unicodeChar,
+                                         int modifiers);
 }
