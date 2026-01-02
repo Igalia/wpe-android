@@ -53,4 +53,17 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         super.onConfigurationChanged(newConfig)
         Log.d(TAG, "onConfigurationChanged")
     }
+
+    @Deprecated("Deprecated in superclass")
+    override fun onBackPressed() {
+        val currentFragment = navHost.childFragmentManager.fragments.firstOrNull()
+        if (currentFragment is BrowserFragment) {
+            val webView = currentFragment.selectedTab().webview
+            if (webView.canGoBack()) {
+                webView.goBack()
+                return
+            }
+        }
+        super.onBackPressed()
+    }
 }
