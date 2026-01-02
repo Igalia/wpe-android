@@ -22,6 +22,7 @@
 
 #include "WKWebView.h"
 
+#include "AndroidKeyMap.h"
 #include "Logging.h"
 #include "RendererSurfaceControl.h"
 #include "WKCallback.h"
@@ -957,11 +958,30 @@ void JNIWKWebViewCache::nativeFocusOut(JNIEnv* /*env*/, jobject /*obj*/, jlong w
         wpe_view_focus_out(WPE_VIEW(wkWebView->wpeView()));
 }
 
-void JNIWKWebViewCache::nativeOnKeyEvent(JNIEnv* /*env*/, jobject /*obj*/, jlong /*wkWebViewPtr*/, jlong /*time*/,
-    jint /*action*/, jint /*keyCode*/, jint /*unicodeChar*/, jint /*modifiers*/) noexcept
+void JNIWKWebViewCache::nativeOnKeyEvent(JNIEnv* /*env*/, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint action,
+    jint keyCode, jint unicodeChar, jint modifiers) noexcept
 {
-    // Keyboard event handling will be implemented in a subsequent commit
-    Logging::logDebug("WKWebView::nativeOnKeyEvent() - not yet implemented [tid %d]", gettid());
+    Logging::logDebug("WKWebView::nativeOnKeyEvent(action=%d, keyCode=%d, unicode=0x%04X, mods=0x%X) [tid %d]", action,
+        keyCode, unicodeChar, modifiers, gettid());
+
+    auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
+    if (wkWebView == nullptr || wkWebView->wpeView() == nullptr)
+        return;
+
+    // Map Android action to WPE event type (0 = ACTION_DOWN, 1 = ACTION_UP)
+    WPEEventType const eventType = (action == 0) ? WPE_EVENT_KEYBOARD_KEY_DOWN : WPE_EVENT_KEYBOARD_KEY_UP;
+
+    // Convert keycodes and modifiers
+    uint32_t const xkbKeycode = androidToXkbKeycode(keyCode);
+    uint32_t const keyval = androidToKeysym(keyCode, unicodeChar);
+    WPEModifiers const wpeModifiers = androidToWpeModifiers(modifiers);
+
+    // Create and dispatch the keyboard event
+    WPEEvent* event = wpe_event_keyboard_new(eventType, WPE_VIEW(wkWebView->wpeView()), WPE_INPUT_SOURCE_KEYBOARD,
+        static_cast<guint32>(time), wpeModifiers, xkbKeycode, keyval);
+
+    wpe_view_android_dispatch_event(wkWebView->wpeView(), event);
+    wpe_event_unref(event);
 }
 
 /***********************************************************************************************************************
