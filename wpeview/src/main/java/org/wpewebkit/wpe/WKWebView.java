@@ -92,6 +92,10 @@ public final class WKWebView {
     public static final int WEBKIT_TLS_ERRORS_POLICY_IGNORE = 0;
     public static final int WEBKIT_TLS_ERRORS_POLICY_FAIL = 1;
 
+    public static final int WEBKIT_MEDIA_CAPTURE_STATE_NONE = 0;
+    public static final int WEBKIT_MEDIA_CAPTURE_STATE_ACTIVE = 1;
+    public static final int WEBKIT_MEDIA_CAPTURE_STATE_MUTED = 2;
+
     protected long nativePtr = 0;
     public long getNativePtr() { return nativePtr; }
 
@@ -494,6 +498,36 @@ public final class WKWebView {
         this.canGoForward = canGoForward;
         if (wpeChromeClient != null)
             wpeChromeClient.onReceivedTitle(wpeView, title);
+    }
+
+    @Keep
+    private void onIsPlayingAudioChanged(boolean isPlayingAudio) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onAudioStateChanged(wpeView, isPlayingAudio);
+    }
+
+    @Keep
+    private void onIsMutedChanged(boolean isMuted) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onMutedStateChanged(wpeView, isMuted);
+    }
+
+    @Keep
+    private void onCameraCaptureStateChanged(int state) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onCameraCaptureStateChanged(wpeView, state);
+    }
+
+    @Keep
+    private void onMicrophoneCaptureStateChanged(int state) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onMicrophoneCaptureStateChanged(wpeView, state);
+    }
+
+    @Keep
+    private void onDisplayCaptureStateChanged(int state) {
+        if (wpeChromeClient != null)
+            wpeChromeClient.onDisplayCaptureStateChanged(wpeView, state);
     }
 
     @SuppressLint("StringFormatInvalid")
