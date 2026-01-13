@@ -16,6 +16,11 @@ jobs:
         arch: [x86_64]
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
+      - name: Carve-out Disk Space
+        run: |
+          sudo rm -rf /usr/share/{dotnet,swift} /usr/local/.ghcup /usr/local/julia*
+          sudo rm -rf /usr/local/share/{chromium,powershell} /opt/{microsoft,google,az}
+
       - name: checkout
         uses: actions/checkout@v4
 

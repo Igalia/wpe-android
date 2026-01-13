@@ -5,6 +5,10 @@ jobs:
   instrumentation-tests:
       runs-on: ubuntu-24.04
       steps:
+        - name: Carve-out Disk Space
+          run: |
+            sudo rm -rf /usr/share/{dotnet,swift} /usr/local/.ghcup /usr/local/julia*
+            sudo rm -rf /usr/local/share/{chromium,powershell} /opt/{microsoft,google,az}
         - name: Checkout
           uses: actions/checkout@v4
         - name: Java™ Setup
