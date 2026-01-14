@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.1 (2.50.4) - 2026-01-14
+
+### Changed
+
+- WPE WebKit updated to [version 2.50.4](https://wpewebkit.org/release/wpewebkit-2.50.4.html) (#217).
+
+### Added
+
+- New `WPEApplication` class, which extends `android.app.Application` to track the activity
+  lifecycle, allowing to expose the current `android.app.Activity` to native code. This will
+  be used to correctly initialize OpenXR to support WebXR on Android. (#214)
+
+
 ## v0.2.2 (2.48.6) - 2025-09-05
 
 ### Changed
