@@ -21,189 +21,276 @@
 
 #include "RendererSurfaceControl.h"
 
-#include <cassert>
 #include <utility>
 
-#include "Fence.h"
 #include "Logging.h"
 #include "SurfaceControl.h"
-#include "WKRuntime.h"
 
-RendererSurfaceControl::RendererSurfaceControl(WPEAndroidViewBackend* viewBackend, uint32_t width, uint32_t height)
-    : m_viewBackend(viewBackend)
-    , m_size({width, height})
+#include <wpe/wpe-platform.h>
+
+namespace {
+// Surface transaction constants
+// Visibility is always SHOW for active rendering surfaces
+constexpr ASurfaceTransactionVisibility kSurfaceVisibility = ASURFACE_TRANSACTION_VISIBILITY_SHOW;
+// Z-order determines stacking; 0 is the base layer
+constexpr int32_t kSurfaceZOrder = 0;
+} // namespace
+
+RendererSurfaceControl::RendererSurfaceControl(uint32_t width, uint32_t height)
+    : m_size({width, height})
 {
-    Logging::logDebug("RendererSurfaceControl(%p, %u, %u)", m_viewBackend, m_size.m_width, m_size.m_height);
+    Logging::logDebug("RendererSurfaceControl(%u, %u)", m_size.m_width, m_size.m_height);
 }
 
 RendererSurfaceControl::~RendererSurfaceControl()
 {
     Logging::logDebug("~RendererSurfaceControl()");
     while (!m_pendingTransactionQueue.empty()) {
-        m_pendingTransactionQueue.front().setParent(*m_surface, nullptr);
-        m_pendingTransactionQueue.front().apply();
+        if (m_surface) {
+            m_pendingTransactionQueue.front().setParent(*m_surface, nullptr);
+            m_pendingTransactionQueue.front().apply();
+        }
         m_pendingTransactionQueue.pop();
-        m_numTransactionCommitOrAckPending--;
+    }
+
+    if (m_currentFrameBuffer != nullptr) {
+        g_object_unref(m_currentFrameBuffer);
+        m_currentFrameBuffer = nullptr;
+    }
+
+    if (m_pendingCommitBuffer != nullptr) {
+        g_object_unref(m_pendingCommitBuffer);
+        m_pendingCommitBuffer = nullptr;
     }
 }
 
+// Initialize the surface control when the Android surface is created
 void RendererSurfaceControl::onSurfaceCreated(ANativeWindow* window) noexcept
 {
     m_surface = std::make_shared<SurfaceControl::Surface>(window, "Surface");
-}
 
-void RendererSurfaceControl::onSurfaceChanged(int /*format*/, uint32_t width, uint32_t height) noexcept
-{
-    m_size.m_width = width;
-    m_size.m_height = height;
-}
-
-void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept // NOLINT(bugprone-exception-escape)
-{
-    if (m_surface != nullptr) {
-        if (m_pendingCommitBuffer != nullptr && m_pendingCommitFenceFD != nullptr) {
-            Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded - sending pending commit");
-            auto buffer = m_pendingCommitBuffer;
-            auto fence = m_pendingCommitFenceFD;
-            commitBuffer(buffer, fence);
-        } else if (m_frontBuffer != nullptr && m_pendingFrontBufferRedraw) {
-            auto fence = std::make_shared<ScopedFD>(-1);
-            Logging::logDebug("RendererSurfaceControl::onSurfaceRedrawNeeded - front buffer commit");
-            commitBuffer(m_frontBuffer, fence);
-        }
+    // Clear any existing queued transactions for the old surface.
+    m_numTransactionCommitOrAckPending = 0;
+    while (!m_pendingTransactionQueue.empty()) {
+        m_pendingTransactionQueue.pop();
     }
 }
 
-void RendererSurfaceControl::onSurfaceDestroyed() noexcept
+// Update surface dimensions when the Android surface changes
+void RendererSurfaceControl::onSurfaceChanged(int /*format*/, uint32_t width, uint32_t height) noexcept
 {
-    m_surface.reset();
-    m_pendingFrontBufferRedraw = true;
+    Logging::logDebug(
+        "onSurfaceChanged(%u, %u) - previous size (%u, %u)", width, height, m_size.m_width, m_size.m_height);
+
+    bool const sizeChanged = (m_size.m_width != width || m_size.m_height != height);
+    m_size.m_width = width;
+    m_size.m_height = height;
+
+    if (!sizeChanged)
+        return;
+
+    // Size changed - invalidate all stale buffers that have old dimensions
+
+    // Release pending commit buffer (old dimensions)
+    if (m_pendingCommitBuffer != nullptr) {
+        if (m_wpeView != nullptr)
+            wpe_view_buffer_released(m_wpeView, WPE_BUFFER(m_pendingCommitBuffer));
+        g_object_unref(m_pendingCommitBuffer);
+        m_pendingCommitBuffer = nullptr;
+        m_pendingCommitFenceFD.reset();
+    }
+
+    // Release current frame buffer (in-flight with old dimensions)
+    if (m_currentFrameBuffer != nullptr) {
+        if (m_wpeView != nullptr)
+            wpe_view_buffer_released(m_wpeView, WPE_BUFFER(m_currentFrameBuffer));
+        g_object_unref(m_currentFrameBuffer);
+        m_currentFrameBuffer = nullptr;
+    }
+
+    // Clear pending transaction queue (old-sized buffers)
+    while (!m_pendingTransactionQueue.empty())
+        m_pendingTransactionQueue.pop();
+    m_numTransactionCommitOrAckPending = 0;
+
+    Logging::logDebug("onSurfaceChanged: cleared stale buffers for resize");
 }
 
-void RendererSurfaceControl::commitBuffer(
-    std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD)
+// Handle Android surface redraw requests by committing pending buffers
+void RendererSurfaceControl::onSurfaceRedrawNeeded() noexcept
 {
-    if (m_surface == nullptr) { // surface is lost
-        if (m_pendingCommitBuffer != nullptr)
-            WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, m_pendingCommitBuffer->wpeBuffer());
+    Logging::logDebug("onSurfaceRedrawNeeded()");
 
-        m_pendingCommitBuffer = buffer;
+    if (m_surface == nullptr) {
+        Logging::logDebug("No surface available");
+        return;
+    }
+
+    // Only handle deferred commits from when surface was unavailable
+    if (m_pendingCommitBuffer != nullptr) {
+        Logging::logDebug("Committing pending buffer");
+
+        AHardwareBuffer* hardwareBuffer = wpe_buffer_android_get_hardware_buffer(m_pendingCommitBuffer);
+        if (hardwareBuffer == nullptr) {
+            Logging::logError("Failed to get hardware buffer from pending buffer");
+            return;
+        }
+
+        // Transfer ownership and apply transaction
+        WPEBufferAndroid* bufferToCommit = m_pendingCommitBuffer;
+        int fenceFD = m_pendingCommitFenceFD ? m_pendingCommitFenceFD->release() : -1;
+        m_pendingCommitBuffer = nullptr;
+        m_pendingCommitFenceFD.reset();
+
+        applyBufferTransaction(hardwareBuffer, bufferToCommit, fenceFD);
+        g_object_unref(bufferToCommit);
+        return;
+    }
+
+    // No pending buffer - WebKit will render new content when ready
+    Logging::logDebug("No pending buffer - waiting for WebKit");
+}
+
+// Release the surface control when the Android surface is destroyed
+void RendererSurfaceControl::onSurfaceDestroyed() noexcept
+{
+    Logging::logDebug("onSurfaceDestroyed()");
+    m_surface.reset();
+}
+
+// Commit a new buffer to the surface or defer if surface is unavailable
+void RendererSurfaceControl::commitBuffer(
+    AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD)
+{
+    // Defer commit until surface is restored
+    if (m_surface == nullptr) {
+        // Release old pending commit buffer if exists
+        if (m_pendingCommitBuffer != nullptr) {
+            if (m_wpeView != nullptr)
+                wpe_view_buffer_released(m_wpeView, WPE_BUFFER(m_pendingCommitBuffer));
+            g_object_unref(m_pendingCommitBuffer);
+        }
+
+        // Store new buffer as pending
+        m_pendingCommitBuffer = wpeBuffer;
+        g_object_ref(m_pendingCommitBuffer);
         m_pendingCommitFenceFD = fenceFD;
-        if (m_frontBuffer != nullptr) {
-            WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, m_frontBuffer->wpeBuffer());
-            m_frontBuffer = nullptr;
+
+        // Release current frame buffer since we can't display anything
+        if (m_currentFrameBuffer != nullptr) {
+            if (m_wpeView != nullptr)
+                wpe_view_buffer_released(m_wpeView, WPE_BUFFER(m_currentFrameBuffer));
+            g_object_unref(m_currentFrameBuffer);
+            m_currentFrameBuffer = nullptr;
         }
         return;
     }
 
+    // Surface available - release any pending buffer from when surface was unavailable
     if (m_pendingCommitBuffer != nullptr) {
+        if (m_wpeView != nullptr)
+            wpe_view_buffer_released(m_wpeView, WPE_BUFFER(m_pendingCommitBuffer));
+        g_object_unref(m_pendingCommitBuffer);
         m_pendingCommitBuffer = nullptr;
-        m_pendingCommitFenceFD = nullptr;
+        m_pendingCommitFenceFD.reset();
     }
 
-    m_pendingFrontBufferRedraw = false;
+    applyBufferTransaction(hardwareBuffer, wpeBuffer, fenceFD->release());
+}
 
+// Handle transaction completion acknowledgment and release buffer for reuse
+void RendererSurfaceControl::onTransActionAckOnBrowserThread(
+    std::optional<WPEBufferAndroid*> releasedBuffer, SurfaceControl::TransactionStats stats)
+{
+    // Android framework releases its buffer reference in this callback; wait for it before buffer reuse
+    if (releasedBuffer.has_value() && releasedBuffer.value() != nullptr) {
+        auto* buffer = releasedBuffer.value();
+
+        // Set release fence on buffer so Web Process waits before reusing
+        if (!stats.m_surfaceStats.empty() && stats.m_surfaceStats[0].m_fence) {
+            int releaseFence = stats.m_surfaceStats[0].m_fence->release();
+            wpe_buffer_set_release_fence(WPE_BUFFER(buffer), releaseFence);
+        }
+
+        // Notify WebKit that the buffer can be reused
+        if (m_wpeView != nullptr) {
+            Logging::logDebug("onTransActionAckOnBrowserThread: buffer_released %p", buffer);
+            wpe_view_buffer_released(m_wpeView, WPE_BUFFER(buffer));
+        }
+        // Note: Callback handles g_object_unref for the captured buffer
+    }
+}
+
+// Process transaction commit completion, trigger buffer rendered callback, and apply queued transactions
+void RendererSurfaceControl::onTransactionCommittedOnBrowserThread(std::optional<WPEBufferAndroid*> renderedBuffer)
+{
+    // Notify WebKit that the buffer is now on screen
+    if (renderedBuffer.has_value() && renderedBuffer.value() != nullptr) {
+        if (m_wpeView != nullptr) {
+            Logging::logDebug("onTransactionCommittedOnBrowserThread: buffer_rendered %p", renderedBuffer.value());
+            wpe_view_buffer_rendered(m_wpeView, WPE_BUFFER(renderedBuffer.value()));
+        }
+    }
+
+    if (m_numTransactionCommitOrAckPending > 0)
+        m_numTransactionCommitOrAckPending--;
+
+    // Apply next queued transaction if any
+    if (!m_pendingTransactionQueue.empty()) {
+        m_numTransactionCommitOrAckPending++;
+        m_pendingTransactionQueue.front().apply();
+        m_pendingTransactionQueue.pop();
+    }
+}
+
+// Create and apply buffer transaction with callbacks, queueing if another transaction is pending
+void RendererSurfaceControl::applyBufferTransaction(
+    AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD)
+{
     SurfaceControl::Transaction transaction;
-    transaction.setVisibility(*m_surface, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
-    transaction.setZOrder(*m_surface, 0);
-    transaction.setBuffer(*m_surface, buffer->buffer(), fenceFD->release());
+    transaction.setVisibility(*m_surface, kSurfaceVisibility);
+    transaction.setZOrder(*m_surface, kSurfaceZOrder);
+    transaction.setBuffer(*m_surface, hardwareBuffer, fenceFD);
 
-    ResourceRefs resourcesToRelease;
-    resourcesToRelease.swap(m_currentFrameResources);
-    m_currentFrameResources.clear();
+    // Previous buffer will be released in onCompleteCallback
+    WPEBufferAndroid* bufferToRelease = m_currentFrameBuffer;
 
-    auto& resourceRef = m_currentFrameResources[m_surface->surfaceControl()];
-    resourceRef.m_surface = m_surface;
-    resourceRef.m_scopedBuffer = buffer;
+    // Take ownership of the new buffer
+    m_currentFrameBuffer = wpeBuffer;
+    g_object_ref(m_currentFrameBuffer);
 
     std::weak_ptr<RendererSurfaceControl> const weakPtr(shared_from_this());
-    auto onCompleteCallback = [weakPtr, resources = std::move(resourcesToRelease)](auto&& stats) {
+
+    // Complete callback - release previous buffer
+    if (bufferToRelease != nullptr)
+        g_object_ref(bufferToRelease);
+
+    transaction.setOnCompleteCallback([weakPtr, buffer = bufferToRelease](SurfaceControl::TransactionStats&& stats) {
         auto ptr = weakPtr.lock();
         if (ptr)
-            ptr->onTransActionAckOnBrowserThread(resources, std::forward<decltype(stats)>(stats));
-    };
-    transaction.setOnCompleteCallback(std::move(onCompleteCallback));
+            ptr->onTransActionAckOnBrowserThread(buffer, std::move(stats));
+        // Always unref - callback owns this ref
+        if (buffer != nullptr)
+            g_object_unref(buffer);
+    });
 
-    auto onCommitCallback = [weakPtr]() {
+    // Commit callback - notify buffer rendered
+    g_object_ref(wpeBuffer);
+
+    transaction.setOnCommitCallback([weakPtr, buffer = wpeBuffer]() {
         auto ptr = weakPtr.lock();
         if (ptr)
-            ptr->onTransactionCommittedOnBrowserThread();
-    };
-    transaction.setOnCommitCallback(std::move(onCommitCallback));
+            ptr->onTransactionCommittedOnBrowserThread(buffer);
+        // Always unref - callback owns this ref
+        if (buffer != nullptr)
+            g_object_unref(buffer);
+    });
 
+    // Queue transaction if one is already pending; otherwise apply immediately
     if (m_numTransactionCommitOrAckPending > 0) {
         m_pendingTransactionQueue.push(std::move(transaction));
     } else {
         m_numTransactionCommitOrAckPending++;
         transaction.apply();
-        m_frontBuffer = buffer;
-    }
-}
-
-void RendererSurfaceControl::onTransActionAckOnBrowserThread(
-    ResourceRefs releasedResources, SurfaceControl::TransactionStats stats)
-{
-    for (auto& surfaceStat : stats.m_surfaceStats) {
-        auto resourceIterator = releasedResources.find(surfaceStat.m_surface);
-        if (resourceIterator == releasedResources.end()) {
-            continue;
-        }
-
-        if (surfaceStat.m_fence)
-            resourceIterator->second.m_scopedBuffer->setReleaseFenceFD(surfaceStat.m_fence);
-        m_releaseBufferQueue.push(std::move(resourceIterator->second.m_scopedBuffer));
-    }
-    releasedResources.clear();
-
-    // Following is from Android ASurfaceControl documentation in surface_control.h
-    //
-    // Each time a buffer is set through ASurfaceTransaction_setBuffer() on a transaction
-    // which is applied, the framework takes a ref on this buffer. The framework treats the
-    // addition of a buffer to a particular surface as a unique ref. When a transaction updates or
-    // removes a buffer from a surface, or removes the surface itself from the tree, this ref is
-    // guaranteed to be released in the OnComplete callback for this transaction. The
-    // ASurfaceControlStats provided in the callback for this surface may contain an optional fence
-    // which must be signaled before the ref is assumed to be released.
-    //
-    // The client must ensure that all pending refs on a buffer are released before attempting to reuse
-    // this buffer, otherwise synchronization errors may occur.
-    //
-    // TBD: Based on above description it seems that fence must be checked and waited if present before reusing the
-    // buffer. But in practice it seems to have no significant effect if check is done or not done
-    while (!m_releaseBufferQueue.empty()) {
-        auto& pendingBuffer = m_releaseBufferQueue.front();
-        auto status = pendingBuffer->getReleaseFenceFD() != -1 ? Fence::getStatus(pendingBuffer->getReleaseFenceFD())
-                                                               : Fence::Invalid;
-
-        if (status == Fence::NotSignaled)
-            break;
-
-        if (m_frontBuffer && m_frontBuffer->wpeBuffer() == pendingBuffer->wpeBuffer())
-            m_frontBuffer = nullptr;
-
-        WPEAndroidViewBackend_dispatchReleaseBuffer(m_viewBackend, pendingBuffer->wpeBuffer());
-        m_releaseBufferQueue.pop();
-    }
-}
-
-void RendererSurfaceControl::onTransactionCommittedOnBrowserThread()
-{
-    // We can notify WebProcess already at this point to start rendering next frame.
-    // This causes WPEBackend-android to use triple buffering but performance is better this way
-    //
-    // If this dispatch_frame_complete is called in onTransActionAckOnBrowserThread then WPEBackend-android
-    // stays in double buffering
-    WPEAndroidViewBackend_dispatchFrameComplete(m_viewBackend);
-
-    processTransactionQueue();
-}
-
-void RendererSurfaceControl::processTransactionQueue()
-{
-    m_numTransactionCommitOrAckPending--;
-    if (!m_pendingTransactionQueue.empty()) {
-        m_numTransactionCommitOrAckPending++;
-        m_pendingTransactionQueue.front().apply();
-        m_pendingTransactionQueue.pop();
     }
 }

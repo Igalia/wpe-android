@@ -19,7 +19,6 @@
 
 #include "SurfaceControl.h"
 
-#include "ScopedWPEAndroidBuffer.h"
 #include "WKRuntime.h"
 
 namespace {

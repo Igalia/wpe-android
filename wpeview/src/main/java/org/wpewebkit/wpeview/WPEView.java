@@ -158,6 +158,18 @@ public class WPEView extends FrameLayout {
     public void reload() { wkWebView.reload(); }
 
     /**
+     * Returns whether this WebView is muted.
+     * @return {@code true} if the WebView is muted, {@code false} otherwise.
+     */
+    public boolean isMuted() { return wkWebView.isMuted(); }
+
+    /**
+     * Sets whether this WebView should be muted.
+     * @param muted {@code true} to mute the WebView, {@code false} to unmute.
+     */
+    public void setMuted(boolean muted) { wkWebView.setMuted(muted); }
+
+    /**
      * Gets loading progress for the current page.
      * @return the loading progress for the current page (between 0 and 100).
      */
@@ -277,18 +289,6 @@ public class WPEView extends FrameLayout {
      *         settings.
      */
     public @NonNull WPESettings getSettings() { return wpeSettings; }
-
-    @Override
-    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            wkWebView.deleteInputMethodContent(-1);
-            return true;
-        }
-
-        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
-        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
-        return true;
-    }
 
     // Internal API
 
