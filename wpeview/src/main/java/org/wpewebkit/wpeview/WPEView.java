@@ -25,9 +25,9 @@ package org.wpewebkit.wpeview;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.view.KeyCharacterMap;
-import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -158,6 +158,18 @@ public class WPEView extends FrameLayout {
     public void reload() { wkWebView.reload(); }
 
     /**
+     * Returns whether this WebView is muted.
+     * @return {@code true} if the WebView is muted, {@code false} otherwise.
+     */
+    public boolean isMuted() { return wkWebView.isMuted(); }
+
+    /**
+     * Sets whether this WebView should be muted.
+     * @param muted {@code true} to mute the WebView, {@code false} to unmute.
+     */
+    public void setMuted(boolean muted) { wkWebView.setMuted(muted); }
+
+    /**
      * Gets loading progress for the current page.
      * @return the loading progress for the current page (between 0 and 100).
      */
@@ -279,15 +291,25 @@ public class WPEView extends FrameLayout {
     public @NonNull WPESettings getSettings() { return wpeSettings; }
 
     @Override
-    public boolean onKeyUp(int keyCode, @NonNull KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DEL) {
-            wkWebView.deleteInputMethodContent(-1);
-            return true;
+    public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
+        // Only provide InputConnection when an input field is focused in the web content
+        if (!wkWebView.isInputFieldFocused()) {
+            return null;
         }
 
-        KeyCharacterMap map = KeyCharacterMap.load(event.getDeviceId());
-        wkWebView.setInputMethodContent(map.get(keyCode, event.getMetaState()));
-        return true;
+        // Configure the EditorInfo for the soft keyboard
+        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        outAttrs.actionLabel = null;
+
+        // Return our custom InputConnection that bridges to WebKit
+        return new WPEInputConnection(this, true, wkWebView);
+    }
+
+    @Override
+    public boolean onCheckIsTextEditor() {
+        // Tell Android this view is a text editor when an input field is focused
+        return wkWebView.isInputFieldFocused();
     }
 
     // Internal API

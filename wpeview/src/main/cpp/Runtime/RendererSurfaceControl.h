@@ -23,15 +23,22 @@
 
 #include "Renderer.h"
 
-#include <map>
+#include <android/hardware_buffer.h>
 #include <memory>
-#include <wpe-android/view-backend.h>
+#include <optional>
+#include <queue>
 
+#include "ScopedFD.h"
 #include "SurfaceControl.h"
+
+#include <glib-object.h>
+
+typedef struct _WPEBufferAndroid WPEBufferAndroid;
+typedef struct _WPEView WPEView;
 
 class RendererSurfaceControl final : public Renderer, public std::enable_shared_from_this<RendererSurfaceControl> {
 public:
-    RendererSurfaceControl(WPEAndroidViewBackend* viewBackend, uint32_t width, uint32_t height);
+    RendererSurfaceControl(uint32_t width, uint32_t height);
     ~RendererSurfaceControl() override;
 
     RendererSurfaceControl(RendererSurfaceControl&&) = delete;
@@ -47,30 +54,20 @@ public:
     void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
-    void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) override;
+    // Set WPEView for direct buffer API calls
+    void setWPEView(WPEView* view) { m_wpeView = view; }
+
+    void commitBuffer(
+        AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD) override;
 
 private:
-    struct ResourceRef {
-        ResourceRef() = default;
-        ~ResourceRef() = default;
+    void onTransActionAckOnBrowserThread(
+        std::optional<WPEBufferAndroid*> releasedBuffer, SurfaceControl::TransactionStats stats);
+    void onTransactionCommittedOnBrowserThread(std::optional<WPEBufferAndroid*> renderedBuffer);
+    void applyBufferTransaction(AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, int fenceFD);
 
-        ResourceRef(const ResourceRef& other) = default;
-        ResourceRef& operator=(const ResourceRef& other) = default;
+    WPEView* m_wpeView = nullptr;
 
-        ResourceRef(ResourceRef&& other) = default;
-        ResourceRef& operator=(ResourceRef&& other) = default;
-
-        std::shared_ptr<SurfaceControl::Surface> m_surface;
-        std::shared_ptr<ScopedWPEAndroidBuffer> m_scopedBuffer;
-    };
-    using ResourceRefs = std::map<ASurfaceControl*, ResourceRef>;
-
-    void onTransActionAckOnBrowserThread(ResourceRefs releasedResources, SurfaceControl::TransactionStats stats);
-    void onTransactionCommittedOnBrowserThread();
-
-    void processTransactionQueue();
-
-    WPEAndroidViewBackend* m_viewBackend = nullptr;
     std::shared_ptr<SurfaceControl::Surface> m_surface;
 
     struct {
@@ -81,11 +78,7 @@ private:
     std::queue<SurfaceControl::Transaction> m_pendingTransactionQueue;
     uint32_t m_numTransactionCommitOrAckPending = 0U;
 
-    ResourceRefs m_currentFrameResources;
-
-    std::queue<std::shared_ptr<ScopedWPEAndroidBuffer>> m_releaseBufferQueue;
-    std::shared_ptr<ScopedWPEAndroidBuffer> m_pendingCommitBuffer;
+    WPEBufferAndroid* m_currentFrameBuffer = nullptr;
+    WPEBufferAndroid* m_pendingCommitBuffer = nullptr;
     std::shared_ptr<ScopedFD> m_pendingCommitFenceFD;
-    std::shared_ptr<ScopedWPEAndroidBuffer> m_frontBuffer;
-    bool m_pendingFrontBufferRedraw = false;
 };

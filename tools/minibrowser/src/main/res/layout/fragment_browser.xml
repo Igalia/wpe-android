@@ -12,13 +12,13 @@
         android:id="@+id/tab_container_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/page_progress" />
+        android:layout_above="@id/toolbar" />
 
     <ProgressBar
         android:id="@+id/page_progress"
         style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
+        android:layout_height="8dp"
         android:background="@android:color/transparent"
         android:layout_above="@id/toolbar"
         android:progressTint="@color/violet_70"/>
@@ -27,29 +27,30 @@
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?android:actionBarSize"
-        android:layout_alignParentBottom="true"
-        android:background="?android:statusBarColor">
+        android:layout_alignParentBottom="true">
 
         <FrameLayout
             android:id="@+id/toolbar_edit_text_wrapper"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="match_parent"
+            android:layout_marginTop="4dp"
             android:background="@drawable/address_view_background"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
             android:clickable="true"
             android:contentDescription="@string/search_hint"
-            android:focusable="true"
-            >
+            android:focusable="true">
+
             <EditText
                 android:id="@+id/toolbar_edit_text"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:background="@android:color/transparent"
                 android:importantForAutofill="no"
                 android:inputType="text|textUri"
                 android:selectAllOnFocus="true"
                 android:singleLine="true"
                 android:layout_gravity="start|center_vertical"
-                android:layout_marginStart="16dp"
                 android:hint="@string/search_hint"/>
         </FrameLayout>
 

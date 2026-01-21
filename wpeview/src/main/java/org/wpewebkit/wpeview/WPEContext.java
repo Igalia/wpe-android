@@ -45,7 +45,7 @@ public class WPEContext {
                 return null;
             });
         } else {
-            setClient(null);
+            this.context.setClient(null);
         }
     }
     WKWebContext getWebContext() { return context; }
