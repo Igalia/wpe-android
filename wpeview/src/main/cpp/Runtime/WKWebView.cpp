@@ -843,10 +843,9 @@ void JNIWKWebViewCache::nativeSetInputMethodContent(
         Logging::logError("WKWebView::nativeSetInputMethodContent - wpeView is null");
         return;
     }
-    auto* context = wpe_input_method_context_android_get_for_view(WPE_VIEW(wkWebView->wpeView()));
+    auto* context = wpe_view_android_get_input_method_context(wkWebView->wpeView());
     if (context == nullptr) {
-        Logging::logError(
-            "WKWebView::nativeSetInputMethodContent - context is null for view %p", WPE_VIEW(wkWebView->wpeView()));
+        Logging::logError("WKWebView::nativeSetInputMethodContent - null context for view=%p", wkWebView->wpeView());
         return;
     }
     static constexpr size_t GUNICHAR_UTF8_BUFFER_SIZE = 8;
@@ -861,7 +860,7 @@ void JNIWKWebViewCache::nativeDeleteInputMethodContent(
     Logging::logDebug("WKWebView::nativeDeleteInputMethodContent(%d, %d) [tid %d]", offset, count, gettid());
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
     if (wkWebView != nullptr && wkWebView->wpeView() != nullptr) {
-        auto* context = wpe_input_method_context_android_get_for_view(WPE_VIEW(wkWebView->wpeView()));
+        auto* context = wpe_view_android_get_input_method_context(wkWebView->wpeView());
         if (context != nullptr)
             wpe_input_method_context_android_delete_surrounding(context, offset, static_cast<unsigned int>(count));
     }
@@ -1029,9 +1028,7 @@ WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWeb
         wpe_view_android_resize(m_wpeView, logicalWidth, logicalHeight);
         wpe_view_android_set_scale(m_wpeView, scale);
 
-        // Set up focus callbacks
-        wpe_input_method_context_android_set_focus_callbacks_for_view(
-            WPE_VIEW(m_wpeView), onInputMethodFocusIn, onInputMethodFocusOut, this);
+        wpe_view_android_set_input_method_focus_callbacks(m_wpeView, onInputMethodFocusIn, onInputMethodFocusOut, this);
     }
 
     m_signalHandlers.push_back(
@@ -1076,10 +1073,8 @@ void WKWebView::close() noexcept
         // Ensure that renderer is destroyed first so that all pending commits will be cleared before page is gone
         m_renderer.reset();
 
-        if (m_wpeView != nullptr) {
-            wpe_input_method_context_android_set_focus_callbacks_for_view(
-                WPE_VIEW(m_wpeView), nullptr, nullptr, nullptr);
-        }
+        if (m_wpeView != nullptr)
+            wpe_view_android_set_input_method_focus_callbacks(m_wpeView, nullptr, nullptr, nullptr);
 
         for (auto& handler : m_signalHandlers)
             g_signal_handler_disconnect(m_webView, handler);

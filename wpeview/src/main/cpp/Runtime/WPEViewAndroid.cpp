@@ -208,27 +208,28 @@ void wpe_view_android_set_input_method_context(WPEViewAndroid* view, WPEInputMet
 {
     g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
     view->inputMethodContext = context;
+
+    if (context && (view->pendingFocusCallbacks.focusInCallback || view->pendingFocusCallbacks.focusOutCallback)) {
+        wpe_input_method_context_android_set_focus_callbacks(context, view->pendingFocusCallbacks.focusInCallback,
+            view->pendingFocusCallbacks.focusOutCallback, view->pendingFocusCallbacks.userData);
+        view->pendingFocusCallbacks = {};
+        Logging::logDebug("WPEViewAndroid::set_input_method_context(%p) - applied pending focus callbacks", view);
+    }
 }
 
-void wpe_view_android_set_pending_focus_callbacks(WPEViewAndroid* view,
+void wpe_view_android_set_input_method_focus_callbacks(WPEViewAndroid* view,
     WPEInputMethodContextAndroidFocusCallback focusInCallback,
     WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData)
 {
     g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
+
+    if (auto* context = view->inputMethodContext) {
+        wpe_input_method_context_android_set_focus_callbacks(context, focusInCallback, focusOutCallback, userData);
+        return;
+    }
+
     view->pendingFocusCallbacks.focusInCallback = focusInCallback;
     view->pendingFocusCallbacks.focusOutCallback = focusOutCallback;
     view->pendingFocusCallbacks.userData = userData;
-}
-
-void wpe_view_android_apply_pending_focus_callbacks(WPEViewAndroid* view, WPEInputMethodContext* context)
-{
-    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
-    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
-
-    if (view->pendingFocusCallbacks.focusInCallback || view->pendingFocusCallbacks.focusOutCallback) {
-        wpe_input_method_context_android_set_focus_callbacks(context, view->pendingFocusCallbacks.focusInCallback,
-            view->pendingFocusCallbacks.focusOutCallback, view->pendingFocusCallbacks.userData);
-        view->pendingFocusCallbacks = {};
-        Logging::logDebug("WPEViewAndroid: applied pending focus callbacks");
-    }
+    Logging::logDebug("WPEViewAndroid::set_input_method_focus_callbacks(%p) - stored as pending", view);
 }
