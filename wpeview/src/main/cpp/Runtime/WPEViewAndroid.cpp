@@ -22,43 +22,40 @@
 #include "RendererSurfaceControl.h"
 #include "ScopedFD.h"
 #include "WPEDisplayAndroid.h"
+#include "WPEInputMethodContextAndroid.h"
 
 #include <android/hardware_buffer.h>
 
 struct _WPEViewAndroid {
     WPEView parent;
+    std::shared_ptr<RendererSurfaceControl> renderer;
+
+    WPEInputMethodContext* inputMethodContext;
+    struct {
+        WPEInputMethodContextAndroidFocusCallback focusInCallback;
+        WPEInputMethodContextAndroidFocusCallback focusOutCallback;
+        void* userData;
+    } pendingFocusCallbacks;
 };
 
-typedef struct {
-    std::shared_ptr<RendererSurfaceControl> renderer;
-} WPEViewAndroidPrivate;
-
-G_DEFINE_TYPE_WITH_PRIVATE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
-
-static void wpeViewAndroidConstructed(GObject* object)
-{
-    G_OBJECT_CLASS(wpe_view_android_parent_class)->constructed(object);
-
-    Logging::logDebug("WPEViewAndroid::constructed(%p)", object);
-}
+G_DEFINE_FINAL_TYPE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
 
 static void wpeViewAndroidDispose(GObject* object)
 {
     Logging::logDebug("WPEViewAndroid::dispose(%p)", object);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(object)));
-
-    priv->renderer.reset();
+    auto* view = WPE_VIEW_ANDROID(object);
+    view->renderer.reset();
 
     G_OBJECT_CLASS(wpe_view_android_parent_class)->dispose(object);
 }
 
 static gboolean wpeViewAndroidRenderBuffer(
-    WPEView* view, WPEBuffer* buffer, const WPERectangle* /*damageRects*/, guint nDamageRects, GError** error)
+    WPEView* view, WPEBuffer* buffer, const WPERectangle*, guint nDamageRects, GError** error)
 {
     Logging::logDebug("WPEViewAndroid::render_buffer(%p, %p, %u rects)", view, buffer, nDamageRects);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
+    auto* viewAndroid = WPE_VIEW_ANDROID(view);
 
     if (!WPE_IS_BUFFER_ANDROID(buffer)) {
         g_set_error_literal(error, WPE_VIEW_ERROR, WPE_VIEW_ERROR_RENDER_FAILED, "Buffer is not a WPEBufferAndroid");
@@ -73,14 +70,11 @@ static gboolean wpeViewAndroidRenderBuffer(
         return FALSE;
     }
 
-    if (priv->renderer) {
-        // Commit buffer to SurfaceControl for display with GPU rendering fence.
-        // Buffer ownership and lifecycle is managed by RendererSurfaceControl.
-        int renderingFence = wpe_buffer_take_rendering_fence(buffer);
+    if (viewAndroid->renderer) {
+        const int renderingFence = wpe_buffer_take_rendering_fence(buffer);
         auto fenceFD = std::make_shared<ScopedFD>(renderingFence);
-        priv->renderer->commitBuffer(ahb, bufferAndroid, fenceFD);
+        viewAndroid->renderer->commitBuffer(ahb, bufferAndroid, fenceFD);
     } else {
-        // Headless rendering: signal that the buffer is available for reuse.
         wpe_view_buffer_released(view, buffer);
         wpe_view_buffer_rendered(view, buffer);
     }
@@ -95,12 +89,16 @@ static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
     GObjectClass* objectClass = G_OBJECT_CLASS(klass);
     WPEViewClass* viewClass = WPE_VIEW_CLASS(klass);
 
-    objectClass->constructed = wpeViewAndroidConstructed;
     objectClass->dispose = wpeViewAndroidDispose;
     viewClass->render_buffer = wpeViewAndroidRenderBuffer;
 }
 
-static void wpe_view_android_init(WPEViewAndroid* view) { Logging::logDebug("WPEViewAndroid::init(%p)", view); }
+static void wpe_view_android_init(WPEViewAndroid* view)
+{
+    Logging::logDebug("WPEViewAndroid::init(%p)", view);
+    view->inputMethodContext = nullptr;
+    view->pendingFocusCallbacks = {};
+}
 
 WPEView* wpe_view_android_new(WPEDisplay* display)
 {
@@ -154,14 +152,10 @@ void wpe_view_android_set_renderer(WPEViewAndroid* view, const std::shared_ptr<R
 
     Logging::logDebug("WPEViewAndroid::set_renderer(%p, %p)", view, renderer.get());
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
+    view->renderer = renderer;
 
-    priv->renderer = renderer;
-
-    if (renderer) {
-        // Give renderer direct access to WPEView for buffer lifecycle callbacks
+    if (renderer)
         renderer->setWPEView(WPE_VIEW(view));
-    }
 }
 
 void wpe_view_android_on_surface_created(WPEViewAndroid* view, ANativeWindow* window)
@@ -170,11 +164,8 @@ void wpe_view_android_on_surface_created(WPEViewAndroid* view, ANativeWindow* wi
 
     Logging::logDebug("WPEViewAndroid::on_surface_created(%p, %p)", view, window);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-    if (priv->renderer) {
-        priv->renderer->onSurfaceCreated(window);
-    }
+    if (view->renderer)
+        view->renderer->onSurfaceCreated(window);
 }
 
 void wpe_view_android_on_surface_changed(WPEViewAndroid* view, int format, uint32_t width, uint32_t height)
@@ -183,11 +174,8 @@ void wpe_view_android_on_surface_changed(WPEViewAndroid* view, int format, uint3
 
     Logging::logDebug("WPEViewAndroid::on_surface_changed(%p, %d, %u, %u)", view, format, width, height);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-    if (priv->renderer) {
-        priv->renderer->onSurfaceChanged(format, width, height);
-    }
+    if (view->renderer)
+        view->renderer->onSurfaceChanged(format, width, height);
 }
 
 void wpe_view_android_on_surface_redraw_needed(WPEViewAndroid* view)
@@ -196,11 +184,8 @@ void wpe_view_android_on_surface_redraw_needed(WPEViewAndroid* view)
 
     Logging::logDebug("WPEViewAndroid::on_surface_redraw_needed(%p)", view);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
-
-    if (priv->renderer) {
-        priv->renderer->onSurfaceRedrawNeeded();
-    }
+    if (view->renderer)
+        view->renderer->onSurfaceRedrawNeeded();
 }
 
 void wpe_view_android_on_surface_destroyed(WPEViewAndroid* view)
@@ -209,9 +194,41 @@ void wpe_view_android_on_surface_destroyed(WPEViewAndroid* view)
 
     Logging::logDebug("WPEViewAndroid::on_surface_destroyed(%p)", view);
 
-    auto* priv = static_cast<WPEViewAndroidPrivate*>(wpe_view_android_get_instance_private(WPE_VIEW_ANDROID(view)));
+    if (view->renderer)
+        view->renderer->onSurfaceDestroyed();
+}
 
-    if (priv->renderer) {
-        priv->renderer->onSurfaceDestroyed();
+WPEInputMethodContext* wpe_view_android_get_input_method_context(WPEViewAndroid* view)
+{
+    g_return_val_if_fail(WPE_IS_VIEW_ANDROID(view), nullptr);
+    return view->inputMethodContext;
+}
+
+void wpe_view_android_set_input_method_context(WPEViewAndroid* view, WPEInputMethodContext* context)
+{
+    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
+    view->inputMethodContext = context;
+}
+
+void wpe_view_android_set_pending_focus_callbacks(WPEViewAndroid* view,
+    WPEInputMethodContextAndroidFocusCallback focusInCallback,
+    WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData)
+{
+    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
+    view->pendingFocusCallbacks.focusInCallback = focusInCallback;
+    view->pendingFocusCallbacks.focusOutCallback = focusOutCallback;
+    view->pendingFocusCallbacks.userData = userData;
+}
+
+void wpe_view_android_apply_pending_focus_callbacks(WPEViewAndroid* view, WPEInputMethodContext* context)
+{
+    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+
+    if (view->pendingFocusCallbacks.focusInCallback || view->pendingFocusCallbacks.focusOutCallback) {
+        wpe_input_method_context_android_set_focus_callbacks(context, view->pendingFocusCallbacks.focusInCallback,
+            view->pendingFocusCallbacks.focusOutCallback, view->pendingFocusCallbacks.userData);
+        view->pendingFocusCallbacks = {};
+        Logging::logDebug("WPEViewAndroid: applied pending focus callbacks");
     }
 }

@@ -25,32 +25,27 @@
 
 #include <EGL/egl.h>
 #include <android/hardware_buffer.h>
+#include <drm/drm_fourcc.h>
 
 struct _WPEDisplayAndroid {
     WPEDisplay parent;
+    EGLDisplay eglDisplay;
+    WPEToplevel* toplevel;
 };
 
-typedef struct {
-    gpointer eglDisplay;
-    WPEToplevel* toplevel;
-} WPEDisplayAndroidPrivate;
-
-G_DEFINE_TYPE_WITH_PRIVATE(WPEDisplayAndroid, wpe_display_android, WPE_TYPE_DISPLAY)
+G_DEFINE_FINAL_TYPE(WPEDisplayAndroid, wpe_display_android, WPE_TYPE_DISPLAY)
 
 static void wpeDisplayAndroidDispose(GObject* object)
 {
     Logging::logDebug("WPEDisplayAndroid::dispose(%p)", object);
 
-    auto* priv
-        = static_cast<WPEDisplayAndroidPrivate*>(wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(object)));
+    auto* display = WPE_DISPLAY_ANDROID(object);
 
-    // Clean up toplevel
-    g_clear_object(&priv->toplevel);
+    g_clear_object(&display->toplevel);
 
-    // Clean up EGL display if initialized
-    if (priv->eglDisplay != nullptr) {
-        eglTerminate(static_cast<EGLDisplay>(priv->eglDisplay));
-        priv->eglDisplay = nullptr;
+    if (display->eglDisplay != EGL_NO_DISPLAY) {
+        eglTerminate(display->eglDisplay);
+        display->eglDisplay = EGL_NO_DISPLAY;
     }
 
     G_OBJECT_CLASS(wpe_display_android_parent_class)->dispose(object);
@@ -67,11 +62,9 @@ static WPEView* wpeDisplayAndroidCreateView(WPEDisplay* display)
     Logging::logDebug("WPEDisplayAndroid::create_view(%p)", display);
 
     auto* view = wpe_view_android_new(display);
-    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
-        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
-    if (priv->toplevel) {
-        wpe_view_set_toplevel(view, priv->toplevel);
-    }
+    auto* displayAndroid = WPE_DISPLAY_ANDROID(display);
+    if (displayAndroid->toplevel)
+        wpe_view_set_toplevel(view, displayAndroid->toplevel);
 
     return view;
 }
@@ -80,17 +73,14 @@ static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** err
 {
     Logging::logDebug("WPEDisplayAndroid::get_egl_display(%p)", display);
 
-    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
-        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
+    auto* displayAndroid = WPE_DISPLAY_ANDROID(display);
 
-    if (priv->eglDisplay != nullptr) {
-        return priv->eglDisplay;
-    }
+    if (displayAndroid->eglDisplay != EGL_NO_DISPLAY)
+        return displayAndroid->eglDisplay;
 
     EGLDisplay eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (eglDisplay == EGL_NO_DISPLAY) {
-        EGLint eglError = eglGetError();
-        Logging::logError("WPEDisplayAndroid::get_egl_display - eglGetDisplay failed with error 0x%x", eglError);
+        Logging::logError("WPEDisplayAndroid::get_egl_display - eglGetDisplay failed with error 0x%04X", eglGetError());
         g_set_error_literal(error, WPE_DISPLAY_ERROR, WPE_DISPLAY_ERROR_CONNECTION_FAILED, "Failed to get EGL display");
         return nullptr;
     }
@@ -98,19 +88,18 @@ static gpointer wpeDisplayAndroidGetEGLDisplay(WPEDisplay* display, GError** err
     EGLint major = 0;
     EGLint minor = 0;
     if (!eglInitialize(eglDisplay, &major, &minor)) {
-        EGLint eglError = eglGetError();
-        Logging::logError("WPEDisplayAndroid::get_egl_display - eglInitialize failed with error 0x%x", eglError);
+        Logging::logError("WPEDisplayAndroid::get_egl_display - eglInitialize failed with error 0x%04X", eglGetError());
         g_set_error_literal(error, WPE_DISPLAY_ERROR, WPE_DISPLAY_ERROR_CONNECTION_FAILED, "Failed to initialize EGL");
         return nullptr;
     }
 
     Logging::logDebug("EGL initialized: version %d.%d", major, minor);
 
-    priv->eglDisplay = eglDisplay;
-    return priv->eglDisplay;
+    displayAndroid->eglDisplay = eglDisplay;
+    return displayAndroid->eglDisplay;
 }
 
-static gboolean wpeDisplayAndroidUseExplicitSync(WPEDisplay* /*display*/) { return TRUE; }
+static gboolean wpeDisplayAndroidUseExplicitSync(WPEDisplay*) { return TRUE; }
 
 static WPEInputMethodContext* wpeDisplayAndroidCreateInputMethodContext(WPEDisplay* display, WPEView* view)
 {
@@ -118,24 +107,20 @@ static WPEInputMethodContext* wpeDisplayAndroidCreateInputMethodContext(WPEDispl
     return wpe_input_method_context_android_new(view);
 }
 
-static WPEBufferFormats* wpeDisplayAndroidGetPreferredBufferFormats(WPEDisplay* /*display*/)
+static WPEBufferFormats* wpeDisplayAndroidGetPreferredBufferFormats(WPEDisplay*)
 {
-    static const struct {
-        uint32_t fourcc;
-        uint64_t modifier;
-    } formats[] = {
-        {0x34324152, 0}, // DRM_FORMAT_RGBA8888
-        {0x34325852, 0}, // DRM_FORMAT_RGBX8888
-        {0x34324752, 0}, // DRM_FORMAT_RGB888
-        {0x36314752, 0}, // DRM_FORMAT_RGB565
+    static constexpr uint32_t formats[] = {
+        DRM_FORMAT_RGBA8888,
+        DRM_FORMAT_RGBX8888,
+        DRM_FORMAT_RGB888,
+        DRM_FORMAT_RGB565,
     };
 
     auto* builder = wpe_buffer_formats_builder_new(nullptr);
     wpe_buffer_formats_builder_append_group(builder, nullptr, WPE_BUFFER_FORMAT_USAGE_RENDERING);
 
-    for (const auto& format : formats) {
-        wpe_buffer_formats_builder_append_format(builder, format.fourcc, format.modifier);
-    }
+    for (auto format : formats)
+        wpe_buffer_formats_builder_append_format(builder, format, 0);
 
     return wpe_buffer_formats_builder_end(builder);
 }
@@ -158,16 +143,13 @@ static void wpe_display_android_init(WPEDisplayAndroid* display)
 {
     Logging::logDebug("WPEDisplayAndroid::init(%p)", display);
 
-    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
-        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
+    display->eglDisplay = EGL_NO_DISPLAY;
 
-    // Set available input devices for Android
     auto inputDevices = static_cast<WPEAvailableInputDevices>(
         WPE_AVAILABLE_INPUT_DEVICE_TOUCHSCREEN | WPE_AVAILABLE_INPUT_DEVICE_KEYBOARD);
     wpe_display_set_available_input_devices(WPE_DISPLAY(display), inputDevices);
 
-    // Create the toplevel for this display
-    priv->toplevel = wpe_toplevel_android_new(WPE_DISPLAY(display));
+    display->toplevel = wpe_toplevel_android_new(WPE_DISPLAY(display));
 }
 
 WPEDisplay* wpe_display_android_new(void) { return WPE_DISPLAY(g_object_new(WPE_TYPE_DISPLAY_ANDROID, nullptr)); }
@@ -175,9 +157,5 @@ WPEDisplay* wpe_display_android_new(void) { return WPE_DISPLAY(g_object_new(WPE_
 WPEToplevel* wpe_display_android_get_toplevel(WPEDisplay* display)
 {
     g_return_val_if_fail(WPE_IS_DISPLAY_ANDROID(display), nullptr);
-
-    auto* priv = static_cast<WPEDisplayAndroidPrivate*>(
-        wpe_display_android_get_instance_private(WPE_DISPLAY_ANDROID(display)));
-
-    return priv->toplevel;
+    return WPE_DISPLAY_ANDROID(display)->toplevel;
 }

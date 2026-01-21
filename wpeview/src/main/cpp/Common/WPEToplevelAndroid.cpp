@@ -20,22 +20,11 @@
 
 #include "Logging.h"
 
-/**
- * WPEToplevelAndroid:
- *
- * Android implementation of #WPEToplevel for the WPE Platform API.
- * This provides a minimal toplevel implementation for Android applications.
- */
-
 struct _WPEToplevelAndroid {
     WPEToplevel parent;
 };
 
-typedef struct {
-    // Reserved for future use
-} WPEToplevelAndroidPrivate;
-
-G_DEFINE_TYPE_WITH_PRIVATE(WPEToplevelAndroid, wpe_toplevel_android, WPE_TYPE_TOPLEVEL)
+G_DEFINE_FINAL_TYPE(WPEToplevelAndroid, wpe_toplevel_android, WPE_TYPE_TOPLEVEL)
 
 static void wpeToplevelAndroidConstructed(GObject* object)
 {
@@ -48,17 +37,6 @@ static void wpeToplevelAndroidConstructed(GObject* object)
     // Initialize the toplevel with ACTIVE state
     // Android apps start in active state when visible
     wpe_toplevel_state_changed(toplevel, WPE_TOPLEVEL_STATE_ACTIVE);
-}
-
-static void wpeToplevelAndroidSetTitle(WPEToplevel* toplevel, const char* title)
-{
-    Logging::logDebug("WPEToplevelAndroid::set_title(%p, %s)", toplevel, title ? title : "(null)");
-}
-
-static WPEScreen* wpeToplevelAndroidGetScreen(WPEToplevel* toplevel)
-{
-    Logging::logDebug("WPEToplevelAndroid::get_screen(%p)", toplevel);
-    return nullptr;
 }
 
 static gboolean wpeToplevelAndroidResize(WPEToplevel* toplevel, int width, int height)
@@ -121,11 +99,8 @@ static gboolean wpeToplevelAndroidSetMinimized(WPEToplevel* toplevel)
 
 static WPEBufferFormats* wpeToplevelAndroidGetPreferredBufferFormats(WPEToplevel* toplevel)
 {
-    auto* display = wpe_toplevel_get_display(toplevel);
-
-    if (display) {
+    if (auto* display = wpe_toplevel_get_display(toplevel))
         return wpe_display_get_preferred_buffer_formats(display);
-    }
     return nullptr;
 }
 
@@ -135,8 +110,6 @@ static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* toplevelAnd
     objectClass->constructed = wpeToplevelAndroidConstructed;
 
     WPEToplevelClass* toplevelClass = WPE_TOPLEVEL_CLASS(toplevelAndroidClass);
-    toplevelClass->set_title = wpeToplevelAndroidSetTitle;
-    toplevelClass->get_screen = wpeToplevelAndroidGetScreen;
     toplevelClass->resize = wpeToplevelAndroidResize;
     toplevelClass->set_fullscreen = wpeToplevelAndroidSetFullscreen;
     toplevelClass->set_maximized = wpeToplevelAndroidSetMaximized;
@@ -149,14 +122,6 @@ static void wpe_toplevel_android_init(WPEToplevelAndroid* toplevel)
     Logging::logDebug("WPEToplevelAndroid::init(%p)", toplevel);
 }
 
-/**
- * wpe_toplevel_android_new:
- * @display: a #WPEDisplay
- *
- * Create a new #WPEToplevel on @display.
- *
- * Returns: (transfer full): a #WPEToplevel
- */
 WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display)
 {
     g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
