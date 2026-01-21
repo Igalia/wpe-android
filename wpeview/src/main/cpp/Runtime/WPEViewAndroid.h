@@ -45,9 +45,8 @@ void wpe_view_android_on_surface_created(WPEViewAndroid* view, struct ANativeWin
 void wpe_view_android_on_surface_changed(WPEViewAndroid* view, int format, uint32_t width, uint32_t height);
 void wpe_view_android_on_surface_redraw_needed(WPEViewAndroid* view);
 void wpe_view_android_on_surface_destroyed(WPEViewAndroid* view);
+WPEInputMethodContext* wpe_view_android_get_input_method_context(WPEViewAndroid* view);
 void wpe_view_android_set_input_method_context(WPEViewAndroid* view, WPEInputMethodContext* context);
-void wpe_view_android_set_pending_focus_callbacks(WPEViewAndroid* view,
+void wpe_view_android_set_input_method_focus_callbacks(WPEViewAndroid* view,
     WPEInputMethodContextAndroidFocusCallback focusInCallback,
     WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData);
-void wpe_view_android_apply_pending_focus_callbacks(WPEViewAndroid* view, WPEInputMethodContext* context);
-WPEInputMethodContext* wpe_view_android_get_input_method_context(WPEViewAndroid* view);

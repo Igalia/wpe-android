@@ -100,21 +100,8 @@ WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view)
     Logging::logDebug("WPEInputMethodContextAndroid::new(%p)", view);
     auto* context
         = WPE_INPUT_METHOD_CONTEXT(g_object_new(WPE_TYPE_INPUT_METHOD_CONTEXT_ANDROID, "view", view, nullptr));
-
-    auto* viewAndroid = WPE_VIEW_ANDROID(view);
-    wpe_view_android_set_input_method_context(viewAndroid, context);
-    Logging::logDebug("WPEInputMethodContextAndroid::new - stored in view=%p", view);
-
-    wpe_view_android_apply_pending_focus_callbacks(viewAndroid, context);
-
+    wpe_view_android_set_input_method_context(WPE_VIEW_ANDROID(view), context);
     return context;
-}
-
-WPEInputMethodContext* wpe_input_method_context_android_get_for_view(WPEView* view)
-{
-    if (!WPE_IS_VIEW_ANDROID(view))
-        return nullptr;
-    return wpe_view_android_get_input_method_context(WPE_VIEW_ANDROID(view));
 }
 
 void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContext* context,
@@ -130,35 +117,11 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContext*
         focusOutCallback, userData);
 }
 
-void wpe_input_method_context_android_set_focus_callbacks_for_view(WPEView* view,
-    WPEInputMethodContextAndroidFocusCallback focusInCallback,
-    WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData)
-{
-    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
-    auto* viewAndroid = WPE_VIEW_ANDROID(view);
-
-    if (auto* context = wpe_view_android_get_input_method_context(viewAndroid)) {
-        wpe_input_method_context_android_set_focus_callbacks(context, focusInCallback, focusOutCallback, userData);
-        return;
-    }
-
-    wpe_view_android_set_pending_focus_callbacks(viewAndroid, focusInCallback, focusOutCallback, userData);
-    Logging::logDebug("WPEInputMethodContextAndroid::set_focus_callbacks_for_view(%p) - stored as pending", view);
-}
-
 void wpe_input_method_context_android_commit_text(WPEInputMethodContext* context, const char* text)
 {
     g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
-    auto* view = wpe_input_method_context_get_view(context);
-    Logging::logDebug("WPEInputMethodContextAndroid::commit_text(%p, '%s') view=%p", context, text, view);
-
-    auto* viewContext = wpe_input_method_context_android_get_for_view(view);
-    if (viewContext != context) {
-        Logging::logError("WPEInputMethodContextAndroid::commit_text - mismatch view=%p this=%p", viewContext, context);
-    }
-
+    Logging::logDebug("WPEInputMethodContextAndroid::commit_text(%p, '%s')", context, text);
     g_signal_emit_by_name(context, "committed", text);
-    Logging::logDebug("WPEInputMethodContextAndroid::commit_text signal emitted");
 }
 
 void wpe_input_method_context_android_delete_surrounding(WPEInputMethodContext* context, int offset, unsigned int count)

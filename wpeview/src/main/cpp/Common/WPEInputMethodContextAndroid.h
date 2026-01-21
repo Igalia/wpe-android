@@ -32,22 +32,9 @@ typedef void (*WPEInputMethodContextAndroidFocusCallback)(void* userData);
 
 WPE_API WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view);
 
-// Get the WPEInputMethodContext for a given view (for JNI lookup)
-WPE_API WPEInputMethodContext* wpe_input_method_context_android_get_for_view(WPEView* view);
-
-// Set callbacks for focus in/out events (called by WebKit when input field gains/loses focus)
-// Use this version if you have the context
 WPE_API void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContext* context,
     WPEInputMethodContextAndroidFocusCallback focusInCallback,
     WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData);
-
-// Register callbacks by view - use this when context may not exist yet
-// Callbacks will be applied when the context is created
-WPE_API void wpe_input_method_context_android_set_focus_callbacks_for_view(WPEView* view,
-    WPEInputMethodContextAndroidFocusCallback focusInCallback,
-    WPEInputMethodContextAndroidFocusCallback focusOutCallback, void* userData);
-
-// Methods for Java to call via JNI to commit text and delete surrounding text
 WPE_API void wpe_input_method_context_android_commit_text(WPEInputMethodContext* context, const char* text);
 WPE_API void wpe_input_method_context_android_delete_surrounding(
     WPEInputMethodContext* context, int offset, unsigned int count);
