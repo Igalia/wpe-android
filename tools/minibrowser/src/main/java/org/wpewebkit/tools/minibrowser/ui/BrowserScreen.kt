@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -48,10 +48,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
+
 import org.wpewebkit.tools.minibrowser.BrowserViewModel
 import org.wpewebkit.tools.minibrowser.INITIAL_URL
 import org.wpewebkit.tools.minibrowser.navigation.BottomSheetSceneStrategy
@@ -66,22 +68,6 @@ import org.wpewebkit.tools.minibrowser.ui.components.EmptyDetailPlaceholder
 import org.wpewebkit.tools.minibrowser.ui.components.TabListPane
 import org.wpewebkit.tools.minibrowser.ui.components.WebViewPane
 
-/**
- * The main browser screen using Material3 Adaptive Navigation3.
- *
- * Uses a CompositeSceneStrategy combining:
- * - BottomSheetSceneStrategy: For modal bottom sheets (tab actions)
- * - ListDetailSceneStrategy: For adaptive list-detail layouts
- *
- * Scene layout:
- * - List pane: Shows the tab list (visible on larger screens)
- * - Detail pane: Shows the active WPEWebView
- * - Extra pane: Shows settings (on largest screens)
- * - Bottom sheet: Tab actions overlay
- *
- * On small screens, only the detail pane (web view) is shown by default.
- * Users can navigate to the tab list through a tabs button.
- */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun BrowserScreen(
@@ -92,18 +78,15 @@ fun BrowserScreen(
     val browserState by viewModel.browserState.collectAsState()
     val tabs = browserState.tabs
 
-    // Create top-level routes based on current tabs
     val tabRoutes = remember(tabs) { tabs.map { TabDetail(it.id) }.toSet() }
     val topLevelRoutes = remember(tabRoutes) { tabRoutes + TabList }
 
-    // Use the new navigation state with proper serialization
     val navigationState = rememberBrowserNavigationState(
         startRoute = TabList,
         topLevelRoutes = topLevelRoutes
     )
     val navigator = remember(navigationState) { BrowserNavigator(navigationState) }
 
-    // Initialize with a default tab if none exists
     LaunchedEffect(Unit) {
         if (viewModel.browserState.value.tabs.isEmpty()) {
             val tab = viewModel.createTab(context, INITIAL_URL)
@@ -111,7 +94,6 @@ fun BrowserScreen(
         }
     }
 
-    // Sync selected tab with navigation state
     LaunchedEffect(navigationState.topLevelRoute) {
         val currentRoute = navigationState.topLevelRoute
         if (currentRoute is TabDetail) {
@@ -119,7 +101,6 @@ fun BrowserScreen(
         }
     }
 
-    // Configure adaptive layout with no gap between panes
     val windowAdaptiveInfo = currentWindowAdaptiveInfo()
     val directive = remember(windowAdaptiveInfo) {
         calculatePaneScaffoldDirective(windowAdaptiveInfo)
@@ -127,14 +108,12 @@ fun BrowserScreen(
     }
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
 
-    // Create composite strategy with bottom sheet support
     val bottomSheetStrategy = remember { BottomSheetSceneStrategy<NavKey>() }
     val sceneStrategy = remember(bottomSheetStrategy, listDetailStrategy) {
         CompositeSceneStrategy(listOf(bottomSheetStrategy, listDetailStrategy))
     }
 
     val entryProvider = entryProvider {
-        // List pane entry - shows all tabs
         entry<TabList>(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
@@ -156,11 +135,9 @@ fun BrowserScreen(
                 },
                 onTabClose = { tab ->
                     viewModel.removeTab(tab.id)
-                    // If we were viewing this tab, navigate back
                     val currentRoute = navigationState.topLevelRoute
                     if (currentRoute is TabDetail && currentRoute.tabId == tab.id) {
                         navigator.goBack()
-                        // Select and navigate to another tab if available
                         browserState.selectedTabId?.let { newSelectedId ->
                             navigator.navigate(TabDetail(newSelectedId))
                         }
@@ -176,7 +153,6 @@ fun BrowserScreen(
             )
         }
 
-        // Detail pane entry - shows the active web view
         entry<TabDetail>(
             metadata = ListDetailSceneStrategy.detailPane()
         ) { tabDetail ->
@@ -191,7 +167,6 @@ fun BrowserScreen(
                     }
                 )
             } else {
-                // Tab was closed, show placeholder
                 EmptyDetailPlaceholder(
                     onNewTab = {
                         val newTab = viewModel.createTab(context, INITIAL_URL)
@@ -201,14 +176,12 @@ fun BrowserScreen(
             }
         }
 
-        // Settings pane entry - extra pane on large screens
         entry<Settings>(
             metadata = ListDetailSceneStrategy.extraPane()
         ) {
             SettingsPlaceholder()
         }
 
-        // Tab actions bottom sheet
         entry<TabSheet>(
             metadata = BottomSheetSceneStrategy.bottomSheet()
         ) { sheet ->
@@ -229,7 +202,6 @@ fun BrowserScreen(
     NavDisplay(
         entries = navigationState.toDecoratedEntries(entryProvider),
         onBack = {
-            // Handle back navigation
             val currentRoute = navigationState.topLevelRoute
             if (currentRoute is TabDetail) {
                 val tab = viewModel.findTab(currentRoute.tabId)
@@ -271,9 +243,6 @@ fun BrowserScreen(
     )
 }
 
-/**
- * Bottom sheet content for tab actions.
- */
 @Composable
 private fun TabActionsSheet(
     title: String,
@@ -306,9 +275,6 @@ private fun TabActionsSheet(
     }
 }
 
-/**
- * Temporary settings placeholder - will be replaced with actual settings.
- */
 @Composable
 private fun SettingsPlaceholder() {
     Box(

@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,6 +20,7 @@
 package org.wpewebkit.tools.minibrowser.ui.components
 
 import android.view.ViewGroup
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -68,20 +69,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+
 import org.wpewebkit.tools.minibrowser.SEARCH_URI_BASE
 import org.wpewebkit.tools.minibrowser.Tab
 import org.wpewebkit.tools.minibrowser.normalizeAddress
 
-/**
- * A composable that displays a WPEWebView with navigation controls.
- * This is used as the "detail" pane in the ListDetailSceneStrategy.
- *
- * @param tab The tab containing the WPEWebView to display
- * @param onSettingsClick Callback when settings is clicked
- * @param showTabsButton Whether to show the tabs button (on small screens)
- * @param onTabsClick Callback when tabs button is clicked
- * @param modifier Modifier for this composable
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebViewPane(
@@ -97,7 +89,6 @@ fun WebViewPane(
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
 
-    // Update URL text when tab URL changes (unless user is editing)
     if (!isUrlFocused && urlInputText != tab.url) {
         urlInputText = tab.url
     }
@@ -108,7 +99,6 @@ fun WebViewPane(
             .systemBarsPadding()
             .imePadding()
     ) {
-        // WebView content
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -116,7 +106,6 @@ fun WebViewPane(
         ) {
             AndroidView(
                 factory = { _ ->
-                    // Detach from any existing parent before attaching to new parent
                     (tab.webview.parent as? ViewGroup)?.removeView(tab.webview)
                     tab.webview.apply {
                         layoutParams = ViewGroup.LayoutParams(
@@ -126,7 +115,6 @@ fun WebViewPane(
                     }
                 },
                 update = { view ->
-                    // Re-attach if the view was detached
                     if (view != tab.webview) {
                         (view.parent as? ViewGroup)?.removeView(view)
                     }
@@ -135,7 +123,6 @@ fun WebViewPane(
             )
         }
 
-        // Progress bar
         if (tab.isLoading) {
             LinearProgressIndicator(
                 progress = { tab.progress },
@@ -147,13 +134,11 @@ fun WebViewPane(
             )
         }
 
-        // Bottom toolbar with URL bar and navigation
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surface)
         ) {
-            // URL input field
             OutlinedTextField(
                 value = urlInputText,
                 onValueChange = { urlInputText = it },
@@ -163,9 +148,6 @@ fun WebViewPane(
                     .focusRequester(focusRequester)
                     .onFocusChanged { focusState ->
                         isUrlFocused = focusState.isFocused
-                        if (focusState.isFocused) {
-                            // Select all text when focused
-                        }
                     },
                 placeholder = {
                     Text("Search or enter URL")
@@ -201,7 +183,6 @@ fun WebViewPane(
                 } else null
             )
 
-            // Navigation buttons row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -247,7 +228,6 @@ fun WebViewPane(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Show tabs count button on small screens
                 if (showTabsButton) {
                     TabCountButton(
                         count = 1, // Will be provided by parent
@@ -256,7 +236,6 @@ fun WebViewPane(
                     Spacer(modifier = Modifier.width(4.dp))
                 }
 
-                // Menu button
                 Box {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
@@ -288,17 +267,11 @@ fun WebViewPane(
         }
     }
 
-    // Cleanup when tab changes
     DisposableEffect(tab.id) {
-        onDispose {
-            // Cleanup if needed
-        }
+        onDispose { }
     }
 }
 
-/**
- * Process URL input - normalize URLs or convert to search query.
- */
 private fun processUrlInput(text: String): String {
     val trimmed = text.trim()
     return if ((trimmed.contains(".") || trimmed.contains(":")) && !trimmed.contains(" ")) {
@@ -308,9 +281,6 @@ private fun processUrlInput(text: String): String {
     }
 }
 
-/**
- * A button showing the tab count, used on small screens.
- */
 @Composable
 private fun TabCountButton(
     count: Int,
@@ -334,9 +304,6 @@ private fun TabCountButton(
     }
 }
 
-/**
- * Placeholder content shown when no tab is selected.
- */
 @Composable
 fun EmptyDetailPlaceholder(
     onNewTab: () -> Unit,

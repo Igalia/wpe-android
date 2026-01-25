@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2025 Igalia S.L. <info@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -45,14 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 
-/**
- * An animated loading overlay with a shimmer effect.
- * Shows a visually appealing loading state while content is being prepared.
- *
- * @param visible Whether the overlay should be visible
- * @param message The message to display during loading
- * @param modifier Modifier for this composable
- */
 @Composable
 fun AnimatedLoadingOverlay(
     visible: Boolean,
@@ -69,9 +62,6 @@ fun AnimatedLoadingOverlay(
     }
 }
 
-/**
- * The content of the loading overlay with shimmer animation.
- */
 @Composable
 private fun LoadingOverlayContent(
     message: String,

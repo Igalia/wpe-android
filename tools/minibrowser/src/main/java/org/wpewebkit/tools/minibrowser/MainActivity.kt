@@ -1,10 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
- *   Author: Imanol Fernandez <ifernandez@igalia.com>
- *   Author: Zan Dobersek <zdobersek@igalia.com>
- *   Author: Loïc Le Page <llepage@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,21 +22,15 @@ package org.wpewebkit.tools.minibrowser
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+
 import org.wpewebkit.tools.minibrowser.ui.BrowserScreen
 import org.wpewebkit.tools.minibrowser.ui.theme.MiniBrowserTheme
 
-/**
- * Main activity for the MiniBrowser.
- *
- * Uses Jetpack Compose with Material3 Adaptive Navigation3 for an adaptive
- * list-detail layout that works across different screen sizes:
- * - Small screens: Shows the web view (detail) with navigation to tab list
- * - Large screens: Shows tab list (list) alongside the web view (detail)
- */
 class MainActivity : ComponentActivity() {
 
     private val TAG = "MiniBrowser"
@@ -53,12 +43,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MiniBrowserTheme {
-                BrowserScreen(
-                    viewModel = viewModel,
-                    onNavigateToSettings = {
-                        // TODO: Navigate to settings fragment/screen
-                    }
-                )
+                BrowserScreen(viewModel = viewModel)
             }
         }
     }

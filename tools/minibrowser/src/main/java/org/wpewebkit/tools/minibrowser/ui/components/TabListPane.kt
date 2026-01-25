@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -73,21 +73,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+
 import org.wpewebkit.tools.minibrowser.Tab
+
 import kotlin.math.roundToInt
 
-/**
- * A composable that displays a list of browser tabs with drag-to-reorder support.
- * This is used as the "list" pane in the ListDetailSceneStrategy.
- *
- * @param tabs List of tabs to display
- * @param selectedTabId Currently selected tab ID
- * @param onTabClick Callback when a tab is clicked
- * @param onTabClose Callback when a tab's close button is clicked
- * @param onNewTab Callback when the new tab FAB is clicked
- * @param onMoveTab Callback when a tab is dragged to a new position (fromIndex, toIndex)
- * @param modifier Modifier for this composable
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TabListPane(

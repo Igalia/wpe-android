@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,36 +20,17 @@
 package org.wpewebkit.tools.minibrowser.navigation
 
 import androidx.navigation3.runtime.NavKey
+
 import kotlinx.serialization.Serializable
 
-/**
- * Navigation key for the tab list pane.
- * This is shown on larger screens as the list of active tabs/sessions.
- */
 @Serializable
 object TabList : NavKey
 
-/**
- * Navigation key for the web view detail pane.
- * This shows the WPEWebView for a specific tab.
- *
- * @param tabId The unique identifier of the tab to display
- */
 @Serializable
 data class TabDetail(val tabId: String) : NavKey
 
-/**
- * Navigation key for the settings screen.
- * This is shown as an extra pane on large screens or full screen on small screens.
- */
 @Serializable
 object Settings : NavKey
 
-/**
- * Navigation key for the tab actions bottom sheet.
- * This is shown as a modal bottom sheet overlay.
- *
- * @param tabId The unique identifier of the tab for which actions are displayed
- */
 @Serializable
 data class TabSheet(val tabId: String) : NavKey

@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2025 Igalia S.L. <info@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -22,15 +23,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.runtime.Composable
+
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.scene.OverlayScene
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
 
-/**
- * An [OverlayScene] that renders an [entry] within a [ModalBottomSheet].
- */
 @OptIn(ExperimentalMaterial3Api::class)
 internal class BottomSheetScene<T : Any>(
     override val key: T,
@@ -53,12 +52,6 @@ internal class BottomSheetScene<T : Any>(
     }
 }
 
-/**
- * A [SceneStrategy] that displays entries that have added [bottomSheet] to their [NavEntry.metadata]
- * within a [ModalBottomSheet] instance.
- *
- * This strategy should always be added before any non-overlay scene strategies.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 class BottomSheetSceneStrategy<T : Any> : SceneStrategy<T> {
 
@@ -79,13 +72,6 @@ class BottomSheetSceneStrategy<T : Any> : SceneStrategy<T> {
     }
 
     companion object {
-        /**
-         * Function to be called on the [NavEntry.metadata] to mark this entry as something that
-         * should be displayed within a [ModalBottomSheet].
-         *
-         * @param modalBottomSheetProperties properties that should be passed to the containing
-         * [ModalBottomSheet].
-         */
         @OptIn(ExperimentalMaterial3Api::class)
         fun bottomSheet(
             modalBottomSheetProperties: ModalBottomSheetProperties = ModalBottomSheetProperties()

@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2025 Igalia S.L. <info@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,13 +24,6 @@ import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
 
-/**
- * A [SceneStrategy] that combines multiple strategies in order.
- * The first strategy that returns a non-null scene wins.
- *
- * This allows combining overlay strategies (like [BottomSheetSceneStrategy])
- * with layout strategies (like [ListDetailSceneStrategy]).
- */
 class CompositeSceneStrategy<T : Any>(
     private val strategies: List<SceneStrategy<T>>
 ) : SceneStrategy<T> {

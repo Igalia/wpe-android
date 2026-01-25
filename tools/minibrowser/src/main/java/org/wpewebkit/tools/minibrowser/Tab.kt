@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026
+ *   Author: maceip
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,44 +20,37 @@
 package org.wpewebkit.tools.minibrowser
 
 import android.content.Context
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+
 import org.wpewebkit.wpeview.WPEChromeClient
 import org.wpewebkit.wpeview.WPEView
 import org.wpewebkit.wpeview.WPEViewClient
+
 import java.util.UUID
 
-/**
- * Represents a browser tab with observable state for Compose UI.
- * Each tab has its own WPEWebView instance and manages its own navigation history.
- */
 class Tab(
     val id: String,
     val webview: WPEView
 ) {
-    /** Current page title */
     var title by mutableStateOf("")
         private set
 
-    /** Current page URL */
     var url by mutableStateOf("")
         private set
 
-    /** Page loading progress (0.0 to 1.0) */
     var progress by mutableFloatStateOf(0f)
         private set
 
-    /** Whether the page is currently loading */
     var isLoading by mutableStateOf(false)
         private set
 
-    /** Whether the tab can navigate back in history */
     var canGoBack by mutableStateOf(false)
         private set
 
-    /** Whether the tab can navigate forward in history */
     var canGoForward by mutableStateOf(false)
         private set
 
