@@ -81,7 +81,6 @@ fun BrowserScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val browserState by viewModel.browserState.collectAsState()
-    val tabs = browserState.tabs
 
     // handle activity lifecycle - pause/resume webkit
     DisposableEffect(lifecycleOwner) {
@@ -98,13 +97,7 @@ fun BrowserScreen(
         }
     }
 
-    val tabRoutes = remember(tabs) { tabs.map { TabDetail(it.id) }.toSet() }
-    val topLevelRoutes = remember(tabRoutes) { tabRoutes + TabList }
-
-    val navigationState = rememberBrowserNavigationState(
-        startRoute = TabList,
-        topLevelRoutes = topLevelRoutes
-    )
+    val navigationState = rememberBrowserNavigationState(TabList)
     val navigator = remember(navigationState) { BrowserNavigator(navigationState) }
 
     LaunchedEffect(Unit) {
@@ -114,8 +107,9 @@ fun BrowserScreen(
         }
     }
 
-    LaunchedEffect(navigationState.topLevelRoute) {
-        val currentRoute = navigationState.topLevelRoute
+    // Sync ViewModel tab selection with navigation state
+    LaunchedEffect(navigationState.currentRoute) {
+        val currentRoute = navigationState.currentRoute
         if (currentRoute is TabDetail) {
             viewModel.selectTab(currentRoute.tabId)
         }
@@ -155,11 +149,11 @@ fun BrowserScreen(
                 },
                 onTabClose = { tab ->
                     viewModel.removeTab(tab.id)
-                    val currentRoute = navigationState.topLevelRoute
+                    val currentRoute = navigationState.currentRoute
                     if (currentRoute is TabDetail && currentRoute.tabId == tab.id) {
                         navigator.goBack()
                         browserState.selectedTabId?.let { newSelectedId ->
-                            navigator.navigate(TabDetail(newSelectedId))
+                            navigator.navigateToTab(newSelectedId)
                         }
                     }
                 },
@@ -220,9 +214,9 @@ fun BrowserScreen(
     }
 
     NavDisplay(
-        entries = navigationState.toDecoratedEntries(entryProvider),
+        backStack = navigationState.backStack,
         onBack = {
-            val currentRoute = navigationState.topLevelRoute
+            val currentRoute = navigationState.currentRoute
             if (currentRoute is TabDetail) {
                 val tab = viewModel.findTab(currentRoute.tabId)
                 if (tab?.canGoBack == true) {
@@ -232,6 +226,7 @@ fun BrowserScreen(
             }
             navigator.goBack()
         },
+        entryProvider = entryProvider,
         sceneStrategy = sceneStrategy,
         transitionSpec = {
             slideInHorizontally(
