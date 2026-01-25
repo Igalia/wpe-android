@@ -44,3 +44,12 @@ data class TabDetail(val tabId: String) : NavKey
  */
 @Serializable
 object Settings : NavKey
+
+/**
+ * Navigation key for the tab actions bottom sheet.
+ * This is shown as a modal bottom sheet overlay.
+ *
+ * @param tabId The unique identifier of the tab for which actions are displayed
+ */
+@Serializable
+data class TabSheet(val tabId: String) : NavKey
