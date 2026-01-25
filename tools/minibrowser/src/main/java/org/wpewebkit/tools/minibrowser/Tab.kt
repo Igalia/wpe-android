@@ -32,6 +32,8 @@ import org.wpewebkit.wpeview.WPEViewClient
 
 import java.util.UUID
 
+private const val CAPTURE_STATE_ACTIVE = 1
+
 class Tab(
     val id: String,
     val webview: WPEView
@@ -54,6 +56,20 @@ class Tab(
     var canGoForward by mutableStateOf(false)
         private set
 
+    // visibility state for background tab optimization
+    var isVisible by mutableStateOf(true)
+        private set
+
+    // media state indicators
+    var isPlayingAudio by mutableStateOf(false)
+        private set
+
+    var isCameraActive by mutableStateOf(false)
+        private set
+
+    var isMicrophoneActive by mutableStateOf(false)
+        private set
+
     init {
         setupCallbacks()
     }
@@ -74,6 +90,18 @@ class Tab(
             override fun onReceivedTitle(view: WPEView, newTitle: String) {
                 title = newTitle
             }
+
+            override fun onAudioStateChanged(view: WPEView, playing: Boolean) {
+                isPlayingAudio = playing
+            }
+
+            override fun onCameraCaptureStateChanged(view: WPEView, state: Int) {
+                isCameraActive = state == CAPTURE_STATE_ACTIVE
+            }
+
+            override fun onMicrophoneCaptureStateChanged(view: WPEView, state: Int) {
+                isMicrophoneActive = state == CAPTURE_STATE_ACTIVE
+            }
         }
 
         webview.wpeViewClient = object : WPEViewClient() {
@@ -87,6 +115,19 @@ class Tab(
                 isLoading = false
                 updateNavigationState()
             }
+        }
+    }
+
+    fun setVisibility(visible: Boolean) {
+        if (isVisible == visible) return
+        isVisible = visible
+        if (visible) {
+            // tab becoming visible - unmute and refresh layout
+            webview.setMuted(false)
+            webview.requestLayout()
+        } else {
+            // tab going to background - mute to save resources
+            webview.setMuted(true)
         }
     }
 

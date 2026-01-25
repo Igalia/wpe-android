@@ -63,6 +63,15 @@ class BrowserViewModel : ViewModel() {
     }
 
     fun selectTab(tabId: String) {
+        val previousId = _browserState.value.selectedTabId
+        if (previousId == tabId) return
+
+        // update visibility: hide old tab, show new tab
+        if (previousId != null) {
+            findTab(previousId)?.setVisibility(false)
+        }
+        findTab(tabId)?.setVisibility(true)
+
         _browserState.update {
             it.copy(selectedTabId = tabId)
         }
@@ -117,6 +126,32 @@ class BrowserViewModel : ViewModel() {
                 tabs.add(toIndex, item)
             }
             state.copy(tabs = tabs)
+        }
+    }
+
+    // lifecycle: called when activity pauses
+    fun onPause() {
+        browserState.value.tabs.forEach { tab ->
+            tab.webview.setMuted(true)
+        }
+    }
+
+    // lifecycle: called when activity resumes
+    fun onResume() {
+        // only unmute the selected tab
+        val selectedId = browserState.value.selectedTabId
+        browserState.value.tabs.forEach { tab ->
+            if (tab.id == selectedId) {
+                tab.setVisibility(true)
+            }
+        }
+    }
+
+    // cleanup webviews when viewmodel is cleared
+    override fun onCleared() {
+        super.onCleared()
+        browserState.value.tabs.forEach { tab ->
+            tab.webview.destroy()
         }
     }
 }
