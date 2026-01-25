@@ -137,4 +137,19 @@ class BrowserViewModel : ViewModel() {
     fun isSelected(tabId: String): Boolean {
         return browserState.value.selectedTabId == tabId
     }
+
+    /**
+     * Moves a tab from one position to another in the list.
+     * Used for drag-and-drop reordering.
+     */
+    fun moveTab(fromIndex: Int, toIndex: Int) {
+        _browserState.update { state ->
+            val tabs = state.tabs.toMutableList()
+            if (fromIndex in tabs.indices && toIndex in tabs.indices) {
+                val item = tabs.removeAt(fromIndex)
+                tabs.add(toIndex, item)
+            }
+            state.copy(tabs = tabs)
+        }
+    }
 }

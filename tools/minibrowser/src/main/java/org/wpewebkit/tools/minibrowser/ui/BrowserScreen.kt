@@ -161,6 +161,9 @@ fun BrowserScreen(
                     onNewTab = {
                         val tab = viewModel.createTab(context, INITIAL_URL)
                         backStack.add(TabDetail(tab.id))
+                    },
+                    onMoveTab = { fromIndex, toIndex ->
+                        viewModel.moveTab(fromIndex, toIndex)
                     }
                 )
             }

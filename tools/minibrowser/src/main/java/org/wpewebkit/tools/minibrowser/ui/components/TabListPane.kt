@@ -19,8 +19,10 @@
 
 package org.wpewebkit.tools.minibrowser.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,15 +32,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,15 +58,26 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import org.wpewebkit.tools.minibrowser.Tab
+import kotlin.math.roundToInt
 
 /**
- * A composable that displays a list of browser tabs.
+ * A composable that displays a list of browser tabs with drag-to-reorder support.
  * This is used as the "list" pane in the ListDetailSceneStrategy.
  *
  * @param tabs List of tabs to display
@@ -69,6 +85,7 @@ import org.wpewebkit.tools.minibrowser.Tab
  * @param onTabClick Callback when a tab is clicked
  * @param onTabClose Callback when a tab's close button is clicked
  * @param onNewTab Callback when the new tab FAB is clicked
+ * @param onMoveTab Callback when a tab is dragged to a new position (fromIndex, toIndex)
  * @param modifier Modifier for this composable
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,8 +96,15 @@ fun TabListPane(
     onTabClick: (Tab) -> Unit,
     onTabClose: (Tab) -> Unit,
     onNewTab: () -> Unit,
+    onMoveTab: (Int, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
+    // Drag state
+    var draggingItemIndex by remember { mutableIntStateOf(-1) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -116,21 +140,76 @@ fun TabListPane(
             )
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(
+                itemsIndexed(
                     items = tabs,
-                    key = { it.id }
-                ) { tab ->
+                    key = { _, tab -> tab.id }
+                ) { index, tab ->
+                    val isDragging = draggingItemIndex == index
+
+                    // Animate elevation for dragged item
+                    val elevation by animateDpAsState(
+                        targetValue = if (isDragging) 8.dp else if (tab.id == selectedTabId) 4.dp else 1.dp,
+                        label = "elevation"
+                    )
+
                     TabListItem(
                         tab = tab,
                         isSelected = tab.id == selectedTabId,
+                        isDragging = isDragging,
+                        elevation = elevation,
                         onClick = { onTabClick(tab) },
-                        onClose = { onTabClose(tab) }
+                        onClose = { onTabClose(tab) },
+                        modifier = Modifier
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .offset {
+                                IntOffset(
+                                    x = 0,
+                                    y = if (isDragging) dragOffsetY.roundToInt() else 0
+                                )
+                            }
+                            .graphicsLayer {
+                                scaleX = if (isDragging) 1.02f else 1f
+                                scaleY = if (isDragging) 1.02f else 1f
+                            }
+                            .pointerInput(tabs.size) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggingItemIndex = index
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+
+                                        // Calculate the target index based on drag position
+                                        val itemHeight = 80.dp.toPx() + 8.dp.toPx() // approx item height + spacing
+                                        val targetIndex = (index + (dragOffsetY / itemHeight).roundToInt())
+                                            .coerceIn(0, tabs.lastIndex)
+
+                                        if (targetIndex != draggingItemIndex && targetIndex != index) {
+                                            onMoveTab(draggingItemIndex, targetIndex)
+                                            draggingItemIndex = targetIndex
+                                            // Adjust offset to account for the swap
+                                            dragOffsetY -= (targetIndex - index) * itemHeight
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggingItemIndex = -1
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggingItemIndex = -1
+                                        dragOffsetY = 0f
+                                    }
+                                )
+                            }
                     )
                 }
             }
@@ -142,6 +221,8 @@ fun TabListPane(
 private fun TabListItem(
     tab: Tab,
     isSelected: Boolean,
+    isDragging: Boolean,
+    elevation: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -149,18 +230,19 @@ private fun TabListItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .shadow(elevation, RoundedCornerShape(12.dp))
+            .clickable(enabled = !isDragging, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) {
+            containerColor = if (isDragging) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+            } else if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer
             } else {
                 MaterialTheme.colorScheme.surfaceVariant
             }
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isSelected) 4.dp else 1.dp
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
@@ -171,6 +253,20 @@ private fun TabListItem(
                     .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Drag handle indicator (visible when dragging or on hover conceptually)
+                Icon(
+                    imageVector = Icons.Default.DragHandle,
+                    contentDescription = "Drag to reorder",
+                    tint = if (isDragging || isSelected) {
+                        MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 // Favicon placeholder
                 Box(
                     modifier = Modifier
@@ -197,7 +293,7 @@ private fun TabListItem(
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = if (isSelected) {
+                        color = if (isDragging || isSelected) {
                             MaterialTheme.colorScheme.onPrimaryContainer
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -209,7 +305,7 @@ private fun TabListItem(
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = if (isSelected) {
+                        color = if (isDragging || isSelected) {
                             MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -219,12 +315,13 @@ private fun TabListItem(
 
                 IconButton(
                     onClick = onClose,
+                    enabled = !isDragging,
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close Tab",
-                        tint = if (isSelected) {
+                        tint = if (isDragging || isSelected) {
                             MaterialTheme.colorScheme.onPrimaryContainer
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
