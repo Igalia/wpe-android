@@ -26,44 +26,45 @@ package org.wpewebkit.tools.minibrowser
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
-import androidx.navigation.fragment.NavHostFragment
-import org.wpewebkit.tools.minibrowser.databinding.ActivityMainBinding
+import androidx.activity.viewModels
+import org.wpewebkit.tools.minibrowser.ui.BrowserScreen
+import org.wpewebkit.tools.minibrowser.ui.theme.MiniBrowserTheme
 
-
-class MainActivity : AppCompatActivity(R.layout.activity_main) {
+/**
+ * Main activity for the MiniBrowser.
+ *
+ * Uses Jetpack Compose with Material3 Adaptive Navigation3 for an adaptive
+ * list-detail layout that works across different screen sizes:
+ * - Small screens: Shows the web view (detail) with navigation to tab list
+ * - Large screens: Shows tab list (list) alongside the web view (detail)
+ */
+class MainActivity : ComponentActivity() {
 
     private val TAG = "MiniBrowser"
-
-    private val navHost by lazy {
-        supportFragmentManager.primaryNavigationFragment as NavHostFragment
-    }
-
-    private lateinit var binding: ActivityMainBinding
+    private val viewModel: BrowserViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate")
-        enableEdgeToEdge();
-        binding = ActivityMainBinding.inflate(layoutInflater)
+        enableEdgeToEdge()
+
+        setContent {
+            MiniBrowserTheme {
+                BrowserScreen(
+                    viewModel = viewModel,
+                    onNavigateToSettings = {
+                        // TODO: Navigate to settings fragment/screen
+                    }
+                )
+            }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         Log.d(TAG, "onConfigurationChanged")
-    }
-
-    @Deprecated("Deprecated in superclass")
-    override fun onBackPressed() {
-        val currentFragment = navHost.childFragmentManager.fragments.firstOrNull()
-        if (currentFragment is BrowserFragment) {
-            val webView = currentFragment.selectedTab().webview
-            if (webView.canGoBack()) {
-                webView.goBack()
-                return
-            }
-        }
-        super.onBackPressed()
     }
 }

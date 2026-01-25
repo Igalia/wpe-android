@@ -20,24 +20,130 @@
 package org.wpewebkit.tools.minibrowser
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import org.wpewebkit.wpeview.WPEChromeClient
 import org.wpewebkit.wpeview.WPEView
+import org.wpewebkit.wpeview.WPEViewClient
 import java.util.UUID
 
-data class Tab(
+/**
+ * Represents a browser tab with observable state for Compose UI.
+ * Each tab has its own WPEWebView instance and manages its own navigation history.
+ */
+class Tab(
     val id: String,
     val webview: WPEView
 ) {
+    /** Current page title */
+    var title by mutableStateOf("")
+        private set
+
+    /** Current page URL */
+    var url by mutableStateOf("")
+        private set
+
+    /** Page loading progress (0.0 to 1.0) */
+    var progress by mutableFloatStateOf(0f)
+        private set
+
+    /** Whether the page is currently loading */
+    var isLoading by mutableStateOf(false)
+        private set
+
+    /** Whether the tab can navigate back in history */
+    var canGoBack by mutableStateOf(false)
+        private set
+
+    /** Whether the tab can navigate forward in history */
+    var canGoForward by mutableStateOf(false)
+        private set
+
+    init {
+        setupCallbacks()
+    }
+
+    private fun setupCallbacks() {
+        webview.wpeChromeClient = object : WPEChromeClient {
+            override fun onProgressChanged(view: WPEView, newProgress: Int) {
+                progress = newProgress / 100f
+                isLoading = newProgress in 1..99
+                updateNavigationState()
+            }
+
+            override fun onUriChanged(view: WPEView, uri: String) {
+                url = uri
+                updateNavigationState()
+            }
+
+            override fun onReceivedTitle(view: WPEView, newTitle: String) {
+                title = newTitle
+            }
+        }
+
+        webview.wpeViewClient = object : WPEViewClient() {
+            override fun onPageStarted(view: WPEView, pageUrl: String) {
+                url = pageUrl
+                isLoading = true
+                updateNavigationState()
+            }
+
+            override fun onPageFinished(view: WPEView, pageUrl: String) {
+                isLoading = false
+                updateNavigationState()
+            }
+        }
+    }
+
+    private fun updateNavigationState() {
+        canGoBack = webview.canGoBack()
+        canGoForward = webview.canGoForward()
+    }
+
+    fun loadUrl(newUrl: String) {
+        webview.loadUrl(newUrl)
+    }
+
+    fun goBack() {
+        if (webview.canGoBack()) {
+            webview.goBack()
+        }
+    }
+
+    fun goForward() {
+        if (webview.canGoForward()) {
+            webview.goForward()
+        }
+    }
+
+    fun reload() {
+        webview.reload()
+    }
+
+    fun stopLoading() {
+        webview.stopLoading()
+    }
+
+    internal fun setInitialUrl(initialUrl: String) {
+        url = initialUrl
+    }
+
     companion object {
         fun newTab(
             context: Context,
             url: String
-        ) : Tab {
+        ): Tab {
+            val webview = WPEView(context).apply {
+                loadUrl(url)
+            }
             return Tab(
-                UUID.randomUUID().toString(),
-                WPEView(context).apply {
-                    loadUrl(url)
-                }
-            )
+                id = UUID.randomUUID().toString(),
+                webview = webview
+            ).apply {
+                setInitialUrl(url)
+            }
         }
     }
 }
