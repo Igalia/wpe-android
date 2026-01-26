@@ -1,6 +1,10 @@
 /**
- * Copyright (C) 2026
- *   Author: maceip
+ * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
+ *   Author: Fernando Jimenez Moreno <fjimenez@igalia.com>
+ *   Author: Imanol Fernandez <ifernandez@igalia.com>
+ *   Author: Zan Dobersek <zdobersek@igalia.com>
+ *   Author: Loïc Le Page <llepage@igalia.com>
+ *   Author: Jani Hautakangas <jani@igalia.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
