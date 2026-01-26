@@ -20,97 +20,122 @@
 package org.wpewebkit.tools.minibrowser.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
 
 import androidx.navigation3.runtime.NavBackStack
-import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 
+/**
+ * Creates and remembers a [BrowserNavigationState] for managing browser navigation.
+ *
+ * This function uses a single [NavBackStack] for all navigation, with state properly
+ * saved across configuration changes via [rememberNavBackStack].
+ *
+ * @param startRoute The initial route to display (typically TabList)
+ * @return A stable [BrowserNavigationState] instance
+ */
 @Composable
 fun rememberBrowserNavigationState(
-    startRoute: NavKey,
-    topLevelRoutes: Set<NavKey>
+    startRoute: NavKey = TabList
 ): BrowserNavigationState {
-    val topLevelRoute = rememberSaveable(startRoute, topLevelRoutes) {
-        mutableStateOf(startRoute)
-    }
+    val backStack = rememberNavBackStack(startRoute)
 
-    val backStacks = topLevelRoutes.associateWith { key -> rememberNavBackStack(key) }
-
-    return remember(startRoute, topLevelRoutes) {
-        BrowserNavigationState(
-            startRoute = startRoute,
-            topLevelRoute = topLevelRoute,
-            backStacks = backStacks
-        )
+    return remember(backStack) {
+        BrowserNavigationState(backStack)
     }
 }
 
+/**
+ * Manages navigation state for the browser using a single [NavBackStack].
+ *
+ * Tab selection is handled separately by the ViewModel - this only manages
+ * the navigation structure (list -> detail -> settings/sheets).
+ */
+@Stable
 class BrowserNavigationState(
-    val startRoute: NavKey,
-    topLevelRoute: MutableState<NavKey>,
-    val backStacks: Map<NavKey, NavBackStack<NavKey>>
+    val backStack: NavBackStack<NavKey>
 ) {
+    /**
+     * The current route at the top of the back stack.
+     */
+    val currentRoute: NavKey?
+        get() = backStack.lastOrNull()
 
-    var topLevelRoute: NavKey by topLevelRoute
+    /**
+     * Whether we're currently showing a detail view (TabDetail).
+     */
+    val isShowingDetail: Boolean
+        get() = currentRoute is TabDetail
 
-    @Composable
-    fun toDecoratedEntries(
-        entryProvider: (NavKey) -> NavEntry<NavKey>
-    ): SnapshotStateList<NavEntry<NavKey>> {
-        val decoratedEntries = backStacks.mapValues { (_, stack) ->
-            val decorators = listOf(
-                rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
-            )
-            rememberDecoratedNavEntries(
-                backStack = stack,
-                entryDecorators = decorators,
-                entryProvider = entryProvider
-            )
-        }
-
-        return getTopLevelRoutesInUse()
-            .flatMap { decoratedEntries[it] ?: emptyList() }
-            .toMutableStateList()
-    }
-
-    private fun getTopLevelRoutesInUse(): List<NavKey> =
-        if (topLevelRoute == startRoute) {
-            listOf(startRoute)
-        } else {
-            listOf(startRoute, topLevelRoute)
-        }
+    /**
+     * Gets the currently displayed tab ID, if showing a tab detail.
+     */
+    val currentTabId: String?
+        get() = (currentRoute as? TabDetail)?.tabId
 }
 
+/**
+ * Navigator for browser navigation actions.
+ *
+ * This follows Navigation 3's simple pattern where navigation is just
+ * adding/removing from a single back stack.
+ */
+@Stable
 class BrowserNavigator(private val state: BrowserNavigationState) {
 
+    /**
+     * Navigate to a route. For TabDetail, replaces any existing detail
+     * to avoid building up a large stack of tab views.
+     */
     fun navigate(route: NavKey) {
-        if (route in state.backStacks.keys) {
-            state.topLevelRoute = route
-        } else {
-            state.backStacks[state.topLevelRoute]?.add(route)
+        when (route) {
+            is TabDetail -> {
+                // If we're already on a TabDetail, replace it instead of stacking
+                val current = state.currentRoute
+                if (current is TabDetail) {
+                    state.backStack.removeLastOrNull()
+                }
+                state.backStack.add(route)
+            }
+            is TabSheet, is Settings -> {
+                // Overlay routes just push on top
+                state.backStack.add(route)
+            }
+            is TabList -> {
+                // Going to TabList means popping back to root
+                while (state.backStack.size > 1) {
+                    state.backStack.removeLastOrNull()
+                }
+            }
+            else -> {
+                state.backStack.add(route)
+            }
         }
     }
 
-    fun goBack() {
-        val currentStack = state.backStacks[state.topLevelRoute]
-            ?: error("Stack for ${state.topLevelRoute} not found")
-        val currentRoute = currentStack.last()
-
-        if (currentRoute == state.topLevelRoute) {
-            state.topLevelRoute = state.startRoute
-        } else {
-            currentStack.removeLastOrNull()
-        }
+    /**
+     * Navigate to a tab, updating the back stack appropriately.
+     */
+    fun navigateToTab(tabId: String) {
+        navigate(TabDetail(tabId))
     }
+
+    /**
+     * Go back in the navigation stack.
+     * @return true if back was handled, false if at root
+     */
+    fun goBack(): Boolean {
+        if (state.backStack.size <= 1) {
+            return false
+        }
+        state.backStack.removeLastOrNull()
+        return true
+    }
+
+    /**
+     * Check if we can go back in navigation (not counting in-page back).
+     */
+    fun canGoBack(): Boolean = state.backStack.size > 1
 }
