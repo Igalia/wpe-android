@@ -21,12 +21,13 @@
 
 #pragma once
 
-#include "ScopedWPEAndroidBuffer.h"
-
+#include <android/hardware_buffer.h>
 #include <android/native_window.h>
 #include <memory>
 
 #include "ScopedFD.h"
+
+typedef struct _WPEBufferAndroid WPEBufferAndroid;
 
 class Renderer {
 public:
@@ -46,5 +47,7 @@ public:
     virtual void onSurfaceRedrawNeeded() noexcept = 0;
     virtual void onSurfaceDestroyed() noexcept = 0;
 
-    virtual void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) = 0;
+    virtual void commitBuffer(
+        AHardwareBuffer* hardwareBuffer, WPEBufferAndroid* wpeBuffer, std::shared_ptr<ScopedFD> fenceFD)
+        = 0;
 };

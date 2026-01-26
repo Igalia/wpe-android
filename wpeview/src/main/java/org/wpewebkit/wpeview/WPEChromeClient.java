@@ -54,6 +54,70 @@ public interface WPEChromeClient {
     default void onReceivedTitle(@NonNull WPEView view, @NonNull String title) {}
 
     /**
+     * Notify the host application that the URI has changed.
+     * @param view The WPEView that initiated the callback.
+     * @param uri The new URI.
+     */
+    default void onUriChanged(@NonNull WPEView view, @NonNull String uri) {}
+
+    /**
+     * Notify the host application that the audio playback state has changed.
+     * This is called when the WebView starts or stops playing audio.
+     * @param view The WPEView that initiated the callback.
+     * @param isPlayingAudio {@code true} if the WebView is currently playing audio,
+     *                       {@code false} otherwise.
+     */
+    default void onAudioStateChanged(@NonNull WPEView view, boolean isPlayingAudio) {}
+
+    /**
+     * Notify the host application that the muted state has changed.
+     * This is called when the WebView is muted or unmuted.
+     * @param view The WPEView that initiated the callback.
+     * @param isMuted {@code true} if the WebView is currently muted,
+     *                {@code false} otherwise.
+     */
+    default void onMutedStateChanged(@NonNull WPEView view, boolean isMuted) {}
+
+    /**
+     * Notify the host application that the camera capture state has changed.
+     * This is called when a page starts or stops capturing from the camera.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Camera capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Camera capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Camera capture is muted.</li>
+     *        </ul>
+     */
+    default void onCameraCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
+     * Notify the host application that the microphone capture state has changed.
+     * This is called when a page starts or stops capturing from the microphone.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Microphone capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Microphone capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Microphone capture is muted.</li>
+     *        </ul>
+     */
+    default void onMicrophoneCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
+     * Notify the host application that the display capture state has changed.
+     * This is called when a page starts or stops screen sharing.
+     * @param view The WPEView that initiated the callback.
+     * @param state The capture state. One of:
+     *        <ul>
+     *        <li>{@code 0} - MEDIA_CAPTURE_STATE_NONE: Display capture is not active.</li>
+     *        <li>{@code 1} - MEDIA_CAPTURE_STATE_ACTIVE: Display capture is active.</li>
+     *        <li>{@code 2} - MEDIA_CAPTURE_STATE_MUTED: Display capture is muted.</li>
+     *        </ul>
+     */
+    default void onDisplayCaptureStateChanged(@NonNull WPEView view, int state) {}
+
+    /**
      * A callback interface used by the host application to notify
      * the current page that its custom view has been dismissed.
      */
@@ -77,6 +141,20 @@ public interface WPEChromeClient {
      * Notify the host application that the current page has exited full screen mode.
      */
     default void onHideCustomView() {}
+
+    /**
+     * Notify the host application that the fullscreen mode has changed.
+     * This is called when the WebView enters or exits fullscreen mode.
+     * <p>
+     * This callback provides a simpler alternative to {@link #onShowCustomView}
+     * and {@link #onHideCustomView} when you only need to track fullscreen state
+     * without custom view management.
+     *
+     * @param view The WPEView that initiated the callback.
+     * @param isFullscreen {@code true} if the WebView is entering fullscreen mode,
+     *                     {@code false} if exiting fullscreen mode.
+     */
+    default void onFullscreenModeChanged(@NonNull WPEView view, boolean isFullscreen) {}
 
     /**
      * Notify the host application that the web page wants to display a

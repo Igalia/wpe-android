@@ -28,6 +28,7 @@
 
 #include <string>
 #include <wpe/webkit.h>
+#include <wpe/wpe.h>
 
 /***********************************************************************************************************************
  * JNI mapping with Java WKRuntime class
