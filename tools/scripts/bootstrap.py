@@ -144,8 +144,17 @@ class Bootstrap:
             os.path.join(self._cerbero_root_dir, "config", f"cross-android-{cerbero_arch_suffix}")
         ]
 
+    def _cerbero_env(self):
+        env = os.environ.copy()
+        env.pop("RUSTUP_HOME", None)
+        env.pop("CARGO_HOME", None)
+        env.pop("C_INCLUDE_PATH", None)
+        env.pop("CPLUS_INCLUDE_PATH", None)
+        return env
+
     def _get_package_version(self, package_name):
-        output = subprocess.check_output(self._cerbero_command_args + ["packageinfo", package_name], encoding="utf-8")
+        output = subprocess.check_output(self._cerbero_command_args +
+                                         ["packageinfo", package_name], encoding="utf-8", env=self._cerbero_env())
         m = re.search(r"Version:\s+([0-9.]+)", output)
         if m:
             return m.group(1)
@@ -242,7 +251,7 @@ class Bootstrap:
                                   self._cerbero_origin, "cerbero"], cwd=self._project_build_dir)
 
         try:
-            subprocess.check_call(self._cerbero_command_args + ["bootstrap"])
+            subprocess.check_call(self._cerbero_command_args + ["bootstrap"], env=self._cerbero_env())
         except subprocess.CalledProcessError as e:
             sys.exit(e)
         if self._debug:
@@ -257,7 +266,8 @@ class Bootstrap:
         os.makedirs(self._project_build_dir, exist_ok=True)
         try:
             subprocess.check_call(self._cerbero_command_args +
-                                  ["package", "-o", self._project_build_dir, "-f", "wpewebkit"])
+                                  ["package", "-o", self._project_build_dir, "-f", "wpewebkit"],
+                                  env=self._cerbero_env())
         except subprocess.CalledProcessError as e:
             sys.exit(e)
         return self._get_package_version("wpewebkit")
