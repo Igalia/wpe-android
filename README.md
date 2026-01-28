@@ -107,9 +107,22 @@ For example, device debug build dependencies can be generated using
 
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
 you should be able to generate android project from gradle files.
+
+A requirement to use gradle is to have the Android NDK. If you dont have one we have a script that
+helps downloading and deploying the version of the NDK that are currently using:
+
 ```bash
+./tools/scripts/install-android-ndk.sh
+```
+
+After the script downloads the SDK, validates the licenses and installs some of the packages you
+need to define the `ANDROID_HOME` environment variable and later you can to run gradle to generate the package:
+
+```bash
+export ANDROID_HOME=$HOME/Android/Sdk
 ./gradlew assembleDebug
 ```
+
 This will generate APKs in directory `tools/webdriver/build/outputs/apk/debug`
 
 To install APK in device or emulator,
