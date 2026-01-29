@@ -27,6 +27,7 @@
 #include "WKWebContext.h"
 #include "WKWebView.h"
 #include "WKWebsiteDataManager.h"
+#include "WKPowerProfileMonitor.h"
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
@@ -41,6 +42,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         WKWebsiteDataManager::configureJNIMappings();
         WKWebView::configureJNIMappings();
         WKSettings::configureJNIMappings();
+        WKPowerProfileMonitor::configureJNIMappings();
+        WKPowerProfileMonitor::registerExtension();
 
         return JNI::VERSION;
     } catch (const std::exception& e) {
