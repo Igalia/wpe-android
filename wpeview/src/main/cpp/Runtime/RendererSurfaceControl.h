@@ -29,6 +29,9 @@
 
 #include "SurfaceControl.h"
 
+typedef struct _WPEBufferAndroid WPEBufferAndroid;
+typedef struct _WPEView WPEView;
+
 class RendererSurfaceControl final : public Renderer, public std::enable_shared_from_this<RendererSurfaceControl> {
 public:
     RendererSurfaceControl(WPEAndroidViewBackend* viewBackend, uint32_t width, uint32_t height);
@@ -47,7 +50,10 @@ public:
     void onSurfaceRedrawNeeded() noexcept override; // NOLINT(bugprone-exception-escape)
     void onSurfaceDestroyed() noexcept override;
 
+    void setWPEView(WPEView*) {}
+
     void commitBuffer(std::shared_ptr<ScopedWPEAndroidBuffer> buffer, std::shared_ptr<ScopedFD> fenceFD) override;
+    void commitBuffer(AHardwareBuffer*, WPEBufferAndroid*, std::shared_ptr<ScopedFD>) {}
 
 private:
     struct ResourceRef {
