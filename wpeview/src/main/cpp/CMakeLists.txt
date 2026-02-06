@@ -134,9 +134,15 @@ add_library(
     Runtime/WKWebContext.cpp
     Runtime/WKSettings.cpp
     Runtime/WKWebsiteDataManager.cpp
-    Runtime/WKWebView.cpp)
+    Runtime/WKWebView.cpp
+    Runtime/WPEViewAndroid.cpp
+    Common/WPEDisplayAndroid.cpp
+    Common/WPEInputMethodContextAndroid.cpp
+    Common/WPEToplevelAndroid.cpp)
+
 target_configure_quality(WPEAndroidRuntime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
+target_include_directories(WPEAndroidRuntime PRIVATE Runtime Common)
 target_link_libraries(
     WPEAndroidRuntime
     EGL
