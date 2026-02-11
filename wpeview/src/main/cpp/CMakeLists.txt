@@ -111,6 +111,7 @@ target_link_libraries(
     ${android-lib}
     ${log-lib}
     ${sync-lib}
+    gio-2.0
     glib-2.0
     gobject-2.0
     gstreamer-1.0
@@ -122,7 +123,6 @@ add_library(
     WPEAndroidRuntime SHARED
     Runtime/EntryPoint.cpp
     Runtime/Fence.cpp
-    Runtime/InputMethodContext.cpp
     Runtime/LooperThread.cpp
     Runtime/MessagePump.cpp
     Runtime/RendererSurfaceControl.cpp
@@ -139,7 +139,6 @@ add_library(
     Common/WPEDisplayAndroid.cpp
     Common/WPEInputMethodContextAndroid.cpp
     Common/WPEToplevelAndroid.cpp)
-
 target_configure_quality(WPEAndroidRuntime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_include_directories(WPEAndroidRuntime PRIVATE Runtime Common)
@@ -152,7 +151,6 @@ target_link_libraries(
     gobject-2.0
     libwpe-1.0
     soup-3.0
-    WPEBackend
     WPEWebKit-2.0
     WPEAndroidCommon)
 
@@ -164,7 +162,7 @@ target_link_libraries(
     gio-2.0
     glib-2.0
     gmodule-2.0
-    WPEBackend
     WPEWebKit-2.0
+    WPEAndroidRuntime
     WPEAndroidCommon
     WPEWebDriver)
