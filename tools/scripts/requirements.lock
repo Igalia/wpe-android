@@ -1,0 +1,5 @@
+editorconfig_checker==3.6.0
+pycodestyle==2.14.0
+cmakelang==0.6.13
+## The following requirements were added by pip freeze:
+six==1.17.0

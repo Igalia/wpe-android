@@ -4,22 +4,29 @@ on: workflow_call
 jobs:
   check-format:
     runs-on: ubuntu-24.04
+    permissions: { }
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Java™ Setup
-        uses: actions/setup-java@v4
+        uses: actions/checkout@v6
         with:
-          distribution: temurin
-          java-version: 17
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+          persist-credentials: false
+      - name: Fetch Git History
+        run: |
+          git fetch --no-tags --prune --depth=1 \
+            origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
-          log-accepted-android-sdk-licenses: false
-          packages: "tools platform-tools cmake;3.31.1"
-      - name: Check Code Format
-        run: ./gradlew checkFormat
-
+          python-version: 3.13t
+          cache: pip
+          cache-dependency-path: |
+            tools/scripts/requirements.lock
+      - name: Install Python Dependencies
+        run: |
+          pip install -r tools/scripts/requirements.lock
+      - name: Check
+        run: |
+          tools/scripts/check-format.py --diff-format origin/${{ github.base_ref }}
   check-jni:
     runs-on: ubuntu-24.04
     steps:

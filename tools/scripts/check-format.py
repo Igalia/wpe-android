@@ -201,6 +201,7 @@ class CheckFormat:
                          "README.md", "LICENSE.md", ".clang-format", ".clang-tidy",
                          ".cmake-format.json", ".editorconfig", ".gitattributes",
                          ".gitignore", "gradlew", "gradlew.bat", "setup.cfg",
+                         "requirements.lock", "requirements.txt",
                          "WPEServices.java.template", "__init__.py",
                          "CHANGELOG.md"]:
             return True
