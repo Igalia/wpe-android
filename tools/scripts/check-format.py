@@ -24,6 +24,7 @@ This script checks all files names and code format for Python, Java, C/C++ and C
 If called with --hook option, it will only check differencies with previous git commit.
 """
 
+import argparse
 import shutil
 import sys
 import subprocess
@@ -32,18 +33,46 @@ import re
 import site
 
 
+def _clang_tool_names(name, version_range):
+    # Versioned first, prefer newer versions; then unversioned.
+    for version in reversed(range(*version_range)):
+        yield f"{name}-{version}"
+    yield name
+
+
+def _find_clang_tool(name, version_range=(13, 22)):
+    # A few Linux distributions stash a few tools under
+    # /usr/share/clang, so try /usr/local/share/clang as well.
+    extended_path = os.environ.get("PATH", "")
+    if extended_path:
+        extended_path += ":"
+    extended_path += "/usr/share/clang:/usr/local/share/clang"
+
+    for candidate in _clang_tool_names(name, version_range):
+        location = shutil.which(candidate, path=extended_path)
+        if location:
+            return location
+
+    raise None
+
+
 class CheckFormat:
     _project_root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
     _git = shutil.which("git")
-    _clang_format = shutil.which("clang-format-14") or shutil.which("clang-format")
+    _clang_format = _find_clang_tool("clang-format")
+    _git_clang_format = _find_clang_tool("git-clang-format")
     _editor_config_checker = shutil.which("ec") or os.path.join(site.getuserbase(), "bin", "ec")
 
     _kebab_case_pattern = re.compile(r"[a-z][a-z0-9.-]+\.[a-z]+")
     _pascal_case_pattern = re.compile(r"[A-Z][a-zA-Z0-9]+\.[a-z]+")
     _snake_case_pattern = re.compile(r"[a-z][a-z0-9_]+\.[a-z]+")
 
-    def __init__(self, args):
-        self._hook = (args and args[0] == "--hook")
+    def __init__(self, hook, diff_since):
+        # Using --hook implies --diff, because git-clang-format
+        # can run over the diff in that case as well
+        self._hook = hook
+        self._diff_since = diff_since
+        self._diff_files = set() if hook or diff_since else None
 
     def _check_kebab_case_name(self, file):
         if self._kebab_case_pattern.fullmatch(os.path.basename(file)):
@@ -99,6 +128,25 @@ class CheckFormat:
                 print(f"-- {line[6:]}", file=sys.stderr)
             return False
 
+    def _check_git_clang_format(self):
+        command = [self._git_clang_format, "--diff"]
+        if self._hook:
+            assert not self._diff_since
+        elif self._diff_since:
+            command.append(self._diff_since)
+        command.append("--")
+        command.extend(self._diff_files)
+        result = subprocess.run(command,
+                                stdout=subprocess.PIPE,
+                                encoding="utf-8",
+                                cwd=self._project_root_dir)
+        if result.returncode != 0:
+            print("-- Changes are not correctly formatted.",
+                  f"-- Try `{self._clang_format} -style=file -i <path>` to apply fixes",
+                  result.stdout, sep="\n", end="", file=sys.stderr)
+            return False
+        return True
+
     def _check_clang_format(self, file):
         if os.path.islink(os.path.join(self._project_root_dir, file)):
             return True
@@ -106,6 +154,9 @@ class CheckFormat:
         base_name = os.path.basename(file)
         if base_name.endswith(".aidl"):
             base_name = base_name[:-4] + "java"
+        elif isinstance(self._diff_files, set):
+            self._diff_files.add(file)
+            return True
 
         original_file_content = self._get_original_file_content(file)
         command = subprocess.run([self._clang_format, "--Werror", f"--assume-filename={base_name}", "-style=file"],
@@ -233,12 +284,26 @@ class CheckFormat:
             for file in files:
                 if not self._check_file_format(file):
                     return 2
+            if self._diff_files:
+                if not self._check_git_clang_format():
+                    return 2
         except Exception as err:
             print(f"System error: {err}", file=sys.stderr)
             return 3
         return 0
 
 
-if __name__ == "__main__":
-    checker = CheckFormat(sys.argv[1:])
+def main():
+    parser = argparse.ArgumentParser()
+    parser_group = parser.add_mutually_exclusive_group()
+    parser_group.add_argument("--hook", action="store_true", help="Run as a Git hook")
+    parser_group.add_argument("--diff-format", type=str, metavar="COMMITTISH", default=None,
+                              help="Check format of lines changed by diff in standard input")
+    options = parser.parse_args()
+
+    checker = CheckFormat(options.hook, options.diff_format)
     sys.exit(checker.run())
+
+
+if __name__ == "__main__":
+    main()
