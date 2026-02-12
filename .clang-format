@@ -4,6 +4,7 @@ Standard: Latest
 BasedOnStyle: WebKit
 ColumnLimit: 120
 AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
 Cpp11BracedListStyle: true
 SpaceInEmptyBlock: false
 ---
