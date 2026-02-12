@@ -1,0 +1,3 @@
+editorconfig-checker==3.6
+pycodestyle==2.14
+cmakelang==0.6
