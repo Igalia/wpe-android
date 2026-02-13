@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.2 (2.50.5) - 2026-02-13
+
+### Changed
+
+- WPE WebKit updated to [version 2.50.5](https://wpewebkit.org/release/wpewebkit-2.50.5.html) (#).
+
+
 ## v0.3.1 (2.50.4) - 2026-01-14
 
 ### Changed
