@@ -21,6 +21,8 @@
 
 #include "WKWebView.h"
 
+#include <wpe/webkit.h>
+
 namespace {
 // FIXME: in wpe-webkit the same WebKitSettings can be shared by different
 //        WebKitView instances which is not possible here because all the next
