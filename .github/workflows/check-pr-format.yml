@@ -1,4 +1,4 @@
-name: Check
+name: Check PR Formatting
 on: workflow_call
 
 jobs:
@@ -27,18 +27,3 @@ jobs:
       - name: Check
         run: |
           tools/scripts/check-format.py --diff-format origin/${{ github.base_ref }}
-  check-jni:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Java™ Setup
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - name: Check JNI
-        run: |
-          cd tools/jni-test && \
-          cmake -S. -Bbuild && \
-          cmake --build build --target run

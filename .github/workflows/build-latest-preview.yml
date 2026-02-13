@@ -5,18 +5,16 @@ on:
       - main
 
 jobs:
-  check:
-    uses: ./.github/workflows/check.yml
   lint:
-    needs: check
     uses: ./.github/workflows/lint.yml
     with:
       build_type: Debug
   test:
-    needs: lint
     uses: ./.github/workflows/test.yml
+  test-jni:
+    uses: ./.github/workflows/test-jni.yml
   build:
-    needs: test
+    needs: [lint, test, test-jni]
     uses: ./.github/workflows/build.yml
     with:
       build_type: Debug

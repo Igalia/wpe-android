@@ -6,9 +6,10 @@ on:
 
 jobs:
   check:
-    uses: ./.github/workflows/check.yml
+    uses: ./.github/workflows/check-pr-format.yml
+  test-jni:
+    uses: ./.github/workflows/test-jni.yml
   lint:
-    needs: check
     uses: ./.github/workflows/lint.yml
     with:
       build_type: Debug
@@ -16,7 +17,7 @@ jobs:
     needs: lint
     uses: ./.github/workflows/test.yml
   build:
-    needs: test
+    needs: [lint, test, test-jni]
     strategy:
       matrix:
         build_type: [Release, Debug]
