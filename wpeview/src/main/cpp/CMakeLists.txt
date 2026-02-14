@@ -134,7 +134,8 @@ add_library(
     Runtime/WKWebContext.cpp
     Runtime/WKSettings.cpp
     Runtime/WKWebsiteDataManager.cpp
-    Runtime/WKWebView.cpp)
+    Runtime/WKWebView.cpp
+    Runtime/WKPowerProfileMonitor.cpp)
 target_configure_quality(WPEAndroidRuntime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
