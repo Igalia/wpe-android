@@ -103,7 +103,9 @@ For example, device debug build dependencies can be generated using
 ./tools/scripts/bootstrap.py --build --debug --arch=arm64
 ```
 
-## Android Project
+## Android tools
+
+### 1. NDK installation and initial setup
 
 Once the bootstrap process is done and all the dependencies are cross-compiled and installed,
 you should be able to generate android project from gradle files.
@@ -115,8 +117,10 @@ helps downloading and deploying the version of the NDK that are currently using:
 ./tools/scripts/install-android-ndk.sh
 ```
 
-After the script downloads the SDK, validates the licenses and installs some of the packages you
-need to define the `ANDROID_HOME` environment variable and later you can to run gradle to generate the package:
+The script downloads the SDK, validates the licenses and installs some of the packages, then it creates
+a default Android emulator to use with WPE.
+
+After installtion and build, you can to run gradle to generate the package:
 
 ```bash
 export ANDROID_HOME=$HOME/Android/Sdk
@@ -125,10 +129,31 @@ export ANDROID_HOME=$HOME/Android/Sdk
 
 This will generate APKs in directory `tools/webdriver/build/outputs/apk/debug`
 
+### 2. Installing WPE
+
 To install APK in device or emulator,
 ```bash
 adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-debug.apk
 ```
+
+### 3. Using the emulator
+To run the emulator, do:
+```bash
+androidemulator -avd WPE
+```
+You can run the emulator in the background as usual in a shell with "&".
+
+In case of a crash, you get the bug report with:
+```bash
+adb bugreport
+```
+
+To get logs in real time:
+```bash
+adb logcat
+```
+
+
 
 ## Web Inspector
 
