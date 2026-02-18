@@ -30,6 +30,7 @@ if ! grep -qF "$LINE" "$RC_FILE"; then
 fi
 
 #create local links for android tools
+mkdir -p $HOME/.local/bin
 ln -sf $ANDROID_HOME/platform-tools/adb $HOME/.local/bin/adb
 ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.local/bin/sdkmanager
 ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $HOME/.local/bin/avdmanager
