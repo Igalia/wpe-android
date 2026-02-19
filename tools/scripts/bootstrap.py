@@ -109,6 +109,7 @@ class Bootstrap:
         ("wpe-1.0", "wpe"),
         ("wpe-android", "wpe-android"),
         ("wpe-webkit-2.0", "wpe-webkit"),
+        ("wpe-webkit-2.0/wpe-platform", "wpe-platform"),
         ("xkbcommon", "xkbcommon")
     ]
     _soname_replacements = [
