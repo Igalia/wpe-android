@@ -17,25 +17,6 @@ android_ndk_url="https://dl.google.com/android/repository/$android_ndk_zip"
 latest_dir="$sdk_root/cmdline-tools/latest"
 sdkmanager="$latest_dir/bin/sdkmanager"
 
-
-#add entry in .bashrc to set $ANDROID_HOME
-LINE="export ANDROID_HOME=\$HOME/Android/Sdk"
-RC_FILE="$HOME/.bashrc"
-
-if ! grep -qF "$LINE" "$RC_FILE"; then
-    echo -e "\n$LINE\n" >> "$RC_FILE"
-    echo "Added '$LINE' to $RC_FILE."
-    echo "Please open a new shell or do the following from this shell:"
-    echo "export ANDROID_HOME=\$HOME/Android/Sdk"
-fi
-
-#create local links for android tools
-mkdir -p $HOME/.local/bin
-ln -sf $ANDROID_HOME/platform-tools/adb $HOME/.local/bin/adb
-ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.local/bin/sdkmanager
-ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $HOME/.local/bin/avdmanager
-ln -sf $ANDROID_HOME/emulator/emulator $HOME/.local/bin/androidemulator
-
 if ! command -v apt-get >/dev/null 2>&1; then
     echo "Error: apt-get not found (Debian/Ubuntu only)." >&2
     exit 1
@@ -87,6 +68,26 @@ packages=(
 )
 
 "$sdkmanager" --sdk_root="$sdk_root" "${packages[@]}"
+
+
+#add entry in .bashrc to set $ANDROID_HOME
+LINE="export ANDROID_HOME=\$HOME/Android/Sdk"
+RC_FILE="$HOME/.bashrc"
+
+if ! grep -qF "$LINE" "$RC_FILE"; then
+    echo -e "\n$LINE\n" >> "$RC_FILE"
+    echo "Added '$LINE' to $RC_FILE."
+    echo "Please open a new shell or do the following from this shell:"
+    echo "export ANDROID_HOME=\$HOME/Android/Sdk"
+fi
+
+#create local links for android tools
+mkdir -p $HOME/.local/bin
+ln -sf $ANDROID_HOME/platform-tools/adb $HOME/.local/bin/adb
+ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.local/bin/sdkmanager
+ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $HOME/.local/bin/avdmanager
+ln -sf $ANDROID_HOME/emulator/emulator $HOME/.local/bin/androidemulator
+
 
 
 #create, or recreate, a reference emulator instance for WPE
