@@ -3,6 +3,7 @@ import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     alias libs.plugins.android.library
+    alias libs.plugins.kotlin.android
     alias libs.plugins.vanniktech.maven.publish
 }
 
@@ -96,6 +97,7 @@ android {
 
 dependencies {
     implementation libs.androidx.annotation
+    implementation libs.panama.port
 
     androidTestImplementation libs.androidx.test.runner
     androidTestImplementation libs.androidx.test.rules
