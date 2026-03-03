@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class AuxiliaryProcessesContainer {
-    private static final int MAX_AUX_PROCESSES = 40;
+    private static final int MAX_AUX_PROCESSES = org.wpewebkit.wpe.services.WPEServices.MAX_AUX_PROCESSES;
 
     private final AuxiliaryProcess[][] processes =
         new AuxiliaryProcess[WKProcessType.values().length][MAX_AUX_PROCESSES];

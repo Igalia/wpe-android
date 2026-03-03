@@ -42,56 +42,6 @@ android {
             path file("src/main/cpp/CMakeLists.txt")
         }
     }
-
-    // FIXME: There is no real fixed limitation on the number of services an app can spawn on
-    //        Android or the number of auxiliary processes WebKit spawns. However we have a
-    //        limitation imposed by the way Android requires Services to be defined in the
-    //        AndroidManifest. We have to generate the manifest at build time adding an independent
-    //        entry for each Service we expect to launch. This magic number is taken from GeckoView,
-    //        which uses a similar approach.
-    final NUMBER_OF_AUX_PROCESSES = 40
-
-    libraryVariants.configureEach { variant ->
-        def genDir = project.layout.buildDirectory.dir("generated/source/services/${variant.name}").get().asFile
-
-        def wpeGenServicesTask = tasks.register("wpeGenServices${variant.name.capitalize()}") {
-            description = "Generate the code for multiple WPE auxiliary services"
-            doLast {
-                def templateFileContent = file("src/main/java/org/wpewebkit/wpe/services/WPEServices.java.template").getText()
-                def services = ""
-                for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
-                    services += "    public static final class WebProcessService$i extends WebProcessService {}\n" +
-                        "    public static final class NetworkProcessService$i extends NetworkProcessService {}\n"
-                }
-                templateFileContent = templateFileContent.replace("    // SERVICES PLACEHOLDER", services)
-
-                def servicesDir = new File(genDir, "org/wpewebkit/wpe/services")
-                servicesDir.mkdirs()
-                new File(servicesDir, "WPEServices.java").write(templateFileContent)
-            }
-        }
-        variant.registerJavaGeneratingTask(wpeGenServicesTask, genDir)
-
-        variant.outputs.all { output ->
-            def manifestProvider = output.getProcessManifestProvider().get()
-
-            manifestProvider.doLast({
-                def manifestFile = manifestProvider.manifestOutputFile.get().asFile
-                def manifestContent = manifestFile.getText()
-                def services = ""
-                for (int i = 0; i < NUMBER_OF_AUX_PROCESSES; ++i) {
-                    services += "        <service\n" +
-                        "            android:name=\"org.wpewebkit.wpe.services.WPEServices\$NetworkProcessService$i\"\n" +
-                        "            android:process=\":WPENetworkProcess$i\"/>\n" +
-                        "        <service\n" +
-                        "            android:name=\"org.wpewebkit.wpe.services.WPEServices\$WebProcessService$i\"\n" +
-                        "            android:process=\":WPEWebProcess$i\"/>\n\n"
-                }
-                manifestContent = manifestContent.replace("        <!-- SERVICES PLACEHOLDER -->", services)
-                manifestFile.write(manifestContent)
-            })
-        }
-    }
 }
 
 dependencies {
