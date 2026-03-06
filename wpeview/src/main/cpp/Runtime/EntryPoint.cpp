@@ -17,6 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include "../capi/CAPI.h"
 #include "Init.h"
 #include "Logging.h"
 #include "WKCallback.h"
@@ -41,6 +42,8 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         WKWebsiteDataManager::configureJNIMappings();
         WKWebView::configureJNIMappings();
         WKSettings::configureJNIMappings();
+
+        WebKit::configureJNIMappings();
 
         return JNI::VERSION;
     } catch (const std::exception& e) {
