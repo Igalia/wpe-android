@@ -1,6 +1,5 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Loïc Le Page <llepage@igalia.com>
+ * Copyright (C) 2026 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -17,11 +16,23 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#pragma once
+package org.wpewebkit.wpe;
 
-#include "JNIClass.h"
-#include "JNIEnv.h"
-#include "JNIMethod.h"
-#include "JNIObjectArray.h"
-#include "JNIScalarArray.h"
-#include "JNIString.h"
+import android.os.Handler;
+import android.os.Looper;
+
+import androidx.annotation.NonNull;
+
+final class MainLooperDispatcher {
+    private static final Handler sHandler = new Handler(Looper.getMainLooper());
+
+    private MainLooperDispatcher() {}
+
+    static void post(@NonNull Runnable task) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            task.run();
+            return;
+        }
+        sHandler.post(task);
+    }
+}

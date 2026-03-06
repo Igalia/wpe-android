@@ -141,9 +141,20 @@ add_library(
     Runtime/WKWebContext.cpp
     Runtime/WKSettings.cpp
     Runtime/WKWebsiteDataManager.cpp
-    Runtime/WKWebView.cpp)
+    Runtime/WKWebView.cpp
+    capi/JNIMappings.cpp
+    capi/WebKitCookieManager.cpp
+    capi/WebKitNetworkSession.cpp
+    capi/WebKitSettings.cpp
+    capi/WebKitWebContext.cpp
+    capi/WebKitWebView.cpp
+    capi/WebKitWebsiteDataManager.cpp
+    capi/WPEDisplay.cpp
+    capi/WPEScreen.cpp
+    capi/WPEToplevel.cpp
+    capi/WPEView.cpp)
 target_configure_quality(WPEAndroidRuntime)
-target_include_directories(WPEAndroidRuntime PRIVATE Platform Runtime)
+target_include_directories(WPEAndroidRuntime PRIVATE Platform Runtime capi)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
     WPEAndroidRuntime

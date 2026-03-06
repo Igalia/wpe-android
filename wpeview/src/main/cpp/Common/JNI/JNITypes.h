@@ -139,4 +139,9 @@ public:
         closeParenthesis, TypeSignature<Ret>::value>::value;
 };
 
+template <typename T> inline T* from_jlong(jlong ptr)
+{
+    return reinterpret_cast<T*>(ptr);
+}
+
 } // namespace JNI

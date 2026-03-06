@@ -1,6 +1,5 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Loïc Le Page <llepage@igalia.com>
+ * Copyright (C) 2026 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,9 +18,22 @@
 
 #pragma once
 
-#include "JNIClass.h"
-#include "JNIEnv.h"
-#include "JNIMethod.h"
-#include "JNIObjectArray.h"
-#include "JNIScalarArray.h"
-#include "JNIString.h"
+namespace WebKit {
+
+void configureJNIMappings();
+
+void configureWebKitCookieManagerJNIMappings();
+void configureWebKitCookieManagerAcceptPolicyCallbackHolderJNIMappings();
+void configureWebKitNetworkSessionJNIMappings();
+void configureWebKitSettingsJNIMappings();
+void configureWebKitWebContextJNIMappings();
+void configureWebKitWebViewJNIMappings();
+void configureWebKitWebViewEvalCallbackHolderJNIMappings();
+void configureWebKitWebsiteDataManagerJNIMappings();
+void configureWebKitWebsiteDataManagerCallbackHolderJNIMappings();
+void configureWPEDisplayJNIMappings();
+void configureWPEScreenJNIMappings();
+void configureWPEToplevelJNIMappings();
+void configureWPEViewJNIMappings();
+
+} // namespace WebKit
