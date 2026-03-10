@@ -16,6 +16,7 @@ Checks:
     -cppcoreguidelines-prefer-member-initializer,
     misc-*,
     -misc-non-private-member-variables-in-classes,
+    -misc-include-cleaner,
     modernize-*,
     -modernize-use-trailing-return-type,
     -modernize-avoid-c-arrays,
@@ -46,7 +47,6 @@ Checks:
     -llvm-header-guard
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
-AnalyzeTemporaryDtors: false
 FormatStyle: file
 CheckOptions:
     - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }

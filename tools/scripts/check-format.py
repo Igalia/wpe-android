@@ -281,16 +281,22 @@ class CheckFormat:
             if not self._run_editor_config_checker():
                 return 2
 
+            errors_found = False
+
             files = self._list_versioned_files()
             for file in files:
                 if not self._check_file_format(file):
-                    return 2
+                    errors_found = True
             if self._diff_files:
                 if not self._check_git_clang_format():
-                    return 2
+                    errors_found = True
         except Exception as err:
             print(f"System error: {err}", file=sys.stderr)
             return 3
+
+        if errors_found:
+            return 2
+
         return 0
 
 
