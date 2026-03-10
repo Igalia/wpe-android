@@ -1,11 +1,13 @@
 ---
-Checks:
+Checks: #This should match WebKit own code checkers, to be adjusted as needed over time
     -*,
     clang-diagnostic-*,
     clang-analyzer-*,
     concurrency-*,
     bugprone-*,
     -bugprone-easily-swappable-parameters,
+    -bugprone-unhandled-exception-at-new,
+    -bugprone-inc-dec-in-conditions,
     cppcoreguidelines-*,
     -cppcoreguidelines-pro-type-reinterpret-cast,
     -cppcoreguidelines-pro-type-vararg,
@@ -14,17 +16,27 @@ Checks:
     -cppcoreguidelines-pro-bounds-constant-array-index,
     -cppcoreguidelines-avoid-c-arrays,
     -cppcoreguidelines-prefer-member-initializer,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -cppcoreguidelines-avoid-non-const-global-variables,
     misc-*,
     -misc-non-private-member-variables-in-classes,
+    -misc-include-cleaner,
+    -misc-use-anonymous-namespace,
     modernize-*,
     -modernize-use-trailing-return-type,
     -modernize-avoid-c-arrays,
     -modernize-use-nodiscard,
     performance-*,
     -performance-move-const-arg,
+    -performance-enum-size,
     portability-*,
+    -portability-avoid-pragma-once,
     readability-*,
     -readability-magic-numbers,
+    -readability-implicit-bool-conversion,
+    -readability-isolate-declaration,
+    -readability-inconsistent-declaration-parameter-name,
+    -readability-qualified-auto,
     android-*,
     cert-*,
     -cert-dcl37-c,
@@ -42,11 +54,13 @@ Checks:
     -hicpp-vararg,
     -hicpp-explicit-conversions,
     -hicpp-move-const-arg,
+    -hicpp-signed-bitwise,
     llvm-*,
-    -llvm-header-guard
+    -llvm-header-guard,
+    -llvm-qualified-auto,
+    -llvm-prefer-static-over-anonymous-namespace
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
-AnalyzeTemporaryDtors: false
 FormatStyle: file
 CheckOptions:
     - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }

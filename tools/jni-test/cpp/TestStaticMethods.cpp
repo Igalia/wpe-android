@@ -26,21 +26,20 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestStaticMethods> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::StaticMethod<jboolean()> m_hasVoidMethodBeenCalled
-        = getStaticMethod<jboolean()>("hasVoidMethodBeenCalled");
+    JNI::StaticMethod<jboolean()> m_hasVoidMethodBeenCalled = getStaticMethod<jboolean()>("hasVoidMethodBeenCalled");
 
-    const JNI::StaticMethod<void()> m_voidMethod = getStaticMethod<void()>("voidMethod");
-    const JNI::StaticMethod<jboolean()> m_booleanMethod = getStaticMethod<jboolean()>("booleanMethod");
-    const JNI::StaticMethod<jbyte()> m_byteMethod = getStaticMethod<jbyte()>("byteMethod");
-    const JNI::StaticMethod<jchar()> m_charMethod = getStaticMethod<jchar()>("charMethod");
-    const JNI::StaticMethod<jshort()> m_shortMethod = getStaticMethod<jshort()>("shortMethod");
-    const JNI::StaticMethod<jint()> m_intMethod = getStaticMethod<jint()>("intMethod");
-    const JNI::StaticMethod<jlong()> m_longMethod = getStaticMethod<jlong()>("longMethod");
-    const JNI::StaticMethod<jfloat()> m_floatMethod = getStaticMethod<jfloat()>("floatMethod");
-    const JNI::StaticMethod<jdouble()> m_doubleMethod = getStaticMethod<jdouble()>("doubleMethod");
-    const JNI::StaticMethod<jobject()> m_objectMethod = getStaticMethod<jobject()>("objectMethod");
-    const JNI::StaticMethod<jstring()> m_stringMethod = getStaticMethod<jstring()>("stringMethod");
-    const JNI::StaticMethod<jint(jint, jint)> m_intMethodWithParams
+    JNI::StaticMethod<void()> m_voidMethod = getStaticMethod<void()>("voidMethod");
+    JNI::StaticMethod<jboolean()> m_booleanMethod = getStaticMethod<jboolean()>("booleanMethod");
+    JNI::StaticMethod<jbyte()> m_byteMethod = getStaticMethod<jbyte()>("byteMethod");
+    JNI::StaticMethod<jchar()> m_charMethod = getStaticMethod<jchar()>("charMethod");
+    JNI::StaticMethod<jshort()> m_shortMethod = getStaticMethod<jshort()>("shortMethod");
+    JNI::StaticMethod<jint()> m_intMethod = getStaticMethod<jint()>("intMethod");
+    JNI::StaticMethod<jlong()> m_longMethod = getStaticMethod<jlong()>("longMethod");
+    JNI::StaticMethod<jfloat()> m_floatMethod = getStaticMethod<jfloat()>("floatMethod");
+    JNI::StaticMethod<jdouble()> m_doubleMethod = getStaticMethod<jdouble()>("doubleMethod");
+    JNI::StaticMethod<jobject()> m_objectMethod = getStaticMethod<jobject()>("objectMethod");
+    JNI::StaticMethod<jstring()> m_stringMethod = getStaticMethod<jstring()>("stringMethod");
+    JNI::StaticMethod<jint(jint, jint)> m_intMethodWithParams
         = getStaticMethod<jint(jint, jint)>("intMethodWithParams");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
@@ -82,7 +81,7 @@ void TestStaticMethods::executeTests(JNIEnv* env, jclass klass)
 
     auto javaStr = getJNIClassCache().m_stringMethod.invoke();
     assert(env->IsInstanceOf(javaStr.get(), JNI::TypedClass<jstring>()));
-    JNI::String str(javaStr);
+    const JNI::String str(javaStr);
     assert(str.getLength() == 4);
     assert(strcmp(str.getContent().get(), "test") == 0);
 

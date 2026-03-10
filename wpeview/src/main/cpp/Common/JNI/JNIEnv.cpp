@@ -32,6 +32,7 @@ pthread_key_t globalJNIEnvKey = 0;
 std::atomic_bool globalEnableJavaExceptionDescription = true;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
+// TODO NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" __attribute__((visibility("default"))) JavaVM* wpe_android_runtime_get_current_java_vm()
 {
     return globalJavaVM;
@@ -49,7 +50,7 @@ JNIEnv* JNI::initVM(JavaVM* javaVM)
     if (globalJavaVM != nullptr) {
         throw std::runtime_error("Java VM already initialized for current process");
     }
-
+    // TODO NOLINTNEXTLINE(misc-const-correctness)
     JNIEnv* env = nullptr;
     if (javaVM->GetEnv(reinterpret_cast<void**>(&env), VERSION) != JNI_OK) {
         throw std::runtime_error("Cannot fetch JNIEnv from JavaVM initialization");
@@ -118,6 +119,7 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, const jobject& 
         return {globalRef, [](jobject ref) {
                     try {
                         getCurrentThreadJNIEnv()->DeleteGlobalRef(ref);
+                        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                     } catch (...) {
                     }
                 }};
@@ -132,11 +134,13 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, const jobject& 
     return {localRef, [](jobject ref) {
                 try {
                     getCurrentThreadJNIEnv()->DeleteLocalRef(ref);
+                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                 } catch (...) {
                 }
             }};
 }
 
+// TODO NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
 JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, jobject&& obj, bool useGlobalRef)
 {
     if (obj == nullptr)
@@ -154,6 +158,7 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, jobject&& obj, 
         return {globalRef, [](jobject ref) {
                     try {
                         getCurrentThreadJNIEnv()->DeleteGlobalRef(ref);
+                        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                     } catch (...) {
                     }
                 }};
@@ -162,6 +167,7 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, jobject&& obj, 
     return {obj, [](jobject ref) {
                 try {
                     getCurrentThreadJNIEnv()->DeleteLocalRef(ref);
+                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                 } catch (...) {
                 }
             }};

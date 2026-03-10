@@ -29,20 +29,35 @@ template <typename T, typename = void> class ScalarArray;
 
 template <typename T, bool isConst> class GenericScalarSpan final {
 public:
-    inline size_t getSize() const noexcept { return m_size; }
+    size_t getSize() const noexcept
+    {
+        return m_size;
+    }
 
-    inline const T* begin() const noexcept { return m_data.get(); }
-    inline const T* end() const noexcept { return m_data.get() + m_size; }
-    inline const T& operator[](size_t index) const
+    const T* begin() const noexcept
+    {
+        return m_data.get();
+    }
+    const T* end() const noexcept
+    {
+        return m_data.get() + m_size;
+    }
+    const T& operator[](size_t index) const
     {
         if (index >= m_size)
             throw std::out_of_range("Invalid index");
         return m_data.get()[index];
     }
 
-    template <typename U = T> inline std::enable_if_t<!isConst, U*> begin() noexcept { return m_data.get(); }
-    template <typename U = T> inline std::enable_if_t<!isConst, U*> end() noexcept { return m_data.get() + m_size; }
-    template <typename U = T> inline std::enable_if_t<!isConst, U&> operator[](size_t index)
+    template <typename U = T> std::enable_if_t<!isConst, U*> begin() noexcept
+    {
+        return m_data.get();
+    }
+    template <typename U = T> std::enable_if_t<!isConst, U*> end() noexcept
+    {
+        return m_data.get() + m_size;
+    }
+    template <typename U = T> std::enable_if_t<!isConst, U&> operator[](size_t index)
     {
         if (index >= m_size)
             throw std::out_of_range("Invalid index");
@@ -53,7 +68,7 @@ public:
     // committed when the ScalarSpan is destroyed.
     // The following commit() method allows to force this commit immediately.
     // Once commit() is called, the ScalarSpan is set to empty.
-    template <typename U = void> inline std::enable_if_t<!isConst, U> commit()
+    template <typename U = void> std::enable_if_t<!isConst, U> commit()
     {
         m_size = 0;
         m_data.reset();
@@ -63,7 +78,7 @@ private:
     friend ScalarArray<T>;
     using ProtectedData = std::unique_ptr<T, std::function<void(T*)>>;
 
-    inline GenericScalarSpan(jsize size, ProtectedData&& data)
+    GenericScalarSpan(jsize size, ProtectedData&& data)
         : m_size(static_cast<size_t>(size))
         , m_data(std::move(data))
     {
@@ -143,7 +158,10 @@ public:
         }
     }
 
-    inline operator ArrayType<T>() const noexcept { return m_javaArrayRef.get(); }
+    operator ArrayType<T>() const noexcept
+    {
+        return m_javaArrayRef.get();
+    }
 
     size_t getSize() const
     {
@@ -151,7 +169,7 @@ public:
             return 0;
 
         auto* env = getCurrentThreadJNIEnv();
-        jsize size = env->GetArrayLength(m_javaArrayRef.get());
+        const jsize size = env->GetArrayLength(m_javaArrayRef.get());
         checkJavaException(env);
         return (size > 0) ? static_cast<size_t>(size) : 0;
     }
@@ -169,7 +187,7 @@ private:
             return {0, {}};
 
         auto* env = getCurrentThreadJNIEnv();
-        jsize size = env->GetArrayLength(javaArrayRef);
+        const jsize size = env->GetArrayLength(javaArrayRef);
         checkJavaException(env);
         if (size <= 0)
             return {0, {}};
@@ -222,6 +240,7 @@ private:
                                } else {
                                    static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
                                }
+                               // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                            } catch (...) {
                            }
                        }}};

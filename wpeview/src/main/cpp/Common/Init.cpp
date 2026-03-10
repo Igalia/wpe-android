@@ -29,18 +29,27 @@ static void initializeWKVersions()
         "%u.%u.%u", webkit_get_major_version(), webkit_get_minor_version(), webkit_get_micro_version());
 
     klass.getStaticField<jstring>("WEBKIT").setValue(JNI::String(webkitVersion));
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("WEBKIT_MAJOR").setValue(webkit_get_major_version());
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("WEBKIT_MINOR").setValue(webkit_get_minor_version());
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("WEBKIT_MICRO").setValue(webkit_get_micro_version());
 
     g_autofree char* gstVersion = gst_version_string();
+    // TODO NOLINTNEXTLINE(cppcoreguidelines-init-variables, cppcoreguidelines-owning-memory)
     unsigned gstMajor, gstMinor, gstMicro, gstNano;
     gst_version(&gstMajor, &gstMinor, &gstMicro, &gstNano);
 
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jstring>("GSTREAMER").setValue(JNI::String(gstVersion));
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("GSTREAMER_MAJOR").setValue(gstMajor);
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("GSTREAMER_MINOR").setValue(gstMinor);
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("GSTREAMER_MICRO").setValue(gstMicro);
+    // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("GSTREAMER_NANO").setValue(gstNano);
 
     Logging::logVerbose("WKRuntime::Init: WPE WebKit %s, GStreamer %s", webkitVersion, gstVersion);
@@ -48,8 +57,10 @@ static void initializeWKVersions()
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIActivity, "android/app/Activity");
 
+// TODO NOLINTNEXTLINE(readability-identifier-naming)
 static jobject s_currentActivity {nullptr};
 
+// TODO NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" __attribute__((visibility("default"))) jobject wpe_android_runtime_get_current_activity()
 {
     Logging::logDebug("wpe_android_runtime_get_current_activity -> %p", s_currentActivity);

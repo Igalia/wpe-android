@@ -178,6 +178,7 @@ void WKRuntime::jniShut() noexcept
     try {
         Logging::logDebug("WKRuntime::jniShut() [tid %d]", gettid());
         m_messagePump = nullptr;
+        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
     } catch (...) {
     }
 }

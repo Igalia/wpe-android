@@ -47,8 +47,8 @@ ProtectedType<jobject> createProtectedRef(JNIEnv* env, jobject&& obj, bool useGl
 template <typename T>
 inline EnableIfObjectType<T, ProtectedType<T>> createTypedProtectedRef(JNIEnv* env, T&& obj, bool useGlobalRef = false)
 {
-    return std::static_pointer_cast<std::remove_pointer_t<T>>(
-        createProtectedRef(env, std::move(obj), useGlobalRef)); // NOLINT(bugprone-move-forwarding-reference)
+    return std::static_pointer_cast<std::remove_pointer_t<T>>(createProtectedRef(
+        env, std::move(std::forward<T>(obj)), useGlobalRef)); // NOLINT(bugprone-move-forwarding-reference)
 }
 
 } // namespace JNI

@@ -36,11 +36,11 @@ public:
     }
 
     // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
-    const JNI::Constructor<JNITestDuplexCalls(jlong)> m_constructor = getConstructor<jlong>();
+    JNI::Constructor<JNITestDuplexCalls(jlong)> m_constructor = getConstructor<jlong>();
 
-    const JNI::Method<jint()> m_getValue = getMethod<jint()>("getValue");
-    const JNI::Method<void(jint)> m_callNativeMethod = getMethod<void(jint)>("callNativeMethod");
-    const JNI::Method<void()> m_throwingMethod = getMethod<void()>("throwingMethod");
+    JNI::Method<jint()> m_getValue = getMethod<jint()>("getValue");
+    JNI::Method<void(jint)> m_callNativeMethod = getMethod<void(jint)>("callNativeMethod");
+    JNI::Method<void()> m_throwingMethod = getMethod<void()>("throwingMethod");
     // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
 
     TestDuplexCalls* getNativeInstance(jobject obj) const
@@ -50,7 +50,7 @@ public:
     }
 
 private:
-    const JNI::Field<jlong> m_nativeInstancePointer = getField<jlong>("nativeInstancePointer");
+    JNI::Field<jlong> m_nativeInstancePointer = getField<jlong>("nativeInstancePointer");
 };
 
 const JNIClassCache& getJNIClassCache()

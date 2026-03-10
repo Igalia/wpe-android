@@ -75,6 +75,7 @@ private:
         : m_javaClassRef(std::move(javaClassRef))
     {
         auto* env = getCurrentThreadJNIEnv();
+        // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
         m_methodId = env->GetMethodID(m_javaClassRef.get(), "<init>", FunctionSignature<void(Params...)>::value.data());
         if (m_methodId == nullptr) {
             checkJavaException(env);

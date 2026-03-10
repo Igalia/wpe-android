@@ -26,23 +26,23 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestFields> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::Constructor<JNITestFields()> m_constructor = getConstructor<>();
+    JNI::Constructor<JNITestFields()> m_constructor = getConstructor<>();
 
-    const JNI::Method<void()> m_checkFieldsAfterModification = getMethod<void()>("checkFieldsAfterModification");
+    JNI::Method<void()> m_checkFieldsAfterModification = getMethod<void()>("checkFieldsAfterModification");
 
-    const JNI::Field<jboolean> m_booleanValue = getField<jboolean>("booleanValue");
-    const JNI::Field<jbyte> m_byteValue = getField<jbyte>("byteValue");
-    const JNI::Field<jchar> m_charValue = getField<jchar>("charValue");
-    const JNI::Field<jshort> m_shortValue = getField<jshort>("shortValue");
-    const JNI::Field<jint> m_intValue = getField<jint>("intValue");
-    const JNI::Field<jlong> m_longValue = getField<jlong>("longValue");
-    const JNI::Field<jfloat> m_floatValue = getField<jfloat>("floatValue");
-    const JNI::Field<jdouble> m_doubleValue = getField<jdouble>("doubleValue");
-    const JNI::Field<jobject> m_objectValue = getField<jobject>("objectValue");
-    const JNI::Field<jclass> m_classValue = getField<jclass>("classValue");
-    const JNI::Field<jthrowable> m_throwableValue = getField<jthrowable>("throwableValue");
-    const JNI::Field<jstring> m_stringValue = getField<jstring>("stringValue");
-    const JNI::Field<JNITestFields> m_thisValue = getField<JNITestFields>("thisValue");
+    JNI::Field<jboolean> m_booleanValue = getField<jboolean>("booleanValue");
+    JNI::Field<jbyte> m_byteValue = getField<jbyte>("byteValue");
+    JNI::Field<jchar> m_charValue = getField<jchar>("charValue");
+    JNI::Field<jshort> m_shortValue = getField<jshort>("shortValue");
+    JNI::Field<jint> m_intValue = getField<jint>("intValue");
+    JNI::Field<jlong> m_longValue = getField<jlong>("longValue");
+    JNI::Field<jfloat> m_floatValue = getField<jfloat>("floatValue");
+    JNI::Field<jdouble> m_doubleValue = getField<jdouble>("doubleValue");
+    JNI::Field<jobject> m_objectValue = getField<jobject>("objectValue");
+    JNI::Field<jclass> m_classValue = getField<jclass>("classValue");
+    JNI::Field<jthrowable> m_throwableValue = getField<jthrowable>("throwableValue");
+    JNI::Field<jstring> m_stringValue = getField<jstring>("stringValue");
+    JNI::Field<JNITestFields> m_thisValue = getField<JNITestFields>("thisValue");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
@@ -68,7 +68,7 @@ void TestFields::executeTests(JNIEnv* env, jclass klass)
     assert(env != nullptr);
     assert(klass != nullptr);
 
-    TestFields test;
+    const TestFields test;
     assert(test.m_javaInstance != nullptr);
     assert(env->IsInstanceOf(test.m_javaInstance.get(), getJNIClassCache()));
 
@@ -94,7 +94,7 @@ void TestFields::executeTests(JNIEnv* env, jclass klass)
 
     auto javaStr = getJNIClassCache().m_stringValue.getValue(test.m_javaInstance.get());
     assert(env->IsInstanceOf(javaStr.get(), JNI::TypedClass<jstring>()));
-    JNI::String str(javaStr);
+    const JNI::String str(javaStr);
     assert(str.getLength() == 4);
     assert(strcmp(str.getContent().get(), "test") == 0);
 

@@ -141,8 +141,10 @@ private:
     {
         auto* env = getCurrentThreadJNIEnv();
         if constexpr (isStatic) {
+            // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
             m_fieldId = env->GetStaticFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         } else {
+            // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
             m_fieldId = env->GetFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         }
         if (m_fieldId == nullptr) {
@@ -201,8 +203,10 @@ private:
     {
         auto* env = getCurrentThreadJNIEnv();
         if constexpr (isStatic) {
+            // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
             m_fieldId = env->GetStaticFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         } else {
+            // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
             m_fieldId = env->GetFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         }
         if (m_fieldId == nullptr) {

@@ -34,13 +34,16 @@ public:
     }
 
     bool operator==(const String& other) const noexcept;
-    inline operator jstring() const noexcept { return m_javaStringRef.get(); }
+    operator jstring() const noexcept
+    {
+        return m_javaStringRef.get();
+    }
 
     size_t getLength() const;
     std::shared_ptr<const char> getContent() const;
 
 private:
-    ProtectedType<jstring> m_javaStringRef {};
+    ProtectedType<jstring> m_javaStringRef;
 };
 
 } // namespace JNI
