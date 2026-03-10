@@ -24,12 +24,12 @@
 namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestConstructors> {
 public:
-    // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
+    // NOLINTBEGIN(misc-non-private-member-variables-in-classes, cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Constructor<JNITestConstructors()> m_defaultConstructor = getConstructor<>();
     const JNI::Constructor<JNITestConstructors(jint)> m_intConstructor = getConstructor<jint>();
 
     const JNI::Method<jint()> m_getValue = getMethod<jint()>("getValue");
-    // NOLINTEND(misc-non-private-member-variables-in-classes)
+    // NOLINTEND(misc-non-private-member-variables-in-classes, cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 const JNIClassCache& getJNIClassCache()
@@ -56,12 +56,12 @@ void TestConstructors::executeTests(JNIEnv* env, jclass klass)
     assert(env != nullptr);
     assert(klass != nullptr);
 
-    TestConstructors test1;
+    const TestConstructors test1;
     assert(test1.m_javaInstance != nullptr);
     assert(env->IsInstanceOf(test1.m_javaInstance.get(), getJNIClassCache()));
     assert(test1.getValue() == 1);
 
-    TestConstructors test2(4);
+    const TestConstructors test2(4);
     assert(test2.m_javaInstance != nullptr);
     assert(env->IsInstanceOf(test2.m_javaInstance.get(), getJNIClassCache()));
     assert(test2.getValue() == 4);

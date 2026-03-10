@@ -141,7 +141,7 @@ void MessagePump::invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* 
         void* m_userData;
     };
 
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory, bugprone-unhandled-exception-at-new)
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     auto* info = new InvocationInfo {onExec, onDestroy, userData};
     g_main_context_invoke_full(
         m_context, G_PRIORITY_DEFAULT,
@@ -199,11 +199,13 @@ void MessagePump::prepare() noexcept
             reinterpret_cast<void*>(this));
     }
 
+    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
     for (const auto& fd : removedFds) {
         ALooper_removeFd(m_looper, fd);
     }
 }
 
+// TODO NOLINTNEXTLINE(bugprone-exception-escape)
 void MessagePump::collectPollFDChanges(
     const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs, std::vector<int>& removedFds) noexcept
 {
@@ -211,31 +213,39 @@ void MessagePump::collectPollFDChanges(
 
     // Build currFdMask by combining masks for the same fd
     for (int i = 0; i < numPollFDs; ++i) {
-        int fd = pollFDs[i].fd;
-        gushort events = pollFDs[i].events;
+        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
+        const int fd = pollFDs[i].fd;
+        const gushort events = pollFDs[i].events;
         currFdEvents[fd] |= events;
     }
 
     // Detect changes and new fds
+    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
     for (const auto& kv : currFdEvents) {
-        int fd = kv.first;
-        gushort events = kv.second;
+        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
+        const int fd = kv.first;
+        const gushort events = kv.second;
 
+        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
         auto it = m_looperFdEvents.find(fd);
         if (it == m_looperFdEvents.end()) {
             // New fd detected
-            GPollFD e {fd, events, 0};
+            // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
+            const GPollFD e {fd, events, 0};
             changedPollFDs.push_back(e);
         } else if (events != it->second) {
             // Events has changed
-            GPollFD e {fd, events, 0};
+            // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
+            const GPollFD e {fd, events, 0};
             changedPollFDs.push_back(e);
         }
     }
 
     // Detect removed fds
+    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
     for (const auto& kv : m_looperFdEvents) {
-        int fd = kv.first;
+        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
+        const int fd = kv.first;
         if (currFdEvents.find(fd) == currFdEvents.end()) {
             // fd was in previous but not in current
             removedFds.push_back(fd);

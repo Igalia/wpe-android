@@ -70,10 +70,13 @@ public:
     }
 
     bool operator==(const Class& other) const noexcept;
-    inline operator jclass() const noexcept { return m_javaClassRef.get(); }
+    operator jclass() const noexcept
+    {
+        return m_javaClassRef.get();
+    }
 
 protected:
-    ProtectedType<jclass> m_javaClassRef {}; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    ProtectedType<jclass> m_javaClassRef; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
 };
 
 template <typename T> class TypedClass<T, EnableIfObjectType<T>> : public Class {

@@ -52,9 +52,11 @@ private:
         auto* env = getCurrentThreadJNIEnv();
         if constexpr (isStatic) {
             m_methodId = env->GetStaticMethodID(
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 m_javaClassRef.get(), methodName, FunctionSignature<void(Params...)>::value.data());
         } else {
             m_methodId
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<void(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {
@@ -133,9 +135,11 @@ private:
         auto* env = getCurrentThreadJNIEnv();
         if constexpr (isStatic) {
             m_methodId = env->GetStaticMethodID(
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         } else {
             m_methodId
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {
@@ -183,9 +187,11 @@ private:
         auto* env = getCurrentThreadJNIEnv();
         if constexpr (isStatic) {
             m_methodId = env->GetStaticMethodID(
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         } else {
             m_methodId
+                // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {

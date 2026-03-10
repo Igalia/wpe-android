@@ -26,21 +26,20 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestStaticFields> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::StaticMethod<void()> m_checkFieldsAfterModification
-        = getStaticMethod<void()>("checkFieldsAfterModification");
+    JNI::StaticMethod<void()> m_checkFieldsAfterModification = getStaticMethod<void()>("checkFieldsAfterModification");
 
-    const JNI::StaticField<jboolean> m_booleanValue = getStaticField<jboolean>("booleanValue");
-    const JNI::StaticField<jbyte> m_byteValue = getStaticField<jbyte>("byteValue");
-    const JNI::StaticField<jchar> m_charValue = getStaticField<jchar>("charValue");
-    const JNI::StaticField<jshort> m_shortValue = getStaticField<jshort>("shortValue");
-    const JNI::StaticField<jint> m_intValue = getStaticField<jint>("intValue");
-    const JNI::StaticField<jlong> m_longValue = getStaticField<jlong>("longValue");
-    const JNI::StaticField<jfloat> m_floatValue = getStaticField<jfloat>("floatValue");
-    const JNI::StaticField<jdouble> m_doubleValue = getStaticField<jdouble>("doubleValue");
-    const JNI::StaticField<jobject> m_objectValue = getStaticField<jobject>("objectValue");
-    const JNI::StaticField<jclass> m_classValue = getStaticField<jclass>("classValue");
-    const JNI::StaticField<jthrowable> m_throwableValue = getStaticField<jthrowable>("throwableValue");
-    const JNI::StaticField<jstring> m_stringValue = getStaticField<jstring>("stringValue");
+    JNI::StaticField<jboolean> m_booleanValue = getStaticField<jboolean>("booleanValue");
+    JNI::StaticField<jbyte> m_byteValue = getStaticField<jbyte>("byteValue");
+    JNI::StaticField<jchar> m_charValue = getStaticField<jchar>("charValue");
+    JNI::StaticField<jshort> m_shortValue = getStaticField<jshort>("shortValue");
+    JNI::StaticField<jint> m_intValue = getStaticField<jint>("intValue");
+    JNI::StaticField<jlong> m_longValue = getStaticField<jlong>("longValue");
+    JNI::StaticField<jfloat> m_floatValue = getStaticField<jfloat>("floatValue");
+    JNI::StaticField<jdouble> m_doubleValue = getStaticField<jdouble>("doubleValue");
+    JNI::StaticField<jobject> m_objectValue = getStaticField<jobject>("objectValue");
+    JNI::StaticField<jclass> m_classValue = getStaticField<jclass>("classValue");
+    JNI::StaticField<jthrowable> m_throwableValue = getStaticField<jthrowable>("throwableValue");
+    JNI::StaticField<jstring> m_stringValue = getStaticField<jstring>("stringValue");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
@@ -80,7 +79,7 @@ void TestStaticFields::executeTests(JNIEnv* env, jclass klass)
 
     auto javaStr = getJNIClassCache().m_stringValue.getValue();
     assert(env->IsInstanceOf(javaStr.get(), JNI::TypedClass<jstring>()));
-    JNI::String str(javaStr);
+    const JNI::String str(javaStr);
     assert(str.getLength() == 4);
     assert(strcmp(str.getContent().get(), "test") == 0);
 

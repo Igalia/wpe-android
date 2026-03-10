@@ -25,28 +25,26 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestScalarArrays> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::StaticMethod<jbooleanArray()> m_getBooleanArray = getStaticMethod<jbooleanArray()>("getBooleanArray");
-    const JNI::StaticMethod<jbyteArray()> m_getByteArray = getStaticMethod<jbyteArray()>("getByteArray");
-    const JNI::StaticMethod<jcharArray()> m_getCharArray = getStaticMethod<jcharArray()>("getCharArray");
-    const JNI::StaticMethod<jshortArray()> m_getShortArray = getStaticMethod<jshortArray()>("getShortArray");
-    const JNI::StaticMethod<jintArray()> m_getIntArray = getStaticMethod<jintArray()>("getIntArray");
-    const JNI::StaticMethod<jlongArray()> m_getLongArray = getStaticMethod<jlongArray()>("getLongArray");
-    const JNI::StaticMethod<jfloatArray()> m_getFloatArray = getStaticMethod<jfloatArray()>("getFloatArray");
-    const JNI::StaticMethod<jdoubleArray()> m_getDoubleArray = getStaticMethod<jdoubleArray()>("getDoubleArray");
+    JNI::StaticMethod<jbooleanArray()> m_getBooleanArray = getStaticMethod<jbooleanArray()>("getBooleanArray");
+    JNI::StaticMethod<jbyteArray()> m_getByteArray = getStaticMethod<jbyteArray()>("getByteArray");
+    JNI::StaticMethod<jcharArray()> m_getCharArray = getStaticMethod<jcharArray()>("getCharArray");
+    JNI::StaticMethod<jshortArray()> m_getShortArray = getStaticMethod<jshortArray()>("getShortArray");
+    JNI::StaticMethod<jintArray()> m_getIntArray = getStaticMethod<jintArray()>("getIntArray");
+    JNI::StaticMethod<jlongArray()> m_getLongArray = getStaticMethod<jlongArray()>("getLongArray");
+    JNI::StaticMethod<jfloatArray()> m_getFloatArray = getStaticMethod<jfloatArray()>("getFloatArray");
+    JNI::StaticMethod<jdoubleArray()> m_getDoubleArray = getStaticMethod<jdoubleArray()>("getDoubleArray");
 
-    const JNI::StaticMethod<void(jbooleanArray)> m_setBooleanArray
-        = getStaticMethod<void(jbooleanArray)>("setBooleanArray");
-    const JNI::StaticMethod<void(jbyteArray)> m_setByteArray = getStaticMethod<void(jbyteArray)>("setByteArray");
-    const JNI::StaticMethod<void(jcharArray)> m_setCharArray = getStaticMethod<void(jcharArray)>("setCharArray");
-    const JNI::StaticMethod<void(jshortArray)> m_setShortArray = getStaticMethod<void(jshortArray)>("setShortArray");
-    const JNI::StaticMethod<void(jintArray)> m_setIntArray = getStaticMethod<void(jintArray)>("setIntArray");
-    const JNI::StaticMethod<void(jlongArray)> m_setLongArray = getStaticMethod<void(jlongArray)>("setLongArray");
-    const JNI::StaticMethod<void(jfloatArray)> m_setFloatArray = getStaticMethod<void(jfloatArray)>("setFloatArray");
-    const JNI::StaticMethod<void(jdoubleArray)> m_setDoubleArray
-        = getStaticMethod<void(jdoubleArray)>("setDoubleArray");
+    JNI::StaticMethod<void(jbooleanArray)> m_setBooleanArray = getStaticMethod<void(jbooleanArray)>("setBooleanArray");
+    JNI::StaticMethod<void(jbyteArray)> m_setByteArray = getStaticMethod<void(jbyteArray)>("setByteArray");
+    JNI::StaticMethod<void(jcharArray)> m_setCharArray = getStaticMethod<void(jcharArray)>("setCharArray");
+    JNI::StaticMethod<void(jshortArray)> m_setShortArray = getStaticMethod<void(jshortArray)>("setShortArray");
+    JNI::StaticMethod<void(jintArray)> m_setIntArray = getStaticMethod<void(jintArray)>("setIntArray");
+    JNI::StaticMethod<void(jlongArray)> m_setLongArray = getStaticMethod<void(jlongArray)>("setLongArray");
+    JNI::StaticMethod<void(jfloatArray)> m_setFloatArray = getStaticMethod<void(jfloatArray)>("setFloatArray");
+    JNI::StaticMethod<void(jdoubleArray)> m_setDoubleArray = getStaticMethod<void(jdoubleArray)>("setDoubleArray");
 
-    const JNI::StaticField<jintArray> m_staticIntArray = getStaticField<jintArray>("staticIntArray");
-    const JNI::StaticMethod<void()> m_checkStaticIntArrayAfterModification
+    JNI::StaticField<jintArray> m_staticIntArray = getStaticField<jintArray>("staticIntArray");
+    JNI::StaticMethod<void()> m_checkStaticIntArrayAfterModification
         = getStaticMethod<void()>("checkStaticIntArrayAfterModification");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
@@ -186,7 +184,7 @@ void testFloatArray()
     auto newJavaArray = JNI::ScalarArray<jfloat>(3);
     assert(newJavaArray.getSize() == 3);
     for (auto& arrayValue : newJavaArray.getContent())
-        arrayValue = refValues[--idx];
+        arrayValue = refValues[--idx]; // TODO NOLINT(clang-analyzer-security.ArrayBound)
 
     getJNIClassCache().m_setFloatArray.invoke(newJavaArray);
 }
@@ -205,7 +203,7 @@ void testDoubleArray()
     auto newJavaArray = JNI::ScalarArray<jdouble>(3);
     assert(newJavaArray.getSize() == 3);
     for (auto& arrayValue : newJavaArray.getContent())
-        arrayValue = refValues[--idx];
+        arrayValue = refValues[--idx]; // TODO NOLINT(clang-analyzer-security.ArrayBound)
 
     getJNIClassCache().m_setDoubleArray.invoke(newJavaArray);
 }

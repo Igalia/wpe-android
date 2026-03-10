@@ -90,6 +90,7 @@ std::shared_ptr<const char> JNI::String::getContent() const
     return {str, [javaStringRef](const char* ptr) {
                 try {
                     getCurrentThreadJNIEnv()->ReleaseStringUTFChars(javaStringRef, ptr);
+                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
                 } catch (...) {
                 }
             }};

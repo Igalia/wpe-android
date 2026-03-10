@@ -26,23 +26,23 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestMethods> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::Constructor<JNITestMethods()> m_constructor = getConstructor<>();
+    JNI::Constructor<JNITestMethods()> m_constructor = getConstructor<>();
 
-    const JNI::Method<jboolean()> m_hasVoidMethodBeenCalled = getMethod<jboolean()>("hasVoidMethodBeenCalled");
+    JNI::Method<jboolean()> m_hasVoidMethodBeenCalled = getMethod<jboolean()>("hasVoidMethodBeenCalled");
 
-    const JNI::Method<void()> m_voidMethod = getMethod<void()>("voidMethod");
-    const JNI::Method<jboolean()> m_booleanMethod = getMethod<jboolean()>("booleanMethod");
-    const JNI::Method<jbyte()> m_byteMethod = getMethod<jbyte()>("byteMethod");
-    const JNI::Method<jchar()> m_charMethod = getMethod<jchar()>("charMethod");
-    const JNI::Method<jshort()> m_shortMethod = getMethod<jshort()>("shortMethod");
-    const JNI::Method<jint()> m_intMethod = getMethod<jint()>("intMethod");
-    const JNI::Method<jlong()> m_longMethod = getMethod<jlong()>("longMethod");
-    const JNI::Method<jfloat()> m_floatMethod = getMethod<jfloat()>("floatMethod");
-    const JNI::Method<jdouble()> m_doubleMethod = getMethod<jdouble()>("doubleMethod");
-    const JNI::Method<jobject()> m_objectMethod = getMethod<jobject()>("objectMethod");
-    const JNI::Method<jstring()> m_stringMethod = getMethod<jstring()>("stringMethod");
-    const JNI::Method<JNITestMethods()> m_thisMethod = getMethod<JNITestMethods()>("thisMethod");
-    const JNI::Method<jint(jint, jint)> m_intMethodWithParams = getMethod<jint(jint, jint)>("intMethodWithParams");
+    JNI::Method<void()> m_voidMethod = getMethod<void()>("voidMethod");
+    JNI::Method<jboolean()> m_booleanMethod = getMethod<jboolean()>("booleanMethod");
+    JNI::Method<jbyte()> m_byteMethod = getMethod<jbyte()>("byteMethod");
+    JNI::Method<jchar()> m_charMethod = getMethod<jchar()>("charMethod");
+    JNI::Method<jshort()> m_shortMethod = getMethod<jshort()>("shortMethod");
+    JNI::Method<jint()> m_intMethod = getMethod<jint()>("intMethod");
+    JNI::Method<jlong()> m_longMethod = getMethod<jlong()>("longMethod");
+    JNI::Method<jfloat()> m_floatMethod = getMethod<jfloat()>("floatMethod");
+    JNI::Method<jdouble()> m_doubleMethod = getMethod<jdouble()>("doubleMethod");
+    JNI::Method<jobject()> m_objectMethod = getMethod<jobject()>("objectMethod");
+    JNI::Method<jstring()> m_stringMethod = getMethod<jstring()>("stringMethod");
+    JNI::Method<JNITestMethods()> m_thisMethod = getMethod<JNITestMethods()>("thisMethod");
+    JNI::Method<jint(jint, jint)> m_intMethodWithParams = getMethod<jint(jint, jint)>("intMethodWithParams");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
 
@@ -68,7 +68,7 @@ void TestMethods::executeTests(JNIEnv* env, jclass klass)
     assert(env != nullptr);
     assert(klass != nullptr);
 
-    TestMethods test;
+    const TestMethods test;
     assert(test.m_javaInstance != nullptr);
     assert(env->IsInstanceOf(test.m_javaInstance.get(), getJNIClassCache()));
 
@@ -92,7 +92,7 @@ void TestMethods::executeTests(JNIEnv* env, jclass klass)
 
     auto javaStr = getJNIClassCache().m_stringMethod.invoke(test.m_javaInstance.get());
     assert(env->IsInstanceOf(javaStr.get(), JNI::TypedClass<jstring>()));
-    JNI::String str(javaStr);
+    const JNI::String str(javaStr);
     assert(str.getLength() == 4);
     assert(strcmp(str.getContent().get(), "test") == 0);
 

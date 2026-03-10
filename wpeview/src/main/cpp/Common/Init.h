@@ -22,7 +22,7 @@
 #include "JNI/JNI.h"
 
 namespace Init {
-
+// TODO NOLINTNEXTLINE(hicpp-named-parameter,readability-named-parameter)
 JNIEnv* initialize(JavaVM*);
 
 } // namespace Init

@@ -75,6 +75,7 @@ public:
             return nullptr;
         }
 
+        // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new SslErrorHandler(webView, certificate, g_strdup(failingURI), host);
     }
 
@@ -232,6 +233,7 @@ public:
         return TRUE;
     }
 
+    // TODO NOLINTNEXTLINE(bugprone-exception-escape)
     static gboolean onDecidePolicy(WKWebView* wkWebView, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebView* /*webView*/) noexcept
     {
@@ -289,6 +291,7 @@ public:
         return FALSE;
     }
 
+    // TODO NOLINTNEXTLINE(bugprone-exception-escape)
     static gboolean onReceivedSslError(WKWebView* wkWebView, char* failingURI, GTlsCertificate* certificate,
         GTlsCertificateFlags errorFlags, WebKitWebView* webView) noexcept
     {
@@ -343,6 +346,7 @@ public:
             if (!getJNIPageCache().m_onReceivedSslError.invoke(wkWebView->m_webViewJavaInstance.get(),
                     static_cast<jstring>(jFailingURI), static_cast<jstring>(jCertificatePEM),
                     static_cast<jintArray>(jErrorsArray), reinterpret_cast<jlong>(handler))) {
+                // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
                 delete handler;
                 return FALSE;
             }
@@ -350,6 +354,7 @@ public:
             return TRUE;
         } catch (const std::exception& ex) {
             Logging::logError("Cannot send the [received SSL error] event to Java runtime (%s)", ex.what());
+            // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
             delete handler;
             return FALSE;
         }
@@ -452,6 +457,7 @@ private:
     static void nativeSurfaceRedrawNeeded(JNIEnv* env, jobject obj, jlong wkWebViewPtr) noexcept;
     static void nativeSetZoomLevel(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jdouble zoomLevel) noexcept;
     static void nativeOnTouchEvent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jlong time, jint type,
+        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
         jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept;
     static void nativeSetInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint unicodeChar) noexcept;
     static void nativeDeleteInputMethodContent(JNIEnv* env, jobject obj, jlong wkWebViewPtr, jint offset) noexcept;
@@ -634,7 +640,9 @@ void JNIWKWebViewCache::nativeSurfaceChanged(
     if ((wkWebView != nullptr) && (wkWebView->m_viewBackend != nullptr) && wkWebView->m_renderer) {
         const uint32_t physicalWidth = std::max(0, width);
         const uint32_t physicalHeight = std::max(0, height);
+        // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
         const uint32_t logicalWidth = std::floor(static_cast<float>(physicalWidth) / wkWebView->deviceScale());
+        // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
         const uint32_t logicalHeight = std::floor(static_cast<float>(physicalHeight) / wkWebView->deviceScale());
 
         wpe_view_backend_dispatch_set_size(
@@ -668,7 +676,9 @@ void JNIWKWebViewCache::nativeSetZoomLevel(
         webkit_web_view_set_zoom_level(wkWebView->m_webView, zoomLevel);
 }
 
+// TODO NOLINTNEXTLINE(bugprone-exception-escape)
 void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong wkWebViewPtr, jlong time, jint type,
+    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
     jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys) noexcept
 {
     auto* wkWebView = reinterpret_cast<WKWebView*>(wkWebViewPtr); // NOLINT(performance-no-int-to-ptr)
@@ -698,6 +708,7 @@ void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong w
         env->GetFloatArrayRegion(xs, 0, pointerCount, xsVector.data());
         env->GetFloatArrayRegion(ys, 0, pointerCount, ysVector.data());
 
+        // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         auto* touchPoints = new wpe_input_touch_event_raw[pointerCount];
         for (int i = 0; i < pointerCount; ++i) {
             touchPoints[i].type = touchEventType;
@@ -719,6 +730,7 @@ void JNIWKWebViewCache::nativeOnTouchEvent(JNIEnv* env, jobject /*obj*/, jlong w
         wpe_view_backend_dispatch_touch_event(
             WPEAndroidViewBackend_getWPEViewBackend(wkWebView->m_viewBackend), &touchEvent);
 
+        // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         delete[] touchPoints;
     }
 }
@@ -815,6 +827,7 @@ void JNIWKWebViewCache::nativeTriggerSslErrorHandler(
         } else {
             handler->rejectCertificate();
         }
+        // TODO NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         delete handler;
     }
 }

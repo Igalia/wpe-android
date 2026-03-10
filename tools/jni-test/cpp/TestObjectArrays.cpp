@@ -26,12 +26,11 @@ namespace {
 class JNIClassCache final : public JNI::TypedClass<JNITestObjectArrays> {
 public:
     // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
-    const JNI::StaticMethod<jstringArray()> m_getStringArray = getStaticMethod<jstringArray()>("getStringArray");
-    const JNI::StaticMethod<void(jstringArray)> m_setStringArray
-        = getStaticMethod<void(jstringArray)>("setStringArray");
+    JNI::StaticMethod<jstringArray()> m_getStringArray = getStaticMethod<jstringArray()>("getStringArray");
+    JNI::StaticMethod<void(jstringArray)> m_setStringArray = getStaticMethod<void(jstringArray)>("setStringArray");
 
-    const JNI::StaticField<jstringArray> m_staticStringArray = getStaticField<jstringArray>("staticStringArray");
-    const JNI::StaticMethod<void()> m_checkStaticStringArrayAfterModification
+    JNI::StaticField<jstringArray> m_staticStringArray = getStaticField<jstringArray>("staticStringArray");
+    JNI::StaticMethod<void()> m_checkStaticStringArrayAfterModification
         = getStaticMethod<void()>("checkStaticStringArrayAfterModification");
     // NOLINTEND(misc-non-private-member-variables-in-classes)
 };
@@ -64,7 +63,9 @@ void TestObjectArrays::executeTests(JNIEnv* env, jclass klass)
     for (auto javaStr : arrayWrapper.getReadOnlyContent()) {
         assert(env->IsInstanceOf(javaStr.get(), jstringTypedClass));
         // NOLINTNEXTLINE(bugprone-assert-side-effect)
-        assert(strcmp(JNI::String(javaStr).getContent().get(), callRefValues[idx++]) == 0);
+        assert(
+            // TODO NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            strcmp(JNI::String(javaStr).getContent().get(), callRefValues[idx++]) == 0);
     }
 
     auto newJavaArray = JNI::ObjectArray<jstring>(jstringTypedClass.createArray(3));
