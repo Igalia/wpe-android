@@ -60,7 +60,7 @@ fi
 
 packages=(
   "emulator"
-  "system-images;android-34;google_apis;x86_64"
+  "system-images;android-35;google_apis;x86_64"
   "platform-tools"
   "platforms;android-35"
   "build-tools;35.0.0"
@@ -82,16 +82,18 @@ if ! grep -qF "$LINE" "$RC_FILE"; then
 fi
 
 #create local links for android tools
-mkdir -p $HOME/.local/bin
-ln -sf $ANDROID_HOME/platform-tools/adb $HOME/.local/bin/adb
-ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $HOME/.local/bin/sdkmanager
-ln -sf $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $HOME/.local/bin/avdmanager
-ln -sf $ANDROID_HOME/emulator/emulator $HOME/.local/bin/androidemulator
+mkdir -p "$HOME/.local/bin"
+ln -sf "$ANDROID_HOME/platform-tools/adb" "$HOME/.local/bin/adb"
+ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "$HOME/.local/bin/sdkmanager"
+ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" "$HOME/.local/bin/avdmanager"
+ln -sf "$ANDROID_HOME/emulator/emulator" "$HOME/.local/bin/androidemulator"
 
 
 
 #create, or recreate, a reference emulator instance for WPE
-avdmanager create avd -n WPE -k "system-images;android-34;google_apis;x86_64" --device "pixel_9" --force
+avdmanager create avd -n WPE -k "system-images;android-35;google_apis;x86_64" --device "pixel_9" --force
+#set RAM size to 8G
+sed -i -e 's/^hw.ramSize *=.*/hw.ramSize = '8G'/' "$HOME/.android/avd/WPE.avd/config.ini"
 
 
 
