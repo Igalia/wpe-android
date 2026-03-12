@@ -120,6 +120,13 @@ target_link_libraries(
 # libWPEAndroidRuntime
 add_library(
     WPEAndroidRuntime SHARED
+    Platform/WPEDisplayAndroid.cpp
+    Platform/WPEInputMethodContextAndroid.cpp
+    Platform/WPEKeymapAndroid.cpp
+    Platform/WPEScreenAndroid.cpp
+    Platform/WPEScreenSyncObserverAndroid.cpp
+    Platform/WPEToplevelAndroid.cpp
+    Platform/WPEViewAndroid.cpp
     Runtime/EntryPoint.cpp
     Runtime/Fence.cpp
     Runtime/InputMethodContext.cpp
@@ -136,6 +143,7 @@ add_library(
     Runtime/WKWebsiteDataManager.cpp
     Runtime/WKWebView.cpp)
 target_configure_quality(WPEAndroidRuntime)
+target_include_directories(WPEAndroidRuntime PRIVATE Platform Runtime)
 target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
     WPEAndroidRuntime
