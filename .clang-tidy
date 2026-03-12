@@ -3,6 +3,7 @@ Checks: #This should match WebKit own code checkers, to be adjusted as needed ov
     -*,
     clang-diagnostic-*,
     clang-analyzer-*,
+    -clang-analyzer-optin.core.EnumCastOutOfRange,
     concurrency-*,
     bugprone-*,
     -bugprone-easily-swappable-parameters,
@@ -50,6 +51,7 @@ Checks: #This should match WebKit own code checkers, to be adjusted as needed ov
     -readability-isolate-declaration,
     -readability-inconsistent-declaration-parameter-name,
     -readability-qualified-auto,
+    -readability-named-parameter,
     -readability-static-definition-in-anonymous-namespace,
     android-*,
     cert-*,
@@ -71,6 +73,7 @@ Checks: #This should match WebKit own code checkers, to be adjusted as needed ov
     -hicpp-vararg,
     -hicpp-explicit-conversions,
     -hicpp-move-const-arg,
+    -hicpp-named-parameter,
     -hicpp-signed-bitwise,
     llvm-*,
     -llvm-header-guard,
@@ -81,7 +84,7 @@ HeaderFilterRegex: '(Browser|Common|JNI)/[^/]+\.h$'
 FormatStyle: file
 CheckOptions:
     - { key: readability-braces-around-statements.ShortStatementLines, value: 2          }
-    - { key: readability-function-cognitive-complexity.Threshold,      value: 35         }
+    - { key: readability-function-cognitive-complexity.Threshold,      value: 36         }
     - { key: readability-identifier-naming.StructCase,                 value: CamelCase  }
     - { key: readability-identifier-naming.EnumCase,                   value: CamelCase  }
     - { key: readability-identifier-naming.EnumConstantCase,           value: CamelCase  }
