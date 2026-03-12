@@ -139,9 +139,14 @@ adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-debug.apk
 ### 3. Using the emulator
 To run the emulator, do:
 ```bash
-androidemulator -avd WPE
+androidemulator @WPE
 ```
 You can run the emulator in the background as usual in a shell with "&".
+
+If you see issues with graphics, you may need to use software gpu emulation:
+```bash
+androidemulator @WPE -gpu software
+```
 
 In case of a crash, you get the bug report with:
 ```bash
