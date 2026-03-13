@@ -33,9 +33,9 @@ import androidx.navigation.fragment.findNavController
 import org.wpewebkit.tools.minibrowser.R
 import org.wpewebkit.tools.minibrowser.databinding.FragmentBrowserBinding
 import org.wpewebkit.tools.minibrowser.requestApplyStandardInsets
-import org.wpewebkit.wpeview.WPEChromeClient
-import org.wpewebkit.wpeview.WPEView
-import org.wpewebkit.wpeview.WPEViewClient
+import org.wpewebkit.wpeview.ChromeClient
+import org.wpewebkit.wpeview.WebView
+import org.wpewebkit.wpeview.ViewClient
 
 
 const val INITIAL_URL = "https://igalia.com"
@@ -105,8 +105,8 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         currentState.selectedTabId?.let { selectedTabId ->
             val tab = browserViewModel.findTab(selectedTabId)
             binding.tabContainerView.addView(tab.webview)
-            tab.webview.url.let {
-                binding.toolbarEditText.setText(tab.webview.url)
+            tab.webview.url?.let {
+                binding.toolbarEditText.setText(it)
             }
         } ?:run {
             val tab = Tab.newTab(requireContext(), INITIAL_URL)
@@ -116,69 +116,64 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         }
 
         val selectedTab = selectedTab()
-        if (selectedTab.webview.wpeChromeClient == null) {
-            selectedTab.webview.wpeChromeClient = object : WPEChromeClient {
-                override fun onProgressChanged(view: WPEView, progress: Int) {
-                    super.onProgressChanged(view, progress)
-                    binding.pageProgress.progress = progress
-                    if (progress in 1..99) {
-                        binding.pageProgress.visibility = View.VISIBLE
-                    } else {
-                        binding.pageProgress.visibility = View.GONE
-                    }
+        selectedTab.webview.setChromeClient(object : ChromeClient() {
+            override fun onProgressChanged(view: WebView, progress: Int) {
+                binding.pageProgress.progress = progress
+                if (progress in 1..99) {
+                    binding.pageProgress.visibility = View.VISIBLE
+                } else {
+                    binding.pageProgress.visibility = View.GONE
                 }
+            }
 
-                override fun onShowCustomView(view: View, callback: WPEChromeClient.CustomViewCallback) {
-                    fullscreenView?.let {
-                        (it.parent as ViewGroup).removeView(it)
-                    }
-                    fullscreenView = view
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        requireActivity().window.insetsController?.hide(
-                            WindowInsets.Type.statusBars() or WindowInsets
-                            .Type.navigationBars())
-                    } else {
-                        @Suppress("DEPRECATION")
-                        requireActivity().window.setFlags(
-                            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                            WindowManager.LayoutParams.FLAG_FULLSCREEN
-                        )
-                    }
-                    requireActivity().window.addContentView(
-                        fullscreenView,
-                        FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
-                        )
+            override fun onShowCustomView(view: View, callback: ChromeClient.CustomViewCallback) {
+                fullscreenView?.let {
+                    (it.parent as ViewGroup).removeView(it)
+                }
+                fullscreenView = view
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    requireActivity().window.insetsController?.hide(
+                        WindowInsets.Type.statusBars() or WindowInsets
+                        .Type.navigationBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    requireActivity().window.setFlags(
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN
                     )
                 }
-
-                override fun onHideCustomView() {
-                    fullscreenView?.let {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            requireActivity().window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                        } else {
-                            @Suppress("DEPRECATION")
-                            requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                        }
-                        (it.parent as ViewGroup).removeView(it)
-                    }
-                    fullscreenView = null
-                }
-
-                override fun onUriChanged(view: WPEView, uri: String) {
-                    super.onUriChanged(view, uri)
-                    binding.toolbarEditText.setText(uri)
-                }
+                requireActivity().window.addContentView(
+                    fullscreenView,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
+                    )
+                )
             }
-        }
 
-        selectedTab.webview.wpeViewClient = object : WPEViewClient() {
-            override fun onPageStarted(view: WPEView, url: String) {
-                super.onPageStarted(view, url)
+            override fun onHideCustomView() {
+                fullscreenView?.let {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        requireActivity().window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                    } else {
+                        @Suppress("DEPRECATION")
+                        requireActivity().window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                    }
+                    (it.parent as ViewGroup).removeView(it)
+                }
+                fullscreenView = null
+            }
+
+            override fun onUriChanged(view: WebView, uri: String) {
+                binding.toolbarEditText.setText(uri)
+            }
+        })
+
+        selectedTab.webview.setViewClient(object : ViewClient() {
+            override fun onPageStarted(view: WebView, url: String) {
                 binding.toolbarEditText.setText(url)
             }
-        }
+        })
     }
 
     override fun onStart() {
