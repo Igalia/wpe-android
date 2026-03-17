@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## v0.3.3 (2.50.6) - 2026-03-18
+
+### Changed
+
+- WPE WebKit updated to [version 2.50.6](https://wpewebkit.org/release/wpewebkit-2.50.5.html) (#244).
+- libsoup updated to [version 3.6.6](https://gitlab.gnome.org/GNOME/libsoup/-/tags/3.6.6) (#244).
+
+
 ## v0.3.2 (2.50.5) - 2026-02-13
 
 ### Changed
