@@ -22,6 +22,9 @@
 #include <android/log.h>
 #include <utility>
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define UNUSED_PARAM(variable) (void)(variable)
+
 namespace Logging {
 bool pipeStdoutToLogcat() noexcept;
 

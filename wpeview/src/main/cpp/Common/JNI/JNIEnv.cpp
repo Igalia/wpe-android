@@ -92,7 +92,10 @@ JNIEnv* JNI::getCurrentThreadJNIEnv()
     return env;
 }
 
-void JNI::enableJavaExceptionDescription(bool enable) { globalEnableJavaExceptionDescription = enable; }
+void JNI::enableJavaExceptionDescription(bool enable)
+{
+    globalEnableJavaExceptionDescription = enable;
+}
 
 void JNI::checkJavaException(JNIEnv* env)
 {

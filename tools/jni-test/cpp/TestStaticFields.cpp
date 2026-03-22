@@ -50,7 +50,10 @@ const JNIClassCache& getJNIClassCache()
 }
 } // namespace
 
-void TestStaticFields::checkFieldsAfterModification() { getJNIClassCache().m_checkFieldsAfterModification.invoke(); }
+void TestStaticFields::checkFieldsAfterModification()
+{
+    getJNIClassCache().m_checkFieldsAfterModification.invoke();
+}
 
 void TestStaticFields::executeTests(JNIEnv* env, jclass klass)
 {

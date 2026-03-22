@@ -49,7 +49,10 @@ TestConstructors::TestConstructors(int value)
 {
 }
 
-int TestConstructors::getValue() const { return getJNIClassCache().m_getValue.invoke(m_javaInstance.get()); }
+int TestConstructors::getValue() const
+{
+    return getJNIClassCache().m_getValue.invoke(m_javaInstance.get());
+}
 
 void TestConstructors::executeTests(JNIEnv* env, jclass klass)
 {

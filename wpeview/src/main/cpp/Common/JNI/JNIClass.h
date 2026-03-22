@@ -39,10 +39,19 @@ public:
 
     ProtectedArrayType<jobject> createArray(size_t size, jobject initObj = nullptr) const;
 
-    template <typename... Params> Constructor<jobject(Params...)> getConstructor() const { return {m_javaClassRef}; }
+    template <typename... Params> Constructor<jobject(Params...)> getConstructor() const
+    {
+        return {m_javaClassRef};
+    }
 
-    template <typename T> Field<T> getField(const char* fieldName) const { return {m_javaClassRef, fieldName}; }
-    template <typename T> Method<T> getMethod(const char* methodName) const { return {m_javaClassRef, methodName}; }
+    template <typename T> Field<T> getField(const char* fieldName) const
+    {
+        return {m_javaClassRef, fieldName};
+    }
+    template <typename T> Method<T> getMethod(const char* methodName) const
+    {
+        return {m_javaClassRef, methodName};
+    }
 
     template <typename T> StaticField<T> getStaticField(const char* fieldName) const
     {
@@ -101,7 +110,10 @@ public:
         return createTypedProtectedRef(env, std::move(reinterpret_cast<ArrayType<T>>(objArray)));
     }
 
-    template <typename... Params> Constructor<T(Params...)> getConstructor() const { return {m_javaClassRef}; }
+    template <typename... Params> Constructor<T(Params...)> getConstructor() const
+    {
+        return {m_javaClassRef};
+    }
 };
 
 } // namespace JNI

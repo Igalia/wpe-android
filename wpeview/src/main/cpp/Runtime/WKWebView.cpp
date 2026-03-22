@@ -106,7 +106,10 @@ public:
         handlingFinished();
     }
 
-    void rejectCertificate() noexcept { handlingFinished(); }
+    void rejectCertificate() noexcept
+    {
+        handlingFinished();
+    }
 
 private:
     GWeakRef m_webViewWeakRef = {};
@@ -376,9 +379,15 @@ public:
         return true;
     }
 
-    void onInputMethodContextIn(jobject obj) const noexcept { callJavaMethod(m_onInputMethodContextIn, obj); }
+    void onInputMethodContextIn(jobject obj) const noexcept
+    {
+        callJavaMethod(m_onInputMethodContextIn, obj);
+    }
 
-    void onInputMethodContextOut(jobject obj) const noexcept { callJavaMethod(m_onInputMethodContextOut, obj); }
+    void onInputMethodContextOut(jobject obj) const noexcept
+    {
+        callJavaMethod(m_onInputMethodContextOut, obj);
+    }
 
     static void onEvaluateJavascriptReady(WebKitWebView* webView, GAsyncResult* result, JNIWKCallback callback) noexcept
     {
@@ -836,7 +845,10 @@ void JNIWKWebViewCache::nativeTriggerSslErrorHandler(
  * Native WKWebView class implementation
  **********************************************************************************************************************/
 
-void WKWebView::configureJNIMappings() { getJNIPageCache(); }
+void WKWebView::configureJNIMappings()
+{
+    getJNIPageCache();
+}
 
 WKWebView::WKWebView(JNIEnv* env, JNIWKWebView jniWKWebView, WKWebContext* wkWebContext, int width, int height,
     float deviceScale, bool headless)
