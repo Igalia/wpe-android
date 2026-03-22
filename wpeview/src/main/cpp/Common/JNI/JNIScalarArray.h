@@ -174,8 +174,14 @@ public:
         return (size > 0) ? static_cast<size_t>(size) : 0;
     }
 
-    ConstScalarSpan<T> getReadOnlyContent() const { return getInternalContent<JNI_ABORT>(); }
-    ScalarSpan<T> getContent() { return getInternalContent<JNI_COMMIT>(); }
+    ConstScalarSpan<T> getReadOnlyContent() const
+    {
+        return getInternalContent<JNI_ABORT>();
+    }
+    ScalarSpan<T> getContent()
+    {
+        return getInternalContent<JNI_COMMIT>();
+    }
 
 private:
     ProtectedArrayType<T> m_javaArrayRef;

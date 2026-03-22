@@ -71,7 +71,10 @@ int TestDuplexCalls::addTwo(int value)
     return value + 2;
 }
 
-int TestDuplexCalls::getValue() const { return getJNIClassCache().m_getValue.invoke(m_javaInstance.get()); }
+int TestDuplexCalls::getValue() const
+{
+    return getJNIClassCache().m_getValue.invoke(m_javaInstance.get());
+}
 
 void TestDuplexCalls::callNativeMethodThroughJava(int value)
 {
@@ -79,7 +82,10 @@ void TestDuplexCalls::callNativeMethodThroughJava(int value)
     getJNIClassCache().m_callNativeMethod.invoke(m_javaInstance.get(), value);
 }
 
-void TestDuplexCalls::throwingMethod() const { getJNIClassCache().m_throwingMethod.invoke(m_javaInstance.get()); }
+void TestDuplexCalls::throwingMethod() const
+{
+    getJNIClassCache().m_throwingMethod.invoke(m_javaInstance.get());
+}
 
 void TestDuplexCalls::executeTests(JNIEnv* env, jclass klass)
 {
