@@ -38,6 +38,13 @@ android {
             useLegacyPackaging = true
         }
     }
+
+    splits {
+        abi {
+            enable true
+            include "arm64-v8a", "x86_64"
+        }
+    }
 }
 
 dependencies {
