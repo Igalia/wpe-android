@@ -35,9 +35,10 @@ jobs:
         uses: actions/download-artifact@v4
       - name: Rename APK Files
         run: |
-          mv -f minibrowser-Debug/debug/minibrowser-debug.apk minibrowser-latest.apk
-          mv -f mediaplayer-Debug/debug/mediaplayer-debug.apk mediaplayer-latest.apk
-          mv -f webdriver-Debug/debug/webdriver-debug.apk webdriver-latest.apk
+          for filepath in {minibrowser,mediaplayer,webdriver}-Debug/debug/*-debug.apk; do
+            filename=${filepath##*/}
+            mv -v "$filepath" "${filename%-debug.apk}-latest.apk"
+          done
       - name: Delete Artifacts
         uses: geekyeggo/delete-artifact@v5
         with:
@@ -52,6 +53,6 @@ jobs:
           tag_name: latest-preview
           prerelease: true
           files: |
-            minibrowser-latest.apk
-            mediaplayer-latest.apk
-            webdriver-latest.apk
+            minibrowser-*latest.apk
+            mediaplayer-*latest.apk
+            webdriver-*latest.apk
