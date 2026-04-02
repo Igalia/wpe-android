@@ -86,6 +86,11 @@ If you want to build (and/or modify) the dependencies you can pass the `--build`
 ./tools/scripts/bootstrap.py --build
 ```
 
+To run on the Android emulator, must use x86_64 build:
+```bash
+./tools/scripts/bootstrap.py --build --arch=x86_64
+```
+
 This command will fetch `Cerbero`, the Android NDK and a bunch of dependencies required
 to cross-compile WPE Android dependencies. The process takes a significant amount of time.
 
@@ -133,7 +138,7 @@ This will generate APKs in directory `tools/webdriver/build/outputs/apk/debug`
 
 To install APK in device or emulator,
 ```bash
-adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-debug.apk
+adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-x86_64-debug.apk
 ```
 
 ### 3. Using the emulator
