@@ -67,6 +67,7 @@ public final class WKRuntime {
     public @Nullable Context getApplicationContext() { return applicationContext; }
 
     private LooperHelperThread looperHelperThread = null;
+    private WPEPowerMonitor powerMonitor = null;
 
     public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
         WKRuntime.inspectorPort = inspectorPort;
@@ -111,12 +112,20 @@ public final class WKRuntime {
             setupNativeEnvironment(envStrings.toArray(new String[envStrings.size()]));
             nativeInit();
             looperHelperThread = new LooperHelperThread();
+
+            // Start power monitor for battery saver and thermal state tracking
+            powerMonitor = new WPEPowerMonitor(applicationContext);
+            powerMonitor.start();
         }
     }
 
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
+        if (powerMonitor != null) {
+            powerMonitor.stop();
+            powerMonitor = null;
+        }
         nativeShut();
     }
 
