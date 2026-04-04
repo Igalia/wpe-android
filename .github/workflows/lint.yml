@@ -26,3 +26,8 @@ jobs:
             packages: "tools platform-tools cmake;3.31.1"
         - name: Lint checks
           run: ./gradlew lint${{ inputs.build_type }}
+        - name: Upload SARIF Reports
+          uses: github/codeql-action/upload-sarif@v3
+          with:
+            sarif_file: build/sarif-reports/
+            category: android-lint${{ inputs.build_type }}
