@@ -115,9 +115,17 @@ WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window
     return WPE_TOPLEVEL(toplevel);
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow* window)
 {
     g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+
+    if (toplevel->window == window && window) {
+        int physicalWidth = ANativeWindow_getWidth(window);
+        int physicalHeight = ANativeWindow_getHeight(window);
+        wpeToplevelAndroidSyncScaleAndSize(toplevel, physicalWidth, physicalHeight);
+        return;
+    }
 
     if (window)
         ANativeWindow_acquire(window);
@@ -135,11 +143,10 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
         ASurfaceControl* newRoot = ASurfaceControl_createFromWindow(window, "WPEToplevelRoot");
 
         if (newRoot) {
-            if (!toplevel->surfaceControl) {
+            if (!toplevel->surfaceControl)
                 toplevel->surfaceControl = ASurfaceControl_create(newRoot, "WPEWebLayer");
-            } else {
+            else
                 ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, newRoot);
-            }
             if (toplevel->surfaceControl) {
                 ASurfaceTransaction_setVisibility(
                     transaction, toplevel->surfaceControl, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
