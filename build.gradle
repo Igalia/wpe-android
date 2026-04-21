@@ -43,11 +43,11 @@ def installGitHook = tasks.register("installGitHook") {
     }
 }
 
-gradle.afterProject { project ->
-    project.tasks.all { task ->
+allprojects {
+    tasks.configureEach { task ->
         def lowerName = task.name.toLowerCase()
         if ((task.group != "help") &&
-            (lowerName.indexOf("clean") < 0) &&
+            !lowerName.contains("clean") &&
             (lowerName != "wrapper") &&
             (lowerName != "installqatools") &&
             (lowerName != "installgithook")) {
