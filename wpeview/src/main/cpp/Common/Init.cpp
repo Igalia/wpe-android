@@ -56,15 +56,26 @@ static void initializeWKVersions()
 }
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIActivity, "android/app/Activity");
+DECLARE_JNI_CLASS_SIGNATURE(JNIContext, "android/content/Context");
 
 // TODO NOLINTNEXTLINE(readability-identifier-naming)
 static jobject s_currentActivity {nullptr};
+
+// TODO NOLINTNEXTLINE(readability-identifier-naming)
+static jobject s_applicationContext {nullptr};
 
 // TODO NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" __attribute__((visibility("default"))) jobject wpe_android_runtime_get_current_activity()
 {
     Logging::logDebug("wpe_android_runtime_get_current_activity -> %p", s_currentActivity);
     return s_currentActivity;
+}
+
+// TODO NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" __attribute__((visibility("default"))) jobject wpe_android_runtime_get_application_context()
+{
+    Logging::logDebug("wpe_android_runtime_get_application_context -> %p", s_applicationContext);
+    return s_applicationContext;
 }
 
 static void initializeWKActivityObserver()
@@ -75,21 +86,41 @@ static void initializeWKActivityObserver()
         return;
     }
 
-    klass.registerNativeMethods(JNI::StaticNativeMethod<void(JNIActivity)>(
-                                    "handleActivityStarted",
-                                    +[](JNIEnv*, jclass, JNIActivity activity) {
-                                        Logging::logDebug(
-                                            "WKActivityObserver::handleActivityStarted(%p) current=%p [tid %d]",
-                                            activity, s_currentActivity, gettid());
-                                        s_currentActivity = activity;
-                                    }),
+    klass.registerNativeMethods(
         JNI::StaticNativeMethod<void(JNIActivity)>(
-            "handleActivityStopped", +[](JNIEnv*, jclass, JNIActivity activity) {
+            "handleActivityStarted",
+            +[](JNIEnv* env, jclass, JNIActivity activity) {
+                Logging::logDebug("WKActivityObserver::handleActivityStarted(%p) current=%p [tid %d]", activity,
+                    s_currentActivity, gettid());
+                if (s_currentActivity != nullptr)
+                    env->DeleteGlobalRef(s_currentActivity);
+                s_currentActivity = activity ? static_cast<jobject>(env->NewGlobalRef(activity)) : nullptr;
+            }),
+        JNI::StaticNativeMethod<void(JNIActivity)>(
+            "handleActivityStopped", +[](JNIEnv* env, jclass, JNIActivity activity) {
                 Logging::logDebug("WKActivityObserver::handleActivityStopped(%p) current=%p [tid %d]", activity,
                     s_currentActivity, gettid());
-                if (s_currentActivity == activity)
-                    s_currentActivity = nullptr;
+                if (s_currentActivity != nullptr)
+                    env->DeleteGlobalRef(s_currentActivity);
+                s_currentActivity = nullptr;
             }));
+}
+
+static void initializeWKRuntime()
+{
+    auto klass = JNI::Class("org/wpewebkit/wpe/WKRuntime");
+    if (!klass) {
+        Logging::logDebug("Init::initializeWKRuntime: No runtime class, skipping.");
+        return;
+    }
+
+    klass.registerNativeMethods(JNI::StaticNativeMethod<void(JNIContext)>(
+        "setApplicationContext", +[](JNIEnv* env, jclass, JNIContext context) {
+            Logging::logDebug("WKRuntime::setApplicationContext(%p) [tid %d]", context, gettid());
+            if (s_applicationContext != nullptr)
+                env->DeleteGlobalRef(s_applicationContext);
+            s_applicationContext = context ? static_cast<jobject>(env->NewGlobalRef(context)) : nullptr;
+        }));
 }
 
 JNIEnv* Init::initialize(JavaVM* javaVM)
@@ -97,5 +128,6 @@ JNIEnv* Init::initialize(JavaVM* javaVM)
     auto* env = JNI::initVM(javaVM);
     initializeWKVersions();
     initializeWKActivityObserver();
+    initializeWKRuntime();
     return env;
 }
