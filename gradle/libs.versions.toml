@@ -29,6 +29,8 @@ androidx-navigation-fragment-ktx = "2.8.5"
 androidx-navigation-ui-ktx = "2.8.5"
 androidx-preference-ktx = "1.2.1"
 
+openxrLoader = "1.1.48"
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
@@ -52,3 +54,4 @@ androidx-fragment-ktx = { group = "androidx.fragment", name = "fragment-ktx", ve
 androidx-navigation-fragment-ktx = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "androidx-navigation-fragment-ktx" }
 androidx-navigation-ui-ktx = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "androidx-navigation-ui-ktx" }
 androidx-preference-ktx = { group = "androidx.preference", name = "preference-ktx", version.ref = "androidx-preference-ktx" }
+openxr-loader = { module = "org.khronos.openxr:openxr_loader_for_android", version.ref = "openxrLoader" }

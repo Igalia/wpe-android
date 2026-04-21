@@ -100,7 +100,8 @@ class Bootstrap:
         "libgobject-2.0.so",
         "libwpe-1.0.so",
         "libWPEBackend-android.so",
-        "libWPEWebKit-2.0.so"
+        "libWPEWebKit-2.0.so",
+        "libopenxr_loader.so"
     ]
     _build_includes = [
         ("glib-2.0", "glib-2.0"),
