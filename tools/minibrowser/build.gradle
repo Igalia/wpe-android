@@ -25,6 +25,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        prefab true
     }
 
     java {
@@ -57,6 +58,7 @@ dependencies {
     implementation libs.androidx.navigation.fragment.ktx
     implementation libs.androidx.navigation.ui.ktx
     implementation libs.androidx.preference.ktx
+    runtimeOnly libs.openxr.loader
 
     modules {
         module("org.jetbrains.kotlin:kotlin-stdlib-jdk7") {
