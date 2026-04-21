@@ -42,6 +42,23 @@ android {
             path file("src/main/cpp/CMakeLists.txt")
         }
     }
+
+    def abiList = []
+    for (abi in ["x86_64", "arm64-v8a"]) {
+        if (file("src/main/jniLibs/$abi").isDirectory())
+            abiList.add(abi)
+    }
+
+    if (abiList.isEmpty()) {
+        logger.warn("Cannot find ABI dependencies. Please call ./tools/scripts/bootstrap.py before build")
+    } else {
+        logger.info("Detected ABI: $abiList")
+        defaultConfig {
+            ndk {
+                abiFilters.addAll(abiList)
+            }
+        }
+    }
 }
 
 dependencies {
@@ -90,21 +107,3 @@ mavenPublishing {
     signAllPublications()
 }
 
-gradle.afterProject { project ->
-    if (project == getProject()) {
-        def abiList = []
-        for (abi in ["x86_64", "arm64-v8a"]) {
-            if (file("src/main/jniLibs/$abi").isDirectory())
-                abiList.add(abi)
-        }
-        project.android.defaultConfig.ndk.abiFilters = abiList
-
-        if (abiList.isEmpty()) {
-            println("Cannot find ABI dependencies")
-            println("Please call ./tools/scripts/bootstrap.py before build")
-        } else {
-            println("Detected ABI: $abiList")
-            println("Use ./tools/scripts/bootstrap.py to install dependencies for more ABIs")
-        }
-    }
-}
