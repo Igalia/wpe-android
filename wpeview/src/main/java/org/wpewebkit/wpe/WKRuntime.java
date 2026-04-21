@@ -50,6 +50,7 @@ public final class WKRuntime {
 
     protected static native void startNativeLooper();
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
+    private static native void setApplicationContext(Context context);
     private native void nativeInit();
     private native void nativeShut();
 
@@ -76,6 +77,7 @@ public final class WKRuntime {
     public void initialize(@NonNull Context context) {
         if (applicationContext == null) {
             applicationContext = context.getApplicationContext();
+            setApplicationContext(applicationContext);
 
             final String assetsVersion = WKVersions.versionedAssets("ui_process");
             if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
