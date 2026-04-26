@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:context="org.wpewebkit.tools.mediaplayer.MainActivity">
 
-    <org.wpewebkit.wpeview.WPEView
+    <org.wpewebkit.wpeview.WebView
         android:id="@+id/wpe_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
