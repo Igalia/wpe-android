@@ -24,10 +24,12 @@ import android.app.Application;
 import android.os.Bundle;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 public class WPEApplication extends Application {
     static final String LOGTAG = "WPEApplication";
 
-    private enum ProcessKind {
+    public enum ProcessKind {
         MAIN {
             @Override
             public String[] getLibraryNames() {
@@ -53,6 +55,7 @@ public class WPEApplication extends Application {
             }
         };
 
+        @NonNull
         abstract public String[] getLibraryNames();
     }
 

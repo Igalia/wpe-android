@@ -1,6 +1,5 @@
 /**
- * Copyright (C) 2022 Igalia S.L. <info@igalia.com>
- *   Author: Jani Hautakangas <jani@igalia.com>
+ * Copyright (C) 2026 Igalia S.L.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,25 +18,17 @@
 
 package org.wpewebkit.tools.minibrowser
 
-import org.wpewebkit.wpeview.WebView
+import org.wpewebkit.WPEApplication
+import org.wpewebkit.WPEApplication.ProcessKind
 import org.wpewebkit.wpeview.WebContext as BrowserContext
-import java.util.UUID
 
-data class Tab(
-    val id: String,
-    val webview: WebView
-) {
-    companion object {
-        fun newTab(
-            browserContext: BrowserContext,
-            url: String
-        ) : Tab {
-            return Tab(
-                UUID.randomUUID().toString(),
-                WebView(browserContext).apply {
-                    loadUrl(url)
-                }
-            )
+class MiniBrowserApplication : WPEApplication() {
+    lateinit var browserContext: BrowserContext
+
+    override fun onCreate() {
+        super.onCreate()
+        if (processKind == ProcessKind.MAIN) {
+            browserContext = BrowserContext(this)
         }
     }
 }
