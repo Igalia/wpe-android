@@ -17,8 +17,8 @@
  */
 
 #include "JNI/JNI.h"
-#include "Logging.h"
-
+#include <algorithm>
+#include <cmath>
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWPEScreen, "org/wpewebkit/wpe/WPEScreen");
@@ -31,7 +31,9 @@ public:
         : JNI::TypedClass<JNIWPEScreen>(true)
     {
         registerNativeMethods(JNI::NativeMethod<jfloat(jlong)>("nativeGetScale", nativeGetScale),
-            JNI::NativeMethod<void(jlong, jfloat)>("nativeSetScale", nativeSetScale));
+            JNI::NativeMethod<void(jlong, jfloat)>("nativeSetScale", nativeSetScale),
+            JNI::NativeMethod<jfloat(jlong)>("nativeGetRefreshRateHz", nativeGetRefreshRateHz),
+            JNI::NativeMethod<void(jlong, jfloat)>("nativeSetRefreshRateHz", nativeSetRefreshRateHz));
     }
 
 private:
@@ -43,6 +45,17 @@ private:
     static void nativeSetScale(JNIEnv*, jobject, jlong nativePtr, jfloat scale)
     {
         wpe_screen_set_scale(JNI::from_jlong<WPEScreen>(nativePtr), scale);
+    }
+
+    static jfloat nativeGetRefreshRateHz(JNIEnv*, jobject, jlong nativePtr)
+    {
+        return static_cast<jfloat>(wpe_screen_get_refresh_rate(JNI::from_jlong<WPEScreen>(nativePtr)) / 1000.0);
+    }
+
+    static void nativeSetRefreshRateHz(JNIEnv*, jobject, jlong nativePtr, jfloat refreshRateHz)
+    {
+        auto refreshRateMilliHz = static_cast<guint32>(std::lround(std::max(refreshRateHz, 0.0F) * 1000.0F));
+        wpe_screen_set_refresh_rate(JNI::from_jlong<WPEScreen>(nativePtr), refreshRateMilliHz);
     }
 };
 

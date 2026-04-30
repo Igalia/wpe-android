@@ -18,7 +18,9 @@
 
 package org.wpewebkit.wpeview;
 
+import android.hardware.display.DisplayManager;
 import android.util.DisplayMetrics;
+import android.view.Display;
 
 import androidx.annotation.NonNull;
 
@@ -58,8 +60,7 @@ public class WebContext {
 
         this.display = new WPEDisplay();
         this.screen = display.getScreen();
-        DisplayMetrics displayMetrics = appContext.getResources().getDisplayMetrics();
-        this.screen.setScale(displayMetrics.density);
+        updateScreenConfiguration();
         this.webContext = new WebKitWebContext(automationMode);
 
         this.networkSession = new WebKitNetworkSession(webContext, automationMode, ephemeralSession,
@@ -126,5 +127,18 @@ public class WebContext {
     @NonNull
     WebKitSettings getWebKitSettings() {
         return settings;
+    }
+
+    private void updateScreenConfiguration() {
+        DisplayMetrics displayMetrics = appContext.getResources().getDisplayMetrics();
+        screen.setScale(displayMetrics.density);
+
+        DisplayManager displayManager = appContext.getSystemService(DisplayManager.class);
+        Display display = displayManager != null ? displayManager.getDisplay(Display.DEFAULT_DISPLAY) : null;
+        if (display == null)
+            return;
+
+        float refreshRateHz = display.getRefreshRate();
+        screen.setRefreshRateHz(refreshRateHz);
     }
 }
