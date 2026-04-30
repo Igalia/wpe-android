@@ -33,8 +33,14 @@ public final class WPEScreen {
 
     public void setScale(float scale) { nativeSetScale(mNativePtr, scale); }
 
+    public float getRefreshRateHz() { return nativeGetRefreshRateHz(mNativePtr); }
+
+    public void setRefreshRateHz(float refreshRateHz) { nativeSetRefreshRateHz(mNativePtr, refreshRateHz); }
+
     void invalidate() { mNativePtr = 0; }
 
     private native float nativeGetScale(long nativePtr);
     private native void nativeSetScale(long nativePtr, float scale);
+    private native float nativeGetRefreshRateHz(long nativePtr);
+    private native void nativeSetRefreshRateHz(long nativePtr, float refreshRateHz);
 }
