@@ -7,22 +7,27 @@
 
 [WPE WebKit](https://wpewebkit.org/) port for Android.
 
-## WPEView API
+## Android WebView API
 
-WPEView wraps the WPE WebKit browser engine in a reusable Android library.
-WPEView serves a similar purpose to Android's built-in WebView and tries to mimick
-its API aiming to be an easy to use drop-in replacement with extended functionality.
+`org.wpewebkit.wpeview.WebView` wraps the WPE WebKit browser engine in a reusable
+Android library. It serves a similar purpose to Android's built-in WebView and
+uses a familiar widget, settings, client, and cookie-management API.
 
-Setting up WPEView in your Android application is fairly simple.
+The older `org.wpewebkit.wpeview.WPEView` API is still present for
+compatibility, but new application code should use `WebView`. See
+[Android API Architecture](docs/architecture.md) for the current API layers,
+ownership rules, and where to add new code.
+
+Setting up `WebView` in your Android application is fairly simple.
 
 (TODO: package, distribute and document installation)
 
-First, add the `WPEView` widget to your
+First, add the `WebView` widget to your
 [Activity layout](https://developer.android.com/training/basics/firstapp/building-ui):
 
 ```xml
-<org.wpewebkit.wpeview.WPEView
-        android:id="@+id/wpe_view"
+<org.wpewebkit.wpeview.WebView
+        android:id="@+id/web_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         tools:context=".MainActivity"/>
@@ -35,7 +40,7 @@ override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContentView(R.layout.activity_main)
 
-    val browser = findViewById(R.id.wpe_view)
+    val browser = findViewById(R.id.web_view)
     browser?.loadUrl(INITIAL_URL)
 }
 ```
@@ -43,7 +48,7 @@ override fun onCreate(savedInstanceState: Bundle?) {
 Note that applications that want to subclass `android.app.Application`
 *must* use `org.wpewebkit.WPEApplication` as their base class instead.
 
-To see WPEView in action check the [tools](tools) folder.
+To see WPE Android in action check the [tools](tools) folder.
 
 ## Setting up your environment
 
