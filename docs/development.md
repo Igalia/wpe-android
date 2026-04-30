@@ -14,7 +14,7 @@ Once your modifications are ready, execute the following command from the root o
 ```
 
 You can use the same command with any recipe, just add `--recipe <recipe name>` at the
-end of the commane line.
+end of the command line.
 
 ## Making sense of logcat stack traces
 
@@ -65,7 +65,7 @@ To turn this output into something more readable you need to make use of the `nd
 we need with Cerbero. Run this command from the WPE Android root path:
 
 ```ssh
-adb logcat | cerbero/build/android-ndk-23/ndk-stack -sym wpe/src/main/cpp/imported/lib/arm64-v8a
+adb logcat | cerbero/build/android-ndk-23/ndk-stack -sym wpeview/src/main/cpp/imported/lib/arm64-v8a
 ```
 
 You should see something like:
@@ -125,58 +125,40 @@ adb logcat -v time | egrep -i '(wpe|WPE|webkit|WebKit|WEBKIT)' | logcat-colorize
 To find the internal name of Java classes run this command from the root path:
 
 ```ssh
-javap -p -s wpe/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/<.class file>
+javap -p -s wpeview/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/<.class file>
 ```
 
 replacing `<.class file>` with the name of the `.class` file containing the method you want to call. For example:
 
 ```ssh
-javap -p -s wpe/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/Page.class
+javap -p -s wpeview/build/intermediates/javac/debug/classes/org/wpewebkit/wpe/WebKitWebView.class
 ```
 
 This gives an output like:
 
 ```
-Compiled from "Page.java"
-public class org.wpewebkit.wpe.Page {
-  private final java.lang.String LOGTAG;
-    descriptor: Ljava/lang/String;
-  private final org.wpewebkit.wpe.BrowserGlue glue;
-    descriptor: Lorg/wpewebkit/wpe/BrowserGlue;
-  private final org.wpewebkit.wpe.gfx.WPESurfaceView view;
-    descriptor: Lorg/wpewebkit/wpe/gfx/View;
-  private final android.content.Context context;
-    descriptor: Landroid/content/Context;
-  private final java.util.ArrayList<org.wpewebkit.wpe.services.WPEServiceConnection> services;
-    descriptor: Ljava/util/ArrayList;
-  private long webViewRef;
+Compiled from "WebKitWebView.java"
+public final class org.wpewebkit.wpe.WebKitWebView {
+  private long mNativePtr;
     descriptor: J
-  public org.wpewebkit.wpe.Page(android.content.Context, java.lang.String, org.wpewebkit.wpe.gfx.WPESurfaceView, org.wpewebkit.wpe.BrowserGlue);
-    descriptor: (Landroid/content/Context;Ljava/lang/String;Lorg/wpewebkit/wpe/gfx/View;Lorg/wpewebkit/wpe/BrowserGlue;)V
-
-  public void close();
-    descriptor: ()V
-
-  protected void finalize() throws java.lang.Throwable;
-    descriptor: ()V
-
-  public void onReady(long);
+  public org.wpewebkit.wpe.WebKitWebView(org.wpewebkit.wpe.WPEDisplay, org.wpewebkit.wpe.WebKitWebContext, org.wpewebkit.wpe.WPEToplevel, org.wpewebkit.wpe.WebKitNetworkSession, org.wpewebkit.wpe.WebKitSettings);
+    descriptor: (Lorg/wpewebkit/wpe/WPEDisplay;Lorg/wpewebkit/wpe/WebKitWebContext;Lorg/wpewebkit/wpe/WPEToplevel;Lorg/wpewebkit/wpe/WebKitNetworkSession;Lorg/wpewebkit/wpe/WebKitSettings;)V
+  private native long nativeInit(long, long, long, long, long);
+    descriptor: (JJJJJ)J
+  private native void nativeDestroy(long);
     descriptor: (J)V
-
-  public void launchService(int, android.os.Parcelable[], java.lang.Class);
-    descriptor: (I[Landroid/os/Parcelable;Ljava/lang/Class;)V
-
-  public void dropService(org.wpewebkit.wpe.services.WPEServiceConnection);
-    descriptor: (Lorg/wpewebkit/wpe/services/WPEServiceConnection;)V
-
-  public org.wpewebkit.wpe.gfx.WPESurfaceView view();
-    descriptor: ()Lorg/wpewebkit/wpe/gfx/View;
-
-  public void loadUrl(java.lang.String);
-    descriptor: (Ljava/lang/String;)V
+  private native void nativeLoadUrl(long, java.lang.String);
+    descriptor: (JLjava/lang/String;)V
+  private native void nativeEvaluateJavascript(long, java.lang.String, org.wpewebkit.wpe.WebKitWebView$EvalCallbackHolder);
+    descriptor: (JLjava/lang/String;Lorg/wpewebkit/wpe/WebKitWebView$EvalCallbackHolder;)V
+}
 ```
 
-where the different `descriptor` values contain the strings you are looking for.
+The exact method set depends on the class you inspect. The useful parts are the
+JNI class path and each `descriptor` string. Current low-level proxy classes live
+in `org.wpewebkit.wpe`, with matching native bridge files under
+`wpeview/src/main/cpp/capi/`. Older examples that refer to `BrowserGlue`,
+`Page`, or `org.wpewebkit.wpe.gfx.View` describe the pre-refactor API path.
 
 ## Debugging Java and native code from WPEWebProcess and/or WPENetworkProcess
 
@@ -185,8 +167,8 @@ The procedure is for the [Android Studio](https://developer.android.com/studio) 
 1- Uncomment the `android.os.Debug.waitForDebugger();` instruction in the `loadNativeLibraries()` method of the
 corresponding service Java code. That is to say:
 
-- wpe/src/main/java/org/wpewebkit/wpe/services/WebProcessService, or
-- wpe/src/main/java/org/wpewebkit/wpe/services/NetworkProcessService
+- wpeview/src/main/java/org/wpewebkit/wpe/services/WebProcessService, or
+- wpeview/src/main/java/org/wpewebkit/wpe/services/NetworkProcessService
 
 This instruction will wait for the Android debugger when the service native code is loaded at the moment the
 corresponding process is attached to the JVM.
