@@ -19,51 +19,151 @@
 #include "WPEViewAndroid.h"
 
 #include "Logging.h"
+#include "ScopedFD.h"
 #include "WPEToplevelAndroid.h"
 
+#include <android/native_window.h>
 #include <android/surface_control.h>
+#include <memory>
 
 struct _WPEViewAndroid {
     WPEView parent;
+    WPEBuffer* frontBuffer;
+    ASurfaceControl* frameRateSurfaceControl;
+    WPEScreen* screen;
+    gulong screenRefreshRateChangedID;
+    bool frameRateDirty;
 };
 
 G_DEFINE_FINAL_TYPE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
 
 namespace {
 
-struct BufferCallbackData {
+struct BufferRenderedCallbackData {
     WPEView* view;
     WPEBuffer* buffer;
-    void (*notify)(WPEView*, WPEBuffer*);
 
-    BufferCallbackData(WPEView* view, WPEBuffer* buffer, void (*notify)(WPEView*, WPEBuffer*))
+    BufferRenderedCallbackData(WPEView* view, WPEBuffer* buffer)
         : view(static_cast<WPEView*>(g_object_ref(view)))
         , buffer(static_cast<WPEBuffer*>(g_object_ref(buffer)))
-        , notify(notify)
     {
     }
 
-    ~BufferCallbackData()
+    ~BufferRenderedCallbackData()
     {
         g_object_unref(view);
         g_object_unref(buffer);
     }
 };
 
-static void wpeViewAndroidOnTransactionCallback(void* context, ASurfaceTransactionStats* stats)
+struct BufferReleasedCallbackData {
+    WPEView* view;
+    WPEBuffer* buffer;
+    ASurfaceControl* surfaceControl;
+    std::unique_ptr<ScopedFD> releaseFence;
+
+    BufferReleasedCallbackData(WPEView* view, WPEBuffer* buffer, ASurfaceControl* surfaceControl)
+        : view(static_cast<WPEView*>(g_object_ref(view)))
+        , buffer(static_cast<WPEBuffer*>(g_object_ref(buffer)))
+        , surfaceControl(surfaceControl)
+    {
+    }
+
+    ~BufferReleasedCallbackData()
+    {
+        g_object_unref(view);
+        g_object_unref(buffer);
+    }
+};
+
+static void wpeViewAndroidOnTransactionCommitted(void* context, ASurfaceTransactionStats* stats)
 {
     UNUSED_PARAM(stats);
     g_main_context_invoke_full(
         nullptr, G_PRIORITY_DEFAULT,
         +[](gpointer userData) -> gboolean {
-            auto* data = static_cast<BufferCallbackData*>(userData);
-            data->notify(data->view, data->buffer);
+            auto* data = static_cast<BufferRenderedCallbackData*>(userData);
+            wpe_view_buffer_rendered(data->view, data->buffer);
             return G_SOURCE_REMOVE;
         },
-        context, +[](gpointer userData) { delete static_cast<BufferCallbackData*>(userData); });
+        context, +[](gpointer userData) { delete static_cast<BufferRenderedCallbackData*>(userData); });
+}
+
+static void wpeViewAndroidOnTransactionCompleted(void* context, ASurfaceTransactionStats* stats)
+{
+    auto* data = static_cast<BufferReleasedCallbackData*>(context);
+    int releaseFenceFD = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, data->surfaceControl);
+    if (releaseFenceFD != -1)
+        data->releaseFence = std::make_unique<ScopedFD>(releaseFenceFD);
+
+    g_main_context_invoke_full(
+        nullptr, G_PRIORITY_DEFAULT,
+        +[](gpointer userData) -> gboolean {
+            auto* data = static_cast<BufferReleasedCallbackData*>(userData);
+            if (data->releaseFence)
+                wpe_buffer_set_release_fence(data->buffer, data->releaseFence->release());
+            wpe_view_buffer_released(data->view, data->buffer);
+            return G_SOURCE_REMOVE;
+        },
+        context, +[](gpointer userData) { delete static_cast<BufferReleasedCallbackData*>(userData); });
 }
 
 } // namespace
+
+static void wpeViewAndroidDispose(GObject* object)
+{
+    auto* view = WPE_VIEW_ANDROID(object);
+    if (view->screenRefreshRateChangedID) {
+        g_signal_handler_disconnect(view->screen, view->screenRefreshRateChangedID);
+        view->screenRefreshRateChangedID = 0;
+        view->screen = nullptr;
+    }
+    g_clear_object(&view->frontBuffer);
+    G_OBJECT_CLASS(wpe_view_android_parent_class)->dispose(object);
+}
+
+static void wpeViewAndroidRefreshRateChanged(WPEViewAndroid* view)
+{
+    view->frameRateDirty = true;
+}
+
+static void wpeViewAndroidEnsureScreenObserver(WPEViewAndroid* view, WPEScreen* screen)
+{
+    if (view->screen == screen)
+        return;
+
+    if (view->screenRefreshRateChangedID) {
+        g_signal_handler_disconnect(view->screen, view->screenRefreshRateChangedID);
+        view->screenRefreshRateChangedID = 0;
+    }
+
+    view->screen = screen;
+    view->frameRateDirty = true;
+
+    if (screen) {
+        view->screenRefreshRateChangedID = g_signal_connect_swapped(
+            screen, "notify::refresh-rate", G_CALLBACK(wpeViewAndroidRefreshRateChanged), view);
+    }
+}
+
+static void wpeViewAndroidUpdateFrameRate(
+    WPEViewAndroid* view, ASurfaceTransaction* transaction, ASurfaceControl* surfaceControl, WPEScreen* screen)
+{
+    if (!screen)
+        return;
+
+    if (view->frameRateSurfaceControl == surfaceControl && !view->frameRateDirty)
+        return;
+
+    float refreshRateHz = wpe_screen_get_refresh_rate(screen) / 1000.0F;
+    if (refreshRateHz <= 0.0F)
+        return;
+
+    ASurfaceTransaction_setFrameRate(
+        transaction, surfaceControl, refreshRateHz, ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT);
+    view->frameRateSurfaceControl = surfaceControl;
+    view->frameRateDirty = false;
+}
 
 static gboolean wpeViewAndroidRenderBuffer(
     WPEView* view, WPEBuffer* buffer, const WPERectangle* damage, guint nDamageRects, GError**)
@@ -80,16 +180,27 @@ static gboolean wpeViewAndroidRenderBuffer(
     auto* bufferAndroid = WPE_BUFFER_ANDROID(buffer);
     AHardwareBuffer* hardwareBuffer = wpe_buffer_android_get_hardware_buffer(bufferAndroid);
     int fenceFD = wpe_buffer_take_rendering_fence(buffer);
+    auto* viewAndroid = WPE_VIEW_ANDROID(view);
+    WPEBuffer* previousFrontBuffer
+        = viewAndroid->frontBuffer ? WPE_BUFFER(g_object_ref(viewAndroid->frontBuffer)) : nullptr;
+    g_set_object(&viewAndroid->frontBuffer, buffer);
+    WPEScreen* screen = wpe_view_get_screen(view);
+    wpeViewAndroidEnsureScreenObserver(viewAndroid, screen);
 
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
     ASurfaceTransaction_setBuffer(transaction, surfaceControl, hardwareBuffer, fenceFD);
     ASurfaceTransaction_setVisibility(transaction, surfaceControl, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
+    wpeViewAndroidUpdateFrameRate(viewAndroid, transaction, surfaceControl, screen);
 
-    ASurfaceTransaction_setOnCommit(transaction, new BufferCallbackData {view, buffer, wpe_view_buffer_rendered},
-        wpeViewAndroidOnTransactionCallback);
+    ASurfaceTransaction_setOnCommit(
+        transaction, new BufferRenderedCallbackData {view, buffer}, wpeViewAndroidOnTransactionCommitted);
 
-    ASurfaceTransaction_setOnComplete(transaction, new BufferCallbackData {view, buffer, wpe_view_buffer_released},
-        wpeViewAndroidOnTransactionCallback);
+    if (previousFrontBuffer) {
+        ASurfaceTransaction_setOnComplete(transaction,
+            new BufferReleasedCallbackData {view, previousFrontBuffer, surfaceControl},
+            wpeViewAndroidOnTransactionCompleted);
+        g_object_unref(previousFrontBuffer);
+    }
 
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
@@ -105,6 +216,9 @@ static gboolean wpeViewAndroidCanBeMapped(WPEView* view)
 
 static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
 {
+    GObjectClass* objectClass = G_OBJECT_CLASS(klass);
+    objectClass->dispose = wpeViewAndroidDispose;
+
     WPEViewClass* viewClass = WPE_VIEW_CLASS(klass);
     viewClass->render_buffer = wpeViewAndroidRenderBuffer;
     viewClass->can_be_mapped = wpeViewAndroidCanBeMapped;
