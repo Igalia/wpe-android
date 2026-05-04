@@ -147,10 +147,15 @@ class Bootstrap:
 
     def _cerbero_env(self):
         env = os.environ.copy()
-        env.pop("RUSTUP_HOME", None)
-        env.pop("CARGO_HOME", None)
-        env.pop("C_INCLUDE_PATH", None)
-        env.pop("CPLUS_INCLUDE_PATH", None)
+        # Strip variables that leak host-side build paths into cerbero's cross-compile and host-tool builds.
+        for var in ("RUSTUP_HOME", "CARGO_HOME",
+                    "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH",
+                    "LIBRARY_PATH", "LD_LIBRARY_PATH",
+                    "PKG_CONFIG_PATH", "LDFLAGS",
+                    "CMAKE_PREFIX_PATH", "ACLOCAL_PATH",
+                    "GI_TYPELIB_PATH", "GST_PLUGIN_PATH_1_0",
+                    "XDG_DATA_DIRS", "MANPATH", "LD_RUN_PATH"):
+            env.pop(var, None)
         return env
 
     def _get_package_version(self, package_name):
@@ -241,10 +246,46 @@ class Bootstrap:
             raise Exception("Illegal configuration: build mode is not specified")
 
         if os.path.isdir(self._cerbero_root_dir):
-            print("Updating Cerbero git repository...")
-            subprocess.check_call(
-                ["git", "reset", "--hard", f"origin/{self._cerbero_branch}"], cwd=self._cerbero_root_dir)
-            subprocess.check_call(["git", "pull", "origin", self._cerbero_branch], cwd=self._cerbero_root_dir)
+            # Refuse to discard local commits, uncommitted changes, or untracked files in build/cerbero
+            # when running the `git reset --hard` on a tree with downstream patches. If the tree is clean
+            # the behaviour does not change.
+            local_branch = None
+            remote_branch = None
+            local_is_ahead = False
+            checkout_is_dirty = False
+
+            status = subprocess.check_output(
+                ["git", "status", "--porcelain=2", "--branch"],
+                cwd=self._cerbero_root_dir, encoding="utf-8")
+
+            for line in status.splitlines():
+                if line.startswith("# branch.head "):
+                    local_branch = line.split()[2]
+                elif line.startswith("# branch.upstream "):
+                    remote_branch = line.split()[2]
+                elif line.startswith("# branch.ab "):
+                    local_is_ahead = int(line.split()[2]) > 0
+                elif line.startswith(("1 ", "2 ", "? ", "u ")):
+                    # 1 = tracked changes, 2 = renames/copies,
+                    # ? = untracked, u = unmerged. Any of these means
+                    # there is downstream work that must not be wiped.
+                    checkout_is_dirty = True
+                    break
+
+            if local_branch is None:
+                raise RuntimeError("Cannot obtain current Git branch status for cerbero tree")
+
+            if remote_branch is None or local_is_ahead or checkout_is_dirty:
+                print(f"Cerbero repo at {self._cerbero_root_dir} has local "
+                      f"commits, uncommitted changes, or untracked files; "
+                      f"skipping auto-update. Resolve manually before "
+                      f"re-running --build, or run with --cerbero <path> "
+                      f"to skip the auto-update path.")
+            else:
+                print("Updating Cerbero git repository...")
+                subprocess.check_call(
+                    ["git", "reset", "--hard", f"origin/{self._cerbero_branch}"], cwd=self._cerbero_root_dir)
+                subprocess.check_call(["git", "pull", "origin", self._cerbero_branch], cwd=self._cerbero_root_dir)
         else:
             print("Cloning Cerbero git repository...")
             os.makedirs(self._project_build_dir, exist_ok=True)
