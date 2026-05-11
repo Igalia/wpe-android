@@ -28,6 +28,7 @@ import androidx.annotation.Nullable;
 public final class WebKitWebView {
     private long mNativePtr = 0;
     private final WPEView wpeView;
+    private final WPEInputMethodContext inputMethodContext;
     private final WebKitSettings settings;
     private final WebKitNetworkSession networkSession;
 
@@ -43,9 +44,12 @@ public final class WebKitWebView {
             display.getNativePtr(), context.getWebKitWebContextPtr(), toplevel != null ? toplevel.getNativePtr() : 0,
             networkSession != null ? networkSession.getNativePtr() : 0, settings != null ? settings.getNativePtr() : 0);
         wpeView = new WPEView(nativeGetWPEView(mNativePtr));
+        inputMethodContext = new WPEInputMethodContext(WPEInputMethodContext.getForView(wpeView));
     }
 
     public @NonNull WPEView getWPEView() { return wpeView; }
+
+    public @NonNull WPEInputMethodContext getInputMethodContext() { return inputMethodContext; }
 
     public @Nullable WebKitSettings getSettings() { return settings; }
 
@@ -100,10 +104,13 @@ public final class WebKitWebView {
     }
 
     public void destroy() {
+        // Must run before nativeDestroy: the focus listener cleanup needs the live IM context.
+        inputMethodContext.setFocusListener(null);
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
             mNativePtr = 0;
         }
+        inputMethodContext.invalidate();
         wpeView.invalidate();
     }
 

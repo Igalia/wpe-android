@@ -27,6 +27,19 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_android, WPE, INPUT_METHOD_CONTEXT_ANDROID,
     WPEInputMethodContext)
 
+using WPEInputMethodContextAndroidFocusCallback = void (*)(gpointer userData);
+
 WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view);
+
+WPEInputMethodContextAndroid* wpe_input_method_context_android_from_view(WPEView* view);
+
+void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextAndroid* context,
+    WPEInputMethodContextAndroidFocusCallback focusIn, WPEInputMethodContextAndroidFocusCallback focusOut,
+    gpointer userData);
+
+void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text);
+
+void wpe_input_method_context_android_delete_surrounding(
+    WPEInputMethodContextAndroid* context, int offset, unsigned int count);
 
 G_END_DECLS

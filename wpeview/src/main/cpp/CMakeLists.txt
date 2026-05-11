@@ -150,6 +150,7 @@ add_library(
     capi/WebKitWebView.cpp
     capi/WebKitWebsiteDataManager.cpp
     capi/WPEDisplay.cpp
+    capi/WPEInputMethodContext.cpp
     capi/WPEScreen.cpp
     capi/WPEToplevel.cpp
     capi/WPEView.cpp)

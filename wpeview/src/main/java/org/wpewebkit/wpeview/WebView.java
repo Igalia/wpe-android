@@ -19,6 +19,7 @@
 package org.wpewebkit.wpeview;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.AttributeSet;
@@ -27,6 +28,9 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
@@ -34,6 +38,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import org.wpewebkit.wpe.WPEEventType;
+import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitWebView;
@@ -52,6 +57,10 @@ public class WebView extends FrameLayout {
     private WebKitWebView webKitWebView;
     private WPEToplevel wpeToplevel;
     WPEView platformView;
+    private WPEInputMethodContext imContext;
+    @Nullable
+    InputMethodManager inputMethodManager;
+    boolean inputFieldFocused;
     private PageSurfaceView surfaceView;
     private WebSettings webSettings;
     private @Nullable Surface attachedSurface;
@@ -85,6 +94,18 @@ public class WebView extends FrameLayout {
                                                wpeContext.getWebKitNetworkSession(), wpeContext.getWebKitSettings());
 
         this.platformView = webKitWebView.getWPEView();
+        this.imContext = webKitWebView.getInputMethodContext();
+        this.inputMethodManager = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        this.imContext.setFocusListener(new WPEInputMethodContext.FocusListener() {
+            @Override
+            public void onFocusIn() {
+                onImeFieldFocused(true);
+            }
+            @Override
+            public void onFocusOut() {
+                onImeFieldFocused(false);
+            }
+        });
         this.webSettings = new WebSettings(wpeContext.getWebKitSettings());
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
         this.platformView.setToplevel(wpeToplevel);
@@ -311,6 +332,8 @@ public class WebView extends FrameLayout {
                 platformView.dispatchTouchEvent(
                     event.getEventTime(), type, 1, new int[] {event.getPointerId(actionIndex)},
                     new float[] {event.getX(actionIndex) / density}, new float[] {event.getY(actionIndex) / density});
+                if (action == MotionEvent.ACTION_UP && inputFieldFocused && inputMethodManager != null)
+                    inputMethodManager.showSoftInput(WebView.this, InputMethodManager.SHOW_IMPLICIT);
                 return true;
             case MotionEvent.ACTION_MOVE:
                 type = WPEEventType.TOUCH_MOVE;
@@ -335,6 +358,34 @@ public class WebView extends FrameLayout {
             platformView.dispatchTouchEvent(event.getEventTime(), type, pointerCount, ids, xs, ys);
             return true;
         }
+    }
+
+    void onImeFieldFocused(boolean focused) {
+        inputFieldFocused = focused;
+        if (inputMethodManager == null)
+            return;
+        if (focused) {
+            // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
+            inputMethodManager.restartInput(this);
+            inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+        } else if (getWindowToken() != null) {
+            inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
+        }
+    }
+
+    @Override
+    public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
+        if (!inputFieldFocused || imContext == null)
+            return null;
+        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        outAttrs.actionLabel = null;
+        return new WPEInputConnection(this, /* fullEditor */ true, imContext);
+    }
+
+    @Override
+    public boolean onCheckIsTextEditor() {
+        return inputFieldFocused;
     }
 
     @Override

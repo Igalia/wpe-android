@@ -99,6 +99,7 @@ Java code lives in `wpeview/src/main/java/org/wpewebkit/wpe/`:
 - `WebKitCookieManager` wraps a native `WebKitCookieManager`.
 - `WebKitSettings` wraps a native `WebKitSettings`.
 - `WPEDisplay` wraps a native `WPEDisplay`.
+- `WPEInputMethodContext` wraps a native `WPEInputMethodContext` borrowed from a `WPEView`.
 - `WPEScreen` wraps a native `WPEScreen`.
 - `WPEToplevel` wraps a native `WPEToplevel`.
 - `WPEView` wraps a native `WPEView`.
@@ -114,6 +115,7 @@ Java proxy names and the native types they expose:
 - `WebKitCookieManager.cpp`
 - `WebKitSettings.cpp`
 - `WPEDisplay.cpp`
+- `WPEInputMethodContext.cpp`
 - `WPEScreen.cpp`
 - `WPEToplevel.cpp`
 - `WPEView.cpp`
@@ -193,6 +195,7 @@ Borrowed proxies:
 | Java class | Native owner |
 | --- | --- |
 | `WPEView` | Borrowed from `WebKitWebView`. It must not outlive the parent `WebKitWebView`. |
+| `WPEInputMethodContext` | Borrowed from `WebKitWebView` (attached to the borrowed `WPEView`); `destroy()` clears the focus listener and drops its JNI global ref. Must not outlive the parent `WebKitWebView`. |
 | `WPEScreen` | Borrowed from `WPEDisplay`. It must not outlive the parent `WPEDisplay`. |
 | `WebKitWebsiteDataManager` | Borrowed from `WebKitNetworkSession`. It must not outlive the parent `WebKitNetworkSession`. |
 
