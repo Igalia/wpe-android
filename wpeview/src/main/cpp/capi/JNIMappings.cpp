@@ -30,6 +30,7 @@ void configureWebKitWebViewEvalCallbackHolderJNIMappings();
 void configureWebKitWebsiteDataManagerJNIMappings();
 void configureWebKitWebsiteDataManagerCallbackHolderJNIMappings();
 void configureWPEDisplayJNIMappings();
+void configureWPEInputMethodContextJNIMappings();
 void configureWPEScreenJNIMappings();
 void configureWPEToplevelJNIMappings();
 void configureWPEViewJNIMappings();
@@ -46,6 +47,7 @@ void configureJNIMappings()
     configureWebKitWebsiteDataManagerJNIMappings();
     configureWebKitWebsiteDataManagerCallbackHolderJNIMappings();
     configureWPEDisplayJNIMappings();
+    configureWPEInputMethodContextJNIMappings();
     configureWPEScreenJNIMappings();
     configureWPEToplevelJNIMappings();
     configureWPEViewJNIMappings();
