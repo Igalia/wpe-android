@@ -32,12 +32,12 @@ import androidx.navigation.fragment.NavHostFragment
 import org.wpewebkit.tools.minibrowser.databinding.ActivityMainBinding
 
 
-class MainActivity : AppCompatActivity(R.layout.activity_main) {
+class MainActivity : AppCompatActivity() {
 
     private val TAG = "MiniBrowser"
 
     private val navHost by lazy {
-        supportFragmentManager.primaryNavigationFragment as NavHostFragment
+        supportFragmentManager.findFragmentById(R.id.nav_host_view) as NavHostFragment
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity(R.layout.activity_main) {
         Log.d(TAG, "onCreate")
         enableEdgeToEdge();
         binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
