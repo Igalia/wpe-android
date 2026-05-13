@@ -22,6 +22,7 @@ package org.wpewebkit;
 import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
+import android.system.ErrnoException;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -83,6 +84,12 @@ public class WPEApplication extends Application {
     static {
         final String libraries[] = processKind.getLibraryNames();
         Log.d(LOGTAG, "Process: " + processKind.toString() + " - Libraries: " + String.join(", ", libraries));
+        String inspectorServer = "127.0.0.1:5000";
+        try {
+            android.system.Os.setenv("WEBKIT_INSPECTOR_SERVER", inspectorServer, false);
+        } catch (ErrnoException e) {
+            Log.e(LOGTAG, "Unable to setup the inspector server on " + inspectorServer);
+        }
         for (String libraryName : libraries)
             System.loadLibrary(libraryName);
     }

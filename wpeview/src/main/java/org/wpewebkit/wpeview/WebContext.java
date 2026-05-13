@@ -71,6 +71,7 @@ public class WebContext {
         this.webKitCookieManager.setAcceptPolicy(WebKitCookieManager.WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 
         this.settings = new WebKitSettings();
+        this.settings.setDeveloperExtrasEnabled(true);
     }
 
     /**
