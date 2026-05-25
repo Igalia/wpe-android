@@ -32,7 +32,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-import org.wpewebkit.wpeview.WPEView;
+import org.wpewebkit.wpeview.WebView;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,10 +62,12 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             String content = getHtmlContent();
-            WPEView view = findViewById(R.id.wpe_view);
+            WebView view = findViewById(R.id.wpe_view);
             view.getSettings().setAllowFileAccessFromFileURLs(true);
             view.getSettings().setAllowUniversalAccessFromFileURLs(true);
-            view.loadHtml(content, "file:///");
+            // baseUri needs an http(s) scheme: YouTube's embed postMessage
+            // handshake rejects null origins (error 153) so file:/// cannot be used.
+            view.loadHtml(content, "https://mediaplayer.local/");
         } catch (IOException ex) {
             String message = "Cannot initialize web application";
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
