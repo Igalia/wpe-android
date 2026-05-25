@@ -123,7 +123,7 @@ class Bootstrap:
             args = vars(args)
 
         self._arch = args["arch"] if "arch" in args else self.default_arch
-        self.default_version = args["version"] if "version" in args else self.default_version
+        self.version = args["version"] if "version" in args else self.default_version
         self._external_cerbero_build_path = args["cerbero"] if "cerbero" in args else None
         self._build = args["build"] if "build" in args else False
         self._debug = args["debug"] if "debug" in args else False
@@ -561,7 +561,7 @@ class Bootstrap:
             self.ensure_script_deps()
         except Exception as e:
             sys.exit(e)
-        version = self.default_version
+        version = self.version
         if self._external_cerbero_build_path:
             version = self.copy_all_packages_from_external_cerbero_build()
         elif self._build:
