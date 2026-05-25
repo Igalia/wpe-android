@@ -7,6 +7,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.AppCompat.NoActionBar">
+        <uses-native-library android:name="libopenxr_loader.so" android:required="false" />
         <activity
             android:name="org.wpewebkit.tools.mediaplayer.MainActivity"
             android:exported="true"
