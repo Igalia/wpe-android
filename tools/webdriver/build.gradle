@@ -45,6 +45,7 @@ dependencies {
     implementation libs.androidx.appcompat
     implementation libs.android.material
     implementation libs.androidx.constraintlayout
+    runtimeOnly libs.openxr.loader
 
     testImplementation libs.junit
     androidTestImplementation libs.androidx.test.junit

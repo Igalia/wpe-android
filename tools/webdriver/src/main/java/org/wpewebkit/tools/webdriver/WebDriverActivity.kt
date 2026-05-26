@@ -30,9 +30,9 @@ import androidx.appcompat.app.AppCompatActivity
 import org.wpewebkit.wpe.WKProcessType
 import org.wpewebkit.wpe.services.WPEServiceConnection
 import org.wpewebkit.wpe.services.WPEServiceConnectionListener
-import org.wpewebkit.wpeview.WPEChromeClient
-import org.wpewebkit.wpeview.WPEContext
-import org.wpewebkit.wpeview.WPEView
+import org.wpewebkit.wpeview.WebChromeClient
+import org.wpewebkit.wpeview.WebContext
+import org.wpewebkit.wpeview.WebView
 import java.net.ServerSocket
 import kotlin.system.exitProcess
 
@@ -41,8 +41,8 @@ class WebDriverActivity : AppCompatActivity() {
 
     private val LOGTAG = "WebDriver"
 
-    private lateinit var wpeContext: WPEContext
-    private var wpeViewMap= mutableMapOf<Int, WPEView>()
+    private lateinit var webContext: WebContext
+    private val webViewMap = mutableMapOf<Int, WebView>()
     private var freePort = getFreePort()
     private var isHeadless = false
 
@@ -59,37 +59,24 @@ class WebDriverActivity : AppCompatActivity() {
         }
     }
 
-    private val wpeChromeClient: WPEChromeClient = object :
-        WPEChromeClient {
-        override fun onCloseWindow(wpeView: WPEView) {
-            wpeView.parent?.let {p ->
-                (p as ViewGroup).removeView(wpeView)
-            }
-
-            wpeViewMap.remove(wpeView.hashCode())
-            wpeView.destroy()
+    private val webChromeClient: WebChromeClient = object : WebChromeClient() {
+        override fun onCloseWindow(window: WebView) {
+            (window.parent as? ViewGroup)?.removeView(window)
+            webViewMap.remove(window.hashCode())
+            window.destroy()
         }
     }
 
-    private val wpeContextClient: WPEContext.Client  = object : WPEContext.Client {
-
-        override fun createWPEViewForAutomation(): WPEView? {
-            val wpeView = createWPEView()
-            wpeViewMap[wpeView.hashCode()] = wpeView
-            return wpeView
-        }
-
-        private fun createWPEView() : WPEView {
-            val view = WPEView(wpeContext, isHeadless)
-            view.wpeChromeClient = wpeChromeClient
-
+    private val webContextClient: WebContext.Client = WebContext.Client {
+        val view = WebView(webContext, isHeadless).apply {
+            setWebChromeClient(webChromeClient)
             if (!isHeadless) {
-                setContentView(view)
-                view.loadUrl("about:blank")
+                setContentView(this)
+                loadUrl("about:blank")
             }
-
-            return view
         }
+        webViewMap[view.hashCode()] = view
+        view
     }
 
     private fun getFreePort(): Int {
@@ -127,16 +114,25 @@ class WebDriverActivity : AppCompatActivity() {
             Log.e(LOGTAG, "Cannot launch webdriver process", e)
         }
 
-        WPEView.enableRemoteInspector(freePort, false)
+        WebContext.enableRemoteInspector(freePort, false)
 
-        wpeContext = WPEContext(applicationContext, true)
-        wpeContext.setClient(wpeContextClient)
+        webContext = WebContext(applicationContext, true)
+        webContext.setClient(webContextClient)
     }
 
     override fun onDestroy() {
-        for ((key, view) in wpeViewMap) {
-            view.destroy()
-            wpeViewMap.remove(key)
+        if (::webContext.isInitialized) {
+            webContext.setClient(null)
+        }
+
+        val iterator = webViewMap.values.iterator()
+        while (iterator.hasNext()) {
+            iterator.next().destroy()
+            iterator.remove()
+        }
+
+        if (::webContext.isInitialized) {
+            webContext.destroy()
         }
 
         super.onDestroy()

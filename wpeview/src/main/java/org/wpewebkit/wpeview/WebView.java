@@ -54,6 +54,7 @@ import java.util.Map;
 public class WebView extends FrameLayout {
     private WebContext wpeContext;
     private boolean ownsContext;
+    private boolean headless;
     private WebKitWebView webKitWebView;
     private WPEToplevel wpeToplevel;
     WPEView platformView;
@@ -78,17 +79,28 @@ public class WebView extends FrameLayout {
 
     public WebView(@NonNull android.content.Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        init(new WebContext(context), true);
+        init(new WebContext(context), true, false);
     }
 
     public WebView(@NonNull WebContext context) {
         super(context.getApplicationContext());
-        init(context, false);
+        init(context, false, false);
     }
 
-    private void init(@NonNull WebContext context, boolean ownsContext) {
+    /**
+     * Constructs a {@link WebView} without an on-screen Surface. JS, navigation and listeners
+     * still work; the view simply never gets a backing window so the compositor reports it as
+     * unmappable. Used by automation/WebDriver headless sessions.
+     */
+    public WebView(@NonNull WebContext context, boolean headless) {
+        super(context.getApplicationContext());
+        init(context, false, headless);
+    }
+
+    private void init(@NonNull WebContext context, boolean ownsContext, boolean headless) {
         this.wpeContext = context;
         this.ownsContext = ownsContext;
+        this.headless = headless;
 
         this.webKitWebView = new WebKitWebView(wpeContext.getWPEDisplay(), wpeContext.getWebKitWebContext(), null,
                                                wpeContext.getWebKitNetworkSession(), wpeContext.getWebKitSettings());
@@ -154,12 +166,19 @@ public class WebView extends FrameLayout {
             }
         });
 
-        this.surfaceView = new PageSurfaceView(getContext());
-        this.surfaceView.getHolder().addCallback(new SurfaceCallback());
-        addView(surfaceView);
+        if (!headless) {
+            this.surfaceView = new PageSurfaceView(getContext());
+            this.surfaceView.getHolder().addCallback(new SurfaceCallback());
+            addView(surfaceView);
+        }
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+    }
+
+    @NonNull
+    WebKitWebView getInternalWebKitWebView() {
+        return webKitWebView;
     }
 
     public void destroy() {
