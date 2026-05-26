@@ -23,6 +23,7 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.WKRuntime;
 import org.wpewebkit.wpe.WPEDisplay;
@@ -31,6 +32,7 @@ import org.wpewebkit.wpe.WebKitCookieManager;
 import org.wpewebkit.wpe.WebKitNetworkSession;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebContext;
+import org.wpewebkit.wpe.WebKitWebView;
 import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 
 /**
@@ -38,6 +40,15 @@ import org.wpewebkit.wpe.WebKitWebsiteDataManager;
  * It manages the lifecycle of the display, web context, network session, cookies, and settings wrappers.
  */
 public class WebContext {
+    /**
+     * Embedder hook for automation sessions. The WebDriver/automation path calls
+     * {@link #createWebViewForAutomation()} when a remote client asks for a new browsing context.
+     */
+    public interface Client {
+        @Nullable
+        WebView createWebViewForAutomation();
+    }
+
     private final WPEDisplay display;
     private final WPEScreen screen;
     private final WebKitWebContext webContext;
@@ -84,6 +95,25 @@ public class WebContext {
     public static boolean shouldUseEphemeralSession() {
         return android.os.Build.PRODUCT.contains("sdk") || android.os.Build.PRODUCT.contains("vbox") ||
             android.os.Build.HARDWARE.contains("goldfish") || android.os.Build.HARDWARE.contains("ranchu");
+    }
+
+    /**
+     * Enable WebKit's remote inspector server. Must be called before any {@link WebContext} is created.
+     * Delegates to {@link WKRuntime#enableRemoteInspector(int, boolean)}.
+     */
+    public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
+        WKRuntime.enableRemoteInspector(inspectorPort, useHttpInspector);
+    }
+
+    /**
+     * Register an automation {@link Client}. Only meaningful when this context was constructed with
+     * {@code automationMode=true}; the callback fires when WebDriver asks for a new browsing context.
+     */
+    public void setClient(@Nullable Client client) {
+        webContext.setClient(client == null ? null : () -> {
+            WebView view = client.createWebViewForAutomation();
+            return view != null ? view.getInternalWebKitWebView() : null;
+        });
     }
 
     public void destroy() {
