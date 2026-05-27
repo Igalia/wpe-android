@@ -7,12 +7,12 @@ import org.wpewebkit.wpe.util.CallbackHelper;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class TestWPEViewClient extends WPEViewClient {
+public class TestWebViewClient extends WebViewClient {
 
     private final CallbackHelper onPageFinishedHelper;
     private final OnEvaluateJavaScriptResultHelper onEvaluateJavascriptResultHelper;
 
-    public TestWPEViewClient() {
+    public TestWebViewClient() {
         onPageFinishedHelper = new CallbackHelper();
         onEvaluateJavascriptResultHelper = new OnEvaluateJavaScriptResultHelper();
     }
@@ -22,7 +22,7 @@ public class TestWPEViewClient extends WPEViewClient {
 
     public static class OnEvaluateJavaScriptResultHelper extends CallbackHelper {
         private String result;
-        public void evaluateJavascript(WPEView view, String script) {
+        public void evaluateJavascript(WebView view, String script) {
             view.evaluateJavascript(script, this::notifyCalled);
         }
 
@@ -50,7 +50,7 @@ public class TestWPEViewClient extends WPEViewClient {
     }
 
     @Override
-    public void onPageFinished(@NonNull WPEView view, @NonNull String url) {
+    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
         onPageFinishedHelper.notifyCalled();
     }
 }
