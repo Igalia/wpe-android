@@ -14,13 +14,13 @@ import org.junit.runner.RunWith;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @RunWith(AndroidJUnit4.class)
-public class WPEViewDialogOverrideTest {
+public class WebViewDialogOverrideTest {
     private static final String EMPTY_PAGE = "<!doctype html>"
                                              + "<title>Dialog Test</title><p>Testcase.</p>";
 
     @Rule
-    public ActivityScenarioRule<WPEViewTestActivity> wpeViewActivityTestRule =
-        new ActivityScenarioRule<>(WPEViewTestActivity.class);
+    public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
+        new ActivityScenarioRule<>(WebViewTestActivity.class);
 
     @Test
     public void testOverrideAlertHandling() throws Throwable {
@@ -28,13 +28,13 @@ public class WPEViewDialogOverrideTest {
 
         final AtomicBoolean callbackCalled = new AtomicBoolean(false);
 
-        TestWPEViewClient wpeViewClient = new TestWPEViewClient();
-        ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
             .onActivity(activity -> {
-                activity.getWPEView().setWPEChromeClient(new WPEChromeClient() {
+                activity.getWebView().setWebChromeClient(new WebChromeClient() {
                     @Override
-                    public boolean onJsAlert(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                    public boolean onJsAlert(@NonNull WebView view, @NonNull String url, @NonNull String message,
                                              @NonNull WPEJsResult result) {
                         callbackCalled.set(true);
                         result.confirm();
@@ -44,8 +44,8 @@ public class WPEViewDialogOverrideTest {
             })
             .moveToState(Lifecycle.State.RESUMED);
 
-        WPEViewActivityScenarioHelper.loadHtmlSync(scenario, wpeViewClient, EMPTY_PAGE);
-        WPEViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, wpeViewClient,
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
                                                                          "alert('" + alertText + "')");
 
         Assert.assertTrue(callbackCalled.get());
@@ -57,26 +57,26 @@ public class WPEViewDialogOverrideTest {
 
         final AtomicBoolean callbackCalled = new AtomicBoolean(false);
 
-        TestWPEViewClient wpeViewClient = new TestWPEViewClient();
-        ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
             .onActivity(activity -> {
-                activity.getWPEView().setWPEChromeClient(new WPEChromeClient() {
+                activity.getWebView().setWebChromeClient(new WebChromeClient() {
                     @Override
-                    public boolean onJsConfirm(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                    public boolean onJsConfirm(@NonNull WebView view, @NonNull String url, @NonNull String message,
                                                @NonNull WPEJsResult result) {
                         callbackCalled.set(true);
                         result.confirm();
                         return true;
                     }
                 });
-                activity.getWPEView().loadHtml(EMPTY_PAGE, null);
+                activity.getWebView().loadHtml(EMPTY_PAGE, null);
             })
             .moveToState(Lifecycle.State.RESUMED);
 
-        WPEViewActivityScenarioHelper.loadHtmlSync(scenario, wpeViewClient, EMPTY_PAGE);
-        String result = WPEViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
-            scenario, wpeViewClient, "confirm('" + confirmText + "')");
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        String result = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+            scenario, webViewClient, "confirm('" + confirmText + "')");
 
         Assert.assertTrue(callbackCalled.get());
         Assert.assertEquals("true", result);
@@ -88,26 +88,26 @@ public class WPEViewDialogOverrideTest {
 
         final AtomicBoolean callbackCalled = new AtomicBoolean(false);
 
-        TestWPEViewClient wpeViewClient = new TestWPEViewClient();
-        ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
             .onActivity(activity -> {
-                activity.getWPEView().setWPEChromeClient(new WPEChromeClient() {
+                activity.getWebView().setWebChromeClient(new WebChromeClient() {
                     @Override
-                    public boolean onJsConfirm(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                    public boolean onJsConfirm(@NonNull WebView view, @NonNull String url, @NonNull String message,
                                                @NonNull WPEJsResult result) {
                         callbackCalled.set(true);
                         result.cancel();
                         return true;
                     }
                 });
-                activity.getWPEView().loadHtml(EMPTY_PAGE, null);
+                activity.getWebView().loadHtml(EMPTY_PAGE, null);
             })
             .moveToState(Lifecycle.State.RESUMED);
 
-        WPEViewActivityScenarioHelper.loadHtmlSync(scenario, wpeViewClient, EMPTY_PAGE);
-        String result = WPEViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
-            scenario, wpeViewClient, "confirm('" + confirmText + "')");
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        String result = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+            scenario, webViewClient, "confirm('" + confirmText + "')");
 
         Assert.assertTrue(callbackCalled.get());
         Assert.assertEquals("false", result);
@@ -121,13 +121,13 @@ public class WPEViewDialogOverrideTest {
 
         final AtomicBoolean callbackCalled = new AtomicBoolean(false);
 
-        TestWPEViewClient wpeViewClient = new TestWPEViewClient();
-        ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
             .onActivity(activity -> {
-                activity.getWPEView().setWPEChromeClient(new WPEChromeClient() {
+                activity.getWebView().setWebChromeClient(new WebChromeClient() {
                     @Override
-                    public boolean onJsPrompt(@NonNull WPEView view, @NonNull String url, @NonNull String message,
+                    public boolean onJsPrompt(@NonNull WebView view, @NonNull String url, @NonNull String message,
                                               @NonNull String defaultValue, @NonNull WPEJsPromptResult result) {
                         Assert.assertEquals(promptText, message);
                         Assert.assertEquals(promptDefault, defaultValue);
@@ -139,9 +139,9 @@ public class WPEViewDialogOverrideTest {
                 });
             })
             .moveToState(Lifecycle.State.RESUMED);
-        WPEViewActivityScenarioHelper.loadHtmlSync(scenario, wpeViewClient, EMPTY_PAGE);
-        String result = WPEViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
-            scenario, wpeViewClient, "prompt(\"" + promptText + "\", \"" + promptDefault + "\")");
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        String result = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+            scenario, webViewClient, "prompt(\"" + promptText + "\", \"" + promptDefault + "\")");
         Assert.assertTrue(callbackCalled.get());
         Assert.assertEquals("\"" + promptResult + "\"", result);
     }

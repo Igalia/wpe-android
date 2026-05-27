@@ -557,6 +557,15 @@ public class WebView extends FrameLayout {
     }
 
     @Override
+    protected void onFocusChanged(boolean gainFocus, int direction, @Nullable android.graphics.Rect previous) {
+        super.onFocusChanged(gainFocus, direction, previous);
+        // Mirror the widget's focus onto the WebKit view so DOM focus, document.hasFocus() and the
+        // input method engage; without this a focused editable never raises the IME.
+        if (platformView != null)
+            platformView.setFocused(gainFocus);
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (platformView == null)
             return super.dispatchKeyEvent(event);

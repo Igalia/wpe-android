@@ -4,9 +4,9 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.widget.LinearLayout;
 
-public class WPEViewTestActivity extends Activity {
+public class WebViewTestActivity extends Activity {
 
-    private WPEView wpeView;
+    private WebView webView;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -17,13 +17,13 @@ public class WPEViewTestActivity extends Activity {
         linearLayout.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                                                                    LinearLayout.LayoutParams.MATCH_PARENT));
 
-        wpeView = new WPEView(getApplicationContext());
-        wpeView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+        webView = new WebView(getApplicationContext());
+        webView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                                                               LinearLayout.LayoutParams.MATCH_PARENT, 1f));
-        linearLayout.addView(wpeView);
+        linearLayout.addView(webView);
 
         setContentView(linearLayout);
     }
 
-    public WPEView getWPEView() { return wpeView; }
+    public WebView getWebView() { return webView; }
 }

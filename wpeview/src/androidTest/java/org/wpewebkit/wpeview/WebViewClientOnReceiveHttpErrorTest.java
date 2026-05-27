@@ -21,12 +21,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
-public class WPEViewClientOnReceiveHttpErrorTest {
+public class WebViewClientOnReceiveHttpErrorTest {
     private HttpServer httpServer;
 
     @Rule
-    public ActivityScenarioRule<WPEViewTestActivity> wpeViewActivityTestRule =
-        new ActivityScenarioRule<>(WPEViewTestActivity.class);
+    public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
+        new ActivityScenarioRule<>(WebViewTestActivity.class);
 
     @Before
     public void setUp() throws Exception {
@@ -43,12 +43,12 @@ public class WPEViewClientOnReceiveHttpErrorTest {
     public void testOnReceiveHttpError404() throws Throwable {
         AtomicBoolean received404 = new AtomicBoolean(false);
         CountDownLatch latch = new CountDownLatch(1);
-        ActivityScenario<WPEViewTestActivity> scenario = wpeViewActivityTestRule.getScenario();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
             .onActivity(activity -> {
-                activity.getWPEView().setWPEViewClient(new WPEViewClient() {
+                activity.getWebView().setWebViewClient(new WebViewClient() {
                     @Override
-                    public void onReceivedHttpError(@NonNull WPEView view, @NonNull WPEResourceRequest request,
+                    public void onReceivedHttpError(@NonNull WebView view, @NonNull WPEResourceRequest request,
                                                     @NonNull WPEResourceResponse errorResponse) {
                         if (errorResponse.getStatusCode() == HttpResponse.HTTP_NOT_FOUND)
                             received404.set(true);
@@ -61,7 +61,7 @@ public class WPEViewClientOnReceiveHttpErrorTest {
                 response.setStatusMessage("Not Found");
                 response.addHeader("Content-Type", "text/html; charset=utf-8");
                 final String url = httpServer.setResponse("/404.html", response);
-                activity.getWPEView().loadUrl(url);
+                activity.getWebView().loadUrl(url);
             })
             .moveToState(Lifecycle.State.RESUMED);
 
