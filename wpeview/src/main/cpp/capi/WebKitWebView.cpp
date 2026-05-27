@@ -90,6 +90,7 @@ public:
         , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
         , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
+        , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
@@ -103,7 +104,9 @@ public:
             JNI::NativeMethod<jlong(jlong)>("nativeGetWPEView", nativeGetWPEView),
             JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", nativeSetZoomLevel),
             JNI::NativeMethod<void(jlong, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
-                "nativeEvaluateJavascript", nativeEvaluateJavascript));
+                "nativeEvaluateJavascript", nativeEvaluateJavascript),
+            JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
+            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -113,6 +116,7 @@ public:
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
     const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
+    const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -122,6 +126,7 @@ private:
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static gboolean onDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
+    static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
 
     static jlong nativeInit(JNIEnv* env, jobject jniWebView, jlong displayPtr, jlong contextPtr, jlong toplevelPtr,
@@ -138,6 +143,8 @@ private:
     static void nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr, jdouble zoomLevel);
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder);
+    static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
+    static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
 };
 
 const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -236,6 +243,32 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(
     return FALSE;
 }
 
+gboolean JNIWebKitWebViewCache::onScriptDialog(
+    WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge)
+{
+    // Keep the dialog alive across the asynchronous round-trip to Java; it is released by
+    // nativeScriptDialogClose once the embedder (or the default dialog) has answered.
+    auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
+    WebKitScriptDialogType type = webkit_script_dialog_get_dialog_type(dialog);
+    // The active URI is null before the first commit and the message may be null; pass them through
+    // as null (JNI::String(nullptr) yields a null jstring) — the Java callbacks treat null as "no value".
+    auto jUrl = JNI::String(webkit_web_view_get_uri(webView));
+    auto jMessage = JNI::String(webkit_script_dialog_get_message(dialog));
+    JNI::String jDefaultText = type == WEBKIT_SCRIPT_DIALOG_PROMPT
+        ? JNI::String(webkit_script_dialog_prompt_get_default_text(dialog))
+        : JNI::String("");
+    try {
+        getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogPtr, static_cast<jint>(type),
+            static_cast<jstring>(jUrl), static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText));
+    } catch (const std::exception& ex) {
+        Logging::logError("cannot deliver WebKitWebView onScriptDialog callback (%s)", ex.what());
+        webkit_script_dialog_unref(dialog);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -292,6 +325,7 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
         g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onEstimatedLoadProgress), bridge),
         g_signal_connect(webView, "notify::title", G_CALLBACK(onTitleChanged), bridge),
         g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), bridge),
+        g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
     };
 
     return reinterpret_cast<jlong>(bridge);
@@ -358,6 +392,20 @@ void JNIWebKitWebViewCache::nativeEvaluateJavascript(
         = callbackHolder ? new JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>(env, callbackHolder) : nullptr;
     webkit_web_view_evaluate_javascript(bridge->m_webView, JNI::String(script).getContent().get(), -1, nullptr, nullptr,
         nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
+}
+
+void JNIWebKitWebViewCache::nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text)
+{
+    auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
+    if (webkit_script_dialog_get_dialog_type(dialog) == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
+        webkit_script_dialog_prompt_set_text(dialog, JNI::String(text).getContent().get());
+    webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
+}
+
+void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr)
+{
+    // Releases the reference taken in onScriptDialog; the dialog is closed once its refcount reaches zero.
+    webkit_script_dialog_unref(reinterpret_cast<WebKitScriptDialog*>(dialogPtr)); // NOLINT(performance-no-int-to-ptr)
 }
 
 void configureWebKitWebViewJNIMappings()

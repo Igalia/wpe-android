@@ -19,6 +19,7 @@
 
 package org.wpewebkit.tools.minibrowser
 
+import android.content.Context
 import org.wpewebkit.wpeview.WebView
 import org.wpewebkit.wpeview.WebContext as BrowserContext
 import java.util.UUID
@@ -29,12 +30,14 @@ data class Tab(
 ) {
     companion object {
         fun newTab(
+            uiContext: Context,
             browserContext: BrowserContext,
             url: String
         ) : Tab {
             return Tab(
                 UUID.randomUUID().toString(),
-                WebView(browserContext).apply {
+                // Use the Activity context so the WebView can show JS dialogs / the soft keyboard.
+                WebView(uiContext, browserContext).apply {
                     loadUrl(url)
                 }
             )

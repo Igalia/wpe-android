@@ -26,6 +26,12 @@ import androidx.annotation.Nullable;
  * WebKitWebView is an owning JNI proxy for a native WebKitWebView object.
  */
 public final class WebKitWebView {
+    // Mirrors WebKitScriptDialogType.
+    public static final int SCRIPT_DIALOG_ALERT = 0;
+    public static final int SCRIPT_DIALOG_CONFIRM = 1;
+    public static final int SCRIPT_DIALOG_PROMPT = 2;
+    public static final int SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM = 3;
+
     private long mNativePtr = 0;
     private final WPEView wpeView;
     private final WPEInputMethodContext inputMethodContext;
@@ -126,6 +132,8 @@ public final class WebKitWebView {
         void onLoadProgress(double progress);
         void onTitleChanged(@NonNull String title, boolean canGoBack, boolean canGoForward);
         void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode);
+        void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
+                            @NonNull String defaultText);
     }
 
     private @Nullable Listener listener;
@@ -181,6 +189,26 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onReceivedHttpError(uri, method, mimeType, statusCode));
     }
 
+    @Keep
+    private void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onScriptDialog(dialogPtr, type, url, message, defaultText));
+        else
+            nativeScriptDialogClose(dialogPtr);
+    }
+
+    /**
+     * Answers a script dialog reported via {@link Listener#onScriptDialog}. Must be paired with
+     *  {@link #scriptDialogClose}. For prompts, {@code text} carries the user's input.
+     */
+    public void scriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text) {
+        nativeScriptDialogConfirm(dialogPtr, confirm, text);
+    }
+
+    /** Releases the native script dialog reported via {@link Listener#onScriptDialog}. */
+    public void scriptDialogClose(long dialogPtr) { nativeScriptDialogClose(dialogPtr); }
+
     private static class EvalCallbackHolder {
         private final EvalCallback callback;
 
@@ -206,4 +234,6 @@ public final class WebKitWebView {
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
     private native void nativeEvaluateJavascript(long nativePtr, String script,
                                                  @Nullable EvalCallbackHolder callbackHolder);
+    private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
+    private native void nativeScriptDialogClose(long dialogPtr);
 }
