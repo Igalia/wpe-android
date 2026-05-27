@@ -26,7 +26,7 @@
 
 """
 This script takes care of fetching, building and installing all WPE Android dependencies,
-including libwpe, WPEBackend-android and WPEWebKit.
+including libwpe and WPEWebKit.
 
 The cross-compilation work is done by Cerbero: https://github.com/Igalia/wpe-android-cerbero.git
 
@@ -99,7 +99,6 @@ class Bootstrap:
         "libgmodule-2.0.so",
         "libgobject-2.0.so",
         "libwpe-1.0.so",
-        "libWPEBackend-android.so",
         "libWPEWebKit-2.0.so",
         "libopenxr_loader.so"
     ]
@@ -108,7 +107,6 @@ class Bootstrap:
         ("gstreamer-1.0", "gstreamer-1.0"),
         ("libsoup-3.0", "libsoup-3.0"),
         ("wpe-1.0", "wpe"),
-        ("wpe-android", "wpe-android"),
         ("wpe-webkit-2.0", "wpe-webkit"),
         ("xkbcommon", "xkbcommon")
     ]

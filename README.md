@@ -13,10 +13,8 @@
 Android library. It serves a similar purpose to Android's built-in WebView and
 uses a familiar widget, settings, client, and cookie-management API.
 
-The older `org.wpewebkit.wpeview.WPEView` API is still present for
-compatibility, but new application code should use `WebView`. See
-[Android API Architecture](docs/architecture.md) for the current API layers,
-ownership rules, and where to add new code.
+See [Android API Architecture](docs/architecture.md) for the current API
+layers, ownership rules, and where to add new code.
 
 Setting up `WebView` in your Android application is fairly simple.
 
@@ -184,11 +182,13 @@ adb forward tcp:5000 tcp:5000
 
 #### **2. Enable Remote Inspector and Developer Extras**
 
-Before creating any `WPEView` instance, enable the remote inspector server and developer extras:
+Enable the remote inspector server before creating any `WebContext`, then turn
+on developer extras on the view's settings:
 
 ```kotlin
-WPEView.enableRemoteInspector(5000, true)
-val view = WPEView().apply {
+WebContext.enableRemoteInspector(5000, true)
+
+val view = WebView(uiContext, webContext).apply {
     settings.developerExtrasEnabled = true
     loadUrl("https://www.wpewebkit.org")
 }
