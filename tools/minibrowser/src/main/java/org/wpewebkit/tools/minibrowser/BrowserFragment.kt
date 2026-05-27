@@ -107,7 +107,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
             binding.toolbarEditText.setText(tab.webview.url)
         } ?: run {
             val app = requireContext().applicationContext as MiniBrowserApplication
-            val tab = Tab.newTab(app.browserContext, INITIAL_URL)
+            val tab = Tab.newTab(requireContext(), app.browserContext, INITIAL_URL)
             browserViewModel.addTab(tab)
             binding.tabContainerView.addView(tab.webview)
             binding.toolbarEditText.setText(tab.webview.url)

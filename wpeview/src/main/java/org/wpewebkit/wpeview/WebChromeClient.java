@@ -21,6 +21,7 @@ package org.wpewebkit.wpeview;
 import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 /**
  * WebChromeClient provides the high-level chrome and UI callbacks for {@link WebView}.
@@ -37,4 +38,43 @@ public class WebChromeClient {
     // FIXME: wire WebKit enter-fullscreen / leave-fullscreen signals to invoke these callbacks.
     public void onShowCustomView(@NonNull View view, @NonNull CustomViewCallback callback) {}
     public void onHideCustomView() {}
+
+    /**
+     * Notifies the host of a JavaScript {@code alert()}. Return {@code true} to take over the
+     * dialog (calling {@link WPEJsResult#confirm()} when done); return {@code false} to let
+     * {@link WebView} show its built-in dialog.
+     */
+    public boolean onJsAlert(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                             @NonNull WPEJsResult result) {
+        return false;
+    }
+
+    /**
+     * Notifies the host of a JavaScript {@code confirm()}. Return {@code true} to take over the
+     * dialog (calling {@link WPEJsResult#confirm()} or {@link WPEJsResult#cancel()}); return
+     * {@code false} for the built-in dialog.
+     */
+    public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                               @NonNull WPEJsResult result) {
+        return false;
+    }
+
+    /**
+     * Notifies the host of a JavaScript {@code prompt()}. Return {@code true} to take over the
+     * dialog (calling {@link WPEJsPromptResult#confirm(String)} or {@link WPEJsResult#cancel()});
+     * return {@code false} for the built-in dialog.
+     */
+    public boolean onJsPrompt(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                              @NonNull String defaultValue, @NonNull WPEJsPromptResult result) {
+        return false;
+    }
+
+    /**
+     * Notifies the host of a JavaScript {@code beforeunload} confirmation. Return {@code true} to
+     * take over the dialog; return {@code false} for the built-in dialog.
+     */
+    public boolean onJsBeforeUnload(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                    @NonNull WPEJsResult result) {
+        return false;
+    }
 }

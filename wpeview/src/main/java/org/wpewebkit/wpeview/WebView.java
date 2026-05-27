@@ -19,30 +19,39 @@
 package org.wpewebkit.wpeview;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import org.wpewebkit.R;
 import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
 
@@ -55,7 +64,8 @@ public class WebView extends FrameLayout {
     private WebContext wpeContext;
     private boolean ownsContext;
     private boolean headless;
-    private WebKitWebView webKitWebView;
+    // Package-private: read by the ScriptDialogResult inner class (avoids a synthetic accessor).
+    WebKitWebView webKitWebView;
     private WPEToplevel wpeToplevel;
     WPEView platformView;
     private WPEInputMethodContext imContext;
@@ -84,6 +94,17 @@ public class WebView extends FrameLayout {
 
     public WebView(@NonNull WebContext context) {
         super(context.getApplicationContext());
+        init(context, false, false);
+    }
+
+    /**
+     * Constructs a {@link WebView} that renders with {@code uiContext} while sharing the given
+     * {@link WebContext}. Pass an Activity context (not the application context): it is required to
+     * show the built-in JavaScript dialogs and the soft keyboard, mirroring
+     * {@code android.webkit.WebView}.
+     */
+    public WebView(@NonNull android.content.Context uiContext, @NonNull WebContext context) {
+        super(uiContext);
         init(context, false, false);
     }
 
@@ -163,6 +184,11 @@ public class WebView extends FrameLayout {
                 WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method);
                 WPEResourceResponse response = new WPEResourceResponse(mimeType, statusCode, Collections.emptyMap());
                 viewClient.onReceivedHttpError(WebView.this, request, response);
+            }
+
+            @Override
+            public void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
+                showScriptDialog(dialogPtr, type, url, message, defaultText);
             }
         });
 
@@ -291,6 +317,129 @@ public class WebView extends FrameLayout {
     }
 
     public void setTLSErrorsPolicy(int policy) { wpeContext.getWebKitNetworkSession().setTLSErrorsPolicy(policy); }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    void showScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
+                          @NonNull String defaultText) {
+        ScriptDialogResult result = new ScriptDialogResult(dialogPtr);
+        boolean handled = false;
+        if (type == WebKitWebView.SCRIPT_DIALOG_ALERT) {
+            handled = chromeClient.onJsAlert(this, url, message, result);
+        } else if (type == WebKitWebView.SCRIPT_DIALOG_CONFIRM) {
+            handled = chromeClient.onJsConfirm(this, url, message, result);
+        } else if (type == WebKitWebView.SCRIPT_DIALOG_PROMPT) {
+            handled = chromeClient.onJsPrompt(this, url, message, defaultText, result);
+        } else if (type == WebKitWebView.SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+            handled = chromeClient.onJsBeforeUnload(this, url, message, result);
+        }
+        if (handled)
+            return;
+
+        String title = url;
+        String displayMessage = message;
+        int positiveTextId = R.string.ok;
+        int negativeTextId = R.string.cancel;
+        if (type == WebKitWebView.SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
+            title = getContext().getString(R.string.js_dialog_before_unload_title);
+            displayMessage = getContext().getString(R.string.js_dialog_before_unload, message);
+            positiveTextId = R.string.js_dialog_before_unload_positive_button;
+            negativeTextId = R.string.js_dialog_before_unload_negative_button;
+        } else if (url != null) {
+            try {
+                URL alertUrl = new URL(url);
+                title = "The page at " + alertUrl.getProtocol() + "://" + alertUrl.getHost() + " says";
+            } catch (MalformedURLException ex) {
+                // Keep the raw URL as the title.
+            }
+        }
+
+        final AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle(title);
+        builder.setOnCancelListener(new ScriptDialogCancelListener(result));
+        if (type != WebKitWebView.SCRIPT_DIALOG_PROMPT) {
+            builder.setMessage(displayMessage);
+            builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, null));
+        } else {
+            @SuppressLint("InflateParams")
+            final View view = LayoutInflater.from(getContext()).inflate(R.layout.js_prompt, null);
+            EditText edit = view.findViewById(R.id.value);
+            edit.setText(defaultText);
+            builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(result, edit));
+            ((TextView)view.findViewById(R.id.message)).setText(message);
+            builder.setView(view);
+        }
+        if (type != WebKitWebView.SCRIPT_DIALOG_ALERT) {
+            builder.setNegativeButton(negativeTextId, new ScriptDialogCancelListener(result));
+        }
+        builder.show();
+    }
+
+    private class ScriptDialogResult implements WPEJsPromptResult {
+        private final long dialogPtr;
+        private @Nullable String stringResult;
+
+        ScriptDialogResult(long dialogPtr) { this.dialogPtr = dialogPtr; }
+
+        @Override
+        public void cancel() {
+            // webKitWebView is null once the view has been destroyed; the dialog is torn down with
+            // the page in that case, so there is nothing to answer.
+            if (webKitWebView != null) {
+                webKitWebView.scriptDialogConfirm(dialogPtr, false, stringResult);
+                webKitWebView.scriptDialogClose(dialogPtr);
+            }
+        }
+
+        @Override
+        public void confirm() {
+            if (webKitWebView != null) {
+                webKitWebView.scriptDialogConfirm(dialogPtr, true, stringResult);
+                webKitWebView.scriptDialogClose(dialogPtr);
+            }
+        }
+
+        @Override
+        public void confirm(@NonNull String result) {
+            stringResult = result;
+            confirm();
+        }
+    }
+
+    private static class ScriptDialogCancelListener
+        implements DialogInterface.OnCancelListener, DialogInterface.OnClickListener {
+        private final WPEJsResult result;
+
+        ScriptDialogCancelListener(@NonNull WPEJsResult result) { this.result = result; }
+
+        @Override
+        public void onCancel(DialogInterface dialog) {
+            result.cancel();
+        }
+
+        @Override
+        public void onClick(DialogInterface dialog, int which) {
+            result.cancel();
+        }
+    }
+
+    private static class ScriptDialogPositiveListener implements DialogInterface.OnClickListener {
+        private final WPEJsPromptResult result;
+        private final @Nullable EditText edit;
+
+        ScriptDialogPositiveListener(@NonNull WPEJsPromptResult result, @Nullable EditText edit) {
+            this.result = result;
+            this.edit = edit;
+        }
+
+        @Override
+        public void onClick(DialogInterface dialog, int which) {
+            if (edit != null) {
+                result.confirm(edit.getText().toString());
+            } else {
+                result.confirm();
+            }
+        }
+    }
 
     private static class HttpResourceRequest implements WPEResourceRequest {
         private final Uri uri;
