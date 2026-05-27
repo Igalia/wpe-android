@@ -88,11 +88,6 @@ set_target_properties(
     libwpe-1.0 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libwpe-1.0.so"
                           INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include/wpe")
 
-add_library(WPEBackend SHARED IMPORTED)
-set_target_properties(
-    WPEBackend PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEBackend-android.so"
-                          INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include")
-
 add_library(WPEWebDriver SHARED IMPORTED)
 set_target_properties(WPEWebDriver PROPERTIES IMPORTED_LOCATION
                                               "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebDriver.so")
@@ -128,20 +123,9 @@ add_library(
     Platform/WPEToplevelAndroid.cpp
     Platform/WPEViewAndroid.cpp
     Runtime/EntryPoint.cpp
-    Runtime/Fence.cpp
-    Runtime/InputMethodContext.cpp
     Runtime/LooperThread.cpp
     Runtime/MessagePump.cpp
-    Runtime/RendererSurfaceControl.cpp
-    Runtime/SurfaceControl.cpp
-    Runtime/WKCallback.cpp
-    Runtime/WKCookieManager.cpp
-    Runtime/WKNetworkSession.cpp
     Runtime/WKRuntime.cpp
-    Runtime/WKWebContext.cpp
-    Runtime/WKSettings.cpp
-    Runtime/WKWebsiteDataManager.cpp
-    Runtime/WKWebView.cpp
     capi/JNIMappings.cpp
     capi/WebKitCookieManager.cpp
     capi/WebKitNetworkSession.cpp
@@ -166,7 +150,6 @@ target_link_libraries(
     gobject-2.0
     libwpe-1.0
     soup-3.0
-    WPEBackend
     WPEWebKit-2.0
     WPEAndroidCommon)
 
@@ -178,7 +161,6 @@ target_link_libraries(
     gio-2.0
     glib-2.0
     gmodule-2.0
-    WPEBackend
     WPEWebKit-2.0
     WPEAndroidCommon
     WPEWebDriver)

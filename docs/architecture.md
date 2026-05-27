@@ -3,11 +3,10 @@
 This document describes the current Android API split after the WPEPlatform
 backend, JNI/CAPI bridge, and high-level convenience API changes.
 
-Older documentation and examples may still refer to `WPEView`, `WPEContext`,
-`WKWebView`, `WKWebContext`, or Browser/Page/gfx.View internals. Those names
-belong to the pre-refactor API path and are kept in the source tree for
-compatibility while the new API is adopted. New code should use the APIs
-described below.
+Older documentation and examples may still refer to the pre-refactor API path
+(`org.wpewebkit.wpeview.WPEView`, `WPEContext`, the `org.wpewebkit.wpe.WK*`
+proxies, or Browser/Page/gfx.View internals). Those classes have been removed;
+new and existing code should use the APIs described below.
 
 ![high_level_design.png](./images/high_level_design.png)
 
@@ -25,7 +24,6 @@ Java code lives in:
 - `wpeview/src/main/java/org/wpewebkit/wpe/WKRuntime.java`
 - `wpeview/src/main/java/org/wpewebkit/wpe/WKActivityObserver.java`
 - `wpeview/src/main/java/org/wpewebkit/wpe/AuxiliaryProcessesContainer.java`
-- `wpeview/src/main/java/org/wpewebkit/wpe/WKCallback.java`
 - `wpeview/src/main/java/org/wpewebkit/wpe/services/`
 
 Native code lives in:
@@ -34,12 +32,11 @@ Native code lives in:
 - `wpeview/src/main/cpp/Runtime/WKRuntime.cpp`
 - `wpeview/src/main/cpp/Runtime/MessagePump.cpp`
 - `wpeview/src/main/cpp/Runtime/LooperThread.cpp`
-- `wpeview/src/main/cpp/Runtime/WKCallback.cpp`
 - `wpeview/src/main/cpp/Common/`
 
 `Runtime/EntryPoint.cpp` is the JNI entry point. It initializes the common JNI
-environment, registers the legacy `WK*` JNI mappings, then registers the new
-`capi/` mappings through `WebKit::configureJNIMappings()`.
+environment, registers the `WKRuntime` infrastructure JNI mappings, then
+registers the `capi/` mappings through `WebKit::configureJNIMappings()`.
 
 ### Layer 1: Public Android convenience API
 
@@ -170,7 +167,6 @@ Relevant imported native API locations include:
 - `wpeview/src/main/cpp/imported/include/wpe-webkit/wpe/`
 - `wpeview/src/main/cpp/imported/include/wpe-webkit/wpe-platform/`
 - `wpeview/src/main/cpp/imported/lib/<abi>/libWPEWebKit-2.0.so`
-- `wpeview/src/main/cpp/imported/lib/<abi>/libWPEBackend-android.so`
 
 ## Ownership and Lifetime
 
@@ -286,23 +282,14 @@ framework-style names in `org.wpewebkit.wpeview` for the convenience API.
 
 ## Compatibility Notes
 
-The following classes are legacy compatibility APIs and should not be the target
-for new documentation or new app-facing features unless the feature must support
-the old API path:
+The legacy convenience and proxy classes (`org.wpewebkit.wpeview.WPEView`,
+`WPEContext`, `WPESettings`, `WPECookieManager`, `WPEViewClient`,
+`WPEChromeClient`, and the `org.wpewebkit.wpe.WK*` proxies such as `WKWebView`,
+`WKWebContext`, `WKSettings`, `WKNetworkSession`, `WKCookieManager`,
+`WKWebsiteDataManager`) have been removed. Use the convenience API
+(`WebView`, `WebContext`, `WebSettings`, …) and the `WebKit`/`WPE` CAPI proxies
+instead.
 
-- `org.wpewebkit.wpeview.WPEView`
-- `org.wpewebkit.wpeview.WPEContext`
-- `org.wpewebkit.wpeview.WPESettings`
-- `org.wpewebkit.wpeview.WPECookieManager`
-- `org.wpewebkit.wpeview.WPEViewClient`
-- `org.wpewebkit.wpeview.WPEChromeClient`
-- `org.wpewebkit.wpe.WKWebView`
-- `org.wpewebkit.wpe.WKWebContext`
-- `org.wpewebkit.wpe.WKNetworkSession`
-- `org.wpewebkit.wpe.WKSettings`
-- `org.wpewebkit.wpe.WKCookieManager`
-- `org.wpewebkit.wpe.WKWebsiteDataManager`
-
-Runtime names such as `WKRuntime`, `WKCallback`, `WKActivityObserver`, and
-`WKProcessType` are still part of the infrastructure layer and are not replaced
-by the public API naming split yet.
+Runtime names such as `WKRuntime`, `WKActivityObserver`, and `WKProcessType` are
+still part of the infrastructure layer and are not replaced by the public API
+naming split yet.

@@ -20,14 +20,7 @@
 #include "../capi/JNIMappings.h"
 #include "Init.h"
 #include "Logging.h"
-#include "WKCallback.h"
-#include "WKCookieManager.h"
-#include "WKNetworkSession.h"
 #include "WKRuntime.h"
-#include "WKSettings.h"
-#include "WKWebContext.h"
-#include "WKWebView.h"
-#include "WKWebsiteDataManager.h"
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
@@ -35,13 +28,6 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
         Init::initialize(javaVM);
 
         WKRuntime::configureJNIMappings();
-        WKCallback::configureJNIMappings();
-        WKCookieManager::configureJNIMappings();
-        WKNetworkSession::configureJNIMappings();
-        WKWebContext::configureJNIMappings();
-        WKWebsiteDataManager::configureJNIMappings();
-        WKWebView::configureJNIMappings();
-        WKSettings::configureJNIMappings();
 
         WebKit::configureJNIMappings();
 
