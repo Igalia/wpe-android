@@ -183,8 +183,7 @@ void MessagePump::prepare() noexcept
 
     for (const auto& pollFD : changedPollFDs) {
         ALooper_addFd(
-            m_looper, pollFD.fd, ALOOPER_POLL_CALLBACK,
-            static_cast<int>(glibEventsToLooperEvents(pollFD.events) | ALOOPER_EVENT_OUTPUT),
+            m_looper, pollFD.fd, ALOOPER_POLL_CALLBACK, static_cast<int>(glibEventsToLooperEvents(pollFD.events)),
             +[](int fileDesc, int events, void* userData) -> int {
                 auto* pump = reinterpret_cast<MessagePump*>(userData);
                 for (int j = 0; j < pump->m_pollFdsSize; ++j) {
