@@ -82,6 +82,32 @@ public class WebContext {
         this.webKitCookieManager.setAcceptPolicy(WebKitCookieManager.WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 
         this.settings = new WebKitSettings();
+        applyDefaultMobileUserAgent();
+    }
+
+    /**
+     * WPE's default User-Agent advertises a desktop platform ({@code X11; Linux aarch64}) because
+     * {@code WTF::chassisType()} is never {@code Mobile} on Android (it relies on systemd hostnamed,
+     * which is absent). Many sites use the User-Agent to decide whether to serve their mobile layout,
+     * so without this they serve the desktop site &mdash; e.g. wide navigation bars that overflow a
+     * phone-sized viewport and force horizontal scrolling.
+     *
+     * <p>Advertise an {@code Android} + {@code Mobile} User-Agent, mirroring what WPEPlatform would emit
+     * on a mobile chassis. The {@code AppleWebKit/605.1.15} and {@code Version/60.5} tokens match the
+     * fixed values WPE's own User-Agent uses (see {@code UserAgentGLib.cpp}), keeping us aligned with
+     * the engine's Safari branding rather than impersonating Chrome. The Android version and device
+     * model come from {@link android.os.Build}. Embedders can still override this via
+     * {@link WebSettings#setUserAgentString(String)}.
+     *
+     * <p>Note: we build the string explicitly rather than reading {@code getUserAgentString()} here,
+     * because a freshly-created WebKitSettings has no User-Agent populated yet (the engine computes the
+     * default lazily) and querying it at this point returns null.
+     */
+    private void applyDefaultMobileUserAgent() {
+        String mobileUserAgent = "Mozilla/5.0 (Linux; Android " + android.os.Build.VERSION.RELEASE + "; " +
+                                 android.os.Build.MODEL + ") AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                                 + "Version/60.5 Mobile Safari/605.1.15";
+        settings.setUserAgentString(mobileUserAgent);
     }
 
     /**
