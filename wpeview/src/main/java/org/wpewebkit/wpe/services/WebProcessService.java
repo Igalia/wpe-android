@@ -118,6 +118,9 @@ public class WebProcessService extends WPEService {
         envStrings.add("WEBKIT_INSPECTOR_RESOURCES_PATH");
         envStrings.add(new File(context.getFilesDir(), "injected-bundles").getAbsolutePath());
 
+        envStrings.add("WEBKIT_SKIA_ENABLE_DDL");
+        envStrings.add("1");
+
         if ((appInfo.flags & ApplicationInfo.FLAG_DEBUGGABLE) == ApplicationInfo.FLAG_DEBUGGABLE) {
             String gstDebugLevels = "*:FIXME";
 
