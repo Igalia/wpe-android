@@ -21,6 +21,7 @@
 #include "Logging.h"
 #include "WPEInputMethodContextAndroid.h"
 #include "WPEKeymapAndroid.h"
+#include "WPEProcessManagerAndroid.h"
 #include "WPEScreenAndroid.h"
 #include "WPEToplevelAndroid.h"
 #include "WPEViewAndroid.h"
@@ -86,6 +87,13 @@ static gboolean wpeDisplayAndroidConnect(WPEDisplay* display, GError** error)
     displayAndroid->eglDisplay = eglDisplay;
     displayAndroid->keymap = wpe_keymap_android_new();
     displayAndroid->screen = wpe_screen_android_new();
+
+    if (!wpe_process_manager_get_default()) {
+        WPEProcessManager* processManager = wpe_process_manager_android_new();
+        wpe_process_manager_set_default(processManager);
+        g_object_unref(processManager);
+    }
+
     return TRUE;
 }
 

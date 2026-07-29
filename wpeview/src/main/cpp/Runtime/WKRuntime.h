@@ -24,6 +24,13 @@
 
 #include "MessagePump.h"
 
+#include <cstdint>
+
+// Bridges to the Java WKRuntime for launching/terminating WebKit auxiliary processes as Android
+// services. Used by WPEProcessManagerAndroid. processType is a Common/Environment.h ProcessType value.
+bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept;
+void wkRuntimeTerminateProcess(int64_t processId) noexcept;
+
 class WKRuntime final {
 public:
     static void configureJNIMappings();

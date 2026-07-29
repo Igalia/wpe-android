@@ -83,11 +83,6 @@ set_target_properties(
         "${CMAKE_SOURCE_DIR}/imported/include;${CMAKE_SOURCE_DIR}/imported/include/wpe-webkit;${CMAKE_SOURCE_DIR}/imported/include/wpe-webkit/wpe-platform;${CMAKE_SOURCE_DIR}/imported/include/libsoup-3.0"
 )
 
-add_library(libwpe-1.0 SHARED IMPORTED)
-set_target_properties(
-    libwpe-1.0 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libwpe-1.0.so"
-                          INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/imported/include/wpe")
-
 add_library(WPEWebDriver SHARED IMPORTED)
 set_target_properties(WPEWebDriver PROPERTIES IMPORTED_LOCATION
                                               "${CMAKE_SOURCE_DIR}/imported/lib/${ANDROID_ABI}/libWPEWebDriver.so")
@@ -109,7 +104,6 @@ target_link_libraries(
     glib-2.0
     gobject-2.0
     gstreamer-1.0
-    libwpe-1.0
     WPEWebKit-2.0)
 
 # libWPEAndroidRuntime
@@ -118,6 +112,7 @@ add_library(
     Platform/WPEDisplayAndroid.cpp
     Platform/WPEInputMethodContextAndroid.cpp
     Platform/WPEKeymapAndroid.cpp
+    Platform/WPEProcessManagerAndroid.cpp
     Platform/WPEScreenAndroid.cpp
     Platform/WPEScreenSyncObserverAndroid.cpp
     Platform/WPEToplevelAndroid.cpp
@@ -148,7 +143,6 @@ target_link_libraries(
     gio-2.0
     glib-2.0
     gobject-2.0
-    libwpe-1.0
     soup-3.0
     WPEWebKit-2.0
     WPEAndroidCommon)
