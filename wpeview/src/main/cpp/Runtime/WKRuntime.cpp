@@ -106,44 +106,19 @@ JNIBrowserCache::JNIBrowserCache()
             }));
 }
 
-namespace {
 /***********************************************************************************************************************
- * WPE process provider functions
+ * Process launch/terminate bridge to the Java WKRuntime (used by WPEProcessManagerAndroid)
  **********************************************************************************************************************/
 
-int64_t wpeLaunchProcess(void* /*backend*/, wpe_process_type wpeProcessType, void* userData) noexcept
+bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept
 {
-    Logging::logDebug("wpeLaunchProcess(%d, %p) [tid %d]", wpeProcessType, userData, gettid());
-    auto** options = reinterpret_cast<char**>(userData);
-    if ((options == nullptr) || (options[0] == nullptr) || (options[1] == nullptr))
-        return -1;
-
-    const jlong pid = std::strtoll(options[0], nullptr, 10); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
-    const jint fileDesc = std::stoi(options[1]);
-
-    auto processType = ProcessType::TypesCount;
-    if (wpeProcessType == WPE_PROCESS_TYPE_WEB) {
-        processType = ProcessType::WebProcess;
-        Logging::logVerbose("Launching WebProcess");
-    } else if (wpeProcessType == WPE_PROCESS_TYPE_NETWORK) {
-        processType = ProcessType::NetworkProcess;
-        Logging::logVerbose("Launching NetworkProcess");
-    }
-
-    if ((processType < ProcessType::FirstType) || (processType >= ProcessType::TypesCount)) {
-        Logging::logError("Cannot launch process (invalid process type: %d)", static_cast<int>(processType));
-        return -1;
-    }
-
-    return getJNIBrowserCache().launchProcess(pid, static_cast<jint>(processType), fileDesc) ? 0 : -1;
+    return getJNIBrowserCache().launchProcess(processId, processType, ipcSocketFd);
 }
 
-void wpeTerminateProcess(void* /*backend*/, int64_t pid)
+void wkRuntimeTerminateProcess(int64_t processId) noexcept
 {
-    Logging::logDebug("wpeTerminateProcess(%ld) [tid %d]", pid, gettid());
-    getJNIBrowserCache().terminateProcess(pid);
+    getJNIBrowserCache().terminateProcess(processId);
 }
-} // namespace
 
 WKRuntime::WKRuntime()
 {
@@ -154,17 +129,6 @@ WKRuntime::WKRuntime()
 void WKRuntime::configureJNIMappings()
 {
     getJNIBrowserCache();
-
-    static const wpe_process_provider_interface s_processProviderInterface = {.create = nullptr,
-        .destroy = nullptr,
-        .launch = wpeLaunchProcess,
-        .terminate = wpeTerminateProcess,
-        ._wpe_reserved1 = nullptr,
-        ._wpe_reserved2 = nullptr,
-        ._wpe_reserved3 = nullptr,
-        ._wpe_reserved4 = nullptr,
-        ._wpe_reserved5 = nullptr};
-    wpe_process_provider_register_interface(&s_processProviderInterface);
 }
 
 void WKRuntime::jniInit()
