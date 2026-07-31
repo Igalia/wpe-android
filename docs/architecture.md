@@ -14,9 +14,9 @@ new and existing code should use the APIs described below.
 
 ### Layer 0: Runtime and process infrastructure
 
-This layer initializes native libraries, configures the WebKit process provider,
-starts the native looper, bridges Android and GLib event delivery, and manages
-the Android services used for auxiliary processes.
+This layer initializes native libraries, bridges Android and GLib event
+delivery, and manages the Android services used for auxiliary processes on
+behalf of the WPEPlatform process manager.
 
 Java code lives in:
 
@@ -140,6 +140,7 @@ Native code lives in `wpeview/src/main/cpp/Platform/`:
 - `WPEViewAndroid.cpp`
 - `WPEInputMethodContextAndroid.cpp`
 - `WPEKeymapAndroid.cpp`
+- `WPEProcessManagerAndroid.cpp`
 - `WPEScreenAndroid.cpp`
 - `WPEScreenSyncObserverAndroid.cpp`
 

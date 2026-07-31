@@ -70,8 +70,8 @@ Besides [python3](https://www.python.org/downloads/), additional dependencies ar
 ### Getting the dependencies
 
 WPE Android depends on a considerable amount of libraries,
-including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and
-[WPEWebKit](https://github.com/WebPlatformForEmbedded/WPEWebKit).
+including [WPEWebKit](https://github.com/WebPlatformForEmbedded/WPEWebKit)
+and GStreamer.
 To ease the cross-compilation process we use
 [Cerbero](https://gitlab.freedesktop.org/gstreamer/cerbero). To set all things up run:
 
