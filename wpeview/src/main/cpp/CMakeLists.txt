@@ -135,7 +135,6 @@ add_library(
     capi/WPEView.cpp)
 target_configure_quality(WPEAndroidRuntime)
 target_include_directories(WPEAndroidRuntime PRIVATE Platform Runtime capi)
-target_compile_definitions(WPEAndroidRuntime PRIVATE WPE_ENABLE_PROCESS)
 target_link_libraries(
     WPEAndroidRuntime
     EGL

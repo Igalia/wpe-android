@@ -133,33 +133,6 @@ void MessagePump::flush() const noexcept
     dispatch();
 }
 
-void MessagePump::invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
-{
-    struct InvocationInfo {
-        void (*m_onExec)(void*);
-        void (*m_onDestroy)(void*);
-        void* m_userData;
-    };
-
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    auto* info = new InvocationInfo {onExec, onDestroy, userData};
-    g_main_context_invoke_full(
-        m_context, G_PRIORITY_DEFAULT,
-        +[](gpointer data) -> gboolean {
-            auto* invocation = reinterpret_cast<InvocationInfo*>(data);
-            if (invocation->m_onExec != nullptr)
-                invocation->m_onExec(invocation->m_userData);
-            return G_SOURCE_REMOVE;
-        },
-        info,
-        +[](gpointer data) -> void {
-            auto* invocation = reinterpret_cast<InvocationInfo*>(data);
-            if (invocation->m_onDestroy != nullptr)
-                invocation->m_onDestroy(invocation->m_userData);
-            delete invocation; // NOLINT(cppcoreguidelines-owning-memory)
-        });
-}
-
 void MessagePump::prepare() noexcept
 {
     g_main_context_prepare(m_context, &m_maxPriority);

@@ -26,23 +26,22 @@
 #include "Logging.h"
 #include "LooperThread.h"
 
-#include <string>
 #include <wpe/webkit.h>
 
 /***********************************************************************************************************************
  * JNI mapping with Java WKRuntime class
  **********************************************************************************************************************/
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIBrowser, "org/wpewebkit/wpe/WKRuntime");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWPERuntime, "org/wpewebkit/wpe/WKRuntime");
 
-class JNIBrowserCache final : public JNI::TypedClass<JNIBrowser> {
+class JNIWPERuntimeCache final : public JNI::TypedClass<JNIWPERuntime> {
 public:
-    JNIBrowserCache();
+    JNIWPERuntimeCache();
 
     bool launchProcess(jlong pid, jint type, jint fileDesc) const noexcept
     {
         try {
-            m_launchProcessMethod.invoke(m_browserJavaInstance.get(), pid, type, fileDesc);
+            m_launchProcessMethod.invoke(m_runtimeJavaInstance.get(), pid, type, fileDesc);
             return true;
         } catch (const std::exception& ex) {
             Logging::logError("Cannot launch process: %s", ex.what());
@@ -53,14 +52,14 @@ public:
     void terminateProcess(jlong pid) const noexcept
     {
         try {
-            m_terminateProcessMethod.invoke(m_browserJavaInstance.get(), pid);
+            m_terminateProcessMethod.invoke(m_runtimeJavaInstance.get(), pid);
         } catch (const std::exception& ex) {
             Logging::logError("Cannot terminate process: %s", ex.what());
         }
     }
 
 private:
-    mutable JNI::ProtectedType<JNIBrowser> m_browserJavaInstance;
+    mutable JNI::ProtectedType<JNIWPERuntime> m_runtimeJavaInstance;
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jlong, jint, jint)> m_launchProcessMethod;
@@ -68,14 +67,14 @@ private:
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
-const JNIBrowserCache& getJNIBrowserCache()
+static const JNIWPERuntimeCache& getJNIWPERuntimeCache()
 {
-    static const JNIBrowserCache s_singleton;
+    static const JNIWPERuntimeCache s_singleton;
     return s_singleton;
 }
 
-JNIBrowserCache::JNIBrowserCache()
-    : JNI::TypedClass<JNIBrowser>(true)
+JNIWPERuntimeCache::JNIWPERuntimeCache()
+    : JNI::TypedClass<JNIWPERuntime>(true)
     , m_launchProcessMethod(getMethod<void(jlong, jint, jint)>("launchProcess"))
     , m_terminateProcessMethod(getMethod<void(jlong)>("terminateProcess"))
 {
@@ -95,14 +94,14 @@ JNIBrowserCache::JNIBrowserCache()
         JNI::NativeMethod<void()>(
             "nativeInit",
             +[](JNIEnv* env, jobject obj) {
-                getJNIBrowserCache().m_browserJavaInstance
-                    = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIBrowser>(obj), true);
+                getJNIWPERuntimeCache().m_runtimeJavaInstance
+                    = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIWPERuntime>(obj), true);
                 WKRuntime::instance().jniInit();
             }),
         JNI::NativeMethod<void()>(
             "nativeShut", +[](JNIEnv*, jobject) {
                 WKRuntime::instance().jniShut();
-                getJNIBrowserCache().m_browserJavaInstance = nullptr;
+                getJNIWPERuntimeCache().m_runtimeJavaInstance = nullptr;
             }));
 }
 
@@ -112,12 +111,12 @@ JNIBrowserCache::JNIBrowserCache()
 
 bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept
 {
-    return getJNIBrowserCache().launchProcess(processId, processType, ipcSocketFd);
+    return getJNIWPERuntimeCache().launchProcess(processId, processType, ipcSocketFd);
 }
 
 void wkRuntimeTerminateProcess(int64_t processId) noexcept
 {
-    getJNIBrowserCache().terminateProcess(processId);
+    getJNIWPERuntimeCache().terminateProcess(processId);
 }
 
 WKRuntime::WKRuntime()
@@ -128,7 +127,7 @@ WKRuntime::WKRuntime()
 
 void WKRuntime::configureJNIMappings()
 {
-    getJNIBrowserCache();
+    getJNIWPERuntimeCache();
 }
 
 void WKRuntime::jniInit()
@@ -145,9 +144,4 @@ void WKRuntime::jniShut() noexcept
         // TODO NOLINTNEXTLINE(bugprone-empty-catch)
     } catch (...) {
     }
-}
-
-void WKRuntime::invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept
-{
-    m_messagePump->invoke(onExec, onDestroy, userData);
 }
