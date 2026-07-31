@@ -6,8 +6,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import org.wpewebkit.wpe.WKProcessType;
-import org.wpewebkit.wpe.WKVersions;
+import org.wpewebkit.wpe.WPEProcessType;
+import org.wpewebkit.wpe.WPEVersions;
 
 import java.io.File;
 
@@ -25,7 +25,7 @@ public class WebDriverProcessService extends WPEService {
 
         // android.os.Debug.waitForDebugger();
 
-        final String assetsVersion = WKVersions.versionedAssets("webdriver_process");
+        final String assetsVersion = WPEVersions.versionedAssets("webdriver_process");
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gio", true);
@@ -41,6 +41,6 @@ public class WebDriverProcessService extends WPEService {
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
         Log.d(LOGTAG, "initializeServiceMain()");
 
-        initializeNativeMain(pid, WKProcessType.WebDriverProcess.getValue(), 0);
+        initializeNativeMain(pid, WPEProcessType.WebDriverProcess.getValue(), 0);
     }
 }

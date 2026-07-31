@@ -20,14 +20,14 @@
 #include "../capi/JNIMappings.h"
 #include "Init.h"
 #include "Logging.h"
-#include "WKRuntime.h"
+#include "WPERuntime.h"
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
     try {
         Init::initialize(javaVM);
 
-        WKRuntime::configureJNIMappings();
+        WPERuntime::configureJNIMappings();
 
         WebKit::configureJNIMappings();
 

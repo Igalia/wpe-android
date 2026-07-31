@@ -90,6 +90,6 @@ public class WPEApplication extends Application {
     public WPEApplication() {
         super();
         if (processKind == ProcessKind.MAIN)
-            registerActivityLifecycleCallbacks(new org.wpewebkit.wpe.WKActivityObserver());
+            registerActivityLifecycleCallbacks(new org.wpewebkit.wpe.WPEActivityObserver());
     }
 }

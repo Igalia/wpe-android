@@ -35,19 +35,19 @@ import androidx.annotation.NonNull;
 
 import org.wpewebkit.wpe.IWPEService;
 import org.wpewebkit.wpe.IWPEServiceHost;
-import org.wpewebkit.wpe.WKProcessType;
+import org.wpewebkit.wpe.WPEProcessType;
 
 public final class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
     private final long pid;
-    private final WKProcessType processType;
+    private final WPEProcessType processType;
     private ParcelFileDescriptor parcelFd;
 
     protected final WPEServiceConnectionListener listener;
     protected final Handler handler = new Handler(Looper.myLooper());
 
-    public WPEServiceConnection(long pid, @NonNull WKProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
+    public WPEServiceConnection(long pid, @NonNull WPEProcessType processType, @NonNull ParcelFileDescriptor parcelFd,
                                 @NonNull WPEServiceConnectionListener listener) {
         this.pid = pid;
         this.processType = processType;
@@ -56,7 +56,7 @@ public final class WPEServiceConnection implements ServiceConnection {
     }
 
     public long getPid() { return pid; }
-    public @NonNull WKProcessType getProcessType() { return processType; }
+    public @NonNull WPEProcessType getProcessType() { return processType; }
 
     @Override
     public void onServiceConnected(@NonNull ComponentName name, IBinder service) {

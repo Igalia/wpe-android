@@ -22,9 +22,9 @@
 #include <gst/gst.h>
 #include <wpe/webkit.h>
 
-static void initializeWKVersions()
+static void initializeWPEVersions()
 {
-    auto klass = JNI::Class("org/wpewebkit/wpe/WKVersions");
+    auto klass = JNI::Class("org/wpewebkit/wpe/WPEVersions");
     g_autofree char* webkitVersion = g_strdup_printf(
         "%u.%u.%u", webkit_get_major_version(), webkit_get_minor_version(), webkit_get_micro_version());
 
@@ -52,7 +52,7 @@ static void initializeWKVersions()
     // TODO NOLINTNEXTLINE(bugprone-narrowing-conversions, cppcoreguidelines-narrowing-conversions)
     klass.getStaticField<jint>("GSTREAMER_NANO").setValue(gstNano);
 
-    Logging::logVerbose("WKRuntime::Init: WPE WebKit %s, GStreamer %s", webkitVersion, gstVersion);
+    Logging::logVerbose("Init: WPE WebKit %s, GStreamer %s", webkitVersion, gstVersion);
 }
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIActivity, "android/app/Activity");
@@ -78,11 +78,11 @@ extern "C" __attribute__((visibility("default"))) jobject wpe_android_runtime_ge
     return s_applicationContext;
 }
 
-static void initializeWKActivityObserver()
+static void initializeWPEActivityObserver()
 {
-    auto klass = JNI::Class("org/wpewebkit/wpe/WKActivityObserver");
+    auto klass = JNI::Class("org/wpewebkit/wpe/WPEActivityObserver");
     if (!klass) {
-        Logging::logDebug("Init::initializeWKActivityObserver: No observer class, skipping.");
+        Logging::logDebug("Init::initializeWPEActivityObserver: No observer class, skipping.");
         return;
     }
 
@@ -90,7 +90,7 @@ static void initializeWKActivityObserver()
         JNI::StaticNativeMethod<void(JNIActivity)>(
             "handleActivityStarted",
             +[](JNIEnv* env, jclass, JNIActivity activity) {
-                Logging::logDebug("WKActivityObserver::handleActivityStarted(%p) current=%p [tid %d]", activity,
+                Logging::logDebug("WPEActivityObserver::handleActivityStarted(%p) current=%p [tid %d]", activity,
                     s_currentActivity, gettid());
                 if (s_currentActivity != nullptr)
                     env->DeleteGlobalRef(s_currentActivity);
@@ -98,7 +98,7 @@ static void initializeWKActivityObserver()
             }),
         JNI::StaticNativeMethod<void(JNIActivity)>(
             "handleActivityStopped", +[](JNIEnv* env, jclass, JNIActivity activity) {
-                Logging::logDebug("WKActivityObserver::handleActivityStopped(%p) current=%p [tid %d]", activity,
+                Logging::logDebug("WPEActivityObserver::handleActivityStopped(%p) current=%p [tid %d]", activity,
                     s_currentActivity, gettid());
                 if (s_currentActivity != nullptr)
                     env->DeleteGlobalRef(s_currentActivity);
@@ -106,17 +106,17 @@ static void initializeWKActivityObserver()
             }));
 }
 
-static void initializeWKRuntime()
+static void initializeWPERuntime()
 {
-    auto klass = JNI::Class("org/wpewebkit/wpe/WKRuntime");
+    auto klass = JNI::Class("org/wpewebkit/wpe/WPERuntime");
     if (!klass) {
-        Logging::logDebug("Init::initializeWKRuntime: No runtime class, skipping.");
+        Logging::logDebug("Init::initializeWPERuntime: No runtime class, skipping.");
         return;
     }
 
     klass.registerNativeMethods(JNI::StaticNativeMethod<void(JNIContext)>(
         "setApplicationContext", +[](JNIEnv* env, jclass, JNIContext context) {
-            Logging::logDebug("WKRuntime::setApplicationContext(%p) [tid %d]", context, gettid());
+            Logging::logDebug("WPERuntime::setApplicationContext(%p) [tid %d]", context, gettid());
             if (s_applicationContext != nullptr)
                 env->DeleteGlobalRef(s_applicationContext);
             s_applicationContext = context ? static_cast<jobject>(env->NewGlobalRef(context)) : nullptr;
@@ -126,8 +126,8 @@ static void initializeWKRuntime()
 JNIEnv* Init::initialize(JavaVM* javaVM)
 {
     auto* env = JNI::initVM(javaVM);
-    initializeWKVersions();
-    initializeWKActivityObserver();
-    initializeWKRuntime();
+    initializeWPEVersions();
+    initializeWPEActivityObserver();
+    initializeWPERuntime();
     return env;
 }

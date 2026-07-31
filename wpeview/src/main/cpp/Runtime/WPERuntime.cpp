@@ -20,7 +20,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "WKRuntime.h"
+#include "WPERuntime.h"
 
 #include "Environment.h"
 #include "Logging.h"
@@ -30,10 +30,10 @@
 #include <unistd.h>
 
 /***********************************************************************************************************************
- * JNI mapping with Java WKRuntime class
+ * JNI mapping with Java WPERuntime class
  **********************************************************************************************************************/
 
-DECLARE_JNI_CLASS_SIGNATURE(JNIWPERuntime, "org/wpewebkit/wpe/WKRuntime");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWPERuntime, "org/wpewebkit/wpe/WPERuntime");
 
 class JNIWPERuntimeCache final : public JNI::TypedClass<JNIWPERuntime> {
 public:
@@ -62,7 +62,7 @@ public:
 private:
     mutable JNI::ProtectedType<JNIWPERuntime> m_runtimeJavaInstance;
     // The MessagePump attaching the GLib main context to the Android main looper, alive between
-    // the Java WKRuntime nativeInit() and nativeShut() calls.
+    // the Java WPERuntime nativeInit() and nativeShut() calls.
     mutable std::unique_ptr<MessagePump> m_messagePump;
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
@@ -85,14 +85,14 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
     registerNativeMethods(JNI::StaticNativeMethod<void(jstringArray)>(
                               "setupNativeEnvironment",
                               +[](JNIEnv* /*env*/, jclass /*klass*/, jstringArray envStringsArray) {
-                                  Logging::logDebug("WKRuntime::setupNativeEnvironment() [tid %d]", gettid());
+                                  Logging::logDebug("WPERuntime::setupNativeEnvironment() [tid %d]", gettid());
                                   Logging::pipeStdoutToLogcat();
                                   Environment::configureEnvironment(envStringsArray);
                               }),
         JNI::NativeMethod<void()>(
             "nativeInit",
             +[](JNIEnv* env, jobject obj) {
-                Logging::logDebug("WKRuntime::nativeInit() [tid %d]", gettid());
+                Logging::logDebug("WPERuntime::nativeInit() [tid %d]", gettid());
                 const auto& cache = getJNIWPERuntimeCache();
                 cache.m_runtimeJavaInstance
                     = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIWPERuntime>(obj), true);
@@ -100,7 +100,7 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
             }),
         JNI::NativeMethod<void()>(
             "nativeShut", +[](JNIEnv*, jobject) {
-                Logging::logDebug("WKRuntime::nativeShut() [tid %d]", gettid());
+                Logging::logDebug("WPERuntime::nativeShut() [tid %d]", gettid());
                 const auto& cache = getJNIWPERuntimeCache();
                 cache.m_messagePump = nullptr;
                 cache.m_runtimeJavaInstance = nullptr;
@@ -108,20 +108,20 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
 }
 
 /***********************************************************************************************************************
- * Process launch/terminate bridge to the Java WKRuntime (used by WPEProcessManagerAndroid)
+ * Process launch/terminate bridge to the Java WPERuntime (used by WPEProcessManagerAndroid)
  **********************************************************************************************************************/
 
-bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept
+bool wpeRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept
 {
     return getJNIWPERuntimeCache().launchProcess(processId, processType, ipcSocketFd);
 }
 
-void wkRuntimeTerminateProcess(int64_t processId) noexcept
+void wpeRuntimeTerminateProcess(int64_t processId) noexcept
 {
     getJNIWPERuntimeCache().terminateProcess(processId);
 }
 
-void WKRuntime::configureJNIMappings()
+void WPERuntime::configureJNIMappings()
 {
     getJNIWPERuntimeCache();
 }

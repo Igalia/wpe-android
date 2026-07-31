@@ -30,11 +30,11 @@ final class AuxiliaryProcessesContainer {
     private static final int MAX_AUX_PROCESSES = org.wpewebkit.wpe.services.WPEServices.MAX_AUX_PROCESSES;
 
     private final AuxiliaryProcess[][] processes =
-        new AuxiliaryProcess[WKProcessType.values().length][MAX_AUX_PROCESSES];
+        new AuxiliaryProcess[WPEProcessType.values().length][MAX_AUX_PROCESSES];
     private final Map<Long, AuxiliaryProcess> pidToProcessMap = new HashMap<>();
-    private final int[] firstAvailableSlot = new int[WKProcessType.values().length];
+    private final int[] firstAvailableSlot = new int[WPEProcessType.values().length];
 
-    public int getFirstAvailableSlot(@NonNull WKProcessType processType) {
+    public int getFirstAvailableSlot(@NonNull WPEProcessType processType) {
         return firstAvailableSlot[processType.getValue()];
     }
 
@@ -78,8 +78,8 @@ final class AuxiliaryProcessesContainer {
 
         public int getProcessSlot() { return processSlot; }
 
-        public WKProcessType getProcessType() { return serviceConnection.getProcessType(); }
+        public WPEProcessType getProcessType() { return serviceConnection.getProcessType(); }
 
-        public void terminate() { WKRuntime.getInstance().getApplicationContext().unbindService(serviceConnection); }
+        public void terminate() { WPERuntime.getInstance().getApplicationContext().unbindService(serviceConnection); }
     }
 }

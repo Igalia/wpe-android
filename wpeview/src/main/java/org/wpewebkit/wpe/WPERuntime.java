@@ -44,8 +44,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @UiThread
-public final class WKRuntime {
-    private static final String LOGTAG = "WKRuntime";
+public final class WPERuntime {
+    private static final String LOGTAG = "WPERuntime";
 
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     private static native void setApplicationContext(Context context);
@@ -55,19 +55,19 @@ public final class WKRuntime {
     private static int inspectorPort = 0;
     private static boolean useHttpInspector = true;
 
-    private static final WKRuntime singleton = new WKRuntime();
+    private static final WPERuntime singleton = new WPERuntime();
 
-    public static @NonNull WKRuntime getInstance() { return singleton; }
+    public static @NonNull WPERuntime getInstance() { return singleton; }
 
-    private WKRuntime() { Log.v(LOGTAG, "WKRuntime creation"); }
+    private WPERuntime() { Log.v(LOGTAG, "WPERuntime creation"); }
 
     private Context applicationContext = null;
 
     public @Nullable Context getApplicationContext() { return applicationContext; }
 
     public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
-        WKRuntime.inspectorPort = inspectorPort;
-        WKRuntime.useHttpInspector = useHttpInspector;
+        WPERuntime.inspectorPort = inspectorPort;
+        WPERuntime.useHttpInspector = useHttpInspector;
     }
 
     public void initialize(@NonNull Context context) {
@@ -75,7 +75,7 @@ public final class WKRuntime {
             applicationContext = context.getApplicationContext();
             setApplicationContext(applicationContext);
 
-            final String assetsVersion = WKVersions.versionedAssets("ui_process");
+            final String assetsVersion = WPEVersions.versionedAssets("ui_process");
             if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
                 ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "injected-bundles",
                                            true);
@@ -153,7 +153,7 @@ public final class WKRuntime {
     @Keep
     @WorkerThread
     public void launchProcess(long pid, int type, int fd) {
-        WKProcessType processType = WKProcessType.fromValue(type);
+        WPEProcessType processType = WPEProcessType.fromValue(type);
         Log.d(LOGTAG, "launchProcess " + processType.name() + " (pid: " + pid + ", fd: " + fd + ")");
 
         int processSlot = auxiliaryProcesses.getFirstAvailableSlot(processType);
