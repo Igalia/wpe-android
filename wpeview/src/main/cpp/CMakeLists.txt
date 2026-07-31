@@ -118,7 +118,6 @@ add_library(
     Platform/WPEToplevelAndroid.cpp
     Platform/WPEViewAndroid.cpp
     Runtime/EntryPoint.cpp
-    Runtime/LooperThread.cpp
     Runtime/MessagePump.cpp
     Runtime/WKRuntime.cpp
     capi/JNIMappings.cpp

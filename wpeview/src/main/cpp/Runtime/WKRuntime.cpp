@@ -24,7 +24,6 @@
 
 #include "Environment.h"
 #include "Logging.h"
-#include "LooperThread.h"
 
 #include <wpe/webkit.h>
 
@@ -78,19 +77,13 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
     , m_launchProcessMethod(getMethod<void(jlong, jint, jint)>("launchProcess"))
     , m_terminateProcessMethod(getMethod<void(jlong)>("terminateProcess"))
 {
-    registerNativeMethods(JNI::StaticNativeMethod<void()>(
-                              "startNativeLooper",
-                              +[](JNIEnv* /*env*/, jclass /*klass*/) {
-                                  Logging::logDebug("WKRuntime::startNativeLooper() [tid %d]", gettid());
-                                  LooperThread::instance().startLooper();
+    registerNativeMethods(JNI::StaticNativeMethod<void(jstringArray)>(
+                              "setupNativeEnvironment",
+                              +[](JNIEnv* /*env*/, jclass /*klass*/, jstringArray envStringsArray) {
+                                  Logging::logDebug("WKRuntime::setupNativeEnvironment() [tid %d]", gettid());
+                                  Logging::pipeStdoutToLogcat();
+                                  Environment::configureEnvironment(envStringsArray);
                               }),
-        JNI::StaticNativeMethod<void(jstringArray)>(
-            "setupNativeEnvironment",
-            +[](JNIEnv* /*env*/, jclass /*klass*/, jstringArray envStringsArray) {
-                Logging::logDebug("WKRuntime::setupNativeEnvironment() [tid %d]", gettid());
-                Logging::pipeStdoutToLogcat();
-                Environment::configureEnvironment(envStringsArray);
-            }),
         JNI::NativeMethod<void()>(
             "nativeInit",
             +[](JNIEnv* env, jobject obj) {

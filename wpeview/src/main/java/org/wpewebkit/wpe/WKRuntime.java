@@ -26,7 +26,6 @@ package org.wpewebkit.wpe;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
-import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
@@ -48,7 +47,6 @@ import java.util.List;
 public final class WKRuntime {
     private static final String LOGTAG = "WKRuntime";
 
-    protected static native void startNativeLooper();
     private static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     private static native void setApplicationContext(Context context);
     private native void nativeInit();
@@ -66,8 +64,6 @@ public final class WKRuntime {
     private Context applicationContext = null;
 
     public @Nullable Context getApplicationContext() { return applicationContext; }
-
-    private LooperHelperThread looperHelperThread = null;
 
     public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
         WKRuntime.inspectorPort = inspectorPort;
@@ -112,7 +108,6 @@ public final class WKRuntime {
             }
             setupNativeEnvironment(envStrings.toArray(new String[envStrings.size()]));
             nativeInit();
-            looperHelperThread = new LooperHelperThread();
         }
     }
 
@@ -198,38 +193,5 @@ public final class WKRuntime {
     @WorkerThread
     public void terminateProcess(long pid) {
         auxiliaryProcesses.unregister(pid);
-    }
-
-    /**
-     * A sideline thread that allows Java-based Looper execution from native code.
-     */
-    private static final class LooperHelperThread {
-        private boolean isInitialized = false;
-
-        private final Thread thread = new Thread(() -> {
-            Looper.prepare();
-            startNativeLooper();
-
-            synchronized (LooperHelperThread.this) {
-                isInitialized = true;
-                LooperHelperThread.this.notifyAll();
-            }
-
-            Looper.loop();
-        });
-
-        LooperHelperThread() {
-            thread.start();
-
-            synchronized (this) {
-                while (!isInitialized) {
-                    try {
-                        wait();
-                    } catch (InterruptedException e) {
-                        Log.d(LOGTAG, "LooperHelperThread has been interrupted");
-                    }
-                }
-            }
-        }
     }
 }
