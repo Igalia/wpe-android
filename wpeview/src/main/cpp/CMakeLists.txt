@@ -29,6 +29,8 @@ function(target_configure_quality TARGET_NAME)
         set_target_properties(${TARGET_NAME} PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
     endif()
 
+    target_compile_options(${TARGET_NAME} PRIVATE -fno-exceptions)
+
     if(USE_CODE_WARNINGS_AS_ERRORS)
         target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -Werror)
     endif()
@@ -95,7 +97,7 @@ set_target_properties(WPEWebDriver PROPERTIES IMPORTED_LOCATION
 add_library(WPEAndroidCommon SHARED Common/Environment.cpp Common/Init.cpp Common/Logging.cpp Common/JNI/JNIClass.cpp
                                     Common/JNI/JNIEnv.cpp Common/JNI/JNIString.cpp)
 target_configure_quality(WPEAndroidCommon)
-target_include_directories(WPEAndroidCommon INTERFACE Common)
+target_include_directories(WPEAndroidCommon PUBLIC Common)
 target_link_libraries(
     WPEAndroidCommon
     ${android-lib}

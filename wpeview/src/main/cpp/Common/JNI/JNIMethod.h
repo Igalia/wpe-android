@@ -29,18 +29,20 @@ template <typename T, bool isStatic, typename = void> class GenericMethod;
 
 template <typename... Params, bool isStatic> class GenericMethod<void(Params...), isStatic> final {
 public:
-    template <typename U = void> std::enable_if_t<!isStatic, U> invoke(jobject obj, Params... params) const
+    // Returns false if the called Java method threw an exception (logged and cleared).
+    template <typename U = bool> std::enable_if_t<!isStatic, U> invoke(jobject obj, Params... params) const
     {
         auto* env = getCurrentThreadJNIEnv();
         env->CallVoidMethod(obj, m_methodId, params...);
-        checkJavaException(env);
+        return !clearJavaException(env);
     }
 
-    template <typename U = void> std::enable_if_t<isStatic, U> invoke(Params... params) const
+    // Returns false if the called Java method threw an exception (logged and cleared).
+    template <typename U = bool> std::enable_if_t<isStatic, U> invoke(Params... params) const
     {
         auto* env = getCurrentThreadJNIEnv();
         env->CallStaticVoidMethod(m_javaClassRef.get(), m_methodId, params...);
-        checkJavaException(env);
+        return !clearJavaException(env);
     }
 
 private:
@@ -60,8 +62,8 @@ private:
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<void(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find method in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find method %s in Java class", methodName);
         }
     }
 
@@ -95,7 +97,8 @@ public:
         } else {
             static_assert(!std::is_same_v<Ret, Ret>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return {};
         return ret;
     }
 
@@ -122,7 +125,8 @@ public:
         } else {
             static_assert(!std::is_same_v<Ret, Ret>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return {};
         return ret;
     }
 
@@ -143,8 +147,8 @@ private:
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find method in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find method %s in Java class", methodName);
         }
     }
 
@@ -160,8 +164,7 @@ public:
     {
         auto* env = getCurrentThreadJNIEnv();
         jobject ret = env->CallObjectMethod(obj, m_methodId, params...);
-        checkJavaException(env);
-        if (ret == nullptr)
+        if (clearJavaException(env) || (ret == nullptr))
             return {};
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<Ret>(ret)));
@@ -171,8 +174,7 @@ public:
     {
         auto* env = getCurrentThreadJNIEnv();
         jobject ret = env->CallStaticObjectMethod(m_javaClassRef.get(), m_methodId, params...);
-        checkJavaException(env);
-        if (ret == nullptr)
+        if (clearJavaException(env) || (ret == nullptr))
             return {};
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<Ret>(ret)));
@@ -195,8 +197,8 @@ private:
                 = env->GetMethodID(m_javaClassRef.get(), methodName, FunctionSignature<Ret(Params...)>::value.data());
         }
         if (m_methodId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find method in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find method %s in Java class", methodName);
         }
     }
 

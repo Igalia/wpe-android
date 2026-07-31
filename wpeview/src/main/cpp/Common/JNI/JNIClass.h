@@ -73,8 +73,8 @@ public:
 
         auto* env = getCurrentThreadJNIEnv();
         if (env->RegisterNatives(m_javaClassRef.get(), methods, sizeof...(Args)) != JNI_OK) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot register native methods");
+            clearJavaException(env);
+            fatalError("Cannot register native methods");
         }
     }
 
@@ -103,8 +103,9 @@ public:
         auto* env = getCurrentThreadJNIEnv();
         jobjectArray objArray = env->NewObjectArray(static_cast<jsize>(size), m_javaClassRef.get(), initObj);
         if (objArray == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create array of Java objects");
+            clearJavaException(env);
+            Logging::logError("Cannot create array of Java objects");
+            return {};
         }
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<ArrayType<T>>(objArray)));

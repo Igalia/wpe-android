@@ -22,13 +22,13 @@
 JNI::Class::Class(jobject obj, bool useGlobalRef)
 {
     if (obj == nullptr)
-        throw std::runtime_error("Invalid null Java object");
+        fatalError("Invalid null Java object");
 
     auto* env = getCurrentThreadJNIEnv();
     jclass klass = env->GetObjectClass(obj);
     if (klass == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot fetch Java object class");
+        clearJavaException(env);
+        fatalError("Cannot fetch Java object class");
     }
 
     m_javaClassRef = createTypedProtectedRef(env, std::move(klass), useGlobalRef);
@@ -37,13 +37,15 @@ JNI::Class::Class(jobject obj, bool useGlobalRef)
 JNI::Class::Class(const char* javaClassName, bool useGlobalRef)
 {
     if ((javaClassName == nullptr) || (javaClassName[0] == '\0'))
-        throw std::runtime_error("Invalid Java class name");
+        fatalError("Invalid Java class name");
 
+    // A failed lookup leaves the class null so callers can probe for optional classes;
+    // using any member of a null Class aborts.
     auto* env = getCurrentThreadJNIEnv();
     jclass klass = env->FindClass(javaClassName);
     if (klass == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot fetch Java class from name");
+        clearJavaException(env);
+        return;
     }
 
     m_javaClassRef = createTypedProtectedRef(env, std::move(klass), useGlobalRef);
@@ -52,7 +54,7 @@ JNI::Class::Class(const char* javaClassName, bool useGlobalRef)
 JNI::Class::Class(const jclass& javaClass, bool useGlobalRef)
 {
     if (javaClass == nullptr)
-        throw std::runtime_error("Invalid null Java class");
+        fatalError("Invalid null Java class");
 
     m_javaClassRef = createTypedProtectedRef(getCurrentThreadJNIEnv(), javaClass, useGlobalRef);
 }
@@ -60,7 +62,7 @@ JNI::Class::Class(const jclass& javaClass, bool useGlobalRef)
 JNI::Class::Class(jclass&& javaClass, bool useGlobalRef)
 {
     if (javaClass == nullptr)
-        throw std::runtime_error("Invalid null Java class");
+        fatalError("Invalid null Java class");
 
     m_javaClassRef = createTypedProtectedRef(getCurrentThreadJNIEnv(), std::move(javaClass), useGlobalRef);
 }
@@ -70,8 +72,9 @@ JNI::ProtectedArrayType<jobject> JNI::Class::createArray(size_t size, jobject in
     auto* env = getCurrentThreadJNIEnv();
     jobjectArray objArray = env->NewObjectArray(static_cast<jsize>(size), m_javaClassRef.get(), initObj);
     if (objArray == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot create array of Java objects");
+        clearJavaException(env);
+        Logging::logError("Cannot create array of Java objects");
+        return {};
     }
 
     return createTypedProtectedRef(env, std::move(objArray));
@@ -79,9 +82,5 @@ JNI::ProtectedArrayType<jobject> JNI::Class::createArray(size_t size, jobject in
 
 bool JNI::Class::operator==(const Class& other) const noexcept
 {
-    try {
-        return (getCurrentThreadJNIEnv()->IsSameObject(m_javaClassRef.get(), other.m_javaClassRef.get()) == JNI_TRUE);
-    } catch (...) {
-        return false;
-    }
+    return (getCurrentThreadJNIEnv()->IsSameObject(m_javaClassRef.get(), other.m_javaClassRef.get()) == JNI_TRUE);
 }

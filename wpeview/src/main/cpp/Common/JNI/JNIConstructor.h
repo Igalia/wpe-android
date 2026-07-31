@@ -35,8 +35,9 @@ public:
         auto* env = getCurrentThreadJNIEnv();
         jobject obj = env->NewObject(m_javaClassRef.get(), m_methodId, params...);
         if (obj == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create instance of a Java object");
+            clearJavaException(env);
+            Logging::logError("Cannot create instance of a Java object");
+            return {};
         }
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<Ret>(obj)));
@@ -50,8 +51,9 @@ public:
         if (size > 0) {
             initObj = env->NewObject(m_javaClassRef.get(), m_methodId, params...);
             if (initObj == nullptr) {
-                checkJavaException(env);
-                throw std::runtime_error("Cannot create instance of a Java object");
+                clearJavaException(env);
+                Logging::logError("Cannot create instance of a Java object");
+                return {};
             }
         }
 
@@ -60,8 +62,9 @@ public:
             env->DeleteLocalRef(initObj);
 
         if (objArray == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create array of Java objects");
+            clearJavaException(env);
+            Logging::logError("Cannot create array of Java objects");
+            return {};
         }
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<ArrayType<Ret>>(objArray)));
@@ -78,8 +81,8 @@ private:
         // TODO NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage)
         m_methodId = env->GetMethodID(m_javaClassRef.get(), "<init>", FunctionSignature<void(Params...)>::value.data());
         if (m_methodId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find constructor in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find constructor in Java class");
         }
     }
 

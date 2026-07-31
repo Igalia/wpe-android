@@ -29,8 +29,9 @@ JNI::String::String(const char* str, bool useGlobalRef)
     auto* env = getCurrentThreadJNIEnv();
     jstring localString = env->NewStringUTF(str);
     if (localString == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot create a Java string");
+        clearJavaException(env);
+        Logging::logError("Cannot create a Java string");
+        return;
     }
 
     m_javaStringRef = createTypedProtectedRef(env, std::move(localString), useGlobalRef);
@@ -56,11 +57,7 @@ bool JNI::String::operator==(const String& other) const noexcept
     if ((thisRef == nullptr) || (otherRef == nullptr))
         return (thisRef == otherRef);
 
-    try {
-        return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
-    } catch (...) {
-        return false;
-    }
+    return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
 }
 
 size_t JNI::String::getLength() const
@@ -70,7 +67,8 @@ size_t JNI::String::getLength() const
 
     auto* env = getCurrentThreadJNIEnv();
     const jsize length = env->GetStringUTFLength(m_javaStringRef.get());
-    checkJavaException(env);
+    if (clearJavaException(env))
+        return 0;
     return (length > 0) ? static_cast<size_t>(length) : 0;
 }
 
@@ -83,15 +81,13 @@ std::shared_ptr<const char> JNI::String::getContent() const
     auto* env = getCurrentThreadJNIEnv();
     const char* str = env->GetStringUTFChars(javaStringRef, nullptr);
     if (str == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot get Java string content");
+        clearJavaException(env);
+        Logging::logError("Cannot get Java string content");
+        return {};
     }
 
     return {str, [javaStringRef](const char* ptr) {
-                try {
-                    getCurrentThreadJNIEnv()->ReleaseStringUTFChars(javaStringRef, ptr);
-                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                } catch (...) {
-                }
+                if (auto* env = tryGetCurrentThreadJNIEnv())
+                    env->ReleaseStringUTFChars(javaStringRef, ptr);
             }};
 }

@@ -39,11 +39,8 @@ public:
 
     void onResult(JNIWebKitWebsiteDataManagerCallbackHolder callbackHolder, jboolean result) const
     {
-        try {
-            m_commitResult.invoke(callbackHolder, result);
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot call WebKitWebsiteDataManager callback result (%s)", ex.what());
-        }
+        if (!m_commitResult.invoke(callbackHolder, result))
+            Logging::logError("cannot call WebKitWebsiteDataManager callback result");
     }
 
 private:

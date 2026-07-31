@@ -62,11 +62,8 @@ public:
         if (!holder)
             return;
 
-        try {
-            m_commitResult.invoke(holder, result);
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot call WebKitWebView eval callback (%s)", ex.what());
-        }
+        if (!m_commitResult.invoke(holder, result))
+            Logging::logError("cannot call WebKitWebView eval callback");
     }
 
 private:
@@ -155,11 +152,8 @@ const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
 
 void JNIWebKitWebViewCache::onClose(WebKitWebView*, WebKitWebViewBridge* bridge)
 {
-    try {
-        getJNIWebKitWebViewCache().m_onClose.invoke(bridge->m_javaRef.get());
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onClose callback (%s)", ex.what());
-    }
+    if (!getJNIWebKitWebViewCache().m_onClose.invoke(bridge->m_javaRef.get()))
+        Logging::logError("cannot deliver WebKitWebView onClose callback");
 }
 
 void JNIWebKitWebViewCache::onLoadChanged(
@@ -168,52 +162,37 @@ void JNIWebKitWebViewCache::onLoadChanged(
     // WEBKIT_LOAD_REDIRECTED and WEBKIT_LOAD_COMMITTED are intentionally not surfaced.
     if (loadEvent == WEBKIT_LOAD_STARTED) {
         auto jUri = JNI::String(webkit_web_view_get_uri(webView));
-        try {
-            getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri));
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot deliver WebKitWebView onLoadStarted callback (%s)", ex.what());
-        }
+        if (!getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
+            Logging::logError("cannot deliver WebKitWebView onLoadStarted callback");
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
         auto jUri = JNI::String(webkit_web_view_get_uri(webView));
-        try {
-            getJNIWebKitWebViewCache().m_onLoadFinished.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri));
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot deliver WebKitWebView onLoadFinished callback (%s)", ex.what());
-        }
+        if (!getJNIWebKitWebViewCache().m_onLoadFinished.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
+            Logging::logError("cannot deliver WebKitWebView onLoadFinished callback");
     }
 }
 
 void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
     auto jUri = JNI::String(webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj)));
-    try {
-        getJNIWebKitWebViewCache().m_onUriChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri));
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onUriChanged callback (%s)", ex.what());
-    }
+    if (!getJNIWebKitWebViewCache().m_onUriChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
+        Logging::logError("cannot deliver WebKitWebView onUriChanged callback");
 }
 
 void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
     double progress = webkit_web_view_get_estimated_load_progress(WEBKIT_WEB_VIEW(obj));
-    try {
-        getJNIWebKitWebViewCache().m_onEstimatedLoadProgress.invoke(bridge->m_javaRef.get(), progress);
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onEstimatedLoadProgress callback (%s)", ex.what());
-    }
+    if (!getJNIWebKitWebViewCache().m_onEstimatedLoadProgress.invoke(bridge->m_javaRef.get(), progress))
+        Logging::logError("cannot deliver WebKitWebView onEstimatedLoadProgress callback");
 }
 
 void JNIWebKitWebViewCache::onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
     auto* webView = WEBKIT_WEB_VIEW(obj);
     auto jTitle = JNI::String(webkit_web_view_get_title(webView));
-    try {
-        getJNIWebKitWebViewCache().m_onTitleChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jTitle),
+    if (!getJNIWebKitWebViewCache().m_onTitleChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jTitle),
             static_cast<jboolean>(webkit_web_view_can_go_back(webView)),
-            static_cast<jboolean>(webkit_web_view_can_go_forward(webView)));
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onTitleChanged callback (%s)", ex.what());
-    }
+            static_cast<jboolean>(webkit_web_view_can_go_forward(webView))))
+        Logging::logError("cannot deliver WebKitWebView onTitleChanged callback");
 }
 
 gboolean JNIWebKitWebViewCache::onDecidePolicy(
@@ -233,12 +212,9 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(
     auto jUri = JNI::String(webkit_uri_request_get_uri(uriRequest));
     auto jMethod = JNI::String(method ? method : "GET");
     auto jMimeType = JNI::String(webkit_uri_response_get_mime_type(uriResponse));
-    try {
-        getJNIWebKitWebViewCache().m_onReceivedHttpError.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
-            static_cast<jstring>(jMethod), static_cast<jstring>(jMimeType), static_cast<jint>(statusCode));
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onReceivedHttpError callback (%s)", ex.what());
-    }
+    if (!getJNIWebKitWebViewCache().m_onReceivedHttpError.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
+            static_cast<jstring>(jMethod), static_cast<jstring>(jMimeType), static_cast<jint>(statusCode)))
+        Logging::logError("cannot deliver WebKitWebView onReceivedHttpError callback");
 
     return FALSE;
 }
@@ -257,11 +233,9 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     JNI::String jDefaultText = type == WEBKIT_SCRIPT_DIALOG_PROMPT
         ? JNI::String(webkit_script_dialog_prompt_get_default_text(dialog))
         : JNI::String("");
-    try {
-        getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogPtr, static_cast<jint>(type),
-            static_cast<jstring>(jUrl), static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText));
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot deliver WebKitWebView onScriptDialog callback (%s)", ex.what());
+    if (!getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogPtr, static_cast<jint>(type),
+            static_cast<jstring>(jUrl), static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText))) {
+        Logging::logError("cannot deliver WebKitWebView onScriptDialog callback");
         webkit_script_dialog_unref(dialog);
         return FALSE;
     }

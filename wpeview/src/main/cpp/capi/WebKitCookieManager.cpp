@@ -39,11 +39,8 @@ public:
 
     void onResult(JNIWebKitCookieManagerAcceptPolicyCallbackHolder callbackHolder, jint policy) const
     {
-        try {
-            m_commitResult.invoke(callbackHolder, policy);
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot call WebKitCookieManager accept-policy callback (%s)", ex.what());
-        }
+        if (!m_commitResult.invoke(callbackHolder, policy))
+            Logging::logError("cannot call WebKitCookieManager accept-policy callback");
     }
 
 private:

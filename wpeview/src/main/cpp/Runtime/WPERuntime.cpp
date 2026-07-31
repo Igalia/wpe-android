@@ -41,22 +41,13 @@ public:
 
     bool launchProcess(jlong pid, jint type, jint fileDesc) const noexcept
     {
-        try {
-            m_launchProcessMethod.invoke(m_runtimeJavaInstance.get(), pid, type, fileDesc);
-            return true;
-        } catch (const std::exception& ex) {
-            Logging::logError("Cannot launch process: %s", ex.what());
-            return false;
-        }
+        return m_launchProcessMethod.invoke(m_runtimeJavaInstance.get(), pid, type, fileDesc);
     }
 
     void terminateProcess(jlong pid) const noexcept
     {
-        try {
-            m_terminateProcessMethod.invoke(m_runtimeJavaInstance.get(), pid);
-        } catch (const std::exception& ex) {
-            Logging::logError("Cannot terminate process: %s", ex.what());
-        }
+        if (!m_terminateProcessMethod.invoke(m_runtimeJavaInstance.get(), pid))
+            Logging::logError("Cannot terminate process");
     }
 
 private:

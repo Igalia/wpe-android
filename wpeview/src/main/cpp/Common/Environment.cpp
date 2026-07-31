@@ -29,20 +29,23 @@ bool Environment::configureEnvironment(jstringArray envStringsArray) noexcept
     if (envStringsArray == nullptr)
         return true;
 
-    try {
-        auto content = JNI::ObjectArray<jstring>(envStringsArray).getReadOnlyContent();
-        const size_t size = content.getSize();
+    auto content = JNI::ObjectArray<jstring>(envStringsArray).getReadOnlyContent();
+    const size_t size = content.getSize();
 
-        assert(size % 2 == 0);
-        for (size_t i = 1; i < size; i += 2) {
-            auto name = JNI::String(content[i - 1]);
-            auto value = JNI::String(content[i]);
-            setenv(name.getContent().get(), value.getContent().get(), 1); // NOLINT(concurrency-mt-unsafe)
+    assert(size % 2 == 0);
+    for (size_t i = 1; i < size; i += 2) {
+        // The JNI::String instances must outlive the content pointers whose release
+        // references the underlying Java string.
+        auto name = JNI::String(content[i - 1]);
+        auto value = JNI::String(content[i]);
+        auto nameContent = name.getContent();
+        auto valueContent = value.getContent();
+        if (!nameContent || !valueContent) {
+            Logging::logError("Cannot configure native environment (JNI environment error)");
+            return false;
         }
-
-        return true;
-    } catch (...) {
-        Logging::logError("Cannot configure native environment (JNI environment error)");
-        return false;
+        setenv(nameContent.get(), valueContent.get(), 1); // NOLINT(concurrency-mt-unsafe)
     }
+
+    return true;
 }

@@ -24,16 +24,8 @@
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
-    try {
-        Init::initialize(javaVM);
-
-        WPERuntime::configureJNIMappings();
-
-        WebKit::configureJNIMappings();
-
-        return JNI::VERSION;
-    } catch (const std::exception& e) {
-        Logging::logError("Runtime: JNI_OnLoad: %s", e.what());
-        return JNI_ERR;
-    }
+    Init::initialize(javaVM);
+    WPERuntime::configureJNIMappings();
+    WebKit::configureJNIMappings();
+    return JNI::VERSION;
 }

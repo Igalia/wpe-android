@@ -17,7 +17,6 @@
  */
 
 #include "JNI/JNI.h"
-#include "Logging.h"
 
 #include <wpe/webkit.h>
 
@@ -143,13 +142,8 @@ jlong JNIWebKitWebContextCache::nativeGetWebKitWebContextPtr(JNIEnv*, jobject, j
 
 WebKitWebView* JNIWebKitWebContextCache::invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const
 {
-    try {
-        const auto webViewPtr = m_invokeCreateWebKitWebViewForAutomation.invoke(javaContext);
-        return webViewPtr ? reinterpret_cast<WebKitWebView*>(webViewPtr) : nullptr;
-    } catch (const std::exception& ex) {
-        Logging::logError("cannot create automation web view (%s)", ex.what());
-        return nullptr;
-    }
+    const auto webViewPtr = m_invokeCreateWebKitWebViewForAutomation.invoke(javaContext);
+    return webViewPtr ? reinterpret_cast<WebKitWebView*>(webViewPtr) : nullptr;
 }
 
 void configureWebKitWebContextJNIMappings()

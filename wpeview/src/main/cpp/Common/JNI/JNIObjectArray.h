@@ -35,13 +35,12 @@ public:
     ProtectedType<T> operator[](size_t index) const
     {
         if (index >= m_size)
-            throw std::out_of_range("Invalid index");
+            fatalError("Invalid index in object span");
 
         auto* env = getCurrentThreadJNIEnv();
         jobject ret = env->GetObjectArrayElement(
             reinterpret_cast<jobjectArray>(static_cast<jarray>(m_javaArrayRef.get())), static_cast<jsize>(index));
-        checkJavaException(env);
-        if (ret == nullptr)
+        if (clearJavaException(env) || (ret == nullptr))
             return {};
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<T>(ret)));
@@ -156,11 +155,7 @@ public:
         if ((thisRef == nullptr) || (otherRef == nullptr))
             return (thisRef == otherRef);
 
-        try {
-            return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
-        } catch (...) {
-            return false;
-        }
+        return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
     }
 
     operator ArrayType<T>() const noexcept
@@ -175,7 +170,8 @@ public:
 
         auto* env = getCurrentThreadJNIEnv();
         const jsize size = env->GetArrayLength(m_javaArrayRef.get());
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return 0;
         return (size > 0) ? static_cast<size_t>(size) : 0;
     }
 
@@ -186,8 +182,7 @@ public:
 
         auto* env = getCurrentThreadJNIEnv();
         const jsize size = env->GetArrayLength(m_javaArrayRef.get());
-        checkJavaException(env);
-        if (size <= 0)
+        if (clearJavaException(env) || (size <= 0))
             return {0, {}};
 
         return {size, m_javaArrayRef};
@@ -196,12 +191,12 @@ public:
     void setValue(size_t index, const T& value)
     {
         if (m_javaArrayRef == nullptr)
-            throw std::out_of_range("Invalid index");
+            fatalError("Cannot set value on a null Java array");
 
         auto* env = getCurrentThreadJNIEnv();
         env->SetObjectArrayElement(reinterpret_cast<jobjectArray>(static_cast<jarray>(m_javaArrayRef.get())),
             static_cast<jsize>(index), value);
-        checkJavaException(env);
+        clearJavaException(env);
     }
 
 private:
