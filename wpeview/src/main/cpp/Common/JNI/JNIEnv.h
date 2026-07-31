@@ -19,9 +19,13 @@
 
 #pragma once
 
+// Resolved through the include path: the Android build provides Common/Logging.h while the
+// jni-test host harness provides its own stderr-based version.
+#include "Logging.h"
+
 #include "JNITypes.h"
 
-#include <stdexcept>
+#include <cstdlib>
 
 namespace JNI {
 constexpr jint VERSION = JNI_VERSION_1_6;
@@ -29,8 +33,22 @@ constexpr jint VERSION = JNI_VERSION_1_6;
 JNIEnv* initVM(JavaVM* javaVM);
 JNIEnv* getCurrentThreadJNIEnv();
 
+// Returns nullptr instead of aborting when no JNIEnv can be fetched (e.g. from cleanup code
+// running after the Java VM has been destroyed).
+JNIEnv* tryGetCurrentThreadJNIEnv() noexcept;
+
 void enableJavaExceptionDescription(bool enable);
-void checkJavaException(JNIEnv* env);
+
+// Logs and clears any pending Java exception. Returns true if an exception was pending.
+bool clearJavaException(JNIEnv* env);
+
+// Unrecoverable JNI usage errors (missing class, method, field, etc.) abort the process
+// with a logcat message instead of throwing: the library builds without C++ exceptions.
+template <typename... Args> [[noreturn]] void fatalError(Args&&... args) noexcept
+{
+    Logging::logError(std::forward<Args>(args)...);
+    std::abort();
+}
 
 ProtectedType<jobject> createProtectedRef(JNIEnv* env, const jobject& obj, bool useGlobalRef = false);
 
@@ -107,7 +125,8 @@ public:
     void reset() noexcept
     {
         if (m_ref) {
-            getCurrentThreadJNIEnv()->DeleteGlobalRef(m_ref);
+            if (auto* env = tryGetCurrentThreadJNIEnv())
+                env->DeleteGlobalRef(m_ref);
             m_ref = nullptr;
         }
     }

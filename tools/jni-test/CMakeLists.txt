@@ -35,6 +35,7 @@ add_library(
     cpp/TestStaticMethods.cpp)
 target_compile_features(jniTest PRIVATE cxx_std_17)
 target_compile_definitions(jniTest PRIVATE USE_JAVA_JDK)
+target_include_directories(jniTest PRIVATE cpp)
 target_compile_options(jniTest PRIVATE -Wall -Werror)
 target_link_libraries(jniTest PRIVATE JNI::JNI)
 

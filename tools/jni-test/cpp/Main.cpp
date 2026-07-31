@@ -28,20 +28,16 @@
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
-    try {
-        JNI::initVM(javaVM);
-        JNI::Class("jni/Test")
-            .registerNativeMethods(JNI::StaticNativeMethod<void()>("testConstructors", TestConstructors::executeTests),
-                JNI::StaticNativeMethod<void()>("testDuplexCalls", TestDuplexCalls::executeTests),
-                JNI::StaticNativeMethod<void()>("testFields", TestFields::executeTests),
-                JNI::StaticNativeMethod<void()>("testMethods", TestMethods::executeTests),
-                JNI::StaticNativeMethod<void()>("testObjectArrays", TestObjectArrays::executeTests),
-                JNI::StaticNativeMethod<void()>("testScalarArrays", TestScalarArrays::executeTests),
-                JNI::StaticNativeMethod<void()>("testStaticFields", TestStaticFields::executeTests),
-                JNI::StaticNativeMethod<void()>("testStaticMethods", TestStaticMethods::executeTests));
+    JNI::initVM(javaVM);
+    JNI::Class("jni/Test")
+        .registerNativeMethods(JNI::StaticNativeMethod<void()>("testConstructors", TestConstructors::executeTests),
+            JNI::StaticNativeMethod<void()>("testDuplexCalls", TestDuplexCalls::executeTests),
+            JNI::StaticNativeMethod<void()>("testFields", TestFields::executeTests),
+            JNI::StaticNativeMethod<void()>("testMethods", TestMethods::executeTests),
+            JNI::StaticNativeMethod<void()>("testObjectArrays", TestObjectArrays::executeTests),
+            JNI::StaticNativeMethod<void()>("testScalarArrays", TestScalarArrays::executeTests),
+            JNI::StaticNativeMethod<void()>("testStaticFields", TestStaticFields::executeTests),
+            JNI::StaticNativeMethod<void()>("testStaticMethods", TestStaticMethods::executeTests));
 
-        return JNI::VERSION;
-    } catch (...) {
-        return JNI_ERR;
-    }
+    return JNI::VERSION;
 }

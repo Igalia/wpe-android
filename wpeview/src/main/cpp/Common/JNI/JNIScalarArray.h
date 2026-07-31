@@ -45,7 +45,7 @@ public:
     const T& operator[](size_t index) const
     {
         if (index >= m_size)
-            throw std::out_of_range("Invalid index");
+            fatalError("Invalid index in scalar span");
         return m_data.get()[index];
     }
 
@@ -60,7 +60,7 @@ public:
     template <typename U = T> std::enable_if_t<!isConst, U&> operator[](size_t index)
     {
         if (index >= m_size)
-            throw std::out_of_range("Invalid index");
+            fatalError("Invalid index in scalar span");
         return m_data.get()[index];
     }
 
@@ -118,8 +118,9 @@ public:
         }
 
         if (localArray == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create a Java array");
+            clearJavaException(env);
+            Logging::logError("Cannot create a Java array");
+            return;
         }
 
         m_javaArrayRef = createTypedProtectedRef(env, std::move(localArray), useGlobalRef);
@@ -151,11 +152,7 @@ public:
         if ((thisRef == nullptr) || (otherRef == nullptr))
             return (thisRef == otherRef);
 
-        try {
-            return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
-        } catch (...) {
-            return false;
-        }
+        return (getCurrentThreadJNIEnv()->IsSameObject(thisRef, otherRef) == JNI_TRUE);
     }
 
     operator ArrayType<T>() const noexcept
@@ -170,7 +167,8 @@ public:
 
         auto* env = getCurrentThreadJNIEnv();
         const jsize size = env->GetArrayLength(m_javaArrayRef.get());
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return 0;
         return (size > 0) ? static_cast<size_t>(size) : 0;
     }
 
@@ -194,8 +192,7 @@ private:
 
         auto* env = getCurrentThreadJNIEnv();
         const jsize size = env->GetArrayLength(javaArrayRef);
-        checkJavaException(env);
-        if (size <= 0)
+        if (clearJavaException(env) || (size <= 0))
             return {0, {}};
 
         T* arrayElements = nullptr;
@@ -220,34 +217,33 @@ private:
         }
 
         if (arrayElements == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot get Java scalar array content");
+            clearJavaException(env);
+            Logging::logError("Cannot get Java scalar array content");
+            return {0, {}};
         }
 
         return {size, {arrayElements, [javaArrayRef](T* ptr) {
-                           try {
-                               auto* releaseEnv = getCurrentThreadJNIEnv();
-                               if constexpr (std::is_same_v<T, jboolean>) {
-                                   releaseEnv->ReleaseBooleanArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jbyte>) {
-                                   releaseEnv->ReleaseByteArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jchar>) {
-                                   releaseEnv->ReleaseCharArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jshort>) {
-                                   releaseEnv->ReleaseShortArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jint>) {
-                                   releaseEnv->ReleaseIntArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jlong>) {
-                                   releaseEnv->ReleaseLongArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jfloat>) {
-                                   releaseEnv->ReleaseFloatArrayElements(javaArrayRef, ptr, mode);
-                               } else if constexpr (std::is_same_v<T, jdouble>) {
-                                   releaseEnv->ReleaseDoubleArrayElements(javaArrayRef, ptr, mode);
-                               } else {
-                                   static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
-                               }
-                               // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                           } catch (...) {
+                           auto* releaseEnv = tryGetCurrentThreadJNIEnv();
+                           if (releaseEnv == nullptr)
+                               return;
+                           if constexpr (std::is_same_v<T, jboolean>) {
+                               releaseEnv->ReleaseBooleanArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jbyte>) {
+                               releaseEnv->ReleaseByteArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jchar>) {
+                               releaseEnv->ReleaseCharArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jshort>) {
+                               releaseEnv->ReleaseShortArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jint>) {
+                               releaseEnv->ReleaseIntArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jlong>) {
+                               releaseEnv->ReleaseLongArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jfloat>) {
+                               releaseEnv->ReleaseFloatArrayElements(javaArrayRef, ptr, mode);
+                           } else if constexpr (std::is_same_v<T, jdouble>) {
+                               releaseEnv->ReleaseDoubleArrayElements(javaArrayRef, ptr, mode);
+                           } else {
+                               static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
                            }
                        }}};
     }

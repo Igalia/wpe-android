@@ -39,20 +39,14 @@ public:
 
     void onFocusIn(JNIWPEInputMethodContextFocusListener listener) const
     {
-        try {
-            m_onFocusIn.invoke(listener);
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot call WPEInputMethodContext focus-in callback (%s)", ex.what());
-        }
+        if (!m_onFocusIn.invoke(listener))
+            Logging::logError("cannot call WPEInputMethodContext focus-in callback");
     }
 
     void onFocusOut(JNIWPEInputMethodContextFocusListener listener) const
     {
-        try {
-            m_onFocusOut.invoke(listener);
-        } catch (const std::exception& ex) {
-            Logging::logError("cannot call WPEInputMethodContext focus-out callback (%s)", ex.what());
-        }
+        if (!m_onFocusOut.invoke(listener))
+            Logging::logError("cannot call WPEInputMethodContext focus-out callback");
     }
 
 private:

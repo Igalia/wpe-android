@@ -33,7 +33,7 @@ public:
     int getValue() const;
 
     void callNativeMethodThroughJava(int value);
-    void throwingMethod() const;
+    bool throwingMethod() const;
 
 private:
     bool m_addTwoHasBeenCalled = false;

@@ -21,6 +21,7 @@
 
 #include <atomic>
 #include <pthread.h>
+#include <string>
 
 namespace {
 // Android threads names have maximum 16 characters (including the terminating null char)
@@ -43,28 +44,55 @@ void detachTerminatedNativeThread(void* /*keyValue*/)
     if (globalJavaVM != nullptr)
         globalJavaVM->DetachCurrentThread();
 }
+
+// Fetches Throwable.toString() from an already cleared exception, so the JNI calls are legal.
+std::string exceptionDescription(JNIEnv* env, jthrowable exception)
+{
+    std::string description = "no description";
+    if (exception == nullptr)
+        return description;
+
+    jclass exceptionClass = env->GetObjectClass(exception);
+    if (exceptionClass != nullptr) {
+        jmethodID toStringMethod = env->GetMethodID(exceptionClass, "toString", "()Ljava/lang/String;");
+        if (toStringMethod != nullptr) {
+            auto str = reinterpret_cast<jstring>(env->CallObjectMethod(exception, toStringMethod));
+            if (env->ExceptionCheck() == JNI_TRUE)
+                env->ExceptionClear();
+            if (str != nullptr) {
+                if (const char* content = env->GetStringUTFChars(str, nullptr)) {
+                    description = content;
+                    env->ReleaseStringUTFChars(str, content);
+                }
+                env->DeleteLocalRef(str);
+            }
+        }
+        env->DeleteLocalRef(exceptionClass);
+    }
+    return description;
+}
 } // namespace
 
 JNIEnv* JNI::initVM(JavaVM* javaVM)
 {
     if (globalJavaVM != nullptr) {
-        throw std::runtime_error("Java VM already initialized for current process");
+        fatalError("Java VM already initialized for current process");
     }
     // TODO NOLINTNEXTLINE(misc-const-correctness)
     JNIEnv* env = nullptr;
     if (javaVM->GetEnv(reinterpret_cast<void**>(&env), VERSION) != JNI_OK) {
-        throw std::runtime_error("Cannot fetch JNIEnv from JavaVM initialization");
+        fatalError("Cannot fetch JNIEnv from JavaVM initialization");
     }
 
     if (pthread_key_create(&globalJNIEnvKey, detachTerminatedNativeThread) != 0) {
-        throw std::runtime_error("Cannot create pthread key for native threads");
+        fatalError("Cannot create pthread key for native threads");
     }
 
     globalJavaVM = javaVM;
     return env;
 }
 
-JNIEnv* JNI::getCurrentThreadJNIEnv()
+JNIEnv* JNI::tryGetCurrentThreadJNIEnv() noexcept
 {
     auto* env = reinterpret_cast<JNIEnv*>(pthread_getspecific(globalJNIEnvKey));
     if (env == nullptr && globalJavaVM != nullptr) {
@@ -86,8 +114,14 @@ JNIEnv* JNI::getCurrentThreadJNIEnv()
         }
     }
 
+    return env;
+}
+
+JNIEnv* JNI::getCurrentThreadJNIEnv()
+{
+    auto* env = tryGetCurrentThreadJNIEnv();
     if (env == nullptr)
-        throw std::runtime_error("Cannot fetch current thread JNIEnv");
+        fatalError("Cannot fetch current thread JNIEnv");
 
     return env;
 }
@@ -97,14 +131,21 @@ void JNI::enableJavaExceptionDescription(bool enable)
     globalEnableJavaExceptionDescription = enable;
 }
 
-void JNI::checkJavaException(JNIEnv* env)
+bool JNI::clearJavaException(JNIEnv* env)
 {
-    if (env->ExceptionCheck() == JNI_TRUE) {
-        if (globalEnableJavaExceptionDescription)
-            env->ExceptionDescribe();
-        env->ExceptionClear();
-        throw std::runtime_error("A Java exception has been thrown during JNI call");
-    }
+    if (env->ExceptionCheck() != JNI_TRUE)
+        return false;
+
+    jthrowable exception = env->ExceptionOccurred();
+    if (globalEnableJavaExceptionDescription)
+        env->ExceptionDescribe();
+    env->ExceptionClear();
+
+    Logging::logError(
+        "A Java exception has been thrown during JNI call (%s)", exceptionDescription(env, exception).c_str());
+    if (exception != nullptr)
+        env->DeleteLocalRef(exception);
+    return true;
 }
 
 JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, const jobject& obj, bool useGlobalRef)
@@ -115,31 +156,25 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, const jobject& 
     if (useGlobalRef) {
         jobject globalRef = env->NewGlobalRef(obj);
         if (globalRef == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create Java global ref");
+            clearJavaException(env);
+            fatalError("Cannot create Java global ref");
         }
 
         return {globalRef, [](jobject ref) {
-                    try {
-                        getCurrentThreadJNIEnv()->DeleteGlobalRef(ref);
-                        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                    } catch (...) {
-                    }
+                    if (auto* env = tryGetCurrentThreadJNIEnv())
+                        env->DeleteGlobalRef(ref);
                 }};
     }
 
     jobject localRef = env->NewLocalRef(obj);
     if (localRef == nullptr) {
-        checkJavaException(env);
-        throw std::runtime_error("Cannot create Java local ref");
+        clearJavaException(env);
+        fatalError("Cannot create Java local ref");
     }
 
     return {localRef, [](jobject ref) {
-                try {
-                    getCurrentThreadJNIEnv()->DeleteLocalRef(ref);
-                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                } catch (...) {
-                }
+                if (auto* env = tryGetCurrentThreadJNIEnv())
+                    env->DeleteLocalRef(ref);
             }};
 }
 
@@ -154,24 +189,18 @@ JNI::ProtectedType<jobject> JNI::createProtectedRef(JNIEnv* env, jobject&& obj, 
         env->DeleteLocalRef(obj);
         obj = nullptr;
         if (globalRef == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot create Java global ref");
+            clearJavaException(env);
+            fatalError("Cannot create Java global ref");
         }
 
         return {globalRef, [](jobject ref) {
-                    try {
-                        getCurrentThreadJNIEnv()->DeleteGlobalRef(ref);
-                        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                    } catch (...) {
-                    }
+                    if (auto* env = tryGetCurrentThreadJNIEnv())
+                        env->DeleteGlobalRef(ref);
                 }};
     }
 
     return {obj, [](jobject ref) {
-                try {
-                    getCurrentThreadJNIEnv()->DeleteLocalRef(ref);
-                    // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-                } catch (...) {
-                }
+                if (auto* env = tryGetCurrentThreadJNIEnv())
+                    env->DeleteLocalRef(ref);
             }};
 }

@@ -100,17 +100,12 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
 
 extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* javaVM, void* /*reserved*/)
 {
-    try {
-        Init::initialize(javaVM);
+    Init::initialize(javaVM);
 
-        JNI::Class("org/wpewebkit/wpe/services/WPEService")
-            .registerNativeMethods(
-                JNI::StaticNativeMethod<void(jstringArray)>("setupNativeEnvironment", setupNativeEnvironment),
-                JNI::StaticNativeMethod<void(jlong, jint, jint)>("initializeNativeMain", initializeNativeMain));
+    JNI::Class("org/wpewebkit/wpe/services/WPEService")
+        .registerNativeMethods(
+            JNI::StaticNativeMethod<void(jstringArray)>("setupNativeEnvironment", setupNativeEnvironment),
+            JNI::StaticNativeMethod<void(jlong, jint, jint)>("initializeNativeMain", initializeNativeMain));
 
-        return JNI::VERSION;
-    } catch (const std::exception& e) {
-        Logging::logError("Service: JNI_OnLoad: %s", e.what());
-        return JNI_ERR;
-    }
+    return JNI::VERSION;
 }

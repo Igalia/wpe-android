@@ -52,7 +52,8 @@ public:
         } else {
             static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return {};
         return ret;
     }
 
@@ -79,7 +80,8 @@ public:
         } else {
             static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        if (clearJavaException(env))
+            return {};
         return ret;
     }
 
@@ -105,7 +107,7 @@ public:
         } else {
             static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        clearJavaException(env);
     }
 
     template <typename U = void> std::enable_if_t<isStatic, U> setValue(const T& value) const
@@ -130,7 +132,7 @@ public:
         } else {
             static_assert(!std::is_same_v<T, T>, "Invalid JNI scalar type");
         }
-        checkJavaException(env);
+        clearJavaException(env);
     }
 
 private:
@@ -148,8 +150,8 @@ private:
             m_fieldId = env->GetFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         }
         if (m_fieldId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find field in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find field %s in Java class", fieldName);
         }
     }
 
@@ -163,8 +165,7 @@ public:
     {
         auto* env = getCurrentThreadJNIEnv();
         jobject ret = env->GetObjectField(obj, m_fieldId);
-        checkJavaException(env);
-        if (ret == nullptr)
+        if (clearJavaException(env) || (ret == nullptr))
             return {};
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<T>(ret)));
@@ -174,8 +175,7 @@ public:
     {
         auto* env = getCurrentThreadJNIEnv();
         jobject ret = env->GetStaticObjectField(m_javaClassRef.get(), m_fieldId);
-        checkJavaException(env);
-        if (ret == nullptr)
+        if (clearJavaException(env) || (ret == nullptr))
             return {};
 
         return createTypedProtectedRef(env, std::move(reinterpret_cast<T>(ret)));
@@ -185,14 +185,14 @@ public:
     {
         auto* env = getCurrentThreadJNIEnv();
         env->SetObjectField(obj, m_fieldId, value);
-        checkJavaException(env);
+        clearJavaException(env);
     }
 
     template <typename U = void> std::enable_if_t<isStatic, U> setValue(const T& value) const
     {
         auto* env = getCurrentThreadJNIEnv();
         env->SetStaticObjectField(m_javaClassRef.get(), m_fieldId, value);
-        checkJavaException(env);
+        clearJavaException(env);
     }
 
 private:
@@ -210,8 +210,8 @@ private:
             m_fieldId = env->GetFieldID(m_javaClassRef.get(), fieldName, TypeSignature<T>::value.data());
         }
         if (m_fieldId == nullptr) {
-            checkJavaException(env);
-            throw std::runtime_error("Cannot find field in Java class");
+            clearJavaException(env);
+            fatalError("Cannot find field %s in Java class", fieldName);
         }
     }
 

@@ -82,9 +82,9 @@ void TestDuplexCalls::callNativeMethodThroughJava(int value)
     getJNIClassCache().m_callNativeMethod.invoke(m_javaInstance.get(), value);
 }
 
-void TestDuplexCalls::throwingMethod() const
+bool TestDuplexCalls::throwingMethod() const
 {
-    getJNIClassCache().m_throwingMethod.invoke(m_javaInstance.get());
+    return getJNIClassCache().m_throwingMethod.invoke(m_javaInstance.get());
 }
 
 void TestDuplexCalls::executeTests(JNIEnv* env, jclass klass)
@@ -103,12 +103,7 @@ void TestDuplexCalls::executeTests(JNIEnv* env, jclass klass)
     assert(test.getValue() == 8);
 
     JNI::enableJavaExceptionDescription(false);
-    bool throwing = false;
-    try {
-        test.throwingMethod();
-    } catch (...) {
-        throwing = true;
-    }
+    // The Java exception is logged and cleared, and the invocation reports the failure.
+    assert(!test.throwingMethod());
     JNI::enableJavaExceptionDescription(true);
-    assert(throwing);
 }
