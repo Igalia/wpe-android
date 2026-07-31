@@ -90,7 +90,7 @@ class Bootstrap:
     _devel_package_name_template = "wpewebkit-android-{arch}-{version}.tar.xz"
     _runtime_package_name_template = "wpewebkit-android-{arch}-{version}-runtime.tar.xz"
 
-    # These are the libraries that the glue code link with and that are required during build
+    # These are the libraries that the native runtime libraries link with and that are required during build
     # time. These libraries go into the `imported` folder and cannot go into the `jniLibs`
     # folder to avoid duplicated libraries.
     _build_libs = [

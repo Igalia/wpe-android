@@ -37,8 +37,8 @@ jobs:
             force-avd-creation: false
             emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
             disable-animations: true
-            pre-emulator-launch-script: ./gradlew wpe:build
-            script: ./gradlew wpe:connectedDebugAndroidTest --stacktrace
+            pre-emulator-launch-script: ./gradlew wpeview:build
+            script: ./gradlew wpeview:connectedDebugAndroidTest --stacktrace
         - name: Create Test Summary
           uses: test-summary/action@v2
           with:

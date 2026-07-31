@@ -1,8 +1,8 @@
 #  Bootstrap process
 
 WPE Android depends on a considerable amount of libraries,
-including [libWPE](https://github.com/WebPlatformForEmbedded/libwpe) and
-[WPEWebKit](https://github.com/WebPlatformForEmbedded/WPEWebKit). To ease
+including [WPEWebKit](https://github.com/WebPlatformForEmbedded/WPEWebKit)
+and GStreamer. To ease
 the process of building and installing these dependencies we have a
 [bootstrap script](../tools/scripts/bootstrap.py) that can be run with the following command:
 

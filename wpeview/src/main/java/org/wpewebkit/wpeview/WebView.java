@@ -283,7 +283,7 @@ public class WebView extends FrameLayout {
     public void loadDataWithBaseURL(@Nullable String baseUrl, @NonNull String data, @Nullable String mimeType,
                                     @Nullable String encoding, @Nullable String historyUrl) {
         // Mirrors android.webkit.WebView.loadDataWithBaseURL: extra args are advisory.
-        // The current backend always parses content as UTF-8 HTML.
+        // The engine always parses content as UTF-8 HTML.
         loadHtml(data, baseUrl);
     }
 
