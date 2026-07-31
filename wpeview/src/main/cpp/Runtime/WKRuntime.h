@@ -22,8 +22,6 @@
 
 #pragma once
 
-#include "MessagePump.h"
-
 #include <cstdint>
 
 // Bridges to the Java WKRuntime for launching/terminating WebKit auxiliary processes as Android
@@ -31,29 +29,6 @@
 bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept;
 void wkRuntimeTerminateProcess(int64_t processId) noexcept;
 
-class WKRuntime final {
-public:
-    static void configureJNIMappings();
-
-    static WKRuntime& instance() noexcept
-    {
-        static WKRuntime s_singleton;
-        return s_singleton;
-    }
-
-    WKRuntime(WKRuntime&&) = delete;
-    WKRuntime& operator=(WKRuntime&&) = delete;
-    WKRuntime(const WKRuntime&) = delete;
-    WKRuntime& operator=(const WKRuntime&) = delete;
-
-    ~WKRuntime() { jniShut(); }
-
-private:
-    WKRuntime();
-
-    friend class JNIWPERuntimeCache;
-    void jniInit();
-    void jniShut() noexcept;
-
-    std::unique_ptr<MessagePump> m_messagePump {};
-};
+namespace WKRuntime {
+void configureJNIMappings();
+} // namespace WKRuntime

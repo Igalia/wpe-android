@@ -24,8 +24,10 @@
 
 #include "Environment.h"
 #include "Logging.h"
+#include "MessagePump.h"
 
-#include <wpe/webkit.h>
+#include <memory>
+#include <unistd.h>
 
 /***********************************************************************************************************************
  * JNI mapping with Java WKRuntime class
@@ -59,6 +61,9 @@ public:
 
 private:
     mutable JNI::ProtectedType<JNIWPERuntime> m_runtimeJavaInstance;
+    // The MessagePump attaching the GLib main context to the Android main looper, alive between
+    // the Java WKRuntime nativeInit() and nativeShut() calls.
+    mutable std::unique_ptr<MessagePump> m_messagePump;
 
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jlong, jint, jint)> m_launchProcessMethod;
@@ -87,14 +92,18 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
         JNI::NativeMethod<void()>(
             "nativeInit",
             +[](JNIEnv* env, jobject obj) {
-                getJNIWPERuntimeCache().m_runtimeJavaInstance
+                Logging::logDebug("WKRuntime::nativeInit() [tid %d]", gettid());
+                const auto& cache = getJNIWPERuntimeCache();
+                cache.m_runtimeJavaInstance
                     = JNI::createTypedProtectedRef(env, reinterpret_cast<JNIWPERuntime>(obj), true);
-                WKRuntime::instance().jniInit();
+                cache.m_messagePump = std::make_unique<MessagePump>();
             }),
         JNI::NativeMethod<void()>(
             "nativeShut", +[](JNIEnv*, jobject) {
-                WKRuntime::instance().jniShut();
-                getJNIWPERuntimeCache().m_runtimeJavaInstance = nullptr;
+                Logging::logDebug("WKRuntime::nativeShut() [tid %d]", gettid());
+                const auto& cache = getJNIWPERuntimeCache();
+                cache.m_messagePump = nullptr;
+                cache.m_runtimeJavaInstance = nullptr;
             }));
 }
 
@@ -112,29 +121,7 @@ void wkRuntimeTerminateProcess(int64_t processId) noexcept
     getJNIWPERuntimeCache().terminateProcess(processId);
 }
 
-WKRuntime::WKRuntime()
-{
-    Logging::logDebug("WKRuntime [tid %d], WPE WebKit %u.%u.%u", gettid(), webkit_get_major_version(),
-        webkit_get_minor_version(), webkit_get_micro_version());
-}
-
 void WKRuntime::configureJNIMappings()
 {
     getJNIWPERuntimeCache();
-}
-
-void WKRuntime::jniInit()
-{
-    Logging::logDebug("WKRuntime::jniInit() [tid %d]", gettid());
-    m_messagePump = std::make_unique<MessagePump>();
-}
-
-void WKRuntime::jniShut() noexcept
-{
-    try {
-        Logging::logDebug("WKRuntime::jniShut() [tid %d]", gettid());
-        m_messagePump = nullptr;
-        // TODO NOLINTNEXTLINE(bugprone-empty-catch)
-    } catch (...) {
-    }
 }
