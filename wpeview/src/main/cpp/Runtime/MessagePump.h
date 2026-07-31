@@ -36,10 +36,8 @@ public:
 
     ~MessagePump();
 
-    void flush() const noexcept;
-    void invoke(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
-
 private:
+    void flush() const noexcept;
     void prepare() noexcept;
     void collectPollFDChanges(const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs,
         std::vector<int>& removedPollFDs) noexcept;

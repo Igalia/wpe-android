@@ -48,12 +48,10 @@ public:
 
     ~WKRuntime() { jniShut(); }
 
-    void invokeOnUiThread(void (*onExec)(void*), void (*onDestroy)(void*), void* userData) const noexcept;
-
 private:
     WKRuntime();
 
-    friend class JNIBrowserCache;
+    friend class JNIWPERuntimeCache;
     void jniInit();
     void jniShut() noexcept;
 
