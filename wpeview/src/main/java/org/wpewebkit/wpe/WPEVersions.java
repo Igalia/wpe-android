@@ -21,7 +21,7 @@ package org.wpewebkit.wpe;
 
 import androidx.annotation.NonNull;
 
-public class WKVersions {
+public class WPEVersions {
     public static int WEBKIT_MAJOR = 0;
     public static int WEBKIT_MINOR = 0;
     public static int WEBKIT_MICRO = 0;

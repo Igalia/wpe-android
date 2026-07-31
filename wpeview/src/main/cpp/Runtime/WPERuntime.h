@@ -24,11 +24,11 @@
 
 #include <cstdint>
 
-// Bridges to the Java WKRuntime for launching/terminating WebKit auxiliary processes as Android
+// Bridges to the Java WPERuntime for launching/terminating WebKit auxiliary processes as Android
 // services. Used by WPEProcessManagerAndroid. processType is a Common/Environment.h ProcessType value.
-bool wkRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept;
-void wkRuntimeTerminateProcess(int64_t processId) noexcept;
+bool wpeRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept;
+void wpeRuntimeTerminateProcess(int64_t processId) noexcept;
 
-namespace WKRuntime {
+namespace WPERuntime {
 void configureJNIMappings();
-} // namespace WKRuntime
+} // namespace WPERuntime

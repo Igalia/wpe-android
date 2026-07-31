@@ -20,7 +20,7 @@
 
 #include "Environment.h"
 #include "Logging.h"
-#include "WKRuntime.h"
+#include "WPERuntime.h"
 
 #include <unistd.h>
 
@@ -54,7 +54,7 @@ static guint64 wpeProcessManagerAndroidLaunch(WPEProcessManager*, WPEProcessLaun
         return 0;
     }
 
-    if (!wkRuntimeLaunchProcess(static_cast<int64_t>(processId), static_cast<int>(processType), ipcSocketFD)) {
+    if (!wpeRuntimeLaunchProcess(static_cast<int64_t>(processId), static_cast<int>(processType), ipcSocketFD)) {
         g_set_error(error, WPE_PROCESS_MANAGER_ERROR, WPE_PROCESS_MANAGER_ERROR_LAUNCH_FAILED,
             "Failed to launch process (type: %d)", static_cast<int>(processType));
         return 0;
@@ -64,12 +64,12 @@ static guint64 wpeProcessManagerAndroidLaunch(WPEProcessManager*, WPEProcessLaun
 }
 
 // FIXME: when Android decides to kill a Service on its own (observed Java-side in
-// WKRuntime's onServiceDisconnected), WebKit is not notified and will not respawn
+// WPERuntime's onServiceDisconnected), WebKit is not notified and will not respawn
 // the auxiliary process until it needs it again.
 static void wpeProcessManagerAndroidTerminate(WPEProcessManager*, guint64 pid)
 {
     Logging::logDebug("WPEProcessManagerAndroid::terminate(%" G_GUINT64_FORMAT ") [tid %d]", pid, gettid());
-    wkRuntimeTerminateProcess(static_cast<int64_t>(pid));
+    wpeRuntimeTerminateProcess(static_cast<int64_t>(pid));
 }
 
 static void wpe_process_manager_android_init(WPEProcessManagerAndroid*)

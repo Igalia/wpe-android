@@ -27,8 +27,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import org.wpewebkit.wpe.WKProcessType;
-import org.wpewebkit.wpe.WKVersions;
+import org.wpewebkit.wpe.WPEProcessType;
+import org.wpewebkit.wpe.WPEVersions;
 
 import java.io.File;
 
@@ -45,7 +45,7 @@ public class NetworkProcessService extends WPEService {
 
         // android.os.Debug.waitForDebugger();
 
-        final String assetsVersion = WKVersions.versionedAssets("network_process");
+        final String assetsVersion = WPEVersions.versionedAssets("network_process");
         Context context = getApplicationContext();
         if (ServiceUtils.needAssets(context, assetsVersion)) {
             ServiceUtils.copyFileOrDir(context, getAssets(), "gio", true);
@@ -62,6 +62,6 @@ public class NetworkProcessService extends WPEService {
     protected void initializeServiceMain(long pid, @NonNull ParcelFileDescriptor parcelFd) {
         Log.d(LOGTAG,
               "initializeServiceMain() pid: " + pid + ", fd: " + parcelFd + ", native value: " + parcelFd.getFd());
-        initializeNativeMain(pid, WKProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
+        initializeNativeMain(pid, WPEProcessType.NetworkProcess.getValue(), parcelFd.detachFd());
     }
 }

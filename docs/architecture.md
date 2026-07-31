@@ -21,21 +21,20 @@ the Android services used for auxiliary processes.
 Java code lives in:
 
 - `wpeview/src/main/java/org/wpewebkit/WPEApplication.java`
-- `wpeview/src/main/java/org/wpewebkit/wpe/WKRuntime.java`
-- `wpeview/src/main/java/org/wpewebkit/wpe/WKActivityObserver.java`
+- `wpeview/src/main/java/org/wpewebkit/wpe/WPERuntime.java`
+- `wpeview/src/main/java/org/wpewebkit/wpe/WPEActivityObserver.java`
 - `wpeview/src/main/java/org/wpewebkit/wpe/AuxiliaryProcessesContainer.java`
 - `wpeview/src/main/java/org/wpewebkit/wpe/services/`
 
 Native code lives in:
 
 - `wpeview/src/main/cpp/Runtime/EntryPoint.cpp`
-- `wpeview/src/main/cpp/Runtime/WKRuntime.cpp`
+- `wpeview/src/main/cpp/Runtime/WPERuntime.cpp`
 - `wpeview/src/main/cpp/Runtime/MessagePump.cpp`
-- `wpeview/src/main/cpp/Runtime/LooperThread.cpp`
 - `wpeview/src/main/cpp/Common/`
 
 `Runtime/EntryPoint.cpp` is the JNI entry point. It initializes the common JNI
-environment, registers the `WKRuntime` infrastructure JNI mappings, then
+environment, registers the `WPERuntime` infrastructure JNI mappings, then
 registers the `capi/` mappings through `WebKit::configureJNIMappings()`.
 
 ### Layer 1: Public Android convenience API
@@ -249,9 +248,8 @@ Add Android platform behavior to Layer 3:
 Add runtime or process behavior to Layer 0:
 
 - Put JNI startup and mapping registration in `Runtime/EntryPoint.cpp`.
-- Put process-provider changes in `Runtime/WKRuntime.cpp`.
-- Put looper and GLib main-loop integration in `Runtime/MessagePump.cpp` or
-  `Runtime/LooperThread.cpp`.
+- Put process-provider changes in `Runtime/WPERuntime.cpp`.
+- Put looper and GLib main-loop integration in `Runtime/MessagePump.cpp`.
 - Put service-side code under `org.wpewebkit.wpe.services` and
   `wpeview/src/main/cpp/Service/`.
 
@@ -290,6 +288,7 @@ The legacy convenience and proxy classes (`org.wpewebkit.wpeview.WPEView`,
 (`WebView`, `WebContext`, `WebSettings`, …) and the `WebKit`/`WPE` CAPI proxies
 instead.
 
-Runtime names such as `WKRuntime`, `WKActivityObserver`, and `WKProcessType` are
-still part of the infrastructure layer and are not replaced by the public API
-naming split yet.
+The infrastructure layer classes formerly using the `WK` prefix have been
+renamed: `WPERuntime`, `WPEActivityObserver`, `WPEProcessType`, and
+`WPEVersions`. Note these are Android infrastructure names, not proxies of
+WPEPlatform C types.

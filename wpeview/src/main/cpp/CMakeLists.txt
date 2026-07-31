@@ -119,7 +119,7 @@ add_library(
     Platform/WPEViewAndroid.cpp
     Runtime/EntryPoint.cpp
     Runtime/MessagePump.cpp
-    Runtime/WKRuntime.cpp
+    Runtime/WPERuntime.cpp
     capi/JNIMappings.cpp
     capi/WebKitCookieManager.cpp
     capi/WebKitNetworkSession.cpp

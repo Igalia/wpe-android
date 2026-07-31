@@ -22,17 +22,23 @@ package org.wpewebkit.wpe;
 
 import androidx.annotation.NonNull;
 
-public enum WKProcessType {
+/**
+ * The types of WebKit auxiliary processes hosted in Android Services. This is not a mirror of the
+ * WPEPlatform WPEProcessType C enumeration: values must stay in sync with the native ProcessType in
+ * Common/Environment.h, and the constant names are used to resolve the generated WPEServices
+ * service classes by reflection.
+ */
+public enum WPEProcessType {
     WebProcess(0),
     NetworkProcess(1),
     WebDriverProcess(2);
 
     private final int value;
 
-    WKProcessType(int value) { this.value = value; }
+    WPEProcessType(int value) { this.value = value; }
 
-    public static @NonNull WKProcessType fromValue(int value) {
-        for (WKProcessType entry : WKProcessType.values()) {
+    public static @NonNull WPEProcessType fromValue(int value) {
+        for (WPEProcessType entry : WPEProcessType.values()) {
             if (entry.getValue() == value)
                 return entry;
         }

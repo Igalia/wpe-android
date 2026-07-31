@@ -26,8 +26,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-public class WKActivityObserver implements Application.ActivityLifecycleCallbacks {
-    private static final String LOGTAG = "WKActivityObserver";
+public class WPEActivityObserver implements Application.ActivityLifecycleCallbacks {
+    private static final String LOGTAG = "WPEActivityObserver";
 
     @Override
     public void onActivityCreated(@NonNull Activity a, @NonNull Bundle b) {

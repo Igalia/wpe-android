@@ -25,8 +25,8 @@ import android.view.Display;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.wpewebkit.wpe.WKRuntime;
 import org.wpewebkit.wpe.WPEDisplay;
+import org.wpewebkit.wpe.WPERuntime;
 import org.wpewebkit.wpe.WPEScreen;
 import org.wpewebkit.wpe.WebKitCookieManager;
 import org.wpewebkit.wpe.WebKitNetworkSession;
@@ -67,7 +67,7 @@ public class WebContext {
 
     public WebContext(@NonNull android.content.Context context, boolean automationMode, boolean ephemeralSession) {
         this.appContext = context.getApplicationContext();
-        WKRuntime.getInstance().initialize(appContext);
+        WPERuntime.getInstance().initialize(appContext);
 
         this.display = new WPEDisplay();
         this.screen = display.getScreen();
@@ -125,10 +125,10 @@ public class WebContext {
 
     /**
      * Enable WebKit's remote inspector server. Must be called before any {@link WebContext} is created.
-     * Delegates to {@link WKRuntime#enableRemoteInspector(int, boolean)}.
+     * Delegates to {@link WPERuntime#enableRemoteInspector(int, boolean)}.
      */
     public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {
-        WKRuntime.enableRemoteInspector(inspectorPort, useHttpInspector);
+        WPERuntime.enableRemoteInspector(inspectorPort, useHttpInspector);
     }
 
     /**
