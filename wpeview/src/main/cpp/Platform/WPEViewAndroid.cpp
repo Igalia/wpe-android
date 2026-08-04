@@ -19,12 +19,11 @@
 #include "WPEViewAndroid.h"
 
 #include "Logging.h"
-#include "ScopedFD.h"
 #include "WPEToplevelAndroid.h"
 
 #include <android/native_window.h>
 #include <android/surface_control.h>
-#include <memory>
+#include <unistd.h>
 
 struct _WPEViewAndroid {
     WPEView parent;
@@ -60,7 +59,8 @@ struct BufferReleasedCallbackData {
     WPEView* view;
     WPEBuffer* buffer;
     ASurfaceControl& surfaceControl;
-    std::unique_ptr<ScopedFD> releaseFence;
+    // Previous-buffer release fence, owned until it is handed over to wpe_buffer_set_release_fence().
+    int releaseFence {-1};
 
     BufferReleasedCallbackData(WPEView* view, WPEBuffer* buffer, ASurfaceControl& surfaceControl)
         : view(static_cast<WPEView*>(g_object_ref(view)))
@@ -71,6 +71,8 @@ struct BufferReleasedCallbackData {
 
     ~BufferReleasedCallbackData()
     {
+        if (releaseFence != -1)
+            close(releaseFence);
         g_object_unref(view);
         g_object_unref(buffer);
     }
@@ -92,16 +94,16 @@ static void wpeViewAndroidOnTransactionCommitted(void* context, ASurfaceTransact
 static void wpeViewAndroidOnTransactionCompleted(void* context, ASurfaceTransactionStats* stats)
 {
     auto* data = static_cast<BufferReleasedCallbackData*>(context);
-    int releaseFenceFD = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, &data->surfaceControl);
-    if (releaseFenceFD != -1)
-        data->releaseFence = std::make_unique<ScopedFD>(releaseFenceFD);
+    data->releaseFence = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, &data->surfaceControl);
 
     g_main_context_invoke_full(
         nullptr, G_PRIORITY_DEFAULT,
         +[](gpointer userData) -> gboolean {
             auto* data = static_cast<BufferReleasedCallbackData*>(userData);
-            if (data->releaseFence)
-                wpe_buffer_set_release_fence(data->buffer, data->releaseFence->release());
+            if (data->releaseFence != -1) {
+                wpe_buffer_set_release_fence(data->buffer, data->releaseFence);
+                data->releaseFence = -1;
+            }
             wpe_view_buffer_released(data->view, data->buffer);
             return G_SOURCE_REMOVE;
         },
