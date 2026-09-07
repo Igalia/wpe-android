@@ -6,3 +6,4 @@ pytest_asyncio==0.18.3
 requests~=2.32
 websockets==8.1
 urllib3~=2.3
+legacy-cgi; python_version >= "3.13"

@@ -4,7 +4,7 @@ import os
 import shutil
 import sys
 import logging
-from distutils.spawn import find_executable
+from shutil import which as find_executable
 
 # The `pkg_resources` module is provided by `setuptools`, which is itself a
 # dependency of `virtualenv`. Tolerate its absence so that this module may be
