@@ -21,8 +21,12 @@ except ImportError:
     import httplib as http_client
 
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.remote.remote_connection import RemoteConnection
 from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
+from .options import Options
 from .service import Service
+
+COMMAND_TIMEOUT_SECONDS = 60
 
 
 class WebDriver(RemoteWebDriver):
@@ -60,9 +64,13 @@ class WebDriver(RemoteWebDriver):
         if not reuse_service:
             self.service.start()
 
+        RemoteConnection.set_timeout(COMMAND_TIMEOUT_SECONDS)
+        executor = RemoteConnection('http://127.0.0.1:%d' % self.service.port,
+                                    keep_alive=True, ignore_proxy=True)
+
         RemoteWebDriver.__init__(
             self,
-            command_executor="127.0.0.1:8888",
+            command_executor=executor,
             desired_capabilities=desired_capabilities)
         self._is_remote = False
 
