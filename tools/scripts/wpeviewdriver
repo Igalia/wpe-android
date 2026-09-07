@@ -4,6 +4,7 @@ import optparse
 import re
 import subprocess
 import signal
+import sys
 import time
 
 port = 8888
@@ -57,12 +58,21 @@ class WPEViewDriver:
                 return True
         return False
 
-    def _wait_for_open_connection(self):
+    def _wait_for_open_connection(self, timeout_secs=30):
+        deadline = time.monotonic() + timeout_secs
         while not self._interrupted and not self._is_connectable():
-            time.sleep(0.5)
+            if time.monotonic() > deadline:
+                return False
+            time.sleep(0.1)
+        return not self._interrupted
 
     def _setup(self):
         self._teardown() # Just in case app is still running
+        self._wake_screen()
+
+    def _wake_screen(self):
+        subprocess.run("adb shell svc power stayon true", capture_output=True, shell=True)
+        subprocess.run("adb shell input keyevent KEYCODE_WAKEUP", capture_output=True, shell=True)
         #subprocess.run("adb shell pm clear org.wpewebkit.tools.webdriver", capture_output=True, shell=True) # Clears too much like for example gstreamer libs
 
     def _teardown(self):
@@ -72,16 +82,18 @@ class WPEViewDriver:
     def run(self):
         self._setup()
 
-        subprocess.run("adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity -e headless true", capture_output=True, shell=True)
+        subprocess.run("adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity", capture_output=True, shell=True)
 
-        self._wait_for_open_connection()
-        if not self._interrupted:
-            time.sleep(1) # Add small delay to ensure webdriver server is properly up
+        if not self._wait_for_open_connection():
+            self._teardown()
+            sys.exit("wpeviewdriver: WebDriver app did not open port %d" % port)
+
+        time.sleep(1)
 
         subprocess.run("adb forward tcp:8888 tcp:8888", capture_output=True, shell=True)
 
-        signal.setitimer(signal.ITIMER_REAL, 20) # Timeout after 20 secs
-        signal.pause()
+        while not self._interrupted:
+            signal.pause()
 
         self._teardown()
 
