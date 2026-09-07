@@ -73,9 +73,8 @@ jobs:
             sleep 5
             adb shell am force-stop org.wpewebkit.tools.webdriver
             python3 -m venv .venv
-            . .venv/bin/activate
-            pip install -r tools/scripts/webkitpy/requirements.txt
-            tools/scripts/run-webdriver-tests --json-output=results.json
+            .venv/bin/pip install -r tools/scripts/webkitpy/requirements.txt
+            .venv/bin/python tools/scripts/run-webdriver-tests --json-output=results.json
 
       - name: Test results
         run: tools/scripts/print-webdriver-json-results ./results.json
