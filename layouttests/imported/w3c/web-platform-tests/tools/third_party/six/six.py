@@ -28,6 +28,11 @@ import operator
 import sys
 import types
 
+if sys.version_info[:2] >= (3, 3):
+    from importlib.util import spec_from_loader
+else:
+    spec_from_loader = None
+
 __author__ = "Benjamin Peterson <benjamin@python.org>"
 __version__ = "1.15.0"
 
@@ -186,6 +191,11 @@ class _SixMetaPathImporter(object):
             return self
         return None
 
+    def find_spec(self, fullname, path, target=None):
+        if fullname in self.known_modules:
+            return spec_from_loader(fullname, self)
+        return None
+
     def __get_module(self, fullname):
         try:
             return self.known_modules[fullname]
@@ -205,6 +215,12 @@ class _SixMetaPathImporter(object):
             mod.__loader__ = self
         sys.modules[fullname] = mod
         return mod
+
+    def create_module(self, spec):
+        return self.load_module(spec.name)
+
+    def exec_module(self, module):
+        pass
 
     def is_package(self, fullname):
         """

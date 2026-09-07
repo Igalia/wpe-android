@@ -27,7 +27,14 @@ import subprocess
 import sys
 import time
 
-from multiprocessing import Process, Queue
+import multiprocessing
+
+# The runner shares state with this process through closures/queues, which
+# requires the fork start method (the default changed away from fork on
+# Python >= 3.14).
+_mp_context = multiprocessing.get_context('fork')
+Process = _mp_context.Process
+Queue = _mp_context.Queue
 from webkitpy.common.system.filesystem import FileSystem
 from webkitpy.common.webkit_finder import WebKitFinder
 

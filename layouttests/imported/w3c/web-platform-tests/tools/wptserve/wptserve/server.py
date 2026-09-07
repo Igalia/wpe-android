@@ -218,10 +218,11 @@ class WebTestServer(ThreadingMixIn, http.server.HTTPServer):
                                                       server_side=True)
 
             else:
-                self.socket = ssl.wrap_socket(self.socket,
-                                              keyfile=self.key_file,
-                                              certfile=self.certificate,
-                                              server_side=True)
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ssl_context.load_cert_chain(keyfile=self.key_file,
+                                            certfile=self.certificate)
+                self.socket = ssl_context.wrap_socket(self.socket,
+                                                      server_side=True)
 
     def handle_error(self, request, client_address):
         error = sys.exc_info()[1]
@@ -325,10 +326,11 @@ class BaseWebTestRequestHandler(http.server.BaseHTTPRequestHandler):
         response.write()
         if self.server.encrypt_after_connect:
             self.logger.debug("Enabling SSL for connection")
-            self.request = ssl.wrap_socket(self.connection,
-                                           keyfile=self.server.key_file,
-                                           certfile=self.server.certificate,
-                                           server_side=True)
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.load_cert_chain(keyfile=self.server.key_file,
+                                        certfile=self.server.certificate)
+            self.request = ssl_context.wrap_socket(self.connection,
+                                                   server_side=True)
             self.setup()
         return
 
