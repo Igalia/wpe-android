@@ -26,7 +26,6 @@ import pytest
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
 from test.selenium.webdriver.common.webserver import SimpleWebServer
-from test.selenium.webdriver.common.network import get_lan_ip
 
 from urllib.request import urlopen
 
@@ -238,7 +237,7 @@ def server(request):
 
 @pytest.fixture(autouse=True, scope='session')
 def webserver():
-    webserver = SimpleWebServer(host=get_lan_ip())
+    webserver = SimpleWebServer()
     webserver.start()
     yield webserver
     webserver.stop()
