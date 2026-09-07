@@ -37,6 +37,9 @@ from . import utils
 LOGGER = logging.getLogger(__name__)
 
 
+CONNECT_TIMEOUT_SECONDS = 5
+
+
 class RemoteConnection(object):
     """A connection with the Remote WebDriver server.
 
@@ -131,8 +134,12 @@ class RemoteConnection(object):
             return os.environ.get('http_proxy', os.environ.get('HTTP_PROXY'))
 
     def _get_connection_manager(self):
+        timeout = self.get_timeout()
+        if timeout is not None:
+            timeout = urllib3.Timeout(connect=min(CONNECT_TIMEOUT_SECONDS, timeout), read=timeout)
         pool_manager_init_args = {
-            'timeout': self._timeout
+            'timeout': timeout,
+            'retries': urllib3.Retry(total=1, connect=False, read=False)
         }
         if self._ca_certs:
             pool_manager_init_args['cert_reqs'] = 'CERT_REQUIRED'

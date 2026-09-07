@@ -2,12 +2,15 @@
 
 import json
 import select
+import socket
 
 from http.client import HTTPConnection
 from typing import Dict, List, Mapping, Sequence, Tuple
 from urllib import parse as urlparse
 
 from . import error
+
+DEFAULT_TIMEOUT_SECONDS = 60
 
 """Implements HTTP transport for the WebDriver wire protocol."""
 
@@ -124,7 +127,7 @@ class HTTPWireProtocol:
         # => webdriver.Element
     """
 
-    def __init__(self, host, port, url_prefix="/"):
+    def __init__(self, host, port, url_prefix="/", timeout=DEFAULT_TIMEOUT_SECONDS):
         """
         Construct interface for communicating with the remote server.
 
@@ -134,6 +137,7 @@ class HTTPWireProtocol:
         self.host = host
         self.port = port
         self.url_prefix = url_prefix
+        self._timeout = timeout
         self._conn = None
         self._last_request_is_blocked = False
 
@@ -231,7 +235,8 @@ class HTTPWireProtocol:
         # runner thread. We use the boolean below to check for that and restart
         # the connection in that case.
         self._last_request_is_blocked = True
-        response = self._request(method, uri, payload, headers, timeout=None)
+        response = self._request(method, uri, payload, headers,
+                                 timeout=timeout if timeout is not None else self._timeout)
         self._last_request_is_blocked = False
         return Response.from_http(response, decoder=decoder, **codec_kwargs)
 
@@ -252,14 +257,15 @@ class HTTPWireProtocol:
 
         # timeout for request has to be set just before calling httplib.getresponse()
         # and the previous value restored just after that, even on exception raised
+        previous_timeout = socket.getdefaulttimeout()
         try:
-            if timeout:
-                previous_timeout = self._conn.gettimeout()
-                self._conn.settimeout(timeout)
+            if timeout and self.connection.sock:
+                previous_timeout = self.connection.sock.gettimeout()
+                self.connection.sock.settimeout(timeout)
             response = self.connection.getresponse()
         finally:
-            if timeout:
-                self._conn.settimeout(previous_timeout)
+            if timeout and self.connection.sock:
+                self.connection.sock.settimeout(previous_timeout)
 
         return response
 
