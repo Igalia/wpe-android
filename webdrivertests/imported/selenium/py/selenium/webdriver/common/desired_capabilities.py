@@ -114,7 +114,7 @@ class DesiredCapabilities(object):
     }
 
     WPEWEBKIT = {
-        "browserName": "MiniBrowser",
+        "browserName": "WPEWebView",
         "version": "",
         "platform": "ANY",
     }
