@@ -26,6 +26,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -673,6 +674,17 @@ public class WebView extends FrameLayout {
         @Override
         @SuppressLint("ClickableViewAccessibility")
         public boolean onTouchEvent(MotionEvent event) {
+            // Marks where a MotionEvent enters WPE, so a systrace capture lines the Android
+            // input timeline up with what the engine does with the event afterwards.
+            Trace.beginSection("WPEWebView.onTouchEvent");
+            try {
+                return dispatchTouchEventToPlatformView(event);
+            } finally {
+                Trace.endSection();
+            }
+        }
+
+        private boolean dispatchTouchEventToPlatformView(MotionEvent event) {
             if (platformView == null)
                 return false;
 
