@@ -417,19 +417,40 @@ def report_compositing(trace, frame_seconds, top):
         print("  A reason that only ever overruns when the main thread asked for the frame")
         print("  points at page repaints, not at scrolling.")
 
-    # Where the time inside a composite goes, from the signposts the compositor already has.
+    # Where the time inside a composite goes. The two outer signposts split scene sync from
+    # paint; the inner slices split the paint itself, which is where the surprise usually is.
+    total = sum(c.duration for c in composites)
     inner = defaultdict(float)
     for span in trace.spans:
         if span.name in ("FlushCompositingState", "PaintToGLContext"):
             inner[span.name] += span.duration
-    total = sum(c.duration for c in composites)
+    for slice_ in trace.slices:
+        if slice_.name.startswith("composite: ") and slice_.duration > 0:
+            inner["  " + slice_.name.removeprefix("composite: ")] += slice_.duration
+
     if inner and total:
         print()
-        print("  Where a composite spends its time:")
-        for name, value in sorted(inner.items(), key=lambda kv: -kv[1]):
-            print(f"    {value * 1000:9.1f}ms  {100.0 * value / total:4.1f}%  {name}")
-        rest = total - sum(inner.values())
-        print(f"    {rest * 1000:9.1f}ms  {100.0 * rest / total:4.1f}%  (swap buffers, frame submission, unattributed)")
+        print("  Where a composite spends its time (indented rows are inside PaintToGLContext):")
+        for name in ("FlushCompositingState", "PaintToGLContext"):
+            if name in inner:
+                print(f"    {inner[name] * 1000:9.1f}ms  {100.0 * inner[name] / total:4.1f}%  {name}")
+            for sub, value in sorted(inner.items(), key=lambda kv: -kv[1]):
+                if sub.startswith("  ") and name == "PaintToGLContext":
+                    print(f"    {value * 1000:9.1f}ms  {100.0 * value / total:4.1f}%  {sub}")
+            inner = {k: v for k, v in inner.items() if not k.startswith("  ")} if name == "PaintToGLContext" else inner
+        accounted = inner.get("FlushCompositingState", 0) + inner.get("PaintToGLContext", 0)
+        print(f"    {(total - accounted) * 1000:9.1f}ms  {100.0 * (total - accounted) / total:4.1f}%  "
+              "(swap buffers, frame submission, unattributed)")
+
+    layers = [v for _, v in trace.counter("wpe.composite.layers-painted")]
+    surfaces = [v for _, v in trace.counter("wpe.composite.intermediate-surfaces")]
+    if layers:
+        print()
+        print(f"  Layers painted per composite          max={int(max(layers))}")
+    if surfaces:
+        worst = int(max(surfaces))
+        note = "each one is a GPU render target allocated mid-frame" if worst else "none"
+        print(f"  Intermediate surfaces per composite   max={worst} ({note})")
 
 
 def report_timestats(path, frame_ms=16.7):
