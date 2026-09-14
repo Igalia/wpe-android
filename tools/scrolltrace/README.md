@@ -71,13 +71,18 @@ called out separately, because that one is never the touch path.
 | `Scrolling nodes forcing main thread` | If non-zero the scrolling thread may not move layers at all, and every scrolled frame needs the main thread. |
 | `wheel processing:` | Whether the synthesized scroll needed blocking DOM dispatch. |
 | `Composites during a gesture, by what asked for the frame` | If only the `RenderingUpdate` rows overrun the frame budget, the page's own repaints are dropping the frames, not scrolling. |
-| `Where a composite spends its time` | Splits a composite into scene sync (`FlushCompositingState`, where main-thread state shows up) and paint (`PaintToGLContext`). |
+| `Where a composite spends its time` | Splits a composite into scene sync (`FlushCompositingState`, where main-thread state shows up) and paint (`PaintToGLContext`), and the paint into the damage walk, the draw walk and the GPU submit. |
+| `Intermediate surfaces per composite` | A filter, mask, opacity group, replica or blend mode makes the layer paint into its own GPU render target, which is flushed and snapshotted mid-frame. |
 
 ## Emitting more
 
 `debug.wpe.atrace` picks the coverage: unset or `scroll` emits the scrolling, touch,
-rendering-update and compositing tracepoints, `all` emits every tracepoint WebKit has, `off`
-emits nothing. `capture.sh -c` sets it.
+rendering-update and compositing tracepoints, `layers` adds a slice per layer painted,
+`all` emits every tracepoint WebKit has, `off` emits nothing. `capture.sh -c` sets it.
+
+Use `-c layers` when the Compositing section says a composite overran the frame and you need
+to know whether it was the number of layers, one expensive layer, an intermediate surface,
+or the GPU submit. There are hundreds of layer slices per frame, so it is not the default.
 
 The capture also loads fine in <https://ui.perfetto.dev> if you want the timeline rather
 than the summary; the engine slices sit on the web process threads next to SurfaceFlinger
