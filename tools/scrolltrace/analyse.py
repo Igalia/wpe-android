@@ -25,12 +25,15 @@ TRACE_LINE = re.compile(
 
 WHEEL_MARKER = "UI: drag -> wheel event"
 TOUCH_MARKER = "WPEWebView.onTouchEvent"
+# SurfaceFlinger applies one of these per frame the compositor hands over.
+FRAME_MARKER = "setBuffer WPEWebLayer"
 
 
 class Slice:
-    __slots__ = ("name", "tid", "pid", "task", "start", "end")
+    __slots__ = ("name", "tid", "pid", "task", "start", "end", "kind")
 
-    def __init__(self, name, tid, pid, task, start):
+    def __init__(self, name, tid, pid, task, start, kind="B"):
+        self.kind = kind
         self.name = name
         self.tid = tid
         self.pid = pid
@@ -55,8 +58,9 @@ class Trace:
     def named(self, name):
         return [s for s in self.slices if s.name == name]
 
-    def starting_with(self, prefix):
-        return [s for s in self.slices if s.name.startswith(prefix)]
+    def starting_with(self, prefix, kind=None):
+        return [s for s in self.slices
+                if s.name.startswith(prefix) and (kind is None or s.kind == kind)]
 
     def spans_named(self, name):
         return [s for s in self.spans if s.name == name]
@@ -116,6 +120,10 @@ def parse(path):
                 s = open_spans.pop((pid, fields[2], fields[3]), None)
                 if s is not None:
                     s.end = ts
+            elif kind == "I" and len(fields) >= 3:
+                marker = Slice("|".join(fields[2:]), tid, pid, task, ts, kind="I")
+                marker.end = ts
+                trace.slices.append(marker)
             elif kind == "C" and len(fields) >= 4:
                 try:
                     trace.counters[(pid, fields[2])].append((ts, float(fields[3])))
@@ -181,6 +189,11 @@ def engine_main_tids(trace):
     return {s.tid for s in trace.slices if s.name == "RenderingUpdate"}
 
 
+def compositor_tids(trace):
+    """The ThreadedCompositor thread, likewise identified by what only it emits."""
+    return {s.tid for s in trace.slices if s.name == "RenderLayerTree"}
+
+
 def report_input_path(trace):
     section("Input path")
     android_touches = trace.named(TOUCH_MARKER)
@@ -200,55 +213,101 @@ def report_input_path(trace):
         print(f"  Touch round trip                      {describe([s.duration for s in round_trips])}")
 
 
-def report_stalls(trace, frame_seconds, top):
-    """The headline: gaps in scroll production while a finger was down, and what ran then."""
-    section("Scroll stalls (finger down, no scroll update produced)")
-    wheels = sorted(s.start for s in trace.starting_with(WHEEL_MARKER))
-    if not wheels:
-        print("  No scroll updates in this capture; nothing scrolled.")
-        return []
-
+def find_stalls(trace, events, frame_seconds):
+    """Stretches during a gesture where `events` went quiet for more than two frames."""
     threshold = 2 * frame_seconds
     stalls = []
     for start, end, _ in gestures(trace):
-        within = [w for w in wheels if start <= w <= end]
         previous = start
-        for w in within + [end]:
-            if w - previous > threshold:
-                stalls.append((previous, w))
-            previous = w
+        for ts in [e for e in events if start <= e <= end] + [end]:
+            if ts - previous > threshold:
+                stalls.append((previous, ts))
+            previous = ts
+    return stalls
 
-    gaps = [end - start for start, end in stalls]
-    print(f"  Frame budget assumed                  {frame_seconds * 1000:.1f}ms "
-          f"(stall = no scroll update for {threshold * 1000:.0f}ms)")
-    print(f"  Stalls                                {describe(gaps)}")
-    if not stalls:
-        print("  Scroll production never paused for longer than two frames.")
-        return stalls
 
-    # What was running during the stalls, by total overlap. This is the attribution: a name
-    # near the top of this list is what the scroll was waiting behind.
+def blame_stalls(trace, stalls, top, indent="    "):
+    """What was running during the stalls, by total overlap."""
     main_tids = engine_main_tids(trace)
+    comp_tids = compositor_tids(trace)
+    labels = {tid: "main thread" for tid in main_tids}
+    labels.update({tid: "compositor" for tid in comp_tids})
     blame = defaultdict(float)
-    blame_counts = defaultdict(int)
-    candidates = [s for s in trace.slices if s.tid in main_tids] + trace.spans
+    counts = defaultdict(int)
+    candidates = [s for s in trace.slices if s.tid in labels and s.duration > 0] + trace.spans
     for start, end in stalls:
         for s in overlapping(candidates, start, end):
             overlap = min(s.end, end) - max(s.start, start)
             if overlap <= 0:
                 continue
-            label = s.name if s.tid in main_tids else f"{s.name} (async)"
+            label = f"{s.name} [{labels[s.tid]}]" if s.tid in labels else f"{s.name} (async)"
             blame[label] += overlap
-            blame_counts[label] += 1
+            counts[label] += 1
+    if not blame:
+        print(f"{indent}Nothing the engine reported: the stall is outside it, in input delivery")
+        print(f"{indent}or in the compositor. Check the input and SurfaceFlinger tracks.")
+        return
+    for name, total in sorted(blame.items(), key=lambda kv: -kv[1])[:top]:
+        print(f"{indent}{total * 1000:9.1f}ms  n={counts[name]:<5d} {name}")
+
+
+def report_stalls(trace, frame_seconds, top):
+    """The headline. Two independent things can stop while a finger is down: the engine can
+    stop producing scroll updates, or the produced frames can stop reaching the display.
+    They have completely different causes, so they are measured separately."""
+    section("Stalls while a finger was down")
+    threshold = 2 * frame_seconds
+    print(f"  Frame budget assumed                  {frame_seconds * 1000:.1f}ms "
+          f"(a stall is a gap longer than {threshold * 1000:.0f}ms)")
+
+    wheels = sorted(s.start for s in trace.starting_with(WHEEL_MARKER))
+    frames = sorted(s.start for s in trace.starting_with(FRAME_MARKER, kind="B"))
 
     print()
-    print("  What was running during those stalls (total overlap):")
-    if not blame:
-        print("    Nothing the engine reported: the stall is upstream of the engine, in input")
-        print("    delivery or in the compositor. Check the input and SurfaceFlinger tracks.")
-    for name, total in sorted(blame.items(), key=lambda kv: -kv[1])[:top]:
-        print(f"    {total * 1000:9.1f}ms  n={blame_counts[name]:<5d} {name}")
-    return stalls
+    if not wheels:
+        print("  No scroll updates in this capture; nothing scrolled.")
+        scroll_stalls = []
+    else:
+        scroll_stalls = find_stalls(trace, wheels, frame_seconds)
+        print(f"  a) No scroll update produced          {describe([e - s for s, e in scroll_stalls])}")
+        if not scroll_stalls:
+            print("     The engine never stopped turning the gesture into scroll updates.")
+
+    if not frames:
+        print("  b) No frame handed to SurfaceFlinger  not captured (no WPEWebLayer buffers in trace)")
+        frame_stalls = []
+    else:
+        frame_stalls = find_stalls(trace, frames, frame_seconds)
+        gaps = [e - s for s, e in frame_stalls]
+        dropped = sum(max(0, int(round(g / frame_seconds)) - 1) for g in gaps)
+        print(f"  b) No frame handed to SurfaceFlinger  n={len(gaps)} dropped={dropped} frames"
+              + (f"  p95={percentile(gaps, 0.95) * 1000:.1f}ms  max={max(gaps) * 1000:.1f}ms" if gaps else ""))
+        if not frame_stalls:
+            print("     Frames kept reaching the display throughout every gesture.")
+        else:
+            in_gesture = sum(end - start for start, end, _ in gestures(trace))
+            windows = gestures(trace)
+            produced = len([f for f in frames if any(a <= f <= b for a, b, _ in windows)])
+            if in_gesture:
+                print(f"     Effective {produced / in_gesture:.1f} fps while a finger was down "
+                      f"(a {1 / frame_seconds:.0f} Hz display would give {1 / frame_seconds:.0f})")
+
+    if scroll_stalls:
+        print()
+        print("  What was running while no scroll update was produced:")
+        blame_stalls(trace, scroll_stalls, top)
+
+    # Frame stalls that are not also scroll stalls are the interesting ones: the engine was
+    # keeping up and the picture still stopped.
+    unexplained = [(start, end) for start, end in frame_stalls
+                   if not any(s < end and e > start for s, e in scroll_stalls)]
+    if unexplained:
+        print()
+        print(f"  {len(unexplained)} frame stall(s) happened while scroll updates were still being")
+        print("  produced, so the engine was not the thing that stopped:")
+        blame_stalls(trace, unexplained, top)
+
+    return scroll_stalls
 
 
 def report_main_thread_waits(trace):
@@ -299,23 +358,81 @@ def report_reasons(trace):
         print(f"  {count:6d}  {name}")
 
 
-def report_main_thread_work(trace, top):
-    section("What the web process main thread was busy with")
-    main_tids = engine_main_tids(trace)
-    if not main_tids:
-        print("  No engine main-thread slices captured.")
+def report_thread_work(trace, title, tids, top, note=None):
+    section(title)
+    if not tids:
+        print("  Not captured.")
         return
     totals = defaultdict(float)
     counts = defaultdict(int)
+    worst = defaultdict(float)
     for s in trace.slices:
-        if s.tid in main_tids:
+        if s.tid in tids and s.duration > 0:
             totals[s.name] += s.duration
             counts[s.name] += 1
+            worst[s.name] = max(worst[s.name], s.duration)
+    if note:
+        print(f"  {note}")
+    print(f"  {'total':>10s} {'n':>7s} {'mean':>9s} {'max':>9s}  slice")
     for name, total in sorted(totals.items(), key=lambda kv: -kv[1])[:top]:
-        print(f"  {total * 1000:9.1f}ms  n={counts[name]:<5d} {name}")
+        print(f"  {total * 1000:9.1f}ms {counts[name]:7d} {total / counts[name] * 1000:8.2f}ms "
+              f"{worst[name] * 1000:8.2f}ms  {name}")
 
 
-def report_timestats(path):
+def report_compositing(trace, frame_seconds, top):
+    """A composite that overruns the frame budget drops a frame no main-thread wait
+    explains, so it is worth splitting by what the frame was composited for and by where
+    the time inside it went."""
+    composites = [s for s in trace.slices if s.name == "RenderLayerTree" and s.duration > 0]
+    if not composites:
+        return
+
+    section("Compositing")
+    windows = gestures(trace)
+
+    def during_gesture(ts):
+        return any(a <= ts <= b for a, b, _ in windows)
+
+    marks = sorted((s.start, s.name.split(": ", 1)[1])
+                   for s in trace.slices if s.name.startswith("DidRenderFrame reasons: "))
+
+    def reason_for(slice_):
+        for ts, reason in marks:
+            if slice_.start <= ts <= slice_.end:
+                return reason
+        return "(not recorded)"
+
+    buckets = defaultdict(list)
+    for c in composites:
+        if during_gesture(c.start):
+            buckets[reason_for(c)].append(c.duration)
+
+    if buckets:
+        print(f"  Composites during a gesture, by what asked for the frame:")
+        print(f"  {'reason':36s} {'n':>5s} {'mean':>9s} {'max':>9s} {'over budget':>12s}")
+        for reason, durations in sorted(buckets.items(), key=lambda kv: -sum(kv[1])):
+            over = sum(1 for d in durations if d > frame_seconds)
+            print(f"  {reason:36s} {len(durations):5d} {sum(durations) / len(durations) * 1000:8.2f}ms "
+                  f"{max(durations) * 1000:8.2f}ms {over:12d}")
+        print("  A reason that only ever overruns when the main thread asked for the frame")
+        print("  points at page repaints, not at scrolling.")
+
+    # Where the time inside a composite goes, from the signposts the compositor already has.
+    inner = defaultdict(float)
+    for span in trace.spans:
+        if span.name in ("FlushCompositingState", "PaintToGLContext"):
+            inner[span.name] += span.duration
+    total = sum(c.duration for c in composites)
+    if inner and total:
+        print()
+        print("  Where a composite spends its time:")
+        for name, value in sorted(inner.items(), key=lambda kv: -kv[1]):
+            print(f"    {value * 1000:9.1f}ms  {100.0 * value / total:4.1f}%  {name}")
+        rest = total - sum(inner.values())
+        print(f"    {rest * 1000:9.1f}ms  {100.0 * rest / total:4.1f}%  (swap buffers, frame submission, unattributed)")
+
+
+def report_timestats(path, frame_ms=16.7):
     if not os.path.exists(path):
         return
     lines = open(path, errors="replace").read().splitlines()
@@ -324,11 +441,31 @@ def report_timestats(path):
     if layer is None:
         return
     section("Presented frames (SurfaceFlinger, WPEWebLayer)")
-    for line in lines[layer:layer + 30]:
+    block = lines[layer:layer + 40]
+    for line in block:
         stripped = line.strip()
-        if stripped.startswith(("layerName", "totalFrames", "droppedFrames", "averageFPS",
-                                "present2present", "post2present")):
+        if stripped.startswith(("layerName", "totalFrames", "droppedFrames", "jankyFrames", "averageFPS")):
             print("  " + stripped)
+
+    for index, line in enumerate(block):
+        if not line.strip().startswith("present2present histogram"):
+            continue
+        buckets = []
+        for entry in block[index + 1].split():
+            name, _, count = entry.partition("=")
+            if not count.isdigit() or not int(count):
+                continue
+            buckets.append((int(name.removesuffix("ms")), int(count)))
+        late = [(ms, count) for ms, count in buckets if ms >= 2 * frame_ms]
+        total = sum(count for _, count in buckets)
+        dropped = sum(count for _, count in late)
+        print(f"  frame intervals over {2 * frame_ms:.0f}ms: {dropped}/{total} "
+              f"({100.0 * dropped / total:.1f}%)" if total else "  no intervals recorded")
+        if late:
+            print("    " + "  ".join(f"{ms}ms x{count}" for ms, count in late))
+            print("    (gaps of several hundred ms between gestures are the idle time")
+            print("     between swipes, not stalls)")
+        break
 
 
 def main():
@@ -354,8 +491,15 @@ def main():
     report_stalls(trace, args.frame_ms / 1000.0, args.top)
     report_main_thread_waits(trace)
     report_reasons(trace)
-    report_main_thread_work(trace, args.top)
-    report_timestats(os.path.join(os.path.dirname(os.path.abspath(args.trace)), "surfaceflinger.timestats"))
+    report_thread_work(trace, "What the web process main thread was busy with",
+                       engine_main_tids(trace), args.top)
+    report_thread_work(trace, "What the compositor thread was busy with",
+                       compositor_tids(trace), args.top,
+                       note="A max well over the frame budget here is a dropped frame that no "
+                            "main-thread wait explains.")
+    report_compositing(trace, args.frame_ms / 1000.0, args.top)
+    report_timestats(os.path.join(os.path.dirname(os.path.abspath(args.trace)), "surfaceflinger.timestats"),
+                     args.frame_ms)
     print()
     return 0
 

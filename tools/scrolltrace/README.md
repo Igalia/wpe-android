@@ -47,9 +47,17 @@ Options: `-s serial`, `-u url`, `-o outdir`, `-n gestures`, `-d swipe-ms`, `-m s
 
     tools/scrolltrace/analyse.py <outdir>/trace.txt
 
-The report is built around stalls — stretches where a finger was down and no scroll update
-was produced — and what was running during them. A run on a page with no touch handlers
-should show no stalls at all; that is the control.
+The report is built around stalls while a finger was down, and it measures the two
+independent ways a scroll can stop:
+
+* **no scroll update produced** — the engine stopped turning the gesture into scroll
+  updates, which is what a `Synchronous` touch classification does;
+* **no frame handed to SurfaceFlinger** — the engine kept up and the picture still stopped,
+  which is a compositor or presentation problem and no main-thread wait explains it.
+
+Reading only the first will tell you a page is fine when it visibly is not. Both are
+reported, and a frame stall that happens while scroll updates were still being produced is
+called out separately, because that one is never the touch path.
 
 ## Reading the output
 
@@ -62,6 +70,8 @@ should show no stalls at all; that is the control.
 | `Rendering-update syncs timed out` | How often the scrolling thread gave up waiting for the main thread's rendering update. This is a designed fallback, not a bug, but a high rate means the main thread is missing its frame budget. |
 | `Scrolling nodes forcing main thread` | If non-zero the scrolling thread may not move layers at all, and every scrolled frame needs the main thread. |
 | `wheel processing:` | Whether the synthesized scroll needed blocking DOM dispatch. |
+| `Composites during a gesture, by what asked for the frame` | If only the `RenderingUpdate` rows overrun the frame budget, the page's own repaints are dropping the frames, not scrolling. |
+| `Where a composite spends its time` | Splits a composite into scene sync (`FlushCompositingState`, where main-thread state shows up) and paint (`PaintToGLContext`). |
 
 ## Emitting more
 
