@@ -27,7 +27,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           log-accepted-android-sdk-licenses: false
-          packages: "tools platform-tools cmake;3.31.1"
+          packages: "platform-tools cmake;3.31.1"
       - name: Build Project
         run: ./gradlew assemble${{ inputs.build_type }}
       - name: Save MiniBrowser Artifacts
