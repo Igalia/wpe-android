@@ -23,6 +23,6 @@ jobs:
           uses: android-actions/setup-android@v3
           with:
             log-accepted-android-sdk-licenses: false
-            packages: "tools platform-tools cmake;3.31.1"
+            packages: "platform-tools cmake;3.31.1"
         - name: Lint checks
           run: ./gradlew lint${{ inputs.build_type }}
