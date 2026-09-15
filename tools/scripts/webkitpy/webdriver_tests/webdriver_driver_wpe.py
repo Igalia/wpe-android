@@ -37,30 +37,29 @@ class WebDriverWPE(WebDriver):
         return self._binary_path
 
     def browser_name(self):
-        return "MiniBrowser"
+        return "WPEWebView"
 
     def browser_path(self):
-        return "/bin/MiniBrowser"
+        return None
 
     def browser_args(self):
-        args = ['--automation']
-        args.append('--headless')
-        return args
+        return []
 
     def browser_env(self):
         return os.environ.copy()
 
     def capabilities(self):
-        capabilities = {'wpe:browserOptions': {
-            'binary': self.browser_path(),
-            'args': self.browser_args()}}
+        capabilities = {'browserName': self.browser_name()}
 
+        browser_options = {}
         browser_target_ip = self.browser_target_ip()
         if browser_target_ip:
-            capabilities['wpe:browserOptions']['targetAddr'] = browser_target_ip
+            browser_options['targetAddr'] = browser_target_ip
         browser_target_port = self.browser_target_port()
         if browser_target_port:
-            capabilities['wpe:browserOptions']['targetPort'] = browser_target_port
+            browser_options['targetPort'] = browser_target_port
+        if browser_options:
+            capabilities['wpe:browserOptions'] = browser_options
         return capabilities
 
     def selenium_name(self):
