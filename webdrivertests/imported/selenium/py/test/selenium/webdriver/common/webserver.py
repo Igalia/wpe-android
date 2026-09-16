@@ -118,7 +118,7 @@ class SimpleWebServer(object):
         self.stop_serving = True
         try:
             # This is to force stop the server loop
-            urllib_request.URLopener().open("http://%s:%d" % (self.host, self.port))
+            urllib_request.urlopen("http://%s:%d" % (self.host, self.port))
         except IOError:
             pass
         LOGGER.info("Shutting down the webserver")
