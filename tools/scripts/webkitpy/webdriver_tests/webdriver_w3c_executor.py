@@ -23,6 +23,7 @@
 import logging
 import os
 import json
+import queue
 import subprocess
 import sys
 import time
@@ -155,6 +156,9 @@ class WebKitDriverBrowser(WebDriverBrowser):
 
 
 class WebDriverW3CExecutor(WdspecExecutor):
+    RESULT_TIMEOUT_SECONDS = 300
+    TEARDOWN_TIMEOUT_SECONDS = 10
+
     def __init__(self, driver, server, timeout, expectations):
         server_config = {'browser_host': server.host(),
                          'domains': {'': {'': server.host()},
@@ -168,13 +172,16 @@ class WebDriverW3CExecutor(WdspecExecutor):
 
         self._timeout = timeout
         self._expectations = expectations
-        self._test_queue = Queue()
-        self._result_queue = Queue()
+        self._test_queue = None
+        self._result_queue = None
+        self._process = None
 
     def setup(self):
         super(WebDriverW3CExecutor, self).setup(self.runner)
         self.browser.setup()
         self.browser.start(None)
+        self._test_queue = Queue()
+        self._result_queue = Queue()
         args = (self._test_queue,
                 self._result_queue,
                 self.browser.host,
@@ -191,8 +198,15 @@ class WebDriverW3CExecutor(WdspecExecutor):
         self.protocol.teardown()
         self.browser.stop(force=True)
         self.browser.cleanup()
-        self._test_queue.put('TEARDOWN')
-        self._process = None
+        if self._process is not None:
+            self._test_queue.put('TEARDOWN')
+            self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
+            if self._process.is_alive():
+                self._process.terminate()
+                self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
+            self._process = None
+        self._test_queue = None
+        self._result_queue = None
 
     @staticmethod
     def _runner(test_queue, result_queue, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
@@ -222,4 +236,12 @@ class WebDriverW3CExecutor(WdspecExecutor):
 
     def run(self, test):
         self._test_queue.put(test)
-        return self._result_queue.get()
+        try:
+            return self._result_queue.get(timeout=self.RESULT_TIMEOUT_SECONDS)
+        except queue.Empty:
+            _log.error('No result for %s after %d seconds, terminating the test process'
+                       % (test, self.RESULT_TIMEOUT_SECONDS))
+            if self._process is not None:
+                self._process.terminate()
+                self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
+            return ('ERROR', 'no result after %d seconds' % self.RESULT_TIMEOUT_SECONDS), []
