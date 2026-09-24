@@ -25,6 +25,7 @@ import pytest
 
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
+from selenium.common import exceptions as selenium_exceptions
 from test.selenium.webdriver.common.webserver import SimpleWebServer
 
 from urllib.request import urlopen
@@ -176,12 +177,40 @@ def stop_driver(request):
     request.addfinalizer(fin)
 
 
+RECOVERABLE_EXCEPTIONS = (
+    AssertionError,
+    selenium_exceptions.ElementClickInterceptedException,
+    selenium_exceptions.ElementNotInteractableException,
+    selenium_exceptions.ElementNotSelectableException,
+    selenium_exceptions.ElementNotVisibleException,
+    selenium_exceptions.InvalidElementStateException,
+    selenium_exceptions.InvalidSelectorException,
+    selenium_exceptions.JavascriptException,
+    selenium_exceptions.MoveTargetOutOfBoundsException,
+    selenium_exceptions.NoAlertPresentException,
+    selenium_exceptions.NoSuchAttributeException,
+    selenium_exceptions.NoSuchElementException,
+    selenium_exceptions.NoSuchFrameException,
+    selenium_exceptions.StaleElementReferenceException,
+    selenium_exceptions.TimeoutException,
+)
+
+
 def pytest_exception_interact(node, call, report):
-    if report.failed:
-        global driver_instance
-        if driver_instance is not None:
+    if not report.failed:
+        return
+
+    exception = call.excinfo.value if call.excinfo is not None else None
+    if isinstance(exception, RECOVERABLE_EXCEPTIONS):
+        return
+
+    global driver_instance
+    if driver_instance is not None:
+        try:
             driver_instance.quit()
-        driver_instance = None
+        except Exception:
+            pass
+    driver_instance = None
 
 
 @pytest.fixture
