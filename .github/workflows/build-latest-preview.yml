@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Update Tag
         run: |
           git config user.name "GitHub Actions Bot"
@@ -32,7 +32,7 @@ jobs:
           git tag -f latest-preview ${{ github.sha }}
           git push -f origin latest-preview
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
       - name: Rename APK Files
         run: |
           for filepath in {minibrowser,mediaplayer,webdriver}-Debug/debug/*-debug.apk; do
@@ -40,14 +40,14 @@ jobs:
             mv -v "$filepath" "${filename%-debug.apk}-latest.apk"
           done
       - name: Delete Artifacts
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: |
             minibrowser-Debug
             mediaplayer-Debug
             webdriver-Debug
       - name: Upload Latest Preview Files
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "Latest Preview"
           tag_name: latest-preview

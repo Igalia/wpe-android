@@ -10,9 +10,9 @@ jobs:
             sudo rm -rf /usr/share/{dotnet,swift} /usr/local/.ghcup /usr/local/julia*
             sudo rm -rf /usr/local/share/{chromium,powershell} /opt/{microsoft,google,az}
         - name: Checkout
-          uses: actions/checkout@v4
+          uses: actions/checkout@v6
         - name: Java™ Setup
-          uses: actions/setup-java@v4
+          uses: actions/setup-java@v5
           with:
             distribution: temurin
             java-version: 17

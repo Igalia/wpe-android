@@ -15,33 +15,33 @@ jobs:
           sudo rm -rf /usr/share/{dotnet,swift} /usr/local/.ghcup /usr/local/julia*
           sudo rm -rf /usr/local/share/{chromium,powershell} /opt/{microsoft,google,az}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Fetch Dependencies (WPE Bootstrap)
         run: python3 tools/scripts/bootstrap.py -a all
       - name: Java™ Setup
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           log-accepted-android-sdk-licenses: false
           packages: "platform-tools cmake;3.31.1"
       - name: Build Project
         run: ./gradlew assemble${{ inputs.build_type }}
       - name: Save MiniBrowser Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: minibrowser-${{ inputs.build_type }}
           path: tools/minibrowser/build/outputs/apk/**/*.apk
       - name: Save Mediaplayer Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: mediaplayer-${{ inputs.build_type }}
           path: tools/mediaplayer/build/outputs/apk/**/*.apk
       - name: Save WebDriver Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: webdriver-${{ inputs.build_type }}
           path: tools/webdriver/build/outputs/apk/**/*.apk
