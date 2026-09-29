@@ -43,7 +43,7 @@ class WebDriverWPE(WebDriver):
         return os.environ.copy()
 
     def capabilities(self):
-        capabilities = {'browserName': self.browser_name()}
+        capabilities = {}
 
         browser_options = {}
         browser_target_ip = self.browser_target_ip()
