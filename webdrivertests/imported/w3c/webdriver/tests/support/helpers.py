@@ -82,6 +82,13 @@ def cleanup_session(session):
     _restore_windows(session)
     _restore_window_state(session)
     _switch_to_top_level_browsing_context(session)
+    _clear_cookies(session)
+
+
+@ignore_exceptions
+def _clear_cookies(session):
+    """Drop the cookies the test left behind."""
+    clear_all_cookies(session)
 
 
 @ignore_exceptions
