@@ -19,11 +19,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
       - name: Prepare Release
         id: changelog
         run: |
@@ -33,14 +33,14 @@ jobs:
             mv -vf "$item-Debug/debug/$item-debug.apk" "wpe-android-$item-$RELEASE_WPE_WEBKIT_VERSION-$RELEASE_WPE_ANDROID_VERSION.apk"
           done
       - name: Delete Artifacts
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: |
             minibrowser-Debug
             mediaplayer-Debug
             webdriver-Debug
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "WPE Android ${{ steps.changelog.outputs.RELEASE_WPE_WEBKIT_VERSION }} (${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }})"
           tag_name: "${{ steps.changelog.outputs.RELEASE_WPE_ANDROID_VERSION }}"
