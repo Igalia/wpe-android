@@ -68,6 +68,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            adb uninstall org.wpewebkit.tools.webdriver || true
             adb install --abi x86_64 webdriver-latest.apk
             adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity
             sleep 5
