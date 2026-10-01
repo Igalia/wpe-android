@@ -309,9 +309,6 @@
 
     "imported/w3c/webdriver/tests/back/back.py": {
         "subtests": {
-            "test_cross_origin[capabilities0]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/323692"}}
-            },
             "test_history_pushstate": {
                 "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
             },
@@ -363,9 +360,6 @@
 
     "imported/w3c/webdriver/tests/forward/forward.py": {
         "subtests": {
-            "test_cross_origin[capabilities0]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/323692"}}
-            },
             "test_no_top_browsing_context": {
                 "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
             },
@@ -881,9 +875,6 @@
 
     "imported/w3c/webdriver/tests/navigate_to/navigate.py": {
         "subtests": {
-            "test_cross_origin[capabilities0]": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/323692"}}
-            },
             "test_no_top_browsing_context": {
                 "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}
             },
