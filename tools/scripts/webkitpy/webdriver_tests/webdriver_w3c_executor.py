@@ -195,18 +195,20 @@ class WebDriverW3CExecutor(WdspecExecutor):
         self._process.start()
 
     def teardown(self):
-        self.protocol.teardown()
-        self.browser.stop(force=True)
-        self.browser.cleanup()
-        if self._process is not None:
-            self._test_queue.put('TEARDOWN')
-            self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
-            if self._process.is_alive():
-                self._process.terminate()
+        try:
+            self.protocol.teardown()
+            self.browser.stop(force=True)
+            self.browser.cleanup()
+        finally:
+            if self._process is not None:
+                self._test_queue.put('TEARDOWN')
                 self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
-            self._process = None
-        self._test_queue = None
-        self._result_queue = None
+                if self._process.is_alive():
+                    self._process.terminate()
+                    self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
+                self._process = None
+            self._test_queue = None
+            self._result_queue = None
 
     @staticmethod
     def _runner(test_queue, result_queue, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
