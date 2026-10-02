@@ -53,12 +53,14 @@ subprocess.run("adb reverse --remove-all", capture_output=True, shell=True)
 time.sleep(1) # small wait to ensure adb commands are executed fully
 
 runner = WebDriverTestRunner()
-runner.run(args)
-runner.teardown()
-retval = runner.process_results()
+try:
+    runner.run(args)
+finally:
+    runner.teardown()
+    retval = runner.process_results()
 
-if options.json_output is not None:
-    runner.dump_results_to_json_file(options.json_output)
+    if options.json_output is not None:
+        runner.dump_results_to_json_file(options.json_output)
 
 sys.exit(retval)
 
