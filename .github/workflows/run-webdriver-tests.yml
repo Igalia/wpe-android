@@ -14,7 +14,7 @@ jobs:
       matrix:
         api-level: [35]
         arch: [x86_64]
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Carve-out Disk Space
         run: |
@@ -75,7 +75,7 @@ jobs:
             adb shell am force-stop org.wpewebkit.tools.webdriver
             python3 -m venv .venv
             .venv/bin/pip install -r tools/scripts/webkitpy/requirements.txt
-            .venv/bin/python tools/scripts/run-webdriver-tests --json-output=results.json
+            .github/webdriver-host-monitor.sh & monitor=$!; .venv/bin/python tools/scripts/run-webdriver-tests --json-output=results.json; status=$?; kill $monitor; exit $status
 
       - name: Test results
         run: tools/scripts/print-webdriver-json-results ./results.json
