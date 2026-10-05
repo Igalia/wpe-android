@@ -81,7 +81,7 @@ class HtmlOnlyHandler(BaseHTTPRequestHandler):
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    pass
+    daemon_threads = True
 
 
 class SimpleWebServer(object):
