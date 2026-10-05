@@ -19,13 +19,20 @@
 #include "JNI/JNI.h"
 #include "Logging.h"
 
+#include <android/bitmap.h>
+#include <cstdint>
+#include <limits>
 #include <memory>
+#include <new>
 #include <vector>
 #include <wpe/webkit.h>
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebViewEvalCallbackHolder, "org/wpewebkit/wpe/WebKitWebView$EvalCallbackHolder");
+DECLARE_JNI_CLASS_SIGNATURE(
+    JNIWebKitWebViewSnapshotCallbackHolder, "org/wpewebkit/wpe/WebKitWebView$SnapshotCallbackHolder");
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebView, "org/wpewebkit/wpe/WebKitWebView");
+DECLARE_JNI_CLASS_SIGNATURE(JNIBitmap, "android/graphics/Bitmap");
 
 namespace WebKit {
 
@@ -76,6 +83,42 @@ const JNIWebKitWebViewEvalCallbackHolderCache& getJNIWebKitWebViewEvalCallbackHo
     return s_singleton;
 }
 
+class JNIWebKitWebViewSnapshotCallbackHolderCache final
+    : public JNI::TypedClass<JNIWebKitWebViewSnapshotCallbackHolder> {
+public:
+    JNIWebKitWebViewSnapshotCallbackHolderCache()
+        : JNI::TypedClass<JNIWebKitWebViewSnapshotCallbackHolder>(true)
+        , m_createBitmap(getMethod<JNIBitmap(jint, jint)>("createBitmap"))
+        , m_commitResult(getMethod<void(JNIBitmap)>("commitResult"))
+    {
+    }
+
+    // Returns null if Java could not allocate the bitmap.
+    JNI::ProtectedType<JNIBitmap> createBitmap(
+        JNIWebKitWebViewSnapshotCallbackHolder holder, jint width, jint height) const
+    {
+        return m_createBitmap.invoke(holder, width, height);
+    }
+
+    void onResult(JNIWebKitWebViewSnapshotCallbackHolder holder, JNIBitmap bitmap) const
+    {
+        if (!holder)
+            return;
+        if (!m_commitResult.invoke(holder, bitmap))
+            Logging::logError("cannot call WebKitWebView snapshot callback");
+    }
+
+private:
+    const JNI::Method<JNIBitmap(jint, jint)> m_createBitmap;
+    const JNI::Method<void(JNIBitmap)> m_commitResult;
+};
+
+const JNIWebKitWebViewSnapshotCallbackHolderCache& getJNIWebKitWebViewSnapshotCallbackHolderCache()
+{
+    static const JNIWebKitWebViewSnapshotCallbackHolderCache s_singleton;
+    return s_singleton;
+}
+
 class JNIWebKitWebViewCache final : public JNI::TypedClass<JNIWebKitWebView> {
 public:
     JNIWebKitWebViewCache()
@@ -102,6 +145,8 @@ public:
             JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", nativeSetZoomLevel),
             JNI::NativeMethod<void(jlong, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
+            JNI::NativeMethod<void(jlong, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
+                "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
             JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose));
     }
@@ -125,6 +170,7 @@ private:
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
+    static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
     static jlong nativeInit(JNIEnv* env, jobject jniWebView, jlong displayPtr, jlong contextPtr, jlong toplevelPtr,
         jlong networkSessionPtr, jlong settingsPtr);
@@ -140,6 +186,8 @@ private:
     static void nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr, jdouble zoomLevel);
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder);
+    static void nativeCaptureSnapshot(
+        JNIEnv* env, jobject, jlong nativePtr, jint region, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
 };
@@ -368,6 +416,137 @@ void JNIWebKitWebViewCache::nativeEvaluateJavascript(
         nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
 }
 
+// Check that WebKit's buffer holds height rows of width BGRA pixels at the given stride.
+static bool isValidSnapshotLayout(int width, int height, size_t stride, size_t sourceSize)
+{
+    if (width <= 0 || height <= 0 || static_cast<size_t>(width) > std::numeric_limits<size_t>::max() / 4)
+        return false;
+
+    const size_t rowBytes = static_cast<size_t>(width) * 4;
+    if (stride < rowBytes || sourceSize < rowBytes)
+        return false;
+
+    // Check the last row without overflowing stride * height. Its trailing padding is optional.
+    return static_cast<size_t>(height - 1) <= (sourceSize - rowBytes) / stride;
+}
+
+// Call only after validating the source layout with isValidSnapshotLayout().
+static void copySnapshotPixels(
+    const uint8_t* source, int width, int height, size_t sourceStride, uint8_t* destination, size_t destinationStride)
+{
+    const size_t rowBytes = static_cast<size_t>(width) * 4;
+    for (int y = 0; y < height; ++y) {
+        const auto* src = source + static_cast<size_t>(y) * sourceStride;
+        auto* dst = destination + static_cast<size_t>(y) * destinationStride;
+        for (size_t x = 0; x < rowBytes; x += 4) {
+            // WebKit provides BGRA; Android RGBA_8888 bitmaps store RGBA bytes.
+            // Both are premultiplied, so only the channel order changes.
+            dst[x] = src[x + 2];
+            dst[x + 1] = src[x + 1];
+            dst[x + 2] = src[x];
+            dst[x + 3] = src[x + 3];
+        }
+    }
+}
+
+// Converts the snapshot directly into a Java-allocated bitmap. Returns null on failure.
+static JNI::ProtectedType<JNIBitmap> createSnapshotBitmap(
+    WebKitWebView* webView, GAsyncResult* result, JNIWebKitWebViewSnapshotCallbackHolder holder)
+{
+    g_autoptr(GError) error = nullptr;
+    g_autoptr(WebKitImage) image = webkit_web_view_get_snapshot_finish(webView, result, &error);
+    if (!image) {
+        if (error)
+            Logging::logError("cannot capture WebKitWebView snapshot: %s", error->message);
+        return {};
+    }
+
+    int width = webkit_image_get_width(image);
+    int height = webkit_image_get_height(image);
+    guint stride = webkit_image_get_stride(image);
+
+    // The bytes are borrowed from image and remain valid until image is released.
+    GBytes* bytes = webkit_image_as_bytes(image);
+    gsize dataSize = 0;
+    const auto* data = bytes ? static_cast<const uint8_t*>(g_bytes_get_data(bytes, &dataSize)) : nullptr;
+    if (!data || !isValidSnapshotLayout(width, height, stride, dataSize)) {
+        Logging::logError("invalid WebKitWebView snapshot buffer");
+        return {};
+    }
+
+    auto bitmap = getJNIWebKitWebViewSnapshotCallbackHolderCache().createBitmap(holder, width, height);
+    if (!bitmap)
+        return {};
+
+    auto* env = JNI::getCurrentThreadJNIEnv();
+    AndroidBitmapInfo info {};
+    if (AndroidBitmap_getInfo(env, bitmap.get(), &info) != ANDROID_BITMAP_RESULT_SUCCESS
+        || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width != static_cast<uint32_t>(width)
+        || info.height != static_cast<uint32_t>(height) || info.stride < static_cast<size_t>(width) * 4) {
+        Logging::logError("unexpected snapshot bitmap layout");
+        return {};
+    }
+
+    void* pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap.get(), &pixels) != ANDROID_BITMAP_RESULT_SUCCESS) {
+        Logging::logError("cannot lock snapshot bitmap pixels");
+        return {};
+    }
+    copySnapshotPixels(data, width, height, stride, static_cast<uint8_t*>(pixels), info.stride);
+    AndroidBitmap_unlockPixels(env, bitmap.get());
+    return bitmap;
+}
+
+void JNIWebKitWebViewCache::onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData)
+{
+    std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>> holder(
+        static_cast<JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>*>(userData));
+
+    if (!holder || !*holder)
+        return;
+
+    auto bitmap = createSnapshotBitmap(WEBKIT_WEB_VIEW(object), result, holder->get());
+    getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(holder->get(), bitmap.get());
+}
+
+void JNIWebKitWebViewCache::nativeCaptureSnapshot(
+    JNIEnv* env, jobject, jlong nativePtr, jint region, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder)
+{
+    if (!callbackHolder)
+        return;
+
+    // Map the Java SNAPSHOT_REGION_* values explicitly instead of casting an unchecked integer.
+    WebKitSnapshotRegion snapshotRegion;
+    switch (region) {
+    case 0:
+        snapshotRegion = WEBKIT_SNAPSHOT_REGION_VISIBLE;
+        break;
+    case 1:
+        snapshotRegion = WEBKIT_SNAPSHOT_REGION_FULL_DOCUMENT;
+        break;
+    default:
+        Logging::logError("invalid WebKitWebView snapshot region: %d", region);
+        getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(callbackHolder, nullptr);
+        return;
+    }
+
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    if (!bridge) {
+        getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(callbackHolder, nullptr);
+        return;
+    }
+
+    auto* holder = new (std::nothrow) JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>(env, callbackHolder);
+    if (!holder || !*holder) {
+        JNI::clearJavaException(env);
+        delete holder;
+        getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(callbackHolder, nullptr);
+        return;
+    }
+    webkit_web_view_get_snapshot(
+        bridge->m_webView, snapshotRegion, WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr, onCaptureSnapshotReady, holder);
+}
+
 void JNIWebKitWebViewCache::nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text)
 {
     auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
@@ -389,5 +568,9 @@ void configureWebKitWebViewJNIMappings()
 void configureWebKitWebViewEvalCallbackHolderJNIMappings()
 {
     getJNIWebKitWebViewEvalCallbackHolderCache();
+}
+void configureWebKitWebViewSnapshotCallbackHolderJNIMappings()
+{
+    getJNIWebKitWebViewSnapshotCallbackHolderCache();
 }
 } // namespace WebKit

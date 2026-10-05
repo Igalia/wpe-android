@@ -18,9 +18,15 @@
 
 package org.wpewebkit.wpe;
 
+import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
 
 /**
  * WebKitWebView is an owning JNI proxy for a native WebKitWebView object.
@@ -31,6 +37,14 @@ public final class WebKitWebView {
     public static final int SCRIPT_DIALOG_CONFIRM = 1;
     public static final int SCRIPT_DIALOG_PROMPT = 2;
     public static final int SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM = 3;
+
+    // Values mapped to WebKitSnapshotRegion by nativeCaptureSnapshot.
+    public static final int SNAPSHOT_REGION_VISIBLE = 0;
+    public static final int SNAPSHOT_REGION_FULL_DOCUMENT = 1;
+
+    // Unlike MainLooperDispatcher, always queues so snapshot callbacks never run before
+    // captureSnapshot() returns.
+    private static final Handler sSnapshotHandler = new Handler(Looper.getMainLooper());
 
     private long mNativePtr = 0;
     private final WPEView wpeView;
@@ -99,6 +113,15 @@ public final class WebKitWebView {
 
     public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
 
+    @UiThread
+    public void captureSnapshot(int region, @NonNull SnapshotCallback callback) {
+        if (mNativePtr == 0) {
+            sSnapshotHandler.post(() -> callback.onResult(null));
+            return;
+        }
+        nativeCaptureSnapshot(mNativePtr, region, new SnapshotCallbackHolder(callback));
+    }
+
     public void evaluateJavascript(@NonNull String script, @Nullable EvalCallback callback) {
         if (mNativePtr == 0) {
             if (callback != null) {
@@ -118,6 +141,11 @@ public final class WebKitWebView {
         }
         inputMethodContext.invalidate();
         wpeView.invalidate();
+    }
+
+    @FunctionalInterface
+    public interface SnapshotCallback {
+        void onResult(@Nullable Bitmap bitmap);
     }
 
     public interface EvalCallback {
@@ -209,6 +237,28 @@ public final class WebKitWebView {
     /** Releases the native script dialog reported via {@link Listener#onScriptDialog}. */
     public void scriptDialogClose(long dialogPtr) { nativeScriptDialogClose(dialogPtr); }
 
+    private static class SnapshotCallbackHolder {
+        private final SnapshotCallback callback;
+
+        SnapshotCallbackHolder(@NonNull SnapshotCallback callback) { this.callback = callback; }
+
+        // Called from native code, which fills the returned bitmap's pixels in place.
+        @Keep
+        public @Nullable Bitmap createBitmap(int width, int height) {
+            try {
+                return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            } catch (OutOfMemoryError | RuntimeException error) {
+                Log.e("WPEAndroid", "Cannot create snapshot bitmap", error);
+                return null;
+            }
+        }
+
+        @Keep
+        public void commitResult(@Nullable Bitmap bitmap) {
+            sSnapshotHandler.post(() -> callback.onResult(bitmap));
+        }
+    }
+
     private static class EvalCallbackHolder {
         private final EvalCallback callback;
 
@@ -232,6 +282,8 @@ public final class WebKitWebView {
     private native long nativeGetWPEView(long nativePtr);
     private native long nativeGetWebKitWebViewPtr(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
+    private native void nativeCaptureSnapshot(long nativePtr, int region,
+                                              @NonNull SnapshotCallbackHolder callbackHolder);
     private native void nativeEvaluateJavascript(long nativePtr, String script,
                                                  @Nullable EvalCallbackHolder callbackHolder);
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);

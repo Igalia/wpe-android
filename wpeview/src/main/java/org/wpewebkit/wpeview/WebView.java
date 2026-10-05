@@ -22,8 +22,11 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -39,6 +42,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -50,6 +54,8 @@ import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
@@ -309,6 +315,48 @@ public class WebView extends FrameLayout {
     @FunctionalInterface
     public interface JavascriptCallback {
         void onResult(@NonNull String result);
+    }
+
+    @FunctionalInterface
+    public interface SnapshotCallback {
+        void onResult(@Nullable Bitmap bitmap);
+    }
+
+    public static final int SNAPSHOT_REGION_VISIBLE = WebKitWebView.SNAPSHOT_REGION_VISIBLE;
+    public static final int SNAPSHOT_REGION_FULL_DOCUMENT = WebKitWebView.SNAPSHOT_REGION_FULL_DOCUMENT;
+
+    private static final Handler sSnapshotHandler = new Handler(Looper.getMainLooper());
+
+    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface SnapshotRegion {}
+
+    /**
+     * Captures a snapshot of the currently visible page content and delivers it as a
+     * {@link Bitmap} to {@code callback} on the main thread. The callback always runs after
+     * this method returns, never synchronously. The bitmap is null if the
+     * snapshot could not be taken (e.g. the view has been destroyed or allocation failed).
+     * The caller owns the returned bitmap.
+     */
+    public void captureSnapshot(@NonNull SnapshotCallback callback) {
+        captureSnapshot(SNAPSHOT_REGION_VISIBLE, callback);
+    }
+
+    /**
+     * Captures a snapshot of the page content for the given {@code region} and delivers
+     * it as a {@link Bitmap} to {@code callback} on the main thread, always after this method
+     * returns.
+     * The region must be {@link #SNAPSHOT_REGION_VISIBLE}
+     * or {@link #SNAPSHOT_REGION_FULL_DOCUMENT}. The caller owns the returned bitmap,
+     * or receives null on failure. Full-document snapshots can require substantial memory.
+     */
+    public void captureSnapshot(@SnapshotRegion int region, @NonNull SnapshotCallback callback) {
+        if (region != SNAPSHOT_REGION_VISIBLE && region != SNAPSHOT_REGION_FULL_DOCUMENT)
+            throw new IllegalArgumentException("Unknown snapshot region: " + region);
+        if (webKitWebView != null)
+            webKitWebView.captureSnapshot(region, result -> callback.onResult(result));
+        else
+            sSnapshotHandler.post(() -> callback.onResult(null));
     }
 
     public void evaluateJavascript(@NonNull String script, @Nullable JavascriptCallback callback) {
