@@ -27,6 +27,7 @@ void configureWebKitSettingsJNIMappings();
 void configureWebKitWebContextJNIMappings();
 void configureWebKitWebViewJNIMappings();
 void configureWebKitWebViewEvalCallbackHolderJNIMappings();
+void configureWebKitWebViewSnapshotCallbackHolderJNIMappings();
 void configureWebKitWebsiteDataManagerJNIMappings();
 void configureWebKitWebsiteDataManagerCallbackHolderJNIMappings();
 void configureWPEDisplayJNIMappings();
@@ -44,6 +45,7 @@ void configureJNIMappings()
     configureWebKitWebContextJNIMappings();
     configureWebKitWebViewJNIMappings();
     configureWebKitWebViewEvalCallbackHolderJNIMappings();
+    configureWebKitWebViewSnapshotCallbackHolderJNIMappings();
     configureWebKitWebsiteDataManagerJNIMappings();
     configureWebKitWebsiteDataManagerCallbackHolderJNIMappings();
     configureWPEDisplayJNIMappings();
