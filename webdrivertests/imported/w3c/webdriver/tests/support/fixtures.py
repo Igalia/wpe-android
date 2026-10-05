@@ -58,7 +58,7 @@ def event_loop():
     """Change event_loop fixture to global."""
     global _event_loop
 
-    if _event_loop is None:
+    if _event_loop is None or _event_loop.is_closed():
         _event_loop = asyncio.get_event_loop_policy().new_event_loop()
     return _event_loop
 
