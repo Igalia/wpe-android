@@ -61,22 +61,32 @@ class WebDriverActivity : AppCompatActivity() {
 
     private val webChromeClient: WebChromeClient = object : WebChromeClient() {
         override fun onCloseWindow(window: WebView) {
+            val wasShown = window.parent != null
             (window.parent as? ViewGroup)?.removeView(window)
             webViewMap.remove(window.hashCode())
             window.destroy()
+            // Like closing the front window on a desktop, show the most recent window left.
+            if (wasShown && !isHeadless)
+                webViewMap.values.lastOrNull()?.let { show(it) }
         }
     }
 
     private val webContextClient: WebContext.Client = WebContext.Client {
         val view = WebView(webContext, isHeadless).apply {
-            setWebChromeClient(webChromeClient)
+            setWebChromeClient(this@WebDriverActivity.webChromeClient)
             if (!isHeadless) {
-                setContentView(this)
+                show(this)
                 loadUrl("about:blank")
             }
         }
         webViewMap[view.hashCode()] = view
         view
+    }
+
+    // Put the window in front and give it focus, so that its page is focused like in a browser.
+    private fun show(view: WebView) {
+        setContentView(view)
+        view.requestFocus()
     }
 
     private fun getFreePort(): Int {
