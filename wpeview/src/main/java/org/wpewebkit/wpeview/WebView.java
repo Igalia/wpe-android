@@ -22,6 +22,7 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.AttributeSet;
@@ -39,6 +40,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
@@ -51,10 +53,13 @@ import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * WebView is the public Android widget for the WPE browser engine.
@@ -358,6 +363,62 @@ public class WebView extends FrameLayout {
     @FunctionalInterface
     public interface JavascriptCallback {
         void onResult(@NonNull String result);
+    }
+
+    @FunctionalInterface
+    public interface SnapshotCallback {
+        void onResult(@Nullable Bitmap bitmap);
+    }
+
+    public static final int SNAPSHOT_REGION_VISIBLE = WebKitWebView.SNAPSHOT_REGION_VISIBLE;
+    public static final int SNAPSHOT_REGION_FULL_DOCUMENT = WebKitWebView.SNAPSHOT_REGION_FULL_DOCUMENT;
+
+    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface SnapshotRegion {}
+
+    /**
+     * Captures a snapshot of the currently visible page content and delivers it as a
+     * {@link Bitmap} to {@code callback} on the main thread. The callback always runs after
+     * this method returns, never synchronously. The caller owns the returned bitmap.
+     * <p>
+     * The snapshot is a new paint of the page by WebKit, not a copy of the screen: WebGL
+     * canvases appear in it, but playing video does not.
+     * <p>
+     * The bitmap is in device pixels, but WebKit sizes the page in whole CSS pixels, so at a
+     * fractional density it can be a pixel or two smaller than the view: a 1080 by 2400 view at
+     * density 2.625 gives a 1078 by 2399 snapshot. Use the size of the bitmap, not of the view.
+     * <p>
+     * The bitmap is null if the snapshot could not be taken, for example because the view was
+     * already destroyed when this method was called, or the bitmap could not be allocated. A
+     * snapshot that is already running when the view is destroyed still delivers its bitmap.
+     */
+    public void captureSnapshot(@NonNull SnapshotCallback callback) {
+        captureSnapshot(SNAPSHOT_REGION_VISIBLE, callback);
+    }
+
+    /**
+     * Captures a snapshot of the page content for the given {@code region}, which must be
+     * {@link #SNAPSHOT_REGION_VISIBLE} or {@link #SNAPSHOT_REGION_FULL_DOCUMENT}, and delivers it
+     * like {@link #captureSnapshot(SnapshotCallback)}.
+     * <p>
+     * A full document snapshot can be very large. The bitmap is in device pixels, 4 bytes each,
+     * and WebKit does not limit its size, so a long page can take hundreds of megabytes. That
+     * memory is held twice for a moment, by WebKit and by the bitmap, while the pixels are copied
+     * on the main thread. Android does not draw bitmaps larger than 100 MB on a hardware
+     * accelerated canvas, so scale such a bitmap down before showing it.
+     *
+     * @throws IllegalArgumentException if the region is not one of the two above.
+     * @throws NullPointerException if the callback is null.
+     */
+    public void captureSnapshot(@SnapshotRegion int region, @NonNull SnapshotCallback callback) {
+        Objects.requireNonNull(callback, "callback");
+        if (region != SNAPSHOT_REGION_VISIBLE && region != SNAPSHOT_REGION_FULL_DOCUMENT)
+            throw new IllegalArgumentException("Unknown snapshot region: " + region);
+        if (webKitWebView != null)
+            webKitWebView.captureSnapshot(region, result -> callback.onResult(result));
+        else
+            getContext().getMainExecutor().execute(() -> callback.onResult(null));
     }
 
     public void evaluateJavascript(@NonNull String script, @Nullable JavascriptCallback callback) {

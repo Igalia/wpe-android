@@ -35,4 +35,7 @@ final class MainLooperDispatcher {
         }
         sHandler.post(task);
     }
+
+    /** Queues the task on the main thread, also when called from it, so it never runs before the caller returns. */
+    static void postLater(@NonNull Runnable task) { sHandler.post(task); }
 }

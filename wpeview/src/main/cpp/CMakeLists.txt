@@ -140,6 +140,7 @@ target_link_libraries(
     WPEAndroidRuntime
     EGL
     GLESv2
+    jnigraphics
     gio-2.0
     glib-2.0
     gobject-2.0
