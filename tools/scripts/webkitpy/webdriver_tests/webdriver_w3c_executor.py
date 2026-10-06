@@ -20,12 +20,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import faulthandler
 import logging
 import os
 import json
 import queue
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 import multiprocessing
@@ -175,6 +178,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
         self._test_queue = None
         self._result_queue = None
         self._process = None
+        self._stacks_path = None
 
     def setup(self):
         super(WebDriverW3CExecutor, self).setup(self.runner)
@@ -182,8 +186,11 @@ class WebDriverW3CExecutor(WdspecExecutor):
         self.browser.start(None)
         self._test_queue = Queue()
         self._result_queue = Queue()
+        stacks_fd, self._stacks_path = tempfile.mkstemp(prefix='webdriver-w3c-stacks-', suffix='.txt')
+        os.close(stacks_fd)
         args = (self._test_queue,
                 self._result_queue,
+                self._stacks_path,
                 self.browser.host,
                 self.browser.port,
                 self.capabilities,
@@ -209,11 +216,18 @@ class WebDriverW3CExecutor(WdspecExecutor):
                 self._process = None
             self._test_queue = None
             self._result_queue = None
+            if self._stacks_path is not None:
+                os.unlink(self._stacks_path)
+                self._stacks_path = None
 
     @staticmethod
-    def _runner(test_queue, result_queue, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
+    def _runner(test_queue, result_queue, stacks_path, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
         if pytest_runner is None:
             do_delayed_imports()
+
+        # Let the parent ask where this process is stuck when a test file never finishes.
+        stacks_file = open(stacks_path, 'w')
+        faulthandler.register(signal.SIGUSR1, file=stacks_file, all_threads=True)
 
         while True:
             test = test_queue.get()
@@ -244,6 +258,19 @@ class WebDriverW3CExecutor(WdspecExecutor):
             _log.error('No result for %s after %d seconds, terminating the test process'
                        % (test, self.RESULT_TIMEOUT_SECONDS))
             if self._process is not None:
-                self._process.terminate()
-                self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
+                try:
+                    self._log_process_stacks()
+                finally:
+                    self._process.terminate()
+                    self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
             return ('ERROR', 'no result after %d seconds' % self.RESULT_TIMEOUT_SECONDS), []
+
+    def _log_process_stacks(self):
+        if not self._process.is_alive():
+            return
+        os.kill(self._process.pid, signal.SIGUSR1)
+        # faulthandler writes from its signal handler; give it a moment.
+        time.sleep(1)
+        with open(self._stacks_path) as f:
+            stacks = f.read()
+        _log.error('Stacks of the test process:\n%s' % (stacks or '(nothing was written)'))
