@@ -152,6 +152,48 @@ class SubtestResultRecorder(object):
         self.results.append(new_result)
 
 
+class StopOnUnresponsiveDriver(object):
+    """Stop the test file once the WebDriver stops answering, and record the tests left as errors.
+
+    Otherwise each test left waits for its timeouts, and the runner gives up on the file and drops all its results.
+    """
+
+    def __init__(self, subtests_recorder):
+        self._subtests_recorder = subtests_recorder
+        self._pending = []
+
+    def pytest_collection_finish(self, session):
+        self._pending = [item.nodeid for item in session.items]
+
+    def pytest_runtest_logfinish(self, nodeid, location):
+        if nodeid in self._pending:
+            self._pending.remove(nodeid)
+
+    def pytest_sessionfinish(self, session, exitstatus):
+        if not session.shouldstop:
+            return
+        for nodeid in self._pending:
+            self._subtests_recorder.record(nodeid, 'ERROR', 'not run: %s' % session.shouldstop)
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_makereport(self, item, call):
+        yield
+        if call.excinfo is not None and self._driver_stopped_answering(call):
+            item.session.shouldstop = 'the WebDriver stopped answering during %s of %s' % (call.when, item.nodeid)
+
+    @staticmethod
+    def _driver_stopped_answering(call):
+        # Only the HTTP client counts: asyncio.TimeoutError is TimeoutError too, and BiDi
+        # tests raise it when an event they wait for never comes.
+        if not any(str(entry.path).endswith(os.path.join('webdriver', 'transport.py')) for entry in call.excinfo.traceback):
+            return False
+        # The client gave up waiting for a command.
+        if call.excinfo.errisinstance(TimeoutError):
+            return True
+        # Tests can be expected to time out, but not a fixture waiting for the WebDriver.
+        return call.when != 'call' and str(call.excinfo.value).startswith('Timeout >')
+
+
 class TestExpectationsMarker(object):
 
     def __init__(self, expectations, timeout, ignore_param):
@@ -212,7 +254,7 @@ def run(path, args, timeout, env, expectations, ignore_param=None):
             cmd.extend(args)
             cmd.append(path)
 
-            result = pytest.main(cmd, plugins=[harness_recorder, subtests_recorder, expectations_marker])
+            result = pytest.main(cmd, plugins=[harness_recorder, subtests_recorder, expectations_marker, StopOnUnresponsiveDriver(subtests_recorder)])
 
             if result == ExitCode.INTERNAL_ERROR:
                 harness_recorder.outcome = ('ERROR', None)

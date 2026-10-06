@@ -140,6 +140,7 @@ class HTTPWireProtocol:
         self._timeout = timeout
         self._conn = None
         self._last_request_is_blocked = False
+        self._unresponsive = False
 
     def __del__(self):
         self.close()
@@ -228,6 +229,10 @@ class HTTPWireProtocol:
                 raise ValueError("Failed to encode request body as JSON:\n"
                     "%s" % json.dumps(body, indent=2))
 
+        # A remote end that didn't answer a command won't answer the next ones either.
+        if self._unresponsive:
+            raise TimeoutError("The remote end did not answer an earlier command")
+
         # When the timeout triggers, the TestRunnerManager thread will reuse
         # this connection to check if the WebDriver its alive and we may end
         # raising an httplib.CannotSendRequest exception if the WebDriver is
@@ -235,8 +240,12 @@ class HTTPWireProtocol:
         # runner thread. We use the boolean below to check for that and restart
         # the connection in that case.
         self._last_request_is_blocked = True
-        response = self._request(method, uri, payload, headers,
-                                 timeout=timeout if timeout is not None else self._timeout)
+        try:
+            response = self._request(method, uri, payload, headers,
+                                     timeout=timeout if timeout is not None else self._timeout)
+        except socket.timeout:
+            self._unresponsive = True
+            raise
         self._last_request_is_blocked = False
         return Response.from_http(response, decoder=decoder, **codec_kwargs)
 
