@@ -12,6 +12,10 @@ from . import error
 
 DEFAULT_TIMEOUT_SECONDS = 60
 
+
+class UnresponsiveRemoteEndError(TimeoutError):
+    """Raised for every command once the remote end has not answered one in time."""
+
 """Implements HTTP transport for the WebDriver wire protocol."""
 
 
@@ -140,6 +144,7 @@ class HTTPWireProtocol:
         self._timeout = timeout
         self._conn = None
         self._last_request_is_blocked = False
+        self._unresponsive = False
 
     def __del__(self):
         self.close()
@@ -234,9 +239,18 @@ class HTTPWireProtocol:
         # not responding and this httplib.request() call is blocked on the
         # runner thread. We use the boolean below to check for that and restart
         # the connection in that case.
+        # A remote end that did not answer a command will not answer the next ones
+        # either; fail them at once instead of waiting for each one to time out.
+        if self._unresponsive:
+            raise UnresponsiveRemoteEndError("The remote end did not answer an earlier command")
+
         self._last_request_is_blocked = True
-        response = self._request(method, uri, payload, headers,
-                                 timeout=timeout if timeout is not None else self._timeout)
+        try:
+            response = self._request(method, uri, payload, headers,
+                                     timeout=timeout if timeout is not None else self._timeout)
+        except socket.timeout:
+            self._unresponsive = True
+            raise
         self._last_request_is_blocked = False
         return Response.from_http(response, decoder=decoder, **codec_kwargs)
 
