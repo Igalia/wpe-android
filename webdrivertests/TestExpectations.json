@@ -90,20 +90,11 @@
             "testSelectingMultipleItems": {
                 "expected": {
                         "all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"},
-                        "wpe": {"status": ["TIMEOUT"]}
+                        "wpe": {"status": ["PASS"]}
                 }
             },
             "testSendingKeysToActiveElementWithModifier": {
                 "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/215588"}}
-            },
-            "testDragAndDrop": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
-            },
-            "testDraggingElementWithMouseFiresEvents": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
-            },
-            "testDraggingElementWithMouseMovesItToAnotherList": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
             },
             "testContextClick": {
                 "expected": {"wpe": {"status": ["FAIL"]}}
@@ -264,15 +255,6 @@
     },
     "imported/selenium/py/test/selenium/webdriver/common/w3c_interaction_tests.py": {
         "subtests": {
-            "testDragAndDrop": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
-            },
-            "test_dragging_element_with_mouse_fires_events": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
-            },
-            "test_dragging_element_with_mouse_moves_it_to_another_list": {
-                "expected": {"wpe": {"status": ["TIMEOUT"]}}
-            },
             "test_context_click": {
                 "expected": {"wpe": {"status": ["FAIL"]}}
             },
@@ -618,13 +600,6 @@
         "subtests": {
             "test_modifier_click[\\ue052-altKey]": {
                 "expected": {"wpe": {"status": ["FAIL"]}}
-            }
-        }
-    },
-    "imported/w3c/webdriver/tests/perform_actions/validity.py": {
-        "subtests": {
-            "test_pause_positive_integer[pointer]": {
-                "expected": {"wpe": {"status": ["SKIP"]}}
             }
         }
     },
