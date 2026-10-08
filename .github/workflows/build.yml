@@ -30,6 +30,8 @@ jobs:
           packages: "platform-tools cmake;3.31.1"
       - name: Build Project
         run: ./gradlew assemble${{ inputs.build_type }}
+      - name: Check 16 KB Page Alignment
+        run: python3 tools/scripts/check-16kb-alignment.py tools/*/build/outputs/apk/*/*.apk
       - name: Save MiniBrowser Artifacts
         uses: actions/upload-artifact@v6
         with:
