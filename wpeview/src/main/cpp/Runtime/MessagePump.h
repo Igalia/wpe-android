@@ -22,7 +22,6 @@
 
 #include <android/looper.h>
 #include <glib.h>
-#include <unordered_map>
 #include <vector>
 
 class MessagePump final {
@@ -39,12 +38,13 @@ public:
 private:
     void flush() const noexcept;
     void prepare() noexcept;
-    void collectPollFDChanges(const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs,
-        std::vector<int>& removedPollFDs) noexcept;
     void scheduleDispatch() noexcept;
+    void scheduleTimer(gint timeout) const noexcept;
     void dispatch() const noexcept;
+    static int handleWakeUp(int fileDesc, int events, void* userData) noexcept;
 
-    int m_dispatchFd = 0;
+    int m_dispatchFd = -1;
+    int m_timerFd = -1;
     bool m_pendingDispatch = false;
     ALooper* m_looper = nullptr;
 
@@ -54,5 +54,6 @@ private:
     gint m_pollFdsSize = 0;
     gint m_pollFdsCapacity = 0;
 
-    std::unordered_map<int, int> m_looperFdEvents {};
+    std::vector<int> m_looperFds {}; // The file descriptors registered with the looper, sorted
+    std::vector<int> m_polledFds {}; // Reused by prepare() to avoid allocating on every iteration
 };

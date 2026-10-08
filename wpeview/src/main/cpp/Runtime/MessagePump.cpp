@@ -20,7 +20,12 @@
 
 #include "MessagePump.h"
 
+#include "Logging.h"
+
+#include <algorithm>
+#include <cerrno>
 #include <sys/eventfd.h>
+#include <sys/timerfd.h>
 #include <unistd.h>
 
 namespace {
@@ -38,22 +43,6 @@ uint glibEventsToLooperEvents(gushort events) noexcept
     if ((events & G_IO_NVAL) != 0)
         looperEvents |= ALOOPER_EVENT_INVALID;
     return looperEvents;
-}
-
-gushort looperEventsToGLibEvents(uint events) noexcept
-{
-    gushort glibEvents = 0;
-    if ((events & ALOOPER_EVENT_INPUT) != 0)
-        glibEvents |= G_IO_IN;
-    if ((events & ALOOPER_EVENT_OUTPUT) != 0)
-        glibEvents |= G_IO_OUT;
-    if ((events & ALOOPER_EVENT_ERROR) != 0)
-        glibEvents |= G_IO_ERR;
-    if ((events & ALOOPER_EVENT_HANGUP) != 0)
-        glibEvents |= G_IO_HUP;
-    if ((events & ALOOPER_EVENT_INVALID) != 0)
-        glibEvents |= G_IO_NVAL;
-    return glibEvents;
 }
 } // namespace
 
@@ -78,21 +67,17 @@ MessagePump::MessagePump()
     m_looper = ALooper_prepare(0);
     ALooper_acquire(m_looper);
 
-    ALooper_addFd(
-        m_looper, m_dispatchFd, ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT,
-        +[](int fileDesc, int /*events*/, void* userData) -> int {
-            // Clear the eventfd and reset its counter to 0
-            uint64_t value = 0;
-            read(fileDesc, &value, sizeof(value));
-
-            auto* pump = reinterpret_cast<MessagePump*>(userData);
-            pump->m_pendingDispatch = false;
-            pump->dispatch();
-            pump->prepare();
-
-            return 1; // Continue listening for events
-        },
+    ALooper_addFd(m_looper, m_dispatchFd, ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, handleWakeUp,
         reinterpret_cast<void*>(this));
+
+    // The main looper's poll timeout belongs to Java's MessageQueue, GLib timers need their own fd.
+    m_timerFd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
+    if (m_timerFd < 0)
+        Logging::logError("MessagePump: cannot create the timer fd (errno %d), GLib timers will be late", errno);
+    else {
+        ALooper_addFd(m_looper, m_timerFd, ALOOPER_POLL_CALLBACK, ALOOPER_EVENT_INPUT, handleWakeUp,
+            reinterpret_cast<void*>(this));
+    }
 
     m_context = g_main_context_ref(g_main_context_default());
     g_main_context_acquire(m_context);
@@ -103,9 +88,9 @@ MessagePump::~MessagePump()
 {
     flush();
 
-    for (const auto& pollFD : m_looperFdEvents)
-        ALooper_removeFd(m_looper, pollFD.first);
-    m_looperFdEvents.clear();
+    for (const int fileDesc : m_looperFds)
+        ALooper_removeFd(m_looper, fileDesc);
+    m_looperFds.clear();
 
     m_pollFdsSize = 0;
     m_pollFdsCapacity = 0;
@@ -118,11 +103,17 @@ MessagePump::~MessagePump()
     g_main_context_release(m_context);
     g_main_context_unref(m_context);
 
+    if (m_timerFd >= 0)
+        ALooper_removeFd(m_looper, m_timerFd);
+    ALooper_removeFd(m_looper, m_dispatchFd);
     ALooper_release(m_looper);
     m_looper = nullptr;
 
+    if (m_timerFd >= 0)
+        close(m_timerFd);
+    m_timerFd = -1;
     close(m_dispatchFd);
-    m_dispatchFd = 0;
+    m_dispatchFd = -1;
 }
 
 void MessagePump::flush() const noexcept
@@ -150,82 +141,67 @@ void MessagePump::prepare() noexcept
         m_pollFds = g_new(GPollFD, m_pollFdsCapacity);
     }
 
-    std::vector<GPollFD> changedPollFDs;
-    std::vector<int> removedFds;
-    collectPollFDChanges(m_pollFds, m_pollFdsSize, changedPollFDs, removedFds);
-
-    for (const auto& pollFD : changedPollFDs) {
+    // Register them all again: epoll forgets a closed file, and a new one can reuse its number.
+    m_polledFds.clear();
+    for (int i = 0; i < m_pollFdsSize; ++i) {
         ALooper_addFd(
-            m_looper, pollFD.fd, ALOOPER_POLL_CALLBACK, static_cast<int>(glibEventsToLooperEvents(pollFD.events)),
+            m_looper, m_pollFds[i].fd, ALOOPER_POLL_CALLBACK,
+            static_cast<int>(glibEventsToLooperEvents(m_pollFds[i].events)),
             +[](int fileDesc, int events, void* userData) -> int {
-                auto* pump = reinterpret_cast<MessagePump*>(userData);
-                for (int j = 0; j < pump->m_pollFdsSize; ++j) {
-                    if (pump->m_pollFds[j].fd == fileDesc) {
-                        pump->m_pollFds[j].revents = looperEventsToGLibEvents(events);
-                        break;
-                    }
-                }
-                pump->scheduleDispatch();
+                UNUSED_PARAM(fileDesc);
+                UNUSED_PARAM(events);
+                reinterpret_cast<MessagePump*>(userData)->scheduleDispatch();
                 return 1; // Continue listening for events
             },
             reinterpret_cast<void*>(this));
+        m_polledFds.push_back(m_pollFds[i].fd);
     }
 
-    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-    for (const auto& fd : removedFds) {
-        ALooper_removeFd(m_looper, fd);
+    // g_main_context_query() returns the file descriptors sorted.
+    for (const int fileDesc : m_looperFds) {
+        if (!std::binary_search(m_polledFds.begin(), m_polledFds.end(), fileDesc))
+            ALooper_removeFd(m_looper, fileDesc);
     }
+    std::swap(m_looperFds, m_polledFds);
+
+    // The timeout is 0 when a source is ready already.
+    if (timeout == 0)
+        scheduleDispatch();
+    else
+        scheduleTimer(timeout);
 }
 
-// TODO NOLINTNEXTLINE(bugprone-exception-escape)
-void MessagePump::collectPollFDChanges(
-    const GPollFD* pollFDs, int numPollFDs, std::vector<GPollFD>& changedPollFDs, std::vector<int>& removedFds) noexcept
+void MessagePump::scheduleTimer(gint timeout) const noexcept
 {
-    std::unordered_map<int, int> currFdEvents; // Current fd to mask map
+    if (m_timerFd < 0)
+        return;
 
-    // Build currFdMask by combining masks for the same fd
-    for (int i = 0; i < numPollFDs; ++i) {
-        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-        const int fd = pollFDs[i].fd;
-        const gushort events = pollFDs[i].events;
-        currFdEvents[fd] |= events;
+    // Disarm it when GLib has no timer (-1).
+    struct itimerspec timerSpec {};
+    if (timeout > 0) {
+        timerSpec.it_value.tv_sec = timeout / 1000;
+        timerSpec.it_value.tv_nsec = (timeout % 1000) * 1000000L;
+    }
+    timerfd_settime(m_timerFd, 0, &timerSpec, nullptr);
+}
+
+int MessagePump::handleWakeUp(int fileDesc, int events, void* userData) noexcept
+{
+    UNUSED_PARAM(events);
+    auto* pump = reinterpret_cast<MessagePump*>(userData);
+
+    uint64_t count = 0;
+    const bool readCount = read(fileDesc, &count, sizeof(count)) == sizeof(count);
+    if (fileDesc == pump->m_dispatchFd)
+        pump->m_pendingDispatch = false;
+    else if (!readCount || pump->m_pendingDispatch) {
+        // The timer was re-armed since the looper saw it expire, or a dispatch is coming anyway.
+        return 1;
     }
 
-    // Detect changes and new fds
-    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-    for (const auto& kv : currFdEvents) {
-        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-        const int fd = kv.first;
-        const gushort events = kv.second;
-
-        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-        auto it = m_looperFdEvents.find(fd);
-        if (it == m_looperFdEvents.end()) {
-            // New fd detected
-            // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-            const GPollFD e {fd, events, 0};
-            changedPollFDs.push_back(e);
-        } else if (events != it->second) {
-            // Events has changed
-            // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-            const GPollFD e {fd, events, 0};
-            changedPollFDs.push_back(e);
-        }
-    }
-
-    // Detect removed fds
-    // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-    for (const auto& kv : m_looperFdEvents) {
-        // TODO NOLINTNEXTLINE(readability-identifier-length, cppcoreguidelines-owning-memory)
-        const int fd = kv.first;
-        if (currFdEvents.find(fd) == currFdEvents.end()) {
-            // fd was in previous but not in current
-            removedFds.push_back(fd);
-        }
-    }
-
-    // Update m_looperFdEvents for the next call
-    m_looperFdEvents = currFdEvents;
+    pump->dispatch();
+    pump->prepare();
+    return 1; // Continue listening for events
 }
 
 void MessagePump::scheduleDispatch() noexcept
@@ -239,6 +215,10 @@ void MessagePump::scheduleDispatch() noexcept
 
 void MessagePump::dispatch() const noexcept
 {
+    // Poll again: the looper's events can be stale, handled already by a dispatch from an earlier
+    // callback of the same poll, and GLib would then block in a source that isn't ready.
+    g_main_context_get_poll_func(m_context)(m_pollFds, static_cast<guint>(m_pollFdsSize), 0);
+
     if (g_main_context_check(m_context, m_maxPriority, m_pollFds, m_pollFdsSize) == TRUE)
         g_main_context_dispatch(m_context);
 }
