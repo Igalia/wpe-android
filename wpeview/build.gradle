@@ -17,6 +17,13 @@ android {
         targetSdk = libs.versions.target.android.sdk.get().toInteger()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        externalNativeBuild {
+            cmake {
+                // NDK r27 aligns to 4 KB pages by default, which devices with 16 KB pages can't load.
+                arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+        }
     }
 
     buildTypes {
