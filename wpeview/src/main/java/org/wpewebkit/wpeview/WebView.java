@@ -74,6 +74,24 @@ public class WebView extends FrameLayout {
     private String imeSurroundingText = "";
     private int imeSelectionStart = 0;
     private int imeSelectionEnd = 0;
+    // The composing region the input method is editing, or -1. WPE has no preedit on Android yet, so the
+    // composing text is already in the field: this only tells the input method which part it is.
+    private int imeComposingStart = -1;
+    private int imeComposingEnd = -1;
+    // Edits the input connection has sent but WebKit has not reported back yet. WebKit reports intermediate
+    // states (after the delete and after the commit of a replacement), which can arrive after the input method
+    // has already sent its next edit. While an edit is pending, only a report that matches it is applied; if
+    // none arrives in time, for example because the page changed the text too, the latest report wins.
+    private static final long IME_EDIT_CONFIRMATION_TIMEOUT_MS = 300;
+    private boolean imeEditPending = false;
+    private String imeLatestReportText = null;
+    private int imeLatestReportCursor = 0;
+    private int imeLatestReportAnchor = 0;
+    private final Runnable imeEditConfirmationTimeout = () -> {
+        imeEditPending = false;
+        if (imeLatestReportText != null)
+            onImeSurroundingChanged(imeLatestReportText, imeLatestReportCursor, imeLatestReportAnchor);
+    };
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
@@ -536,8 +554,11 @@ public class WebView extends FrameLayout {
 
     void onImeFieldFocused(boolean focused) {
         inputFieldFocused = focused;
-        if (!focused)
+        if (!focused) {
+            imeEditPending = false;
+            removeCallbacks(imeEditConfirmationTimeout);
             onImeSurroundingChanged("", 0, 0);
+        }
         if (inputMethodManager == null)
             return;
         if (focused) {
@@ -550,11 +571,57 @@ public class WebView extends FrameLayout {
     }
 
     void onImeSurroundingChanged(@NonNull String text, int cursor, int anchor) {
+        int start = Math.min(cursor, anchor);
+        int end = Math.max(cursor, anchor);
+        if (imeEditPending) {
+            if (!text.equals(imeSurroundingText) || start != imeSelectionStart || end != imeSelectionEnd) {
+                imeLatestReportText = text;
+                imeLatestReportCursor = cursor;
+                imeLatestReportAnchor = anchor;
+                return;
+            }
+            imeEditPending = false;
+            removeCallbacks(imeEditConfirmationTimeout);
+        }
+        imeLatestReportText = null;
         imeSurroundingText = text;
-        imeSelectionStart = Math.min(cursor, anchor);
-        imeSelectionEnd = Math.max(cursor, anchor);
+        imeSelectionStart = start;
+        imeSelectionEnd = end;
+        if (imeComposingEnd > text.length())
+            imeComposingStart = imeComposingEnd = -1;
+        reportImeSelection();
+    }
+
+    // Records an edit the input connection has just sent to WebKit, before WebKit reports it back, so that
+    // the next request from the input method sees the result.
+    void applyImeEdit(@NonNull String text, int selectionStart, int selectionEnd, int composingStart,
+                      int composingEnd) {
+        imeSurroundingText = text;
+        imeSelectionStart = selectionStart;
+        imeSelectionEnd = selectionEnd;
+        imeComposingStart = composingStart;
+        imeComposingEnd = composingEnd;
+        imeEditPending = true;
+        imeLatestReportText = null;
+        removeCallbacks(imeEditConfirmationTimeout);
+        postDelayed(imeEditConfirmationTimeout, IME_EDIT_CONFIRMATION_TIMEOUT_MS);
+        reportImeSelection();
+    }
+
+    void setImeComposingRegion(int start, int end) {
+        imeComposingStart = start;
+        imeComposingEnd = end;
+        reportImeSelection();
+    }
+
+    int getImeComposingStart() { return imeComposingStart; }
+
+    int getImeComposingEnd() { return imeComposingEnd; }
+
+    private void reportImeSelection() {
         if (inputFieldFocused && inputMethodManager != null)
-            inputMethodManager.updateSelection(this, imeSelectionStart, imeSelectionEnd, -1, -1);
+            inputMethodManager.updateSelection(this, imeSelectionStart, imeSelectionEnd, imeComposingStart,
+                                               imeComposingEnd);
     }
 
     @NonNull
@@ -573,6 +640,7 @@ public class WebView extends FrameLayout {
         outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.actionLabel = null;
+        imeComposingStart = imeComposingEnd = -1;
         outAttrs.initialSelStart = imeSelectionStart;
         outAttrs.initialSelEnd = imeSelectionEnd;
         outAttrs.setInitialSurroundingText(imeSurroundingText);
