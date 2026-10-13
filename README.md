@@ -144,6 +144,17 @@ To install APK in device or emulator,
 adb install ./tools/minibrowser/build/outputs/apk/debug/minibrowser-x86_64-debug.apk
 ```
 
+To open a page in MiniBrowser from the command line,
+```bash
+adb shell am start -n org.wpewebkit.tools.minibrowser/.MainActivity -d igalia.com
+```
+
+The URL goes through two shells, the local one and the one on the device.
+If it has a `&` or other special characters, quote it twice:
+```bash
+adb shell am start -n org.wpewebkit.tools.minibrowser/.MainActivity -d "'https://example.com/?a=1&b=2'"
+```
+
 ### 3. Using the emulator
 To run the emulator, do:
 ```bash
