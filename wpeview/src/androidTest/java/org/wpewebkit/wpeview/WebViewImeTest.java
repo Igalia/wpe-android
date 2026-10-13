@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -95,5 +96,105 @@ public class WebViewImeTest {
         assertNotNull("Focused editable did not yield an InputConnection", connection.get());
         assertTrue("InputConnection is not configured for text input",
                    (editorInfo.inputType & EditorInfo.TYPE_CLASS_TEXT) == EditorInfo.TYPE_CLASS_TEXT);
+    }
+    /**
+     * The input method decides how much to delete, and what to suggest, from the text it is told is around the
+     * cursor. Without it, a keyboard like LatinIME deletes one Java char before the cursor, which is half of an
+     * emoji.
+     */
+    @Test
+    public void testInputConnectionSeesTextAroundCursor() throws Throwable {
+        // "a" followed by U+1F600, two Java chars.
+        InputConnection connection = focusEditorAndConnect(
+            "<html><body><div contenteditable id='editor'></div></body></html>",
+            "editor.textContent = 'a\\uD83D\\uDE00'; getSelection().collapse(editor.firstChild, 3);");
+
+        assertTrue(
+            "The input method was not told the text before the cursor",
+            waitFor(() -> "a\uD83D\uDE00".equals(text(onUiThread(webView -> connection.getTextBeforeCursor(10, 0))))));
+
+        // Delete the last code point, sized from what the input connection reports, as an input method would.
+        CharSequence before = onUiThread(webView -> connection.getTextBeforeCursor(10, 0));
+        int length = Character.charCount(Character.codePointBefore(before, before.length()));
+        assertEquals(2, length);
+        onUiThread(webView -> connection.deleteSurroundingText(length, 0));
+        assertTrue("The emoji was not deleted", waitFor(() -> evaluate("editor.textContent === 'a'").equals("true")));
+    }
+
+    private InputConnection focusEditorAndConnect(@NonNull String html, @NonNull String setupScript) throws Throwable {
+        CountDownLatch setupDone = new CountDownLatch(1);
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> {
+                activity.getWebView().setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                        String script = "(function() {\n"
+                                        + "  function setUp() { editor.focus(); " + setupScript + " }\n"
+                                        + "  if (document.hasFocus()) { setUp(); }\n"
+                                        + "  else { window.addEventListener('focus', setUp); }\n"
+                                        + "})();";
+                        view.evaluateJavascript(script, value -> setupDone.countDown());
+                    }
+                });
+                activity.getWebView().requestFocus();
+                activity.getWebView().loadHtml(html, null);
+            })
+            .moveToState(Lifecycle.State.RESUMED);
+        assertTrue("Setup script never ran", setupDone.await(30, TimeUnit.SECONDS));
+        assertTrue("WebView did not become a text editor",
+                   waitFor(() -> onUiThread(webView -> webView.onCheckIsTextEditor())));
+        InputConnection connection = onUiThread(webView -> webView.onCreateInputConnection(new EditorInfo()));
+        assertNotNull("Focused editable did not yield an InputConnection", connection);
+        return connection;
+    }
+
+    private static String text(CharSequence text) { return text != null ? text.toString() : ""; }
+
+    private interface WebViewTask<T> {
+        T run(@NonNull WebView webView) throws Throwable;
+    }
+
+    // Runs on the UI thread, where InputConnection calls are made. Don't wait for the WebView in here.
+    private <T> T onUiThread(@NonNull WebViewTask<T> task) throws Throwable {
+        AtomicReference<T> result = new AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        webViewActivityTestRule.getScenario().onActivity(activity -> {
+            try {
+                result.set(task.run(activity.getWebView()));
+            } catch (Throwable t) {
+                error.set(t);
+            }
+        });
+        if (error.get() != null)
+            throw error.get();
+        return result.get();
+    }
+
+    // Returns the result as JSON. Keep results ASCII: they come back through modified UTF-8.
+    private String evaluate(@NonNull String script) throws Throwable {
+        AtomicReference<String> result = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        webViewActivityTestRule.getScenario().onActivity(
+            activity -> activity.getWebView().evaluateJavascript(script, value -> {
+                result.set(value);
+                done.countDown();
+            }));
+        assertTrue("Script did not finish: " + script, done.await(10, TimeUnit.SECONDS));
+        return result.get();
+    }
+
+    private interface Condition {
+        boolean check() throws Throwable;
+    }
+
+    // Runs on the test thread.
+    private boolean waitFor(@NonNull Condition condition) throws Throwable {
+        for (int i = 0; i < 60; i++) {
+            if (condition.check())
+                return true;
+            Thread.sleep(250);
+        }
+        return false;
     }
 }
