@@ -18,8 +18,10 @@
 
 package org.wpewebkit.wpeview;
 
+import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.SurroundingText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -48,6 +50,57 @@ public class WPEInputConnection extends BaseInputConnection {
             return true;
         imContext.commitText(text.toString());
         return true;
+    }
+
+    // The text getters answer from what WebKit last reported, so the input method knows what it is editing:
+    // for example, that the character before the cursor is an emoji, two Java chars long.
+
+    @Override
+    @Nullable
+    public CharSequence getTextBeforeCursor(int n, int flags) {
+        if (n < 0)
+            return null;
+        String text = webView.getImeSurroundingText();
+        int start = webView.getImeSelectionStart();
+        return text.substring(Math.max(0, start - n), start);
+    }
+
+    @Override
+    @Nullable
+    public CharSequence getTextAfterCursor(int n, int flags) {
+        if (n < 0)
+            return null;
+        String text = webView.getImeSurroundingText();
+        int end = webView.getImeSelectionEnd();
+        return text.substring(end, end + Math.min(n, text.length() - end));
+    }
+
+    @Override
+    @Nullable
+    public CharSequence getSelectedText(int flags) {
+        int start = webView.getImeSelectionStart();
+        int end = webView.getImeSelectionEnd();
+        if (start == end)
+            return null;
+        return webView.getImeSurroundingText().substring(start, end);
+    }
+
+    @Override
+    @Nullable
+    public SurroundingText getSurroundingText(int beforeLength, int afterLength, int flags) {
+        if (beforeLength < 0 || afterLength < 0)
+            return null;
+        String text = webView.getImeSurroundingText();
+        int start = webView.getImeSelectionStart();
+        int end = webView.getImeSelectionEnd();
+        int offset = Math.max(0, start - beforeLength);
+        int limit = end + Math.min(afterLength, text.length() - end);
+        return new SurroundingText(text.substring(offset, limit), start - offset, end - offset, offset);
+    }
+
+    @Override
+    public int getCursorCapsMode(int reqModes) {
+        return TextUtils.getCapsMode(webView.getImeSurroundingText(), webView.getImeSelectionStart(), reqModes);
     }
 
     @Override

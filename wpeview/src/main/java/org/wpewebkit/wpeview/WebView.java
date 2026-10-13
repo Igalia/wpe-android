@@ -69,6 +69,11 @@ public class WebView extends FrameLayout {
     private WPEToplevel wpeToplevel;
     WPEView platformView;
     private WPEInputMethodContext imContext;
+    // What WebKit last reported around the cursor of the focused field, in Java chars (UTF-16 code units).
+    // WebKit reports the whole text of the field, so these indices are also positions in the field.
+    private String imeSurroundingText = "";
+    private int imeSelectionStart = 0;
+    private int imeSelectionEnd = 0;
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
@@ -139,6 +144,7 @@ public class WebView extends FrameLayout {
                 onImeFieldFocused(false);
             }
         });
+        this.imContext.setSurroundingListener(this::onImeSurroundingChanged);
         this.webSettings = new WebSettings(wpeContext.getWebKitSettings());
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
         this.platformView.setToplevel(wpeToplevel);
@@ -530,6 +536,8 @@ public class WebView extends FrameLayout {
 
     void onImeFieldFocused(boolean focused) {
         inputFieldFocused = focused;
+        if (!focused)
+            onImeSurroundingChanged("", 0, 0);
         if (inputMethodManager == null)
             return;
         if (focused) {
@@ -541,6 +549,23 @@ public class WebView extends FrameLayout {
         }
     }
 
+    void onImeSurroundingChanged(@NonNull String text, int cursor, int anchor) {
+        imeSurroundingText = text;
+        imeSelectionStart = Math.min(cursor, anchor);
+        imeSelectionEnd = Math.max(cursor, anchor);
+        if (inputFieldFocused && inputMethodManager != null)
+            inputMethodManager.updateSelection(this, imeSelectionStart, imeSelectionEnd, -1, -1);
+    }
+
+    @NonNull
+    String getImeSurroundingText() {
+        return imeSurroundingText;
+    }
+
+    int getImeSelectionStart() { return imeSelectionStart; }
+
+    int getImeSelectionEnd() { return imeSelectionEnd; }
+
     @Override
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
@@ -548,6 +573,9 @@ public class WebView extends FrameLayout {
         outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.actionLabel = null;
+        outAttrs.initialSelStart = imeSelectionStart;
+        outAttrs.initialSelEnd = imeSelectionEnd;
+        outAttrs.setInitialSurroundingText(imeSurroundingText);
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
     }
 
