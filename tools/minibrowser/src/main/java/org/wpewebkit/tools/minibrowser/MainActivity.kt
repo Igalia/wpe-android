@@ -23,6 +23,7 @@
 
 package org.wpewebkit.tools.minibrowser
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -48,6 +49,17 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge();
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+    }
+
+    // Lets a URL be opened from the command line, also when the browser is already running:
+    // adb shell am start -n org.wpewebkit.tools.minibrowser/.MainActivity -d <url>
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val url = intent.dataString ?: return
+        val currentFragment = navHost.childFragmentManager.fragments.firstOrNull()
+        if (currentFragment is BrowserFragment)
+            currentFragment.loadUrl(url)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

@@ -107,7 +107,8 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
             binding.toolbarEditText.setText(tab.webview.url)
         } ?: run {
             val app = requireContext().applicationContext as MiniBrowserApplication
-            val tab = Tab.newTab(requireContext(), app.browserContext, INITIAL_URL)
+            val initialUrl = requireActivity().intent?.dataString?.let(::normalizeAddress) ?: INITIAL_URL
+            val tab = Tab.newTab(requireContext(), app.browserContext, initialUrl)
             browserViewModel.addTab(tab)
             binding.tabContainerView.addView(tab.webview)
             binding.toolbarEditText.setText(tab.webview.url)
@@ -206,6 +207,12 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         }
 
         selectedTab().webview.loadUrl(url)
+    }
+
+    fun loadUrl(address: String) {
+        val url = normalizeAddress(address)
+        selectedTab().webview.loadUrl(url)
+        binding.toolbarEditText.setText(url)
     }
 
     private fun hideKeyboard() {
