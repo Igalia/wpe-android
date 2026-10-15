@@ -22,6 +22,9 @@
 #include "WPEKeymapAndroid.h"
 
 #include <algorithm>
+#include <array>
+#include <dlfcn.h>
+#include <sys/system_properties.h>
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWPEView, "org/wpewebkit/wpe/WPEView");
@@ -41,10 +44,19 @@ public:
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
                 "nativeDispatchTouchEvent", nativeDispatchTouchEvent),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint)>(
-                "nativeDispatchKeyEvent", nativeDispatchKeyEvent));
+                "nativeDispatchKeyEvent", nativeDispatchKeyEvent),
+            JNI::StaticNativeMethod<jboolean()>(
+                "nativeUsesUnbufferedTouchDispatch", nativeUsesUnbufferedTouchDispatch));
     }
 
 private:
+    static jboolean nativeUsesUnbufferedTouchDispatch(JNIEnv*, jclass)
+    {
+        std::array<char, PROP_VALUE_MAX> value {};
+        __system_property_get("debug.wpe.touch.buffered", value.data());
+        return value[0] == '1' ? JNI_FALSE : JNI_TRUE;
+    }
+
     static void nativeSetToplevel(JNIEnv*, jobject, jlong viewPtr, jlong toplevelPtr)
     {
         wpe_view_set_toplevel(JNI::from_jlong<WPEView>(viewPtr), JNI::from_jlong<WPEToplevel>(toplevelPtr));
@@ -75,10 +87,27 @@ private:
         focused ? wpe_view_focus_in(view) : wpe_view_focus_out(view);
     }
 
-    static void nativeDispatchTouchEvent(JNIEnv* env, jobject, jlong viewPtr, jlong time, jint type, jint pointerCount,
-        jintArray ids, jfloatArray xs, jfloatArray ys)
+    // wpe_event_set_time_usec() is newer than some WebKit builds wpeview runs with, so it is looked up
+    // at run time. debug.wpe.touch.usec=0 keeps touch events at whole milliseconds.
+    using SetTimeUsecFunction = void (*)(WPEEvent*, guint64);
+    static SetTimeUsecFunction setTimeUsecFunction()
+    {
+        static const SetTimeUsecFunction function = []() -> SetTimeUsecFunction {
+            std::array<char, PROP_VALUE_MAX> value {};
+            if (__system_property_get("debug.wpe.touch.usec", value.data()) > 0 && value[0] == '0')
+                return nullptr;
+            return reinterpret_cast<SetTimeUsecFunction>(dlsym(RTLD_DEFAULT, "wpe_event_set_time_usec"));
+        }();
+        return function;
+    }
+
+    // timeNanos is the MotionEvent time, CLOCK_MONOTONIC: touch panels report at 120-240 Hz, where
+    // whole milliseconds are a large part of the interval between samples.
+    static void nativeDispatchTouchEvent(JNIEnv* env, jobject, jlong viewPtr, jlong timeNanos, jint type,
+        jint pointerCount, jintArray ids, jfloatArray xs, jfloatArray ys)
     {
         auto* view = JNI::from_jlong<WPEView>(viewPtr);
+        auto setTimeUsec = setTimeUsecFunction();
         JNI::ScalarArray<jint> pointerIds(ids);
         JNI::ScalarArray<jfloat> pointerXs(xs);
         JNI::ScalarArray<jfloat> pointerYs(ys);
@@ -86,9 +115,12 @@ private:
         auto eventType = static_cast<WPEEventType>(type);
         for (int i = 0; i < pointerCount; i++) {
             g_autoptr(WPEEvent) event = wpe_event_touch_new(eventType, view, WPE_INPUT_SOURCE_TOUCHSCREEN,
-                static_cast<uint32_t>(time), WPEModifiers {}, static_cast<uint32_t>(pointerIds.getReadOnlyContent()[i]),
+                static_cast<uint32_t>(timeNanos / 1000000), WPEModifiers {},
+                static_cast<uint32_t>(pointerIds.getReadOnlyContent()[i]),
                 static_cast<double>(pointerXs.getReadOnlyContent()[i]),
                 static_cast<double>(pointerYs.getReadOnlyContent()[i]));
+            if (setTimeUsec)
+                setTimeUsec(event, static_cast<guint64>(timeNanos / 1000));
             wpe_view_event(view, event);
         }
 

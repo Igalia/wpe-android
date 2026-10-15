@@ -44,16 +44,21 @@ public final class WPEView {
 
     public void setFocused(boolean focused) { nativeSetFocused(mNativePtr, focused); }
 
-    public void dispatchTouchEvent(long time, int type, int pointerCount, @NonNull int[] ids, @NonNull float[] xs,
+    // timeNanos: the MotionEvent time in nanoseconds (CLOCK_MONOTONIC).
+    public void dispatchTouchEvent(long timeNanos, int type, int pointerCount, @NonNull int[] ids, @NonNull float[] xs,
                                    @NonNull float[] ys) {
         if (pointerCount <= 0 || ids.length < pointerCount || xs.length < pointerCount || ys.length < pointerCount)
             return;
-        nativeDispatchTouchEvent(mNativePtr, time, type, pointerCount, ids, xs, ys);
+        nativeDispatchTouchEvent(mNativePtr, timeNanos, type, pointerCount, ids, xs, ys);
     }
 
     public void dispatchKeyEvent(long time, int type, int keyCode, int unicodeChar, int metaState) {
         nativeDispatchKeyEvent(mNativePtr, time, type, keyCode, unicodeChar, metaState);
     }
+
+    // Whether to ask Android to deliver touch moves as they arrive instead of batched and resampled once
+    // per frame; debug.wpe.touch.buffered=1 keeps Android's batching.
+    public static boolean usesUnbufferedTouchDispatch() { return nativeUsesUnbufferedTouchDispatch(); }
 
     void invalidate() { mNativePtr = 0; }
 
@@ -62,8 +67,9 @@ public final class WPEView {
     private native void nativeSetMapped(long nativePtr, boolean mapped);
     private native void nativeSetVisible(long nativePtr, boolean visible);
     private native void nativeSetFocused(long nativePtr, boolean focused);
-    private native void nativeDispatchTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids,
+    private native void nativeDispatchTouchEvent(long nativePtr, long timeNanos, int type, int pointerCount, int[] ids,
                                                  float[] xs, float[] ys);
+    private static native boolean nativeUsesUnbufferedTouchDispatch();
     private native void nativeDispatchKeyEvent(long nativePtr, long time, int type, int keyCode, int unicodeChar,
                                                int metaState);
 }
