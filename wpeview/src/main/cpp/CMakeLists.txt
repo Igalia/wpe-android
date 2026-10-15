@@ -112,6 +112,7 @@ target_link_libraries(
 add_library(
     WPEAndroidRuntime SHARED
     Platform/WPEDisplayAndroid.cpp
+    Platform/WPEFrameTimingAndroid.cpp
     Platform/WPEInputMethodContextAndroid.cpp
     Platform/WPEKeymapAndroid.cpp
     Platform/WPEProcessManagerAndroid.cpp
