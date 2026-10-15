@@ -93,9 +93,6 @@
                         "wpe": {"status": ["PASS"]}
                 }
             },
-            "testSendingKeysToActiveElementWithModifier": {
-                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/215588"}}
-            },
             "testContextClick": {
                 "expected": {"wpe": {"status": ["FAIL"]}}
             },
@@ -218,6 +215,9 @@
     "imported/selenium/py/test/selenium/webdriver/common/window_tests.py": {
         "subtests": {
             "notes": "Some WPE tests are skipped as they make selenium's conftest teardown to fail regardless fo FAIL",
+            "test_should_get_the_size_of_the_current_window": {
+                "expected": {"wpe": {"status": ["PASS", "FAIL"]}}
+            },
             "test_should_fullscreen_the_current_window": {
                 "expected": {
                     "gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"},
@@ -428,7 +428,11 @@
     },
 
     "imported/w3c/webdriver/tests/perform_actions/pointer_dblclick.py": {
-        "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/174674"}}
+        "subtests": {
+            "test_dblclick_at_coordinates[200]": {
+                "expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/174674"}}
+            }
+        }
     },
 
 
@@ -575,9 +579,6 @@
 
     "imported/w3c/webdriver/tests/release_actions/sequence.py": {
         "subtests": {
-            "test_release_char_sequence_sends_keyup_events_in_reverse": {
-                "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
-            },
             "test_release_mouse_sequence_resets_dblclick_state": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/184967"}}
             },
@@ -687,6 +688,9 @@
             },
             "test_link_unload_event": {
                 "expected": {"all": {"status": ["FAIL"], "bug": "webkit.org/b/188118"}}
+            },
+            "test_link_cross_origin[capabilities0]": {
+                "expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/218737"}}
             },
             "test_multi_line_link": {
                 "expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/218737"}}
