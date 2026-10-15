@@ -215,9 +215,6 @@
     "imported/selenium/py/test/selenium/webdriver/common/window_tests.py": {
         "subtests": {
             "notes": "Some WPE tests are skipped as they make selenium's conftest teardown to fail regardless fo FAIL",
-            "test_should_get_the_size_of_the_current_window": {
-                "expected": {"wpe": {"status": ["PASS", "FAIL"]}}
-            },
             "test_should_fullscreen_the_current_window": {
                 "expected": {
                     "gtk": {"status": ["FAIL"], "bug": "webkit.org/b/188118"},

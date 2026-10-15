@@ -25,6 +25,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import org.wpewebkit.wpe.WPEProcessType
@@ -87,6 +88,14 @@ class WebDriverActivity : AppCompatActivity() {
     private fun show(view: WebView) {
         setContentView(view)
         view.requestFocus()
+        val decorView = window.decorView
+        if (decorView.width > 0 && decorView.height > 0) {
+            decorView.measure(
+                View.MeasureSpec.makeMeasureSpec(decorView.width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(decorView.height, View.MeasureSpec.EXACTLY)
+            )
+            decorView.layout(decorView.left, decorView.top, decorView.right, decorView.bottom)
+        }
     }
 
     private fun getFreePort(): Int {
