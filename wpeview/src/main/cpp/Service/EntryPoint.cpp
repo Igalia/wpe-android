@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <dlfcn.h>
 #include <string>
+#include <sys/system_properties.h>
 #include <unistd.h>
 
 namespace {
@@ -34,6 +35,36 @@ void setupNativeEnvironment(JNIEnv* /*env*/, jclass /*klass*/, jstringArray envS
 {
     Logging::logDebug("setupNativeEnvironment()");
     Environment::configureEnvironment(envStringsArray);
+}
+
+// The GPU driver keeps the programs it compiles in Android's EGL blob cache, which persists them only once
+// a cache file is set: ActivityThread does that for apps that render with HWUI, but the web process never
+// had one. Skia's own program cache hands the driver its program binaries, yet the Mali driver still spent
+// 10-20 ms finishing each program the first time a new web process used it, inside a fling. The cache
+// file is set through libEGL's exported egl_cache_t, as HardwareRenderer.setupDiskCache() does.
+// debug.wpe.egl.blobcache=0 leaves it unset.
+void setUpEGLBlobCache() noexcept
+{
+    char value[PROP_VALUE_MAX] = {};
+    if (__system_property_get("debug.wpe.egl.blobcache", value) > 0 && value[0] == '0')
+        return;
+    // Runs before WebKit starts any thread.
+    const char* cacheHome = getenv("XDG_CACHE_HOME"); // NOLINT(concurrency-mt-unsafe)
+    if (!cacheHome)
+        return;
+    void* egl = dlopen("libEGL.so", RTLD_NOW);
+    if (!egl)
+        return;
+    using GetCacheFunction = void* (*)();
+    using SetCacheFilenameFunction = void (*)(void*, const char*);
+    auto* getCache = reinterpret_cast<GetCacheFunction>(dlsym(egl, "_ZN7android11egl_cache_t3getEv"));
+    auto* setCacheFilename
+        = reinterpret_cast<SetCacheFilenameFunction>(dlsym(egl, "_ZN7android11egl_cache_t16setCacheFilenameEPKc"));
+    if (!getCache || !setCacheFilename)
+        return;
+    std::string path = std::string(cacheHome) + "/com.android.opengl.shaders_cache";
+    setCacheFilename(getCache(), path.c_str());
+    Logging::logDebug("EGL blob cache: %s", path.c_str());
 }
 
 void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint type, jint fileDesc) noexcept
@@ -48,6 +79,9 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
     assert(processType < ProcessType::TypesCount);
 
     Logging::pipeStdoutToLogcat();
+
+    if (processType == ProcessType::WebProcess)
+        setUpEGLBlobCache();
 
     static constexpr const char* const processName[static_cast<int>(ProcessType::TypesCount)]
         = {"WPEWebProcess", "WPENetworkProcess", "WPEWebDriverProcess"};
