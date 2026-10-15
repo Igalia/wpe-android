@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Trace;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -479,10 +480,32 @@ public class WebView extends FrameLayout {
             // input timeline up with what the engine does with the event afterwards.
             Trace.beginSection("WPEWebView.onTouchEvent");
             try {
+                if (Trace.isEnabled())
+                    traceTouchEvent(event);
                 return dispatchTouchEventToPlatformView(event);
             } finally {
                 Trace.endSection();
             }
+        }
+
+        // What Android delivered: the event time (Android resamples MOVE events to the frame), the
+        // position in physical pixels and the raw samples batched in its history (only the event
+        // itself reaches WPE). Times are CLOCK_MONOTONIC ns, like the WPEFrame sections.
+        private void traceTouchEvent(MotionEvent event) {
+            int history = event.getHistorySize();
+            long time;
+            long oldestTime;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                time = event.getEventTimeNanos();
+                oldestTime = history > 0 ? event.getHistoricalEventTimeNanos(0) : time;
+            } else {
+                time = event.getEventTime() * 1000000L;
+                oldestTime = history > 0 ? event.getHistoricalEventTime(0) * 1000000L : time;
+            }
+            float oldestY = history > 0 ? event.getHistoricalY(0) : event.getY();
+            Trace.beginSection("WPETouch action " + event.getActionMasked() + " time " + time + " y " + event.getY() +
+                               " history " + history + " oldest " + oldestTime + " oldest_y " + oldestY);
+            Trace.endSection();
         }
 
         private boolean dispatchTouchEventToPlatformView(MotionEvent event) {
