@@ -488,6 +488,12 @@ public class WebView extends FrameLayout {
             }
         }
 
+        private static long eventTimeNanos(MotionEvent event) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                return event.getEventTimeNanos();
+            return event.getEventTime() * 1000000L;
+        }
+
         // What Android delivered: the event time (Android resamples MOVE events to the frame), the
         // position in physical pixels and the raw samples batched in its history (only the event
         // itself reaches WPE). Times are CLOCK_MONOTONIC ns, like the WPEFrame sections.
@@ -516,6 +522,11 @@ public class WebView extends FrameLayout {
             float density = getContext().getResources().getDisplayMetrics().density;
 
             int action = event.getActionMasked();
+            // Android batches touch moves and resamples them once per frame, delivering each one ~6 ms
+            // after its time and dropping the samples in between; WPE resamples to its own frames anyway.
+            if (action == MotionEvent.ACTION_DOWN && WPEView.usesUnbufferedTouchDispatch())
+                requestUnbufferedDispatch(event);
+
             int type;
             int actionIndex;
             switch (action) {
@@ -525,7 +536,7 @@ public class WebView extends FrameLayout {
                 type = WPEEventType.TOUCH_DOWN;
                 actionIndex = event.getActionIndex();
                 platformView.dispatchTouchEvent(
-                    event.getEventTime(), type, 1, new int[] {event.getPointerId(actionIndex)},
+                    eventTimeNanos(event), type, 1, new int[] {event.getPointerId(actionIndex)},
                     new float[] {event.getX(actionIndex) / density}, new float[] {event.getY(actionIndex) / density});
                 return true;
             case MotionEvent.ACTION_UP:
@@ -533,7 +544,7 @@ public class WebView extends FrameLayout {
                 type = WPEEventType.TOUCH_UP;
                 actionIndex = event.getActionIndex();
                 platformView.dispatchTouchEvent(
-                    event.getEventTime(), type, 1, new int[] {event.getPointerId(actionIndex)},
+                    eventTimeNanos(event), type, 1, new int[] {event.getPointerId(actionIndex)},
                     new float[] {event.getX(actionIndex) / density}, new float[] {event.getY(actionIndex) / density});
                 if (action == MotionEvent.ACTION_UP && inputFieldFocused && inputMethodManager != null)
                     inputMethodManager.showSoftInput(WebView.this, InputMethodManager.SHOW_IMPLICIT);
@@ -558,7 +569,7 @@ public class WebView extends FrameLayout {
                 xs[i] = event.getX(i) / density;
                 ys[i] = event.getY(i) / density;
             }
-            platformView.dispatchTouchEvent(event.getEventTime(), type, pointerCount, ids, xs, ys);
+            platformView.dispatchTouchEvent(eventTimeNanos(event), type, pointerCount, ids, xs, ys);
             return true;
         }
     }
