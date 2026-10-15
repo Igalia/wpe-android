@@ -19,6 +19,7 @@
 #include "WPEViewAndroid.h"
 
 #include "Logging.h"
+#include "WPEFrameTimingAndroid.h"
 #include "WPEToplevelAndroid.h"
 
 #include <android/native_window.h>
@@ -57,15 +58,19 @@ struct BufferRenderedCallbackData {
 
 struct BufferReleasedCallbackData {
     WPEView* view;
+    // The previous front buffer, released by this transaction; null for the first one.
     WPEBuffer* buffer;
     ASurfaceControl& surfaceControl;
+    WPEFrameTiming::Frame frame;
     // Previous-buffer release fence, owned until it is handed over to wpe_buffer_set_release_fence().
     int releaseFence {-1};
 
-    BufferReleasedCallbackData(WPEView* view, WPEBuffer* buffer, ASurfaceControl& surfaceControl)
+    BufferReleasedCallbackData(
+        WPEView* view, WPEBuffer* buffer, ASurfaceControl& surfaceControl, const WPEFrameTiming::Frame& frame)
         : view(static_cast<WPEView*>(g_object_ref(view)))
-        , buffer(static_cast<WPEBuffer*>(g_object_ref(buffer)))
+        , buffer(buffer ? static_cast<WPEBuffer*>(g_object_ref(buffer)) : nullptr)
         , surfaceControl(surfaceControl)
+        , frame(frame)
     {
     }
 
@@ -74,7 +79,7 @@ struct BufferReleasedCallbackData {
         if (releaseFence != -1)
             close(releaseFence);
         g_object_unref(view);
-        g_object_unref(buffer);
+        g_clear_object(&buffer);
     }
 };
 
@@ -94,6 +99,12 @@ static void wpeViewAndroidOnTransactionCommitted(void* context, ASurfaceTransact
 static void wpeViewAndroidOnTransactionCompleted(void* context, ASurfaceTransactionStats* stats)
 {
     auto* data = static_cast<BufferReleasedCallbackData*>(context);
+    WPEFrameTiming::didComplete(data->frame, stats, &data->surfaceControl);
+    if (!data->buffer) {
+        delete data;
+        return;
+    }
+
     data->releaseFence = ASurfaceTransactionStats_getPreviousReleaseFenceFd(stats, &data->surfaceControl);
 
     g_main_context_invoke_full(
@@ -197,12 +208,13 @@ static gboolean wpeViewAndroidRenderBuffer(
     ASurfaceTransaction_setOnCommit(
         transaction, new BufferRenderedCallbackData {view, buffer}, wpeViewAndroidOnTransactionCommitted);
 
-    if (previousFrontBuffer) {
+    auto frame = WPEFrameTiming::willApply();
+    if (previousFrontBuffer || frame.number) {
         ASurfaceTransaction_setOnComplete(transaction,
-            new BufferReleasedCallbackData {view, previousFrontBuffer, *surfaceControl},
+            new BufferReleasedCallbackData {view, previousFrontBuffer, *surfaceControl, frame},
             wpeViewAndroidOnTransactionCompleted);
-        g_object_unref(previousFrontBuffer);
     }
+    g_clear_object(&previousFrontBuffer);
 
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
