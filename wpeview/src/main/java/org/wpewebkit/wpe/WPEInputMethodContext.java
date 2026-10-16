@@ -33,6 +33,15 @@ public final class WPEInputMethodContext {
         void onFocusOut();
     }
 
+    public interface SurroundingListener {
+        /**
+         * The text around the cursor in the focused field, without any preedit. The cursor and the anchor
+         * (the other end of the selection, or the cursor again if there is no selection) are indices into
+         * it, in Java chars (UTF-16 code units). Password and PIN fields report empty text.
+         */
+        void onSurroundingChanged(@NonNull String text, int cursor, int anchor);
+    }
+
     private long mNativePtr = 0;
     public long getNativePtr() { return mNativePtr; }
 
@@ -44,6 +53,10 @@ public final class WPEInputMethodContext {
 
     public void setFocusListener(@Nullable FocusListener listener) {
         nativeSetFocusListener(mNativePtr, listener != null ? new FocusListenerHolder(listener) : null);
+    }
+
+    public void setSurroundingListener(@Nullable SurroundingListener listener) {
+        nativeSetSurroundingListener(mNativePtr, listener != null ? new SurroundingListenerHolder(listener) : null);
     }
 
     void invalidate() { mNativePtr = 0; }
@@ -66,8 +79,20 @@ public final class WPEInputMethodContext {
         }
     }
 
+    private static class SurroundingListenerHolder {
+        private final SurroundingListener delegate;
+
+        SurroundingListenerHolder(@NonNull SurroundingListener delegate) { this.delegate = delegate; }
+
+        @Keep
+        public void onSurroundingChanged(@NonNull String text, int cursor, int anchor) {
+            MainLooperDispatcher.post(() -> delegate.onSurroundingChanged(text, cursor, anchor));
+        }
+    }
+
     private native void nativeCommitText(long nativePtr, String text);
     private native void nativeDeleteSurrounding(long nativePtr, int offset, int count);
     private native void nativeSetFocusListener(long nativePtr, @Nullable FocusListenerHolder listener);
+    private native void nativeSetSurroundingListener(long nativePtr, @Nullable SurroundingListenerHolder listener);
     private static native long nativeGetForView(long viewPtr);
 }
