@@ -1,0 +1,59 @@
+From d0310f772cd7012edb91fd41863754c6fcc783da Mon Sep 17 00:00:00 2001
+From: "Alejandro G. Castro" <alex@igalia.com>
+Date: Sun, 18 Oct 2026 21:17:47 +0200
+Subject: [PATCH 5/5] webkitpy: Let several test expectations files be stacked
+
+A later file overrides the earlier ones platform by platform, for whole
+tests and for subtests, so a port that runs the tests somewhere else (like
+wpe-android, on a device) can keep only its differences on top of
+WebDriverTests/TestExpectations.json.
+---
+ .../webkitpy/common/test_expectations.py      | 35 ++++++++++++++++---
+ 1 file changed, 30 insertions(+), 5 deletions(-)
+
+diff --git a/Tools/Scripts/webkitpy/common/test_expectations.py b/Tools/Scripts/webkitpy/common/test_expectations.py
+index 3b42981a..aa3eb2bb 100644
+--- a/Tools/Scripts/webkitpy/common/test_expectations.py
++++ b/Tools/Scripts/webkitpy/common/test_expectations.py
+@@ -41,11 +41,36 @@ class TestExpectations(object):
+         self._port_name = port_name
+         self._build_type = build_type
+         self._architecture = architecture
+-        if os.path.isfile(expectations_file):
+-            with open(expectations_file, 'r') as fd:
+-                self._expectations = self._load_expectation_string(fd.read())
+-        else:
+-            self._expectations = {}
++        self._expectations = {}
++        # Several files can be stacked: each one overrides the previous ones, platform by platform.
++        expectations_files = expectations_file if isinstance(expectations_file, (list, tuple)) else [expectations_file]
++        for path in expectations_files:
++            if os.path.isfile(path):
++                with open(path, 'r') as fd:
++                    self._merge(self._expectations, self._load_expectation_string(fd.read()))
++
++    @staticmethod
++    def _merge_entry(base, overlay):
++        for key, value in overlay.items():
++            if key == 'expected' and isinstance(value, dict):
++                base.setdefault('expected', {}).update(value)
++            elif key == 'subtests' and isinstance(value, dict):
++                subtests = base.setdefault('subtests', {})
++                for name, subtest in value.items():
++                    if isinstance(subtest, dict) and isinstance(subtests.get(name), dict):
++                        TestExpectations._merge_entry(subtests[name], subtest)
++                    else:
++                        subtests[name] = subtest
++            else:
++                base[key] = value
++
++    @staticmethod
++    def _merge(base, overlay):
++        for test, entry in overlay.items():
++            if isinstance(entry, dict) and isinstance(base.get(test), dict):
++                TestExpectations._merge_entry(base[test], entry)
++            else:
++                base[test] = entry
+ 
+     def _load_expectation_string(self, expectations):
+         return json.loads(expectations, object_pairs_hook=check_repeated_keys)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import optparse
+import argparse
 import re
 import subprocess
 import signal
@@ -80,6 +80,11 @@ class WPEViewDriver:
         subprocess.run("adb forward --remove-all", capture_output=True, shell=True)
 
     def run(self):
+        # Selenium asks for a free host port with -p; the app always listens on 8888.
+        parser = argparse.ArgumentParser()
+        parser.add_argument("-p", "--port", type=int, default=port)
+        host_port = parser.parse_known_args()[0].port
+
         self._setup()
 
         subprocess.run("adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity", capture_output=True, shell=True)
@@ -90,7 +95,11 @@ class WPEViewDriver:
 
         time.sleep(1)
 
-        subprocess.run("adb forward tcp:8888 tcp:8888", capture_output=True, shell=True)
+        forward = subprocess.run("adb forward tcp:%d tcp:%d" % (host_port, port),
+                                 capture_output=True, text=True, shell=True)
+        if forward.returncode != 0:
+            self._teardown()
+            sys.exit("wpeviewdriver: cannot forward port %d: %s" % (host_port, forward.stderr.strip()))
 
         while not self._interrupted:
             signal.pause()
