@@ -1,0 +1,11 @@
+{
+    "repository": "https://github.com/WebKit/WebKit.git",
+    "revision": "ead5c17bdd80a34c4d805854cdd7e030b1ceb6f2",
+    "paths": [
+        "WebDriverTests",
+        "Tools/Scripts/webkitpy",
+        "Tools/Scripts/libraries",
+        "LayoutTests/imported/w3c/web-platform-tests/docs",
+        "LayoutTests/imported/w3c/web-platform-tests/tools"
+    ]
+}

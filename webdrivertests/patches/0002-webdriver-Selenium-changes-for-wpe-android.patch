@@ -1,0 +1,178 @@
+From 62d1cf5dc025c5f5820c1c6a9364b56830db1b71 Mon Sep 17 00:00:00 2001
+From: "Alejandro G. Castro" <alex@igalia.com>
+Date: Sun, 18 Oct 2026 20:05:40 +0200
+Subject: [PATCH 2/5] webdriver: Selenium changes for wpe-android
+
+The device's browser is WPEWebView. Connections to the driver fail fast
+and commands are bounded and never resent, a failure only restarts the
+driver (and so the app) when the session is really broken, and stopping
+the fixture web server does not wait for open connections.
+---
+ .../imported/selenium/py/conftest.py          | 38 +++++++++++++++++--
+ .../webdriver/common/desired_capabilities.py  |  2 +-
+ .../webdriver/remote/remote_connection.py     | 17 +++++++--
+ .../selenium/webdriver/wpewebkit/webdriver.py |  8 +++-
+ .../selenium/webdriver/common/webserver.py    |  3 +-
+ 5 files changed, 58 insertions(+), 10 deletions(-)
+
+diff --git a/WebDriverTests/imported/selenium/py/conftest.py b/WebDriverTests/imported/selenium/py/conftest.py
+index 36b03137..a9ccc6a6 100644
+--- a/WebDriverTests/imported/selenium/py/conftest.py
++++ b/WebDriverTests/imported/selenium/py/conftest.py
+@@ -23,6 +23,7 @@ from pathlib import Path
+ import pytest
+ 
+ from selenium import webdriver
++from selenium.common import exceptions as selenium_exceptions
+ from selenium.common.exceptions import WebDriverException
+ from selenium.webdriver.remote.server import Server
+ from test.selenium.webdriver.common.network import get_lan_ip
+@@ -373,12 +374,41 @@ def stop_driver(request):
+     request.addfinalizer(fin)
+ 
+ 
++# Failures that leave the session usable: restarting the driver restarts the whole app on the device.
++RECOVERABLE_EXCEPTIONS = (
++    AssertionError,
++    selenium_exceptions.ElementClickInterceptedException,
++    selenium_exceptions.ElementNotInteractableException,
++    selenium_exceptions.ElementNotSelectableException,
++    selenium_exceptions.ElementNotVisibleException,
++    selenium_exceptions.InvalidElementStateException,
++    selenium_exceptions.InvalidSelectorException,
++    selenium_exceptions.JavascriptException,
++    selenium_exceptions.MoveTargetOutOfBoundsException,
++    selenium_exceptions.NoAlertPresentException,
++    selenium_exceptions.NoSuchAttributeException,
++    selenium_exceptions.NoSuchElementException,
++    selenium_exceptions.NoSuchFrameException,
++    selenium_exceptions.StaleElementReferenceException,
++    selenium_exceptions.TimeoutException,
++)
++
++
+ def pytest_exception_interact(node, call, report):
+-    if report.failed:
+-        global selenium_driver
+-        if selenium_driver is not None:
++    if not report.failed:
++        return
++
++    exception = call.excinfo.value if call.excinfo is not None else None
++    if isinstance(exception, RECOVERABLE_EXCEPTIONS):
++        return
++
++    global selenium_driver
++    if selenium_driver is not None:
++        try:
+             selenium_driver.stop_driver()
+-        selenium_driver = None
++        except Exception:
++            pass
++    selenium_driver = None
+ 
+ 
+ @pytest.fixture
+diff --git a/WebDriverTests/imported/selenium/py/selenium/webdriver/common/desired_capabilities.py b/WebDriverTests/imported/selenium/py/selenium/webdriver/common/desired_capabilities.py
+index 89d71684..2d0309a1 100644
+--- a/WebDriverTests/imported/selenium/py/selenium/webdriver/common/desired_capabilities.py
++++ b/WebDriverTests/imported/selenium/py/selenium/webdriver/common/desired_capabilities.py
+@@ -95,5 +95,5 @@ class DesiredCapabilities:
+     }
+ 
+     WPEWEBKIT = {
+-        "browserName": "MiniBrowser",
++        "browserName": "WPEWebView",
+     }
+diff --git a/WebDriverTests/imported/selenium/py/selenium/webdriver/remote/remote_connection.py b/WebDriverTests/imported/selenium/py/selenium/webdriver/remote/remote_connection.py
+index 2b496e42..df734c0f 100644
+--- a/WebDriverTests/imported/selenium/py/selenium/webdriver/remote/remote_connection.py
++++ b/WebDriverTests/imported/selenium/py/selenium/webdriver/remote/remote_connection.py
+@@ -138,6 +138,9 @@ remote_commands = {
+ }
+ 
+ 
++CONNECT_TIMEOUT_SECONDS = 5
++
++
+ class RemoteConnection:
+     """A connection with the Remote WebDriver server.
+ 
+@@ -278,8 +281,16 @@ class RemoteConnection:
+         auth = f"{parsed_url.username}:{parsed_url.password}"
+         return proxy_without_auth, auth
+ 
++    def _bounded_timeout(self):
++        timeout = self._client_config.timeout
++        if timeout is None:
++            return None
++        # A driver that does not accept connections should fail fast; commands get their full time.
++        return urllib3.Timeout(connect=min(CONNECT_TIMEOUT_SECONDS, timeout), read=timeout)
++
+     def _get_connection_manager(self):
+-        pool_manager_init_args = {"timeout": self._client_config.timeout}
++        # Never resend a command that may have reached the driver.
++        pool_manager_init_args = {"timeout": self._bounded_timeout(), "retries": urllib3.Retry(total=1, connect=False, read=False)}
+         pool_manager_init_args.update(
+             self._client_config.init_args_for_pool_manager.get("init_args_for_pool_manager", {})
+         )
+@@ -427,12 +438,12 @@ class RemoteConnection:
+             body = None
+ 
+         if self._client_config.keep_alive:
+-            response = self._conn.request(method, url, body=body, headers=headers, timeout=self._client_config.timeout)
++            response = self._conn.request(method, url, body=body, headers=headers, timeout=self._bounded_timeout())
+             statuscode = response.status
+         else:
+             conn = self._get_connection_manager()
+             with conn as http:
+-                response = http.request(method, url, body=body, headers=headers, timeout=self._client_config.timeout)
++                response = http.request(method, url, body=body, headers=headers, timeout=self._bounded_timeout())
+             statuscode = response.status
+         data = response.data.decode("UTF-8")
+         LOGGER.debug("Remote response: status=%s | data=%s | headers=%s", response.status, data, response.headers)
+diff --git a/WebDriverTests/imported/selenium/py/selenium/webdriver/wpewebkit/webdriver.py b/WebDriverTests/imported/selenium/py/selenium/webdriver/wpewebkit/webdriver.py
+index 64e298cc..c62be32f 100644
+--- a/WebDriverTests/imported/selenium/py/selenium/webdriver/wpewebkit/webdriver.py
++++ b/WebDriverTests/imported/selenium/py/selenium/webdriver/wpewebkit/webdriver.py
+@@ -19,11 +19,15 @@ import http.client as http_client
+ from typing import Optional
+ 
+ from selenium.webdriver.common.driver_finder import DriverFinder
++from selenium.webdriver.common.proxy import Proxy, ProxyType
++from selenium.webdriver.remote.client_config import ClientConfig
+ from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
+ 
+ from .options import Options
+ from .service import Service
+ 
++COMMAND_TIMEOUT_SECONDS = 60
++
+ 
+ class WebDriver(RemoteWebDriver):
+     """Controls the WPEWebKitDriver and allows you to drive the browser."""
+@@ -47,7 +51,9 @@ class WebDriver(RemoteWebDriver):
+         self.service.path = DriverFinder(self.service, options).get_driver_path()
+         self.service.start()
+ 
+-        super().__init__(command_executor=self.service.service_url, options=options)
++        super().__init__(command_executor=self.service.service_url, options=options,
++                         client_config=ClientConfig(remote_server_addr=self.service.service_url, timeout=COMMAND_TIMEOUT_SECONDS,
++                                                    proxy=Proxy(raw={"proxyType": ProxyType.DIRECT})))
+         self._is_remote = False
+ 
+     def quit(self):
+diff --git a/WebDriverTests/imported/selenium/py/test/selenium/webdriver/common/webserver.py b/WebDriverTests/imported/selenium/py/test/selenium/webdriver/common/webserver.py
+index e3d0bb25..97ed2114 100644
+--- a/WebDriverTests/imported/selenium/py/test/selenium/webdriver/common/webserver.py
++++ b/WebDriverTests/imported/selenium/py/test/selenium/webdriver/common/webserver.py
+@@ -123,7 +123,8 @@ class HtmlOnlyHandler(BaseHTTPRequestHandler):
+ 
+ 
+ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+-    pass
++    # Stopping must not wait for the connections the browser keeps open.
++    daemon_threads = True
+ 
+ 
+ class SimpleWebServer:

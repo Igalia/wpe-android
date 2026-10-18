@@ -41,7 +41,8 @@ tasks.register("clean", Delete) {
     def buildDir = rootProject.layout.buildDirectory.get().asFile
     if (buildDir.exists()) {
         buildDir.eachFile { file ->
-            if (file.name != "cerbero" && file.name != "sysroot") {
+            // webdriver-tests can hold work on webdrivertests/patches that is not exported yet.
+            if (file.name != "cerbero" && file.name != "sysroot" && file.name != "webdriver-tests") {
                 delete file
             }
         }
