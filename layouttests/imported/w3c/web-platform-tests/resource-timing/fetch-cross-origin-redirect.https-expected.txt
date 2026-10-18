@@ -1,4 +1,0 @@
-
-PASS Test fetching through a cross-origin redirect URL
-PASS Test fetching through a same-origin redirect URL
-

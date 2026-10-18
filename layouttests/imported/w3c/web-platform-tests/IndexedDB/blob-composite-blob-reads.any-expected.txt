@@ -1,4 +1,0 @@
-
-PASS Composite Blob Handling: Many blobs: fetch-blob-url
-PASS Composite Blob Handling: Many blobs: direct
-

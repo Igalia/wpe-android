@@ -1,3 +1,0 @@
-
-PASS column-count responsive to inherited column-count changes
-

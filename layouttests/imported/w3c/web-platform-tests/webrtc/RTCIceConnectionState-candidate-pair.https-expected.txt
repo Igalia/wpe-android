@@ -1,3 +1,0 @@
-
-PASS On ICE connected, getStats() contains a connected candidate-pair
-

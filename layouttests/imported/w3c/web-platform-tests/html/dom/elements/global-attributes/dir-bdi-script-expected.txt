@@ -1,5 +1,0 @@
-اختبر SomeText
-اختبر SomeText
-
-PASS BDI test: Directionality
-

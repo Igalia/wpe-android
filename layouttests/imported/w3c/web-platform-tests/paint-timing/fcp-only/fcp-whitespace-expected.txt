@@ -1,4 +1,0 @@
-TEXT
-
-PASS Whitespace should not count as contentful.
-

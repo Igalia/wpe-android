@@ -1,3 +1,0 @@
-
-FAIL Contain: style paint container offscreen. assert_equals: expected -2 but got -102
-

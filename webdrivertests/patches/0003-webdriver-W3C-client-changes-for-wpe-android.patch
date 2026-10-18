@@ -1,0 +1,80 @@
+From 97c506ce8599b9d805d183dabf0942ac6e47a057 Mon Sep 17 00:00:00 2001
+From: "Alejandro G. Castro" <alex@igalia.com>
+Date: Sun, 18 Oct 2026 20:05:40 +0200
+Subject: [PATCH 3/5] webdriver: W3C client changes for wpe-android
+
+Commands are bounded, and once the remote end did not answer one the next
+ones fail at once instead of waiting again. Cookies are cleared between
+tests.
+---
+ .../w3c/tools/webdriver/webdriver/transport.py  | 17 +++++++++++++++--
+ .../w3c/webdriver/tests/support/helpers.py      |  7 +++++++
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py b/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py
+index 6b953934..18e37f09 100644
+--- a/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py
++++ b/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py
+@@ -10,6 +10,8 @@ from urllib import parse as urlparse
+ 
+ from . import error
+ 
++DEFAULT_TIMEOUT_SECONDS = 60
++
+ """Implements HTTP transport for the WebDriver wire protocol."""
+ 
+ 
+@@ -125,7 +127,7 @@ class HTTPWireProtocol:
+         # => webdriver.Element
+     """
+ 
+-    def __init__(self, host, port, url_prefix="/"):
++    def __init__(self, host, port, url_prefix="/", timeout=DEFAULT_TIMEOUT_SECONDS):
+         """
+         Construct interface for communicating with the remote server.
+ 
+@@ -137,6 +139,8 @@ class HTTPWireProtocol:
+         self.url_prefix = url_prefix
+         self._conn = None
+         self._last_request_is_blocked = False
++        self._timeout = timeout
++        self._unresponsive = False
+ 
+     def __del__(self):
+         self.close()
+@@ -227,7 +231,16 @@ class HTTPWireProtocol:
+                 raise ValueError("Failed to encode request body as JSON:\n"
+                                  "%s" % json.dumps(body, indent=2))
+ 
+-        response = self._request(method, uri, payload, headers, timeout=timeout)
++        # A remote end that didn't answer a command won't answer the next ones either.
++        if self._unresponsive:
++            raise TimeoutError("The remote end did not answer an earlier command")
++
++        try:
++            response = self._request(method, uri, payload, headers,
++                                     timeout=timeout if timeout is not None else self._timeout)
++        except socket.timeout:
++            self._unresponsive = True
++            raise
+         return Response.from_http(response, decoder=decoder, **codec_kwargs)
+ 
+     def _request(self, method, uri, payload, headers=None, timeout=None):
+diff --git a/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py b/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
+index c4dec8de..323b6c54 100644
+--- a/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
++++ b/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
+@@ -89,6 +89,13 @@ def cleanup_session(session):
+     _restore_windows(session)
+     _restore_window_state(session)
+     _switch_to_top_level_browsing_context(session)
++    _clear_cookies(session)
++
++
++@ignore_exceptions
++def _clear_cookies(session):
++    """Drop the cookies the test left behind."""
++    session.transport.send("DELETE", "session/%s/cookie" % session.session_id)
+ 
+ 
+ @ignore_exceptions

@@ -1,3 +1,0 @@
-
-FAIL readyState accessor is valid after execution context is destroyed assert_equals: expected "done" but got "pending"
-

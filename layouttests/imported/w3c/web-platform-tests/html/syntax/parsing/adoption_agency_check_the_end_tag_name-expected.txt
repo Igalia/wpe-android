@@ -1,3 +1,0 @@
-
-PASS The algorithm should not reparent properly nested tags
-

@@ -1,3 +1,0 @@
-
-PASS javascript: navigation using <a href> should be refused due to wrong hash
-

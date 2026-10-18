@@ -1,3 +1,0 @@
-
-FAIL [[CanBlock]] in a SharedWorkerGlobalScope Atomics.wait cannot be called from the current thread.
-

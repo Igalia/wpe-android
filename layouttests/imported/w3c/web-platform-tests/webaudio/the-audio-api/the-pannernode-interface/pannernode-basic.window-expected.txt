@@ -1,3 +1,0 @@
-
-PASS Test the PannerNode interface
-

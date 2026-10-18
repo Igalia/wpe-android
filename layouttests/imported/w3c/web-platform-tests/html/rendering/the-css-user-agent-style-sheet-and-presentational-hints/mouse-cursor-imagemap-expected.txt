@@ -1,6 +1,0 @@
-
-An unclickable (non-link) area should not show the link cursor when hovered.
-
-
-PASS Only clickable areas should show the link cursor.
-

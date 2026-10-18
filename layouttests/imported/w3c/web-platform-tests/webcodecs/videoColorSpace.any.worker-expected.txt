@@ -1,3 +1,0 @@
-
-PASS Test VideoColorSpace toJSON() works.
-

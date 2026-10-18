@@ -1,3 +1,0 @@
-
-FAIL Content Visibility: off-screen focus assert_equals: step5 height expected 10 but got 100
-

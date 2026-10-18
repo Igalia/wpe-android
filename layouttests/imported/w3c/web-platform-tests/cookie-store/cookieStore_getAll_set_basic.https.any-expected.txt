@@ -1,3 +1,0 @@
-
-PASS cookieStore.getAll returns the cookie written by cookieStore.set
-

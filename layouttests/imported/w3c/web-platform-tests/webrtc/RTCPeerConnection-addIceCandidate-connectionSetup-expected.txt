@@ -1,5 +1,0 @@
-
-PASS Candidates are added dynamically; connection should work
-PASS Candidates are added at PC1; connection should work
-PASS Candidates are added at PC2; connection should work
-

@@ -1,3 +1,0 @@
-
-PASS GC does not collect a peer connection pipe rendering to a video element
-

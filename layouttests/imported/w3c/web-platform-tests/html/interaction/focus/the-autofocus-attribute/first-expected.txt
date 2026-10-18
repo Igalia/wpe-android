@@ -1,4 +1,0 @@
-
-
-PASS The first autofocus element in the document should win.
-

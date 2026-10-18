@@ -1,3 +1,0 @@
-
-PASS Test frame detach in shared worker's error handler
-

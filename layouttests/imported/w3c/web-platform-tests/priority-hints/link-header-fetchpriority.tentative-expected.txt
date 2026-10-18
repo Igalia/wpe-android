@@ -1,3 +1,0 @@
-
-PASS default fetchpriority attribute on <link> elements should be 'auto'
-

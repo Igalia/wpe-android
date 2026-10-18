@@ -1,3 +1,0 @@
-
-PASS Check that roundRects with intersecting corner arcs are rendered correctly.
-

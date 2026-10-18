@@ -1,3 +1,0 @@
-
-PASS textarea element with "required" attribute and empty value is considered "suffering from being missing" even if inside datalist element
-

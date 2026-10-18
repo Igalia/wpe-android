@@ -1,3 +1,0 @@
-
-PASS Space characters are converted to U+0020, and are NOT collapsed
-

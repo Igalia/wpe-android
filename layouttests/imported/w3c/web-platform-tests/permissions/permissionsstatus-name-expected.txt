@@ -1,3 +1,0 @@
-
-PASS Test PermissionStatus's name attribute.
-

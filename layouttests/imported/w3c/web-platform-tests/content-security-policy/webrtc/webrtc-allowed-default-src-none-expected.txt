@@ -1,3 +1,0 @@
-
-PASS webrtc allowed with default-src 'none'
-

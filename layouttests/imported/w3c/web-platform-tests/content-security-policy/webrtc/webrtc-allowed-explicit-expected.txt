@@ -1,3 +1,0 @@
-
-PASS webrtc allowed with an explicit webrtc allowed policy
-

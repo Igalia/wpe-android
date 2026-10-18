@@ -1,7 +1,0 @@
-two
-lines
-hello
-
-PASS #target > * 1
-PASS #target > * 2
-

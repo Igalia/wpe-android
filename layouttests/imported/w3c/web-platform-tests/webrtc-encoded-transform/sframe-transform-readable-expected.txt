@@ -1,3 +1,0 @@
-
-PASS sframe-transform-readable
-

@@ -1,5 +1,0 @@
-out of view
-excluded subtree [nested inline]
-
-PASS exclude-inline
-

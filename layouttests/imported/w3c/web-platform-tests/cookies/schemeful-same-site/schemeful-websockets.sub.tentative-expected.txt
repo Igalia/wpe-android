@@ -1,3 +1,0 @@
-
-FAIL Cross-scheme WebSockets are cross-site assert_false: Cross-scheme strict expected false got true
-

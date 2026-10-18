@@ -1,3 +1,0 @@
-
-PASS 'transform-origin' on <svg> being direct descendant of shadow root
-

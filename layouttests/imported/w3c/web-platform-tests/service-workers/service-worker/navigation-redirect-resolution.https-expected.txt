@@ -1,5 +1,0 @@
-
-PASS test relative opaqueredirect
-PASS test relative opaqueredirect with CacheStorage
-PASS test relative opaqueredirect with clone
-

@@ -1,4 +1,0 @@
-
-
-PASS Verifies that form submissions cancel javascript navigations to prevent duplicate load events.
-

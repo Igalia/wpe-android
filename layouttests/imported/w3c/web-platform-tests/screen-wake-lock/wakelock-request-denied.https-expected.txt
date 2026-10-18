@@ -1,3 +1,0 @@
-
-PASS Denied requests should abort with NotAllowedError
-

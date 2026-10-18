@@ -1,3 +1,0 @@
-
-PASS The content property can be animated with a discrete animation type.
-

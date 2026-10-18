@@ -1,3 +1,0 @@
-
-PASS Promises#resolve
-

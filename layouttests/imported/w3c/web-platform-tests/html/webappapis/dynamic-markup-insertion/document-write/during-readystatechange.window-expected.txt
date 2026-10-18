@@ -1,3 +1,0 @@
-
-PASS document.write() during readystatechange to interactive
-

@@ -1,3 +1,0 @@
-
-PASS Declared styleMap objects accept 'inherit' as a value
-

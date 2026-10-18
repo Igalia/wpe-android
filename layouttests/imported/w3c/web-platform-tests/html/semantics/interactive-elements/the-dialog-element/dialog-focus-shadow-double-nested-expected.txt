@@ -1,4 +1,0 @@
-
-PASS show()
-PASS showModal()
-

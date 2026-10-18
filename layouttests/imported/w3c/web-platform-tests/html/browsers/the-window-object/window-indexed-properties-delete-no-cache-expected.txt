@@ -1,4 +1,0 @@
-
-PASS Absence of index '0' is not cached
-PASS Presence of index '0' is not cached
-

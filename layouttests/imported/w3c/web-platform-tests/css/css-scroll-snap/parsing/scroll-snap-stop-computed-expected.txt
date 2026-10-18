@@ -1,4 +1,0 @@
-
-PASS Property scroll-snap-stop value 'normal'
-PASS Property scroll-snap-stop value 'always'
-

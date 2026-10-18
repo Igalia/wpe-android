@@ -1,4 +1,0 @@
-
-PASS worker
-PASS shared
-

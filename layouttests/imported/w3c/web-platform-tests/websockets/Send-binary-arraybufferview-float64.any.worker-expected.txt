@@ -1,3 +1,0 @@
-
-PASS Send binary data on a WebSocket - ArrayBufferView - Float64Array - Connection should be closed
-

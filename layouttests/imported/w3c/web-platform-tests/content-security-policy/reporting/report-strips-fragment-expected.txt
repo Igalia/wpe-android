@@ -1,3 +1,0 @@
-
-PASS Reported document URI does not contain fragments.
-

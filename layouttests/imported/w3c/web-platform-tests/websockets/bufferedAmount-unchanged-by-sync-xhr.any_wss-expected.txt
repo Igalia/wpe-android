@@ -1,3 +1,0 @@
-
-PASS bufferedAmount should not be updated during a sync XHR
-

@@ -1,5 +1,0 @@
-CONSOLE MESSAGE: Error: PASS
-
-
-PASS IntersectionObserver reports the exception from its callback in the callback's global object
-

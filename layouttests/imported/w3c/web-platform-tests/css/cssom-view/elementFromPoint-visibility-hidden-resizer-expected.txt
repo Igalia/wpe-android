@@ -1,3 +1,0 @@
-
-PASS elementFromPoint on resizer area of an element with visibility:hidden
-

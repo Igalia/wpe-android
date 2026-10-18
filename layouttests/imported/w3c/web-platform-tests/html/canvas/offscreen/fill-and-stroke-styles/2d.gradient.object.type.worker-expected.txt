@@ -1,3 +1,0 @@
-
-PASS window.CanvasGradient exists and has the right properties
-

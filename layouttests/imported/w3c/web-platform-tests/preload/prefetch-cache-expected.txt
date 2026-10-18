@@ -1,6 +1,0 @@
-
-PASS Prefetch should populate the HTTP cache
-PASS Prefetch should respect cache-control: no-cache
-PASS Prefetch should respect cache-control: no-store
-PASS Prefetch should respect cache-control: max-age=0
-

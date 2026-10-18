@@ -1,3 +1,0 @@
-
-PASS Deleting an unsupported property name throws a TypeError
-

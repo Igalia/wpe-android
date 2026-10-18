@@ -1,3 +1,0 @@
-
-PASS XMLHttpRequest: send() - "Basic" authenticated request using setRequestHeader() when there is an existing session
-Note: this test will only work as expected once per browsing session. Restart browser to re-test.

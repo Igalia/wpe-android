@@ -1,3 +1,0 @@
-
-FAIL Microphone Report Format assert_unreached: UserMedia microphone access should not be allowed in this document. Reached unreachable code
-

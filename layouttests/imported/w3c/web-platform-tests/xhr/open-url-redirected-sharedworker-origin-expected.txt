@@ -1,5 +1,0 @@
-
-PASS Referer header
-FAIL Origin header assert_equals: expected "Origin: http://localhost:8800\n" but got ""
-PASS Request URL test
-

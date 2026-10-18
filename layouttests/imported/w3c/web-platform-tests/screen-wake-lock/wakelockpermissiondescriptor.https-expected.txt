@@ -1,3 +1,0 @@
-
-PASS PermissionDescriptor with name='screen-wake-lock' works
-

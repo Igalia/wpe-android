@@ -1,3 +1,0 @@
-
-PASS Dynamic registration in AudioWorkletGlobalScope
-

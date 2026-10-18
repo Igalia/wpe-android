@@ -1,6 +1,0 @@
-
-PASS Property white-space-collapse value 'collapse'
-PASS Property white-space-collapse value 'preserve'
-PASS Property white-space-collapse value 'preserve-breaks'
-PASS Property white-space-collapse value 'break-spaces'
-

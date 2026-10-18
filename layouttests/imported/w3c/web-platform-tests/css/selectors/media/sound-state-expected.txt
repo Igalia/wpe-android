@@ -1,5 +1,0 @@
-
-
-PASS Test :pseudo-class syntax is supported without throwing a SyntaxError
-PASS Test :muted pseudo-class
-

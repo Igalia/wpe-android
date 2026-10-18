@@ -1,3 +1,0 @@
-
-PASS Client.url of a blob URL worker should be a blob URL.
-

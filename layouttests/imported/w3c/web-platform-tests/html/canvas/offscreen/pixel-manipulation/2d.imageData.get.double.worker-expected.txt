@@ -1,3 +1,0 @@
-
-PASS createImageData(w, h) double is converted to long
-

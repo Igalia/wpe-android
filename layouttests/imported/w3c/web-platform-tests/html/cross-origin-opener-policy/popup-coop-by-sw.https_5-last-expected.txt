@@ -1,6 +1,0 @@
-
-PASS opener:coi, openee:basic, sw:basic
-PASS opener:coi, openee:basic, sw:coi
-PASS opener:coi, openee:coi, sw:basic
-PASS opener:coi, openee:coi, sw:coi
-

@@ -1,7 +1,0 @@
-2d.pattern.image.string
-
-Defined in "Web IDL" (draft)
-
-
-PASS OffscreenCanvas test: 2d.pattern.image.string
-

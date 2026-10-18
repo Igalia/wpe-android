@@ -1,3 +1,0 @@
-
-PASS correct getBoundingClientRect() result within set of transforms
-

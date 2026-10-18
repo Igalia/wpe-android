@@ -1,3 +1,0 @@
-
-PASS sticky position offset should be contained by scrolling box
-

@@ -1,3 +1,0 @@
-
-PASS Property transition-delay value '-500ms, calc(2 * 3s)'
-

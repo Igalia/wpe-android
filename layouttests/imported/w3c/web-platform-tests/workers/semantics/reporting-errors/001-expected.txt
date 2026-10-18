@@ -1,3 +1,0 @@
-
-PASS shared worker, not handled
-

@@ -1,7 +1,0 @@
-^^^bar$$$
-
-
-
-
-PASS substring() arguments depending on the context node
-

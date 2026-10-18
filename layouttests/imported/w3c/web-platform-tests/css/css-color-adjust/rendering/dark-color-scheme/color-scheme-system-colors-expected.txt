@@ -1,3 +1,0 @@
-
-PASS Check that the system colors are properly affected by the color-scheme.
-

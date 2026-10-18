@@ -1,3 +1,0 @@
-
-PASS column-width:0 is a valid CSS declaration
-

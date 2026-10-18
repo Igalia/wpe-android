@@ -1,4 +1,0 @@
-
-PASS fetchpriority attribute on <link> elements should reflect valid IDL values
-PASS default fetchpriority attribute on <link> elements should be 'auto'
-

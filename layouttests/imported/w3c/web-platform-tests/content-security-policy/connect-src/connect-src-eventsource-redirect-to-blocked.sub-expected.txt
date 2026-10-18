@@ -1,3 +1,0 @@
-
-PASS Expecting logs: ["PASS EventSource() did not follow the disallowed redirect.","TEST COMPLETE", "violated-directive=connect-src"]
-

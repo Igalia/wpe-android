@@ -1,4 +1,0 @@
-
-PASS Popup being navigated to about:blank was same-origin.
-PASS Popup being navigated to about:blank was cross-origin.
-

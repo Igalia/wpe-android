@@ -1,3 +1,0 @@
-
-PASS 'keySplines' with y-values outside of the 0 to 1 range
-

@@ -1,3 +1,0 @@
-
-PASS Test connect event for a shared worker
-

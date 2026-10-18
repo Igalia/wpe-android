@@ -1,4 +1,0 @@
-
-
-PASS enumerateDevices depends only on capture state, not permission state
-

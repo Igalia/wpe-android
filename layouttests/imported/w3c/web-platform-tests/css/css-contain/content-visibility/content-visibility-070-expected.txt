@@ -1,3 +1,0 @@
-
-FAIL Content Visibility: off-screen selection assert_equals: step3 height expected 10 but got 100
-

@@ -1,5 +1,0 @@
-Exit fullscreen
-Go fullscreen
-
-PASS shadowRoot.fullscreenElement works correctly
-

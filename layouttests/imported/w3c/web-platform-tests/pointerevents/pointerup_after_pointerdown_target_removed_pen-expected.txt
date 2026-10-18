@@ -1,4 +1,0 @@
-done
-
-PASS pointerup event from pen fired after pointerdown target is removed
-

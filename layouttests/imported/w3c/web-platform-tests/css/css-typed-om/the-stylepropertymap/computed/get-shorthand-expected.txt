@@ -1,4 +1,0 @@
-
-PASS Getting an shorthand property set explicitly in computed style returns a base CSSStyleValue
-PASS Getting a shorthand property from initial computed style returns a base CSSStyleValue
-

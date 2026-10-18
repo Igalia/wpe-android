@@ -1,3 +1,0 @@
-
-PASS Create WebSocket - Close the Connection - close(1000, reason) - event.code == 1000 and event.reason = 'Clean Close'
-

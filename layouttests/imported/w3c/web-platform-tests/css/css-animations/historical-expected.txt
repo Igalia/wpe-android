@@ -1,3 +1,0 @@
-
-PASS Historical CSS features must be removed: WebKitAnimationEvent
-

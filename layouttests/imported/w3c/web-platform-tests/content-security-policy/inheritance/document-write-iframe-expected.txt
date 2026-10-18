@@ -1,5 +1,0 @@
-
-
-PASS document.open() keeps inherited CSPs on empty iframe.
-PASS document.open() does not change delivered CSPs.
-

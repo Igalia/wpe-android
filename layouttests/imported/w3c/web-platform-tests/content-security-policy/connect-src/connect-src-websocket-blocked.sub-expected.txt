@@ -1,3 +1,0 @@
-
-PASS Expecting logs: ["blocked","violated-directive=connect-src"]
-

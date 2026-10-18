@@ -1,4 +1,0 @@
-^^^bar$$$bar^bar
-
-PASS substring-after() arguments depending on the context node
-

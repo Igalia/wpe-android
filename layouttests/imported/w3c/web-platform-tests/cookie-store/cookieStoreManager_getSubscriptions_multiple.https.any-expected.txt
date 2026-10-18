@@ -1,3 +1,0 @@
-
-FAIL getSubscriptions returns a subscription passed to subscribe promise_test: Unhandled rejection with value: object "TypeError: undefined is not an object (evaluating 'registration.cookies.subscribe')"
-

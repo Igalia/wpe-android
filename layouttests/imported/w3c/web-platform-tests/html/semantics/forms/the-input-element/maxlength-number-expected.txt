@@ -1,4 +1,0 @@
-
-
-PASS maxlength doesn't apply to input type=number
-

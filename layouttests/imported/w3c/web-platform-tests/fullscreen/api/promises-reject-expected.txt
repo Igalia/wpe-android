@@ -1,3 +1,0 @@
-
-PASS Rejects if the element is not connected
-

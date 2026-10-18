@@ -1,3 +1,0 @@
-
-PASS A custom property of type <time> can yield a CSS Transition
-

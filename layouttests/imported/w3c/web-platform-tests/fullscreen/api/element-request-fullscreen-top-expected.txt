@@ -1,5 +1,0 @@
-
-PASS
-    Element#requestFullscreen() for top element in fullscreen element stack
-
-
