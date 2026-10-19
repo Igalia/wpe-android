@@ -70,6 +70,11 @@ public class WebProcessService extends WPEService {
         envStrings.add(gstreamerPluginPath);
         envStrings.add("GST_PLUGIN_SYSTEM_PATH");
         envStrings.add(gstreamerPluginPath);
+        // GStreamer ranks Android's audio decoders (amcaudiodec) above its own, but amcaudiodec outputs nothing
+        // for Opus (https://gitlab.freedesktop.org/gstreamer/gstreamer/-/issues/1208) and aborts on Vorbis.
+        // Audio is cheap to decode in software.
+        envStrings.add("GST_PLUGIN_FEATURE_RANK");
+        envStrings.add("opusdec:MAX,vorbisdec:MAX");
 
         envStrings.add("GIO_EXTRA_MODULES");
         envStrings.add(new File(context.getFilesDir(), "gio").getAbsolutePath());
