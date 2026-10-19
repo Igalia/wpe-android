@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>tap after fling</title>
+<style>
+  body { margin: 0; font: 20px sans-serif; }
+  button { display: block; width: 100%; height: 120px; border: 0; border-bottom: 1px solid #888; font: inherit; }
+  button:nth-child(odd) { background: #dde; }
+  button:nth-child(even) { background: #eed; }
+  button:hover { outline: 6px solid red; }
+</style>
+<div id="list"></div>
+<script>
+  // Reports every click, mouse event and touch to the server that served the page (its log is the result).
+  const send = (ev, extra = '') => fetch(`/log?ev=${ev}&y=${Math.round(scrollY)}&t=${Math.round(performance.now())}${extra}`).catch(() => {});
+  const list = document.getElementById('list');
+  for (let i = 0; i < 300; i++) {
+    const b = document.createElement('button');
+    b.textContent = `row ${i}`;
+    b.onclick = () => send('click', `&id=${i}`);
+    list.appendChild(b);
+  }
+  for (const ev of ['mousedown', 'mouseup', 'mouseover'])
+    addEventListener(ev, e => send(ev, `&id=${e.target.textContent || ''}`), { passive: true });
+  addEventListener('touchstart', () => send('touchstart'), { passive: true });
+  addEventListener('touchend', () => {
+    send('touchend');
+    setTimeout(() => send('after500'), 500);
+  }, { passive: true });
+  send('loaded');
+</script>

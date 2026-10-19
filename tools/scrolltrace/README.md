@@ -87,3 +87,66 @@ or the GPU submit. There are hundreds of layer slices per frame, so it is not th
 The capture also loads fine in <https://ui.perfetto.dev> if you want the timeline rather
 than the summary; the engine slices sit on the web process threads next to SurfaceFlinger
 and input dispatch.
+
+## Finger-gesture runs and frame metrics
+
+`capture.sh` answers "was the main thread in the way". The scripts below answer "how does scrolling look":
+how far the content trails the finger, and how many frames are held or uneven while the finger moves and
+during the fling, from a Perfetto trace alone, plus the power drawn.
+
+Requirements:
+
+* a WebKit build with the scroll instrumentation (the `wpe.scroll.*` counters, `WPE_TRACE_*` slices) and
+  wpeview's frame timing (`WPEFrame` sections: when each frame reached the display);
+* `touchinject` on the phone. It replays a finger trajectory through a uinput touchscreen, so events take
+  the same path as a real finger (kernel timestamps, InputReader, batching), unlike `input swipe`:
+
+      $ANDROID_HOME/ndk/<version>/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++ \
+          -O2 -Wall -o touchinject tools/scrolltrace/TouchInject.cpp
+      adb push touchinject /data/local/tmp/
+
+* Perfetto's `trace_processor` (run `trace_processor` once to download the prebuilt into
+  `~/.local/share/perfetto/prebuilts/`, or point `TRACE_PROCESSOR` at a binary);
+* `ANDROID_SERIAL` when more than one device is attached (an emulator counts).
+
+The gestures and the screen geometry are tuned for a Pixel 7 (1080x2400, scale 2.625: `framestats.py --dpr`).
+
+One run, then the numbers:
+
+    # install the build to measure as a separate package (applicationIdSuffix ".mine"), then:
+    PROPS="scroll.resamplemode=chrome" TAG=chrome tools/scrolltrace/perfrun.sh mine 90 drags <url> runs 1
+    tools/scrolltrace/framestats.py runs/perf-mine-90-drags-s1-chrome.pftrace --json runs/perf-mine-90-drags-s1-chrome.json
+    tools/scrolltrace/framesummary.py runs/perf-*.json
+
+`perfrun.sh <app> <60|90|auto> <scenario> <url> <outdir> [seed]` pins the refresh rate, resets every
+`debug.wpe.*` property (`setcfg.sh`) and applies `PROPS`, records Perfetto (scheduling, frequencies,
+atrace, SurfaceFlinger frame timeline, power rails) while `touchinject` plays `gestures.py <scenario>`
+(`drags`: reading drags that come to rest; `downflicks`: flicks that lift off at speed; others in the
+script). The other tools read its output:
+
+| Script | What it gives |
+| --- | --- |
+| `framestats.py` | Per gesture: lag (finger to photon), held and uneven frames with the finger down and in the fling, where composite-to-display time goes, power. |
+| `framesummary.py` | One row per app/scenario/variant over all seeds, with the per-run values, so the spread is visible. |
+| `latecause.py` | Every late frame while moving, with its cause (composite started late, long composite, missed latch...). |
+| `flickstart.py` | The first frames of each stroke: stalls and catch-up jumps at the start of a drag or fling. |
+| `tilepass.py` | The between-frame tile pass: passes, their length, tiles uploaded between frames and inside frames, compositor CPU. |
+| `variantcheck.sh` | `latecause.py` + `flickstart.py` over all seeds of each variant. |
+
+`manual.sh best|noadpf|default [url]` opens a build with one of the measured configurations for a hand
+test; `tapsupp.sh on|off <outdir>` checks that a tap which stops a fling does not click (it serves
+`tapsupp/tap.html`, which reports clicks and touches back to the host).
+
+Traps, learned the hard way:
+
+* Use 3 runs per variant, and compare variants within one batch: absolute lag moves by several ms from
+  day to day, and a single flick can swing 15-60 ms.
+* A dozing or locked phone gives a 0x0 viewport; `perfrun.sh` wakes it, but keep it on the charger.
+* The first run after `adb install` may run at 60 Hz although 90 was asked; `perfrun.sh` warns. Warm up
+  each build with one throw-away run.
+* A property left from an earlier run silently changes the next one; `setcfg.sh` resets all of them,
+  so add new ones there.
+* Properties are read once per process: every MiniBrowser is force-stopped before a run.
+* Pages that load content while you scroll (ads, consent banners) give strokes the page doesn't follow;
+  `framesummary.py` only counts strokes the content followed. A local copy of the page served with
+  `python3 -m http.server` and `adb reverse` gives repeatable runs.
