@@ -20,11 +20,14 @@
 #include "Logging.h"
 #include "WPEInputMethodContextAndroid.h"
 
+#include <algorithm>
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWPEInputMethodContext, "org/wpewebkit/wpe/WPEInputMethodContext");
 DECLARE_JNI_CLASS_SIGNATURE(
     JNIWPEInputMethodContextFocusListener, "org/wpewebkit/wpe/WPEInputMethodContext$FocusListenerHolder");
+DECLARE_JNI_CLASS_SIGNATURE(
+    JNIWPEInputMethodContextSurroundingListener, "org/wpewebkit/wpe/WPEInputMethodContext$SurroundingListenerHolder");
 
 namespace WebKit {
 
@@ -62,6 +65,33 @@ const JNIWPEInputMethodContextFocusListenerCache& getJNIFocusListenerCache()
     return s_singleton;
 }
 
+class JNIWPEInputMethodContextSurroundingListenerCache final
+    : public JNI::TypedClass<JNIWPEInputMethodContextSurroundingListener> {
+public:
+    JNIWPEInputMethodContextSurroundingListenerCache()
+        : JNI::TypedClass<JNIWPEInputMethodContextSurroundingListener>(true)
+        , m_onSurroundingChanged(getMethod<void(jstring, jint, jint)>("onSurroundingChanged"))
+    {
+    }
+
+    void onSurroundingChanged(
+        JNIWPEInputMethodContextSurroundingListener listener, jstring text, jint cursor, jint anchor) const
+    {
+        if (!m_onSurroundingChanged.invoke(listener, text, cursor, anchor))
+            Logging::logError("cannot call WPEInputMethodContext surrounding callback");
+    }
+
+private:
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void(jstring, jint, jint)> m_onSurroundingChanged;
+};
+
+const JNIWPEInputMethodContextSurroundingListenerCache& getJNISurroundingListenerCache()
+{
+    static const JNIWPEInputMethodContextSurroundingListenerCache s_singleton;
+    return s_singleton;
+}
+
 namespace {
 
     struct FocusListenerHolder {
@@ -93,6 +123,56 @@ namespace {
             getJNIFocusListenerCache().onFocusOut(holder->ref.get());
     }
 
+    struct SurroundingListenerHolder {
+        JNI::GlobalRef<JNIWPEInputMethodContextSurroundingListener> ref;
+    };
+
+    GQuark surroundingListenerQuark()
+    {
+        static GQuark quark = g_quark_from_static_string("wpe-im-context-android-surrounding-listener");
+        return quark;
+    }
+
+    void destroySurroundingListenerHolder(gpointer ptr) noexcept
+    {
+        delete static_cast<SurroundingListenerHolder*>(ptr);
+    }
+
+    // Android counts text positions in UTF-16 code units (Java chars). A byte index that falls inside a
+    // multi-byte character is moved back to the start of that character.
+    jint utf16IndexForByteIndex(const char* text, unsigned length, unsigned byteIndex)
+    {
+        byteIndex = std::min(byteIndex, length);
+        while (byteIndex > 0 && byteIndex < length && (static_cast<unsigned char>(text[byteIndex]) & 0xC0) == 0x80)
+            byteIndex--;
+        glong utf16Length = 0;
+        g_autofree gunichar2* prefix = g_utf8_to_utf16(text, byteIndex, nullptr, &utf16Length, nullptr);
+        return prefix ? static_cast<jint>(utf16Length) : 0;
+    }
+
+    void onSurroundingThunk(
+        const char* text, unsigned length, unsigned cursorIndex, unsigned selectionIndex, gpointer userData)
+    {
+        auto* holder = static_cast<SurroundingListenerHolder*>(userData);
+        if (!holder || !holder->ref)
+            return;
+
+        glong utf16Length = 0;
+        g_autofree gunichar2* utf16 = g_utf8_to_utf16(text, length, nullptr, &utf16Length, nullptr);
+        if (!utf16) {
+            Logging::logError("WPEInputMethodContext surrounding text is not valid UTF-8");
+            return;
+        }
+
+        // Not JNI::String: it goes through NewStringUTF, whose modified UTF-8 mangles characters outside
+        // the Basic Multilingual Plane, like emoji.
+        auto* env = JNI::getCurrentThreadJNIEnv();
+        auto jText
+            = JNI::String(env->NewString(reinterpret_cast<const jchar*>(utf16), static_cast<jsize>(utf16Length)));
+        getJNISurroundingListenerCache().onSurroundingChanged(holder->ref.get(), static_cast<jstring>(jText),
+            utf16IndexForByteIndex(text, length, cursorIndex), utf16IndexForByteIndex(text, length, selectionIndex));
+    }
+
 } // namespace
 
 class JNIWPEInputMethodContextCache final : public JNI::TypedClass<JNIWPEInputMethodContext> {
@@ -104,6 +184,8 @@ public:
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeDeleteSurrounding", nativeDeleteSurrounding),
             JNI::NativeMethod<void(jlong, JNIWPEInputMethodContextFocusListener)>(
                 "nativeSetFocusListener", nativeSetFocusListener),
+            JNI::NativeMethod<void(jlong, JNIWPEInputMethodContextSurroundingListener)>(
+                "nativeSetSurroundingListener", nativeSetSurroundingListener),
             JNI::StaticNativeMethod<jlong(jlong)>("nativeGetForView", nativeGetForView));
     }
 
@@ -142,6 +224,23 @@ private:
         }
     }
 
+    static void nativeSetSurroundingListener(
+        JNIEnv* env, jobject, jlong nativePtr, JNIWPEInputMethodContextSurroundingListener listener)
+    {
+        auto* context = JNI::from_jlong<WPEInputMethodContextAndroid>(nativePtr);
+        if (listener) {
+            auto* holder = new SurroundingListenerHolder {
+                JNI::GlobalRef<JNIWPEInputMethodContextSurroundingListener>(env, listener)};
+            // qdata owns the holder: the destroy notify runs on context dispose and on listener replacement.
+            g_object_set_qdata_full(
+                G_OBJECT(context), surroundingListenerQuark(), holder, destroySurroundingListenerHolder);
+            wpe_input_method_context_android_set_surrounding_callback(context, onSurroundingThunk, holder);
+        } else {
+            wpe_input_method_context_android_set_surrounding_callback(context, nullptr, nullptr);
+            g_object_set_qdata(G_OBJECT(context), surroundingListenerQuark(), nullptr);
+        }
+    }
+
     static jlong nativeGetForView(JNIEnv*, jclass, jlong viewPtr)
     {
         return reinterpret_cast<jlong>(wpe_input_method_context_android_from_view(JNI::from_jlong<WPEView>(viewPtr)));
@@ -157,6 +256,7 @@ const JNIWPEInputMethodContextCache& getJNIWPEInputMethodContextCache()
 void configureWPEInputMethodContextJNIMappings()
 {
     getJNIFocusListenerCache();
+    getJNISurroundingListenerCache();
     getJNIWPEInputMethodContextCache();
 }
 

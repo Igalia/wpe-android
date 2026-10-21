@@ -25,6 +25,8 @@ struct _WPEInputMethodContextAndroid {
     WPEInputMethodContextAndroidFocusCallback focusInCallback;
     WPEInputMethodContextAndroidFocusCallback focusOutCallback;
     gpointer focusCallbackUserData;
+    WPEInputMethodContextAndroidSurroundingCallback surroundingCallback;
+    gpointer surroundingCallbackUserData;
 };
 
 G_DEFINE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_android, WPE_TYPE_INPUT_METHOD_CONTEXT)
@@ -73,6 +75,24 @@ static void wpeInputMethodContextAndroidFocusOut(WPEInputMethodContext* context)
         self->focusOutCallback(self->focusCallbackUserData);
 }
 
+static void wpeInputMethodContextAndroidSetSurrounding(
+    WPEInputMethodContext* context, const gchar* text, guint length, guint cursorIndex, guint selectionIndex)
+{
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(context);
+    if (!self->surroundingCallback)
+        return;
+
+    // The keyboard is a separate app: don't hand it the contents of password or PIN fields.
+    auto purpose = wpe_input_method_context_get_input_purpose(context);
+    if (purpose == WPE_INPUT_PURPOSE_PASSWORD || purpose == WPE_INPUT_PURPOSE_PIN) {
+        self->surroundingCallback("", 0, 0, 0, self->surroundingCallbackUserData);
+        return;
+    }
+
+    self->surroundingCallback(
+        text ? text : "", text ? length : 0, cursorIndex, selectionIndex, self->surroundingCallbackUserData);
+}
+
 static void wpeInputMethodContextAndroidReset(WPEInputMethodContext* context)
 {
     UNUSED_PARAM(context);
@@ -87,6 +107,7 @@ static void wpe_input_method_context_android_class_init(WPEInputMethodContextAnd
     imContextClass->get_preedit_string = wpeInputMethodContextAndroidGetPreeditString;
     imContextClass->focus_in = wpeInputMethodContextAndroidFocusIn;
     imContextClass->focus_out = wpeInputMethodContextAndroidFocusOut;
+    imContextClass->set_surrounding = wpeInputMethodContextAndroidSetSurrounding;
     imContextClass->reset = wpeInputMethodContextAndroidReset;
 }
 
@@ -121,6 +142,14 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextA
     context->focusInCallback = focusIn;
     context->focusOutCallback = focusOut;
     context->focusCallbackUserData = userData;
+}
+
+void wpe_input_method_context_android_set_surrounding_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidSurroundingCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    context->surroundingCallback = callback;
+    context->surroundingCallbackUserData = userData;
 }
 
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text)
