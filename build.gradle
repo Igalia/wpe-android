@@ -4,6 +4,39 @@ plugins {
     alias libs.plugins.kotlin.android apply false
 }
 
+// The hook goes in the hooks directory of the clone, which all its worktrees share; .git is a file in a linked
+// worktree, so ask git where that is. Not core.hooksPath, which can be shared with other repositories. Null unless
+// this is the top of a checkout, so that a copy of the project inside another repository leaves its hooks alone.
+def preCommitHook = null
+// The directory git runs hooks from, which is not the one above when core.hooksPath is set.
+def activeHooksDir = null
+try {
+    def gitPaths = providers.exec {
+        commandLine "git", "rev-parse", "--show-toplevel", "--git-common-dir", "--git-path", "hooks"
+        workingDir = rootDir
+        ignoreExitValue = true
+    }
+    if (gitPaths.result.get().exitValue == 0) {
+        def (topLevel, commonDir, hooksDir) = gitPaths.standardOutput.asText.get().readLines()
+        if (file(topLevel).canonicalFile == rootDir.canonicalFile) {
+            preCommitHook = file("${commonDir}/hooks/pre-commit")
+            activeHooksDir = file(hooksDir)
+        }
+    }
+} catch (Exception e) {
+    logger.info("Not installing the pre-commit hook: ${e.message}")
+}
+
+// Runs the check-format.py of the worktree being committed to, so that it checks that worktree's changes.
+def preCommitHookText = '''#!/bin/sh
+script="$(git rev-parse --show-toplevel)/tools/scripts/check-format.py"
+if [ ! -f "$script" ]; then
+    echo "pre-commit: $script not found, not checking the format" >&2
+    exit 0
+fi
+exec python3 "$script" --hook
+'''
+
 tasks.register("clean", Delete) {
     def buildDir = rootProject.layout.buildDirectory.get().asFile
     if (buildDir.exists()) {
@@ -13,7 +46,8 @@ tasks.register("clean", Delete) {
             }
         }
     }
-    delete file(".git/hooks/pre-commit")
+    if (preCommitHook != null)
+        delete preCommitHook
 }
 
 def installQATools = tasks.register("installQATools", Exec) {
@@ -33,13 +67,22 @@ tasks.register("checkFormat", Exec) {
 }
 
 def installGitHook = tasks.register("installGitHook") {
-    dependsOn installQATools
-    def hookFile = file(".git/hooks/pre-commit")
-    outputs.file(hookFile)
+    enabled = preCommitHook != null
+    if (enabled) {
+        // Gradle runs the dependencies of a disabled task too, so only depend on it here.
+        dependsOn installQATools
+        // The text is an input, so that a hook written by an older version of this task is replaced.
+        inputs.property("text", preCommitHookText)
+        outputs.file(preCommitHook)
+    }
     doLast {
-        def scriptFile = file("tools/scripts/check-format.py")
-        hookFile.text = "#!/bin/sh\npython3 ${scriptFile} --hook\n"
-        hookFile.setExecutable(true)
+        preCommitHook.parentFile.mkdirs()
+        preCommitHook.text = preCommitHookText
+        preCommitHook.setExecutable(true)
+        if (activeHooksDir.canonicalFile != preCommitHook.parentFile.canonicalFile)
+            logger.warn("core.hooksPath is set to ${activeHooksDir}, so git will not run ${preCommitHook}, and " +
+                        "commits are not checked for format. Run tools/scripts/check-format.py --hook from your " +
+                        "own pre-commit hook to check them.")
     }
 }
 
