@@ -18,26 +18,22 @@
 
 package org.wpewebkit.wpeview;
 
-import android.hardware.display.DisplayManager;
-import android.util.DisplayMetrics;
-import android.view.Display;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.WPEDisplay;
 import org.wpewebkit.wpe.WPERuntime;
-import org.wpewebkit.wpe.WPEScreen;
 import org.wpewebkit.wpe.WebKitCookieManager;
 import org.wpewebkit.wpe.WebKitNetworkSession;
-import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebContext;
 import org.wpewebkit.wpe.WebKitWebView;
 import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 
 /**
  * WebContext represents the shared engine and session state used by high-level {@link WebView} instances.
- * It manages the lifecycle of the display, web context, network session, cookies, and settings wrappers.
+ * It manages the lifecycle of the web context, network session and cookies, and holds the defaults each new
+ * WebView starts its own settings from. The display belongs to the process: every WebContext shares the one
+ * {@link WPERuntime#getDisplay()} returns.
  */
 public class WebContext {
     /**
@@ -50,12 +46,11 @@ public class WebContext {
     }
 
     private final WPEDisplay display;
-    private final WPEScreen screen;
     private final WebKitWebContext webContext;
     private final WebKitNetworkSession networkSession;
     private final WebKitCookieManager webKitCookieManager;
     private final WebKitWebsiteDataManager websiteDataManager;
-    private final WebKitSettings settings;
+    private final String defaultUserAgent;
     private final android.content.Context appContext;
     private CookieManager cookieManager;
 
@@ -69,9 +64,7 @@ public class WebContext {
         this.appContext = context.getApplicationContext();
         WPERuntime.getInstance().initialize(appContext);
 
-        this.display = new WPEDisplay();
-        this.screen = display.getScreen();
-        updateScreenConfiguration();
+        this.display = WPERuntime.getInstance().getDisplay();
         this.webContext = new WebKitWebContext(automationMode);
 
         this.networkSession = new WebKitNetworkSession(webContext, automationMode, ephemeralSession,
@@ -81,8 +74,7 @@ public class WebContext {
         this.websiteDataManager = networkSession.getWebsiteDataManager();
         this.webKitCookieManager.setAcceptPolicy(WebKitCookieManager.WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 
-        this.settings = new WebKitSettings();
-        applyDefaultMobileUserAgent();
+        this.defaultUserAgent = defaultMobileUserAgent();
     }
 
     /**
@@ -98,16 +90,10 @@ public class WebContext {
      * the engine's Safari branding rather than impersonating Chrome. The Android version and device
      * model come from {@link android.os.Build}. Embedders can still override this via
      * {@link WebSettings#setUserAgentString(String)}.
-     *
-     * <p>Note: we build the string explicitly rather than reading {@code getUserAgentString()} here,
-     * because a freshly-created WebKitSettings has no User-Agent populated yet (the engine computes the
-     * default lazily) and querying it at this point returns null.
      */
-    private void applyDefaultMobileUserAgent() {
-        String mobileUserAgent = "Mozilla/5.0 (Linux; Android " + android.os.Build.VERSION.RELEASE + "; " +
-                                 android.os.Build.MODEL + ") AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                                 + "Version/60.5 Mobile Safari/605.1.15";
-        settings.setUserAgentString(mobileUserAgent);
+    private static String defaultMobileUserAgent() {
+        return "Mozilla/5.0 (Linux; Android " + android.os.Build.VERSION.RELEASE + "; " + android.os.Build.MODEL +
+            ") AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Mobile Safari/605.1.15";
     }
 
     /**
@@ -143,11 +129,9 @@ public class WebContext {
     }
 
     public void destroy() {
-        settings.destroy();
         webKitCookieManager.destroy();
         networkSession.destroy();
         webContext.destroy();
-        display.destroy();
     }
 
     @NonNull
@@ -169,10 +153,6 @@ public class WebContext {
         return display;
     }
     @NonNull
-    WPEScreen getWPEScreen() {
-        return screen;
-    }
-    @NonNull
     WebKitWebContext getWebKitWebContext() {
         return webContext;
     }
@@ -181,20 +161,7 @@ public class WebContext {
         return networkSession;
     }
     @NonNull
-    WebKitSettings getWebKitSettings() {
-        return settings;
-    }
-
-    private void updateScreenConfiguration() {
-        DisplayMetrics displayMetrics = appContext.getResources().getDisplayMetrics();
-        screen.setScale(displayMetrics.density);
-
-        DisplayManager displayManager = appContext.getSystemService(DisplayManager.class);
-        Display display = displayManager != null ? displayManager.getDisplay(Display.DEFAULT_DISPLAY) : null;
-        if (display == null)
-            return;
-
-        float refreshRateHz = display.getRefreshRate();
-        screen.setRefreshRateHz(refreshRateHz);
+    String getDefaultUserAgent() {
+        return defaultUserAgent;
     }
 }

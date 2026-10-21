@@ -48,6 +48,7 @@ import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
+import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
 import java.net.MalformedURLException;
@@ -73,8 +74,10 @@ public class WebView extends FrameLayout {
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
     private PageSurfaceView surfaceView;
+    private WebKitSettings webKitSettings;
     private WebSettings webSettings;
     private @Nullable Surface attachedSurface;
+    private boolean inToplevel;
 
     WebViewClient viewClient = new WebViewClient();
     WebChromeClient chromeClient = new WebChromeClient();
@@ -123,8 +126,10 @@ public class WebView extends FrameLayout {
         this.ownsContext = ownsContext;
         this.headless = headless;
 
+        this.webKitSettings = new WebKitSettings();
+        webKitSettings.setUserAgentString(wpeContext.getDefaultUserAgent());
         this.webKitWebView = new WebKitWebView(wpeContext.getWPEDisplay(), wpeContext.getWebKitWebContext(), null,
-                                               wpeContext.getWebKitNetworkSession(), wpeContext.getWebKitSettings());
+                                               wpeContext.getWebKitNetworkSession(), webKitSettings);
 
         this.platformView = webKitWebView.getWPEView();
         this.imContext = webKitWebView.getInputMethodContext();
@@ -139,9 +144,12 @@ public class WebView extends FrameLayout {
                 onImeFieldFocused(false);
             }
         });
-        this.webSettings = new WebSettings(wpeContext.getWebKitSettings());
+        this.webSettings = new WebSettings(webKitSettings);
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
-        this.platformView.setToplevel(wpeToplevel);
+        // WebKit gives every new view a toplevel of its own, which this replaces. The view starts out of any
+        // toplevel and joins the WebView's when the WebView gets a surface; a headless WebView never gets one, so
+        // its view stays in the toplevel for its whole life.
+        this.platformView.setToplevel(headless ? wpeToplevel : null);
 
         this.webKitWebView.setListener(new WebKitWebView.Listener() {
             @Override
@@ -208,6 +216,10 @@ public class WebView extends FrameLayout {
     }
 
     public void destroy() {
+        // Unfocusing the view, when it leaves its toplevel, clears inputFieldFocused through the input method
+        // context.
+        boolean inputMethodConnected = inputFieldFocused;
+        leaveToplevel();
         if (platformView != null)
             platformView.setToplevel(null);
         if (wpeToplevel != null) {
@@ -217,6 +229,16 @@ public class WebView extends FrameLayout {
         if (webKitWebView != null) {
             webKitWebView.destroy();
             webKitWebView = null;
+            // The view and input method proxies are borrowed from the WebKitWebView, and die with it.
+            platformView = null;
+            imContext = null;
+            if (inputMethodConnected)
+                releaseInputMethod();
+        }
+        if (webKitSettings != null) {
+            webSettings.detach();
+            webKitSettings.destroy();
+            webKitSettings = null;
         }
         if (ownsContext && wpeContext != null) {
             wpeContext.destroy();
@@ -230,8 +252,7 @@ public class WebView extends FrameLayout {
         if (attachedSurface == surface)
             return;
         attachedSurface = surface;
-        if (platformView != null)
-            platformView.setToplevel(wpeToplevel);
+        joinToplevel();
         wpeToplevel.onSurfaceCreated(surface);
 
         int[] size = new int[2];
@@ -244,11 +265,34 @@ public class WebView extends FrameLayout {
 
     void detachToplevelSurface() {
         if (wpeToplevel != null) {
-            if (platformView != null)
-                platformView.setMapped(false);
+            leaveToplevel();
             attachedSurface = null;
             wpeToplevel.onSurfaceDestroyed();
         }
+    }
+
+    // The view is in its toplevel, and so the page in a window, while the WebView has a surface. Android takes
+    // the surface away when the WebView leaves its window and when its activity stops.
+    private void joinToplevel() {
+        if (platformView == null || inToplevel)
+            return;
+        inToplevel = true;
+        platformView.setToplevel(wpeToplevel);
+        wpeToplevel.setWindowFocused(hasWindowFocus());
+        platformView.setFocused(isFocused());
+        platformView.setVisible(isShown());
+    }
+
+    // Leaving the toplevel neither unmaps the view nor clears the focus and activity it took from it, so this
+    // does both before the view leaves.
+    private void leaveToplevel() {
+        if (platformView == null || !inToplevel)
+            return;
+        inToplevel = false;
+        platformView.setMapped(false);
+        platformView.setFocused(false);
+        wpeToplevel.setWindowFocused(false);
+        platformView.setToplevel(null);
     }
 
     public void setWebViewClient(@NonNull WebViewClient client) { this.viewClient = client; }
@@ -303,6 +347,11 @@ public class WebView extends FrameLayout {
         if (webKitWebView != null)
             webKitWebView.stopLoading();
     }
+    /**
+     * Returns the settings of this WebView. Every WebView has its own, starting from the defaults of its
+     * {@link WebContext}, so changing them does not affect other WebViews. After {@link #destroy()} they keep
+     * their last values, and changing them has no effect.
+     */
     public @NonNull WebSettings getSettings() { return webSettings; }
     public @NonNull CookieManager getCookieManager() { return wpeContext.getCookieManager(); }
 
@@ -529,6 +578,9 @@ public class WebView extends FrameLayout {
     }
 
     void onImeFieldFocused(boolean focused) {
+        // A focus change posted before destroy() may arrive after it.
+        if (webKitWebView == null)
+            return;
         inputFieldFocused = focused;
         if (inputMethodManager == null)
             return;
@@ -539,6 +591,17 @@ public class WebView extends FrameLayout {
         } else if (getWindowToken() != null) {
             inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
         }
+    }
+
+    // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
+    // connection, which no longer exists.
+    private void releaseInputMethod() {
+        inputFieldFocused = false;
+        if (inputMethodManager == null)
+            return;
+        inputMethodManager.restartInput(this);
+        if (getWindowToken() != null)
+            inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
     }
 
     @Override
@@ -554,6 +617,30 @@ public class WebView extends FrameLayout {
     @Override
     public boolean onCheckIsTextEditor() {
         return inputFieldFocused;
+    }
+
+    @Override
+    public void onVisibilityAggregated(boolean isVisible) {
+        super.onVisibilityAggregated(isVisible);
+        // Hiding the WebView or one of its ancestors keeps its surface; WPE unmaps a view that is not visible.
+        if (webKitWebView != null && !headless)
+            platformView.setVisible(isVisible);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (webKitWebView != null && !headless)
+            wpeToplevel.setWindowFocused(hasWindowFocus);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        // The SurfaceView child detaches first and normally loses its surface then; a surface still here is let
+        // go of the same way, so a later attach with it joins the toplevel again.
+        if (attachedSurface != null)
+            detachToplevelSurface();
+        super.onDetachedFromWindow();
     }
 
     @Override

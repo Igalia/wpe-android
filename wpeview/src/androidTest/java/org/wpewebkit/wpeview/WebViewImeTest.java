@@ -1,5 +1,8 @@
 package org.wpewebkit.wpeview;
 
+import android.os.Process;
+import android.util.Log;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 
@@ -18,7 +21,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
@@ -95,5 +100,80 @@ public class WebViewImeTest {
         assertNotNull("Focused editable did not yield an InputConnection", connection.get());
         assertTrue("InputConnection is not configured for text input",
                    (editorInfo.inputType & EditorInfo.TYPE_CLASS_TEXT) == EditorInfo.TYPE_CLASS_TEXT);
+    }
+
+    /**
+     * A WebView destroyed while an input method is connected to its page: the connection the input method still
+     * holds takes text without reaching the destroyed page, the WebView gives out no new connection, and a focus
+     * change that arrives late does not make it a text editor again.
+     */
+    @Test
+    public void testInputMethodOfADestroyedWebView() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        AtomicReference<WebView> webView = new AtomicReference<>();
+        CountDownLatch loaded = new CountDownLatch(1);
+        try {
+            scenario.onActivity(activity -> {
+                webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                webView.get().setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                        loaded.countDown();
+                    }
+                });
+                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
+                webView.get().requestFocus();
+                webView.get().loadHtml("<html><body contenteditable id='editor'></body></html>", null);
+            });
+            assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+
+            AtomicBoolean isTextEditor = new AtomicBoolean(false);
+            for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
+                scenario.onActivity(activity -> {
+                    webView.get().evaluateJavascript("document.getElementById('editor').focus()", null);
+                    isTextEditor.set(webView.get().onCheckIsTextEditor());
+                });
+                if (!isTextEditor.get())
+                    Thread.sleep(250);
+            }
+            assertTrue("The WebView did not become a text editor", isTextEditor.get());
+
+            String marker = "testInputMethodOfADestroyedWebView " + System.nanoTime();
+            Log.i("WebViewImeTest", marker);
+            AtomicReference<InputConnection> connection = new AtomicReference<>();
+            AtomicBoolean textEditorAfterDestroy = new AtomicBoolean(true);
+            AtomicReference<InputConnection> connectionAfterDestroy = new AtomicReference<>();
+            scenario.onActivity(activity -> {
+                WebView view = webView.get();
+                connection.set(view.onCreateInputConnection(new EditorInfo()));
+                view.destroy();
+                if (connection.get() != null) {
+                    connection.get().commitText("text", 1);
+                    connection.get().deleteSurroundingText(1, 1);
+                }
+                view.onImeFieldFocused(true);
+                textEditorAfterDestroy.set(view.onCheckIsTextEditor());
+                connectionAfterDestroy.set(view.onCreateInputConnection(new EditorInfo()));
+            });
+
+            assertNotNull("The focused editable did not yield an InputConnection", connection.get());
+            assertFalse("A late focus change made a destroyed WebView a text editor", textEditorAfterDestroy.get());
+            assertNull("A destroyed WebView gave out an InputConnection", connectionAfterDestroy.get());
+            String log = WebViewActivityScenarioHelper.shell("logcat -d -v raw --pid=" + Process.myPid());
+            String afterMarker = log.substring(Math.max(0, log.lastIndexOf(marker)));
+            assertFalse("Text sent to a destroyed WebView reached native code:\n" + afterMarker,
+                        afterMarker.contains("assertion '"));
+        } finally {
+            scenario.onActivity(activity -> {
+                WebView view = webView.get();
+                if (view != null) {
+                    if (view.getParent() != null)
+                        ((ViewGroup)view.getParent()).removeView(view);
+                    view.destroy();
+                }
+            });
+        }
     }
 }

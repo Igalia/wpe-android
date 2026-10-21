@@ -64,10 +64,11 @@ private:
         g_object_unref(JNI::from_jlong<WebKitSettings>(settingsPtr));
     }
 
-    static jstring nativeGetUserAgentString(JNIEnv*, jobject, jlong settingsPtr)
+    static jstring nativeGetUserAgentString(JNIEnv* env, jobject, jlong settingsPtr)
     {
-        return static_cast<jstring>(
-            JNI::String(webkit_settings_get_user_agent(JNI::from_jlong<WebKitSettings>(settingsPtr))));
+        // Not a JNI::String: it deletes its reference when it goes away, before Java gets the result.
+        const char* userAgent = webkit_settings_get_user_agent(JNI::from_jlong<WebKitSettings>(settingsPtr));
+        return userAgent ? env->NewStringUTF(userAgent) : nullptr;
     }
 
     static void nativeSetUserAgentString(JNIEnv*, jobject, jlong settingsPtr, jstring userAgent)

@@ -4,7 +4,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class CallbackHelper {
-    CountDownLatch latch = new CountDownLatch(1);
+    private volatile CountDownLatch latch = new CountDownLatch(1);
 
     public void waitForCallback(long timeout, TimeUnit unit) {
         try {
@@ -15,4 +15,7 @@ public class CallbackHelper {
     }
 
     public void notifyCalled() { latch.countDown(); }
+
+    /** Makes waitForCallback() wait for the next call, so the helper can be used again. */
+    public void reset() { latch = new CountDownLatch(1); }
 }

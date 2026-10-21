@@ -19,36 +19,94 @@
 package org.wpewebkit.wpeview;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.WebKitSettings;
 
 /**
- * WebSettings provides control over the configuration of a {@link WebView}.
+ * WebSettings provides control over the configuration of a {@link WebView}. Once the WebView is destroyed,
+ * the settings keep the values they had; they can still be read and changed, but changes have no effect.
  */
 public class WebSettings {
-    private final WebKitSettings settings;
+    // Null once the WebView is destroyed; the fields then hold the values.
+    private @Nullable WebKitSettings settings;
+    private @NonNull String userAgent = "";
+    private boolean mediaPlaybackRequiresUserGesture;
+    private boolean allowUniversalAccessFromFileURLs;
+    private boolean allowFileAccessFromFileURLs;
+    private boolean developerExtrasEnabled;
+    private boolean disableWebSecurity;
 
     WebSettings(@NonNull WebKitSettings settings) { this.settings = settings; }
 
-    public @NonNull String getUserAgentString() { return settings.getUserAgentString(); }
-    public void setUserAgentString(@NonNull String userAgent) { settings.setUserAgentString(userAgent); }
+    // Called by WebView.destroy() before it destroys the WebKitSettings.
+    void detach() {
+        if (settings == null)
+            return;
+        userAgent = settings.getUserAgentString();
+        mediaPlaybackRequiresUserGesture = settings.getMediaPlaybackRequiresUserGesture();
+        allowUniversalAccessFromFileURLs = settings.getAllowUniversalAccessFromFileURLs();
+        allowFileAccessFromFileURLs = settings.getAllowFileAccessFromFileURLs();
+        developerExtrasEnabled = settings.getDeveloperExtrasEnabled();
+        disableWebSecurity = settings.getDisableWebSecurity();
+        settings = null;
+    }
 
-    public boolean getMediaPlaybackRequiresUserGesture() { return settings.getMediaPlaybackRequiresUserGesture(); }
+    public @NonNull String getUserAgentString() { return settings != null ? settings.getUserAgentString() : userAgent; }
+    public void setUserAgentString(@NonNull String userAgent) {
+        if (settings != null)
+            settings.setUserAgentString(userAgent);
+        else
+            this.userAgent = userAgent;
+    }
+
+    public boolean getMediaPlaybackRequiresUserGesture() {
+        return settings != null ? settings.getMediaPlaybackRequiresUserGesture() : mediaPlaybackRequiresUserGesture;
+    }
     public void setMediaPlaybackRequiresUserGesture(boolean require) {
-        settings.setMediaPlaybackRequiresUserGesture(require);
+        if (settings != null)
+            settings.setMediaPlaybackRequiresUserGesture(require);
+        else
+            mediaPlaybackRequiresUserGesture = require;
     }
 
-    public boolean getAllowUniversalAccessFromFileURLs() { return settings.getAllowUniversalAccessFromFileURLs(); }
+    public boolean getAllowUniversalAccessFromFileURLs() {
+        return settings != null ? settings.getAllowUniversalAccessFromFileURLs() : allowUniversalAccessFromFileURLs;
+    }
     public void setAllowUniversalAccessFromFileURLs(boolean flag) {
-        settings.setAllowUniversalAccessFromFileURLs(flag);
+        if (settings != null)
+            settings.setAllowUniversalAccessFromFileURLs(flag);
+        else
+            allowUniversalAccessFromFileURLs = flag;
     }
 
-    public boolean getAllowFileAccessFromFileURLs() { return settings.getAllowFileAccessFromFileURLs(); }
-    public void setAllowFileAccessFromFileURLs(boolean flag) { settings.setAllowFileAccessFromFileURLs(flag); }
+    public boolean getAllowFileAccessFromFileURLs() {
+        return settings != null ? settings.getAllowFileAccessFromFileURLs() : allowFileAccessFromFileURLs;
+    }
+    public void setAllowFileAccessFromFileURLs(boolean flag) {
+        if (settings != null)
+            settings.setAllowFileAccessFromFileURLs(flag);
+        else
+            allowFileAccessFromFileURLs = flag;
+    }
 
-    public boolean getDeveloperExtrasEnabled() { return settings.getDeveloperExtrasEnabled(); }
-    public void setDeveloperExtrasEnabled(boolean flag) { settings.setDeveloperExtrasEnabled(flag); }
+    public boolean getDeveloperExtrasEnabled() {
+        return settings != null ? settings.getDeveloperExtrasEnabled() : developerExtrasEnabled;
+    }
+    public void setDeveloperExtrasEnabled(boolean flag) {
+        if (settings != null)
+            settings.setDeveloperExtrasEnabled(flag);
+        else
+            developerExtrasEnabled = flag;
+    }
 
-    public boolean getDisableWebSecurity() { return settings.getDisableWebSecurity(); }
-    public void setDisableWebSecurity(boolean disable) { settings.setDisableWebSecurity(disable); }
+    public boolean getDisableWebSecurity() {
+        return settings != null ? settings.getDisableWebSecurity() : disableWebSecurity;
+    }
+    public void setDisableWebSecurity(boolean disable) {
+        if (settings != null)
+            settings.setDisableWebSecurity(disable);
+        else
+            disableWebSecurity = disable;
+    }
 }

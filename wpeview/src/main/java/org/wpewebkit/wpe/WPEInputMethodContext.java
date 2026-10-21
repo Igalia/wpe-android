@@ -38,9 +38,16 @@ public final class WPEInputMethodContext {
 
     WPEInputMethodContext(long nativePtr) { this.mNativePtr = nativePtr; }
 
-    public void commitText(@NonNull String text) { nativeCommitText(mNativePtr, text); }
+    // These do nothing once the WebKitWebView is destroyed: an input method may still hold a connection to it.
+    public void commitText(@NonNull String text) {
+        if (mNativePtr != 0)
+            nativeCommitText(mNativePtr, text);
+    }
 
-    public void deleteSurrounding(int offset, int count) { nativeDeleteSurrounding(mNativePtr, offset, count); }
+    public void deleteSurrounding(int offset, int count) {
+        if (mNativePtr != 0)
+            nativeDeleteSurrounding(mNativePtr, offset, count);
+    }
 
     public void setFocusListener(@Nullable FocusListener listener) {
         nativeSetFocusListener(mNativePtr, listener != null ? new FocusListenerHolder(listener) : null);

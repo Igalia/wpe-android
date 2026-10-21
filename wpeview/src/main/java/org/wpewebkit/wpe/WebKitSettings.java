@@ -36,7 +36,10 @@ public final class WebKitSettings {
         }
     }
 
-    public @NonNull String getUserAgentString() { return nativeGetUserAgentString(mNativePtr); }
+    public @NonNull String getUserAgentString() {
+        String userAgent = nativeGetUserAgentString(mNativePtr);
+        return userAgent != null ? userAgent : "";
+    }
     public void setUserAgentString(@NonNull String userAgent) { nativeSetUserAgentString(mNativePtr, userAgent); }
 
     public boolean getMediaPlaybackRequiresUserGesture() {

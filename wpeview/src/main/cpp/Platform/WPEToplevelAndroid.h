@@ -32,6 +32,7 @@ WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window
 
 void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow* window);
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height);
+void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused);
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel);
 ANativeWindow* wpe_toplevel_android_get_window(WPEToplevelAndroid* toplevel);
 
