@@ -44,6 +44,8 @@ public final class WPEToplevel {
 
     public void setSurface(@Nullable Surface surface) { nativeSetSurface(mNativePtr, surface); }
 
+    public void setWindowFocused(boolean focused) { nativeSetWindowFocused(mNativePtr, focused); }
+
     public void destroy() {
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
@@ -56,4 +58,5 @@ public final class WPEToplevel {
     private native void nativeSetPhysicalSize(long nativePtr, int width, int height);
     private native void nativeGetSize(long nativePtr, int[] out);
     private native void nativeSetSurface(long nativePtr, Surface surface);
+    private native void nativeSetWindowFocused(long nativePtr, boolean focused);
 }

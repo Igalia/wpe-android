@@ -35,6 +35,7 @@ public:
         registerNativeMethods(JNI::NativeMethod<void(jlong, jlong)>("nativeSetToplevel", nativeSetToplevel),
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeResized", nativeResized),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetMapped", nativeSetMapped),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetVisible", nativeSetVisible),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetFocused", nativeSetFocused),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
                 "nativeDispatchTouchEvent", nativeDispatchTouchEvent),
@@ -58,6 +59,11 @@ private:
     {
         auto* view = JNI::from_jlong<WPEView>(viewPtr);
         mapped ? wpe_view_map(view) : wpe_view_unmap(view);
+    }
+
+    static void nativeSetVisible(JNIEnv*, jobject, jlong viewPtr, jboolean visible)
+    {
+        wpe_view_set_visible(JNI::from_jlong<WPEView>(viewPtr), visible ? TRUE : FALSE);
     }
 
     static void nativeSetFocused(JNIEnv*, jobject, jlong viewPtr, jboolean focused)

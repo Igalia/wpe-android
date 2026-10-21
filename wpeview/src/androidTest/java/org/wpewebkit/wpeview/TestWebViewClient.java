@@ -21,8 +21,11 @@ public class TestWebViewClient extends WebViewClient {
     OnEvaluateJavaScriptResultHelper getOnEvaluateJavascriptResultHelper() { return onEvaluateJavascriptResultHelper; }
 
     public static class OnEvaluateJavaScriptResultHelper extends CallbackHelper {
-        private String result;
+        private volatile String result;
+        // Waits for the result of this script only, so one helper can evaluate scripts in turn.
         public void evaluateJavascript(WebView view, String script) {
+            result = null;
+            reset();
             view.evaluateJavascript(script, this::notifyCalled);
         }
 

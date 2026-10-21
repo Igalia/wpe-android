@@ -40,6 +40,8 @@ public final class WPEView {
 
     public void setMapped(boolean mapped) { nativeSetMapped(mNativePtr, mapped); }
 
+    public void setVisible(boolean visible) { nativeSetVisible(mNativePtr, visible); }
+
     public void setFocused(boolean focused) { nativeSetFocused(mNativePtr, focused); }
 
     public void dispatchTouchEvent(long time, int type, int pointerCount, @NonNull int[] ids, @NonNull float[] xs,
@@ -58,6 +60,7 @@ public final class WPEView {
     private native void nativeSetToplevel(long nativePtr, long toplevelPtr);
     private native void nativeResized(long nativePtr, int width, int height);
     private native void nativeSetMapped(long nativePtr, boolean mapped);
+    private native void nativeSetVisible(long nativePtr, boolean visible);
     private native void nativeSetFocused(long nativePtr, boolean focused);
     private native void nativeDispatchTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids,
                                                  float[] xs, float[] ys);

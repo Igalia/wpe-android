@@ -6,6 +6,7 @@
     <application>
         <activity android:name="org.wpewebkit.wpeview.WebViewTestActivity"
             android:label="WebViewTestActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

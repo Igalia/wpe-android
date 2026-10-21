@@ -27,6 +27,9 @@ struct _WPEToplevelAndroid {
     ANativeWindow* window;
     ASurfaceControl* surfaceControl;
     ASurfaceControl* rootSurfaceControl;
+    gboolean windowFocused;
+    int physicalWidth;
+    int physicalHeight;
 };
 
 G_DEFINE_FINAL_TYPE(WPEToplevelAndroid, wpe_toplevel_android, WPE_TYPE_TOPLEVEL)
@@ -63,6 +66,9 @@ static void wpeToplevelAndroidSyncScaleAndSize(WPEToplevelAndroid* toplevel, int
 {
     g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
 
+    toplevel->physicalWidth = physicalWidth;
+    toplevel->physicalHeight = physicalHeight;
+
     auto* baseToplevel = WPE_TOPLEVEL(toplevel);
     float scale = wpeToplevelAndroidGetScreenScale(toplevel);
     if (wpe_toplevel_get_scale(baseToplevel) != scale)
@@ -73,10 +79,42 @@ static void wpeToplevelAndroidSyncScaleAndSize(WPEToplevelAndroid* toplevel, int
     wpe_toplevel_resized(baseToplevel, logicalWidth, logicalHeight);
 }
 
+// Like a desktop window, the toplevel is active while its Android window has focus.
+static void wpeToplevelAndroidUpdateState(WPEToplevelAndroid* toplevel)
+{
+    unsigned state = WPE_TOPLEVEL_STATE_NONE;
+    if (toplevel->window)
+        state |= WPE_TOPLEVEL_STATE_MAXIMIZED;
+    if (toplevel->windowFocused)
+        state |= WPE_TOPLEVEL_STATE_ACTIVE;
+    wpe_toplevel_state_changed(WPE_TOPLEVEL(toplevel), static_cast<WPEToplevelState>(state));
+}
+
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height)
 {
     g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
     wpeToplevelAndroidSyncScaleAndSize(toplevel, width, height);
+}
+
+// Follows the scale of the screen, which changes with the display size setting: the size in pixels stays the
+// same, and the views get the new logical size from here.
+static void wpeToplevelAndroidScreenScaleChanged(WPEToplevelAndroid* toplevel, GParamSpec*, WPEScreen*)
+{
+    wpeToplevelAndroidSyncScaleAndSize(toplevel, toplevel->physicalWidth, toplevel->physicalHeight);
+
+    int size[2];
+    wpe_toplevel_get_size(WPE_TOPLEVEL(toplevel), &size[0], &size[1]);
+    if (size[0] <= 0 || size[1] <= 0)
+        return;
+
+    wpe_toplevel_foreach_view(
+        WPE_TOPLEVEL(toplevel),
+        [](WPEToplevel*, WPEView* view, gpointer userData) {
+            auto* size = static_cast<int*>(userData);
+            wpe_view_resized(view, size[0], size[1]);
+            return FALSE;
+        },
+        size);
 }
 
 static void wpeToplevelAndroidFinalize(GObject* object)
@@ -109,6 +147,10 @@ WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window
 {
     g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
     auto* toplevel = WPE_TOPLEVEL_ANDROID(g_object_new(WPE_TYPE_TOPLEVEL_ANDROID, "display", display, nullptr));
+    if (auto* screen = wpeToplevelAndroidGetScreen(WPE_TOPLEVEL(toplevel))) {
+        g_signal_connect_object(
+            screen, "notify::scale", G_CALLBACK(wpeToplevelAndroidScreenScaleChanged), toplevel, G_CONNECT_SWAPPED);
+    }
     wpeToplevelAndroidSyncScaleAndSize(toplevel, 0, 0);
     if (window)
         wpe_toplevel_android_set_window(toplevel, window);
@@ -158,9 +200,6 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
         if (toplevel->rootSurfaceControl)
             ASurfaceControl_release(toplevel->rootSurfaceControl);
         toplevel->rootSurfaceControl = newRoot;
-
-        wpe_toplevel_state_changed(WPE_TOPLEVEL(toplevel),
-            static_cast<WPEToplevelState>(WPE_TOPLEVEL_STATE_MAXIMIZED | WPE_TOPLEVEL_STATE_ACTIVE));
     } else {
         if (toplevel->surfaceControl)
             ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, nullptr);
@@ -168,17 +207,17 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
             ASurfaceControl_release(toplevel->rootSurfaceControl);
             toplevel->rootSurfaceControl = nullptr;
         }
-        wpe_toplevel_state_changed(WPE_TOPLEVEL(toplevel), WPE_TOPLEVEL_STATE_NONE);
     }
+    wpeToplevelAndroidUpdateState(toplevel);
 
     // FIXME: This does not support multi webview layouts in the window.
+    // The views stay in the toplevel when it loses its window: WebView takes its view out before giving the
+    // window up.
     gboolean hasWindow = window != nullptr;
     wpe_toplevel_foreach_view(
         WPE_TOPLEVEL(toplevel),
         [](WPEToplevel* currentToplevel, WPEView* view, gpointer userData) {
             gboolean hasWindow = static_cast<gboolean>(GPOINTER_TO_INT(userData));
-
-            wpe_view_set_toplevel(view, hasWindow ? currentToplevel : nullptr);
 
             if (hasWindow) {
                 int width, height;
@@ -195,6 +234,14 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
 
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
+}
+
+void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+
+    toplevel->windowFocused = focused;
+    wpeToplevelAndroidUpdateState(toplevel);
 }
 
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel)

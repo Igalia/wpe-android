@@ -38,7 +38,8 @@ public:
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeSetPhysicalSize", nativeSetPhysicalSize),
             JNI::NativeMethod<void(jlong, jintArray)>("nativeGetSize", nativeGetSize),
-            JNI::NativeMethod<void(jlong, JNISurface)>("nativeSetSurface", nativeSetSurface));
+            JNI::NativeMethod<void(jlong, JNISurface)>("nativeSetSurface", nativeSetSurface),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetWindowFocused", nativeSetWindowFocused));
     }
 
 private:
@@ -82,6 +83,12 @@ private:
 
         if (window)
             ANativeWindow_release(window);
+    }
+
+    static void nativeSetWindowFocused(JNIEnv*, jobject, jlong nativePtr, jboolean focused)
+    {
+        wpe_toplevel_android_set_window_focused(
+            WPE_TOPLEVEL_ANDROID(JNI::from_jlong<WPEToplevel>(nativePtr)), focused ? TRUE : FALSE);
     }
 };
 

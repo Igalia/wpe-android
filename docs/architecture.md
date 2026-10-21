@@ -70,15 +70,21 @@ webView.loadUrl("https://www.wpewebkit.org/");
 ```
 
 `WebView` creates a `WebContext` by default. Applications that want to share
-engine state, settings, cookie policy, cache directories, or automation mode
-between multiple views should create one `WebContext` and pass it to each
-`WebView`.
+engine state, cookies, cache directories, or automation mode between multiple
+views should create one `WebContext` and pass it to each `WebView`. Each
+`WebView` still has its own settings, which start from the defaults of its
+`WebContext`. Pass an Activity as the UI context, which JavaScript dialogs and
+the soft keyboard need.
 
 ```java
 WebContext context = new WebContext(applicationContext);
-WebView first = new WebView(context);
-WebView second = new WebView(context);
+WebView first = new WebView(activity, context);
+WebView second = new WebView(activity, context);
 ```
+
+See [Object Model](#object-model) and [WebView Lifecycle](#webview-lifecycle)
+for what these objects hold and how a `WebView` follows the Android view
+lifecycle.
 
 ### Layer 2: Low-level Java JNI/CAPI bridge
 
@@ -168,6 +174,158 @@ Relevant imported native API locations include:
 - `wpeview/src/main/cpp/imported/include/wpe-webkit/wpe-platform/`
 - `wpeview/src/main/cpp/imported/lib/<abi>/libWPEWebKit-2.0.so`
 
+## Object Model
+
+The convenience API groups the engine objects by how many of each an
+application has:
+
+- **One per process.** `WPERuntime` creates the `WPEDisplay` the first time it
+  is needed (`WPERuntime.getDisplay()`), together with its `WPEScreen`, and
+  keeps it for the life of the process, like WebKit's own
+  `wpe_display_get_default()`. Every `WebContext` uses this display. The screen
+  scale comes from the Android display and follows configuration changes, such
+  as a new display size: the toplevels follow the screen, so the pages of an
+  activity that handles the change itself get the new scale too. The refresh rate
+  is read at the same times; a change of refresh rate on its own is not followed.
+- **One per profile.** A `WebContext` owns the `WebKitWebContext`, the
+  `WebKitNetworkSession` that stores cookies, cache and website data, and the
+  cookie manager. It also holds the default settings values, such as the
+  User-Agent, that each new `WebView` starts from. A normal and an incognito
+  profile are two `WebContext` instances.
+- **One per page.** A `WebView` owns its `WebKitWebView`, its own
+  `WebKitSettings` (exposed as `WebSettings`), a `WPEToplevel` and the
+  `SurfaceView` the page is drawn into. The `WPEView` and its input method
+  context are borrowed from the `WebKitWebView`. All of them go away with the
+  `WebView`; its `WebSettings` then keeps the last values, which can still be
+  read and changed without effect.
+
+A browser creates one `WebContext` per profile and one `WebView` per tab, each
+with its Activity as the UI context. Settings changed through
+`WebView.getSettings()` apply to that `WebView` only.
+
+```mermaid
+classDiagram
+    direction TB
+    class WPERuntime {
+        <<one per process>>
+        +initialize(Context)
+        +getDisplay() WPEDisplay
+    }
+    class WPEDisplay {
+        WPEDisplayAndroid
+        +getScreen() WPEScreen
+    }
+    class WPEScreen {
+        scale
+        refreshRateHz
+    }
+    class WebContext {
+        <<one per profile>>
+        defaultUserAgent
+        +getCookieManager() CookieManager
+        +destroy()
+    }
+    class WebKitWebContext
+    class WebKitNetworkSession {
+        persistent or ephemeral
+    }
+    class WebKitCookieManager
+    class WebKitWebsiteDataManager
+    class WebView {
+        <<one per page>>
+        +getSettings() WebSettings
+        +destroy()
+    }
+    class WebSettings
+    class WebKitSettings
+    class WebKitWebView
+    class WPEView {
+        WPEViewAndroid
+    }
+    class WPEInputMethodContext
+    class WPEToplevel {
+        WPEToplevelAndroid
+    }
+    class SurfaceView
+
+    WPERuntime "1" *-- "1" WPEDisplay
+    WPEDisplay "1" *-- "1" WPEScreen
+    WebContext ..> WPERuntime : uses its display
+    WebContext "1" *-- "1" WebKitWebContext
+    WebContext "1" *-- "1" WebKitNetworkSession
+    WebContext "1" *-- "1" WebKitCookieManager
+    WebKitNetworkSession "1" *-- "1" WebKitWebsiteDataManager
+    WebView "*" --> "1" WebContext : shares
+    WebView "1" *-- "1" WebKitSettings
+    WebView "1" *-- "1" WebSettings
+    WebSettings --> WebKitSettings : wraps
+    WebView "1" *-- "1" WebKitWebView
+    WebKitWebView "1" *-- "1" WPEView : borrowed
+    WebKitWebView "1" *-- "1" WPEInputMethodContext : borrowed
+    WebView "1" *-- "1" WPEToplevel
+    WebView "1" *-- "1" SurfaceView
+    WPEView "1" --> "0..1" WPEToplevel : while attached
+    WPEToplevel "1" --> "0..1" SurfaceView : renders into its surface
+```
+
+## WebView Lifecycle
+
+WebKit keeps a few states for each page: whether it is in a window, whether it
+is visible, whether its window is active, and whether it has the focus. They
+decide whether the page is rendered, whether it can load new media, what
+`document.visibilityState` and `document.hasFocus()` report, and whether
+`requestAnimationFrame` runs. A `WebView` derives them from the state of the
+Android view:
+
+| Android event | What `WebView` does | What the page sees |
+| --- | --- | --- |
+| `surfaceCreated()`, `surfaceChanged()` | Puts its `WPEView` in its `WPEToplevel`, passing on the window focus, the view focus and whether the `WebView` is shown. Then gives the native window and its size to the `WPEToplevel`, and maps the `WPEView` if the `WebView` is shown. | It is in a window, visible and rendered. |
+| `onVisibilityAggregated()` | Sets whether the `WPEView` is visible; a view that is not visible is unmapped. This covers the `WebView` and any of its ancestors. | It is hidden while the `WebView` is not shown, and stays in its window. |
+| `onWindowFocusChanged()` | Makes the `WPEToplevel` active while the Android window has focus. | Its window is active. |
+| `onFocusChanged()` | Focuses or unfocuses the `WPEView`. | It has the focus, and the input method can engage. |
+| `surfaceDestroyed()` | Unmaps and unfocuses the `WPEView`, makes the `WPEToplevel` inactive, takes the view out of it, and takes the native window from the `WPEToplevel`. | It is hidden and out of its window. |
+| `onDetachedFromWindow()` | Nothing more: the `SurfaceView` detaches first, and its surface is gone. | It is out of its window. |
+| `destroy()` | Takes the view out of its toplevel, and destroys its `WPEToplevel`, `WebKitWebView` and `WebKitSettings`. | It is closed. |
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state "Out of window" as OutOfWindow
+    state "In window" as InWindow
+    [*] --> OutOfWindow : new WebView
+    OutOfWindow --> InWindow : surface created
+    InWindow --> OutOfWindow : surface destroyed
+    state InWindow {
+        [*] --> Unmapped
+        Unmapped --> Mapped : shown
+        Mapped --> Unmapped : hidden
+    }
+    OutOfWindow --> [*] : destroy()
+```
+
+Only a mapped page is rendered and visible to its scripts. A page out of its
+window cannot load new media, and WebKit frees the memory it keeps for pages on
+screen; a media element that loaded before can go on playing. Window activity
+and focus are independent of these states: a page can be mapped in a window that
+has lost the focus, for example under a dialog. A window that never takes the
+focus, such as a `Presentation` on a second display, never makes its pages
+active: `document.hasFocus()` stays false there, and Android sends key events
+only to the focused window anyway.
+
+The usual cases follow from the table:
+
+- **Tabs.** An application can switch tabs by taking the `WebView` of the old tab
+  out of its container and adding the new one, or by keeping every `WebView` in
+  the container and hiding the inactive ones with `setVisibility()`. Either way
+  the hidden pages are unmapped and report `document.visibilityState` as
+  `"hidden"`. Taken out of the container they lose their surface and leave the
+  window; hidden in place they keep both.
+- **Activity in the background.** When the activity stops, Android destroys the
+  surfaces, and the pages leave their window until the activity starts again.
+- **Headless.** A headless `WebView` (`new WebView(context, true)`) has no
+  surface and is never attached to a window. Its `WPEView` stays in its
+  `WPEToplevel` for the whole life of the `WebView`, unmapped and never active.
+
 ## Ownership and Lifetime
 
 The Java proxies use explicit `destroy()` methods. Call them from the owner that
@@ -178,7 +336,7 @@ Owning proxies:
 
 | Java class | Native ownership |
 | --- | --- |
-| `WPEDisplay` | Owns a `WPEDisplay`; `destroy()` unreferences it and invalidates its borrowed `WPEScreen`. |
+| `WPEDisplay` | Owns a `WPEDisplay`; `destroy()` unreferences it and invalidates its borrowed `WPEScreen`. The convenience API uses the one `WPERuntime` keeps for the process, which is never destroyed. |
 | `WPEToplevel` | Owns a `WPEToplevel`; `destroy()` unreferences it. |
 | `WebKitWebContext` | Owns a bridge object holding a `WebKitWebContext`; `destroy()` disconnects automation signals and unreferences it. |
 | `WebKitNetworkSession` | Owns a `WebKitNetworkSession`; `destroy()` unreferences it and invalidates the borrowed website data manager wrapper. |
@@ -191,32 +349,39 @@ Borrowed proxies:
 | Java class | Native owner |
 | --- | --- |
 | `WPEView` | Borrowed from `WebKitWebView`. It must not outlive the parent `WebKitWebView`. |
-| `WPEInputMethodContext` | Borrowed from `WebKitWebView` (attached to the borrowed `WPEView`); `destroy()` clears the focus listener and drops its JNI global ref. Must not outlive the parent `WebKitWebView`. |
+| `WPEInputMethodContext` | Borrowed from `WebKitWebView` (attached to the borrowed `WPEView`); `destroy()` clears the focus listener and drops its JNI global ref. An input method may still hold it after the parent `WebKitWebView` is destroyed; from then on it ignores text sent to it. |
 | `WPEScreen` | Borrowed from `WPEDisplay`. It must not outlive the parent `WPEDisplay`. |
 | `WebKitWebsiteDataManager` | Borrowed from `WebKitNetworkSession`. It must not outlive the parent `WebKitNetworkSession`. |
 
 The high-level `WebView` owns the objects it creates in this order:
 
 1. `WebContext`, unless the caller provided a shared context.
-2. `WebKitWebView`.
-3. Borrowed `WPEView` from `WebKitWebView`.
-4. `WPEToplevel`.
-5. `SurfaceView` and Android surface callbacks.
+2. `WebKitSettings`, starting from the defaults of the `WebContext`.
+3. `WebKitWebView`.
+4. Borrowed `WPEView` and `WPEInputMethodContext` from `WebKitWebView`.
+5. `WPEToplevel`.
+6. `SurfaceView` and Android surface callbacks.
 
-`WebView.destroy()` detaches the `WPEView` from the toplevel, destroys the
-`WPEToplevel`, destroys the `WebKitWebView`, and finally destroys the owned
-`WebContext` if the `WebView` created it. When a `WebContext` is shared, the
-application owns it and must destroy it after all `WebView` instances using it
-have been destroyed.
+`WebView.destroy()` takes the `WPEView` out of the toplevel, destroys the
+`WPEToplevel`, destroys the `WebKitWebView` and drops the proxies borrowed from
+it, copies the values of its `WebKitSettings` into its `WebSettings` and
+destroys them, and finally destroys the owned `WebContext` if the `WebView`
+created it. When a `WebContext` is shared, the application owns
+it and must destroy it after all `WebView` instances using it have been
+destroyed.
 
-`WebContext.destroy()` destroys settings, cookie manager, network session, web
-context, and display. This order matters because several wrappers borrow objects
-from earlier owners.
+`WebContext.destroy()` destroys the cookie manager, the network session and the
+web context. This order matters because several wrappers borrow objects from
+earlier owners. The display belongs to `WPERuntime` and outlives every
+`WebContext`.
 
-Surface lifetime is separate from object lifetime. `WebView` may create a
-`WPEToplevel` before an Android `Surface` exists, then attach the native window
-from `surfaceCreated()` or `surfaceChanged()`. `surfaceDestroyed()` clears the
-native window and unmaps the `WPEView`, but it does not destroy the WebKit page.
+Surface lifetime is separate from object lifetime. `WebView` creates its
+`WPEToplevel` before an Android `Surface` exists, then attaches the native window
+from `surfaceCreated()` or `surfaceChanged()`. `surfaceDestroyed()` takes the
+`WPEView` out of the toplevel and clears the native window, but it does not
+destroy the WebKit page.
+[WebView Lifecycle](#webview-lifecycle) describes how the attachment to a window,
+the visibility and the focus of the `WebView` reach the page.
 
 ## Where to Add Code
 
@@ -261,7 +426,7 @@ The current naming convention is:
 | Responsibility | Java/API name | Native/API name |
 | --- | --- | --- |
 | Public Android widget | `org.wpewebkit.wpeview.WebView` | Uses the low-level proxies internally |
-| Shared public Android state | `org.wpewebkit.wpeview.WebContext` | Owns display, WebKit context, session, cookies, and settings |
+| Shared public Android state | `org.wpewebkit.wpeview.WebContext` | Owns WebKit context, session and cookies; holds the default settings values |
 | Public Android settings | `org.wpewebkit.wpeview.WebSettings` | Backed by `WebKitSettings` |
 | Public Android cookies | `org.wpewebkit.wpeview.CookieManager` | Backed by `WebKitCookieManager` and `WebKitWebsiteDataManager` |
 | WebKit page proxy | `org.wpewebkit.wpe.WebKitWebView` | `WebKitWebView*` |
