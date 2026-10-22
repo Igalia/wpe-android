@@ -210,7 +210,8 @@ void MessagePump::scheduleTimer(gint timeout) const noexcept
         timerSpec.it_value.tv_sec = timeout / 1000;
         timerSpec.it_value.tv_nsec = (timeout % 1000) * 1000000L;
     }
-    timerfd_settime(m_timerFd, 0, &timerSpec, nullptr);
+    if (timerfd_settime(m_timerFd, 0, &timerSpec, nullptr) == -1)
+        Logging::logError("MessagePump: cannot set the timer fd (errno %d), GLib timers will be late", errno);
 }
 
 void MessagePump::scheduleDispatch() noexcept

@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 
 #include <memory>
@@ -47,7 +48,7 @@ private:
     const JNI::Method<void(jboolean)> m_commitResult; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
-const JNIWebKitWebsiteDataManagerCallbackHolderCache& getJNIWebKitWebsiteDataManagerCallbackHolderCache()
+static const JNIWebKitWebsiteDataManagerCallbackHolderCache& getJNIWebKitWebsiteDataManagerCallbackHolderCache()
 {
     static const JNIWebKitWebsiteDataManagerCallbackHolderCache s_singleton;
     return s_singleton;
@@ -86,7 +87,7 @@ private:
     }
 };
 
-const JNIWebKitWebsiteDataManagerCache& getJNIWebKitWebsiteDataManagerCache()
+static const JNIWebKitWebsiteDataManagerCache& getJNIWebKitWebsiteDataManagerCache()
 {
     static const JNIWebKitWebsiteDataManagerCache s_singleton;
     return s_singleton;

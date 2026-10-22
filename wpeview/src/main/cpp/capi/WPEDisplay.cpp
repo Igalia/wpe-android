@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 #include "WPEDisplayAndroid.h"
 
@@ -62,7 +63,7 @@ private:
     }
 };
 
-const JNIWPEDisplayCache& getJNIWPEDisplayCache()
+static const JNIWPEDisplayCache& getJNIWPEDisplayCache()
 {
     static const JNIWPEDisplayCache s_singleton;
     return s_singleton;

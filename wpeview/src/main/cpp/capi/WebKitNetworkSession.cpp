@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 
 #include <wpe/webkit.h>
@@ -76,7 +77,7 @@ private:
     }
 };
 
-const JNIWebKitNetworkSessionCache& getJNIWebKitNetworkSessionCache()
+static const JNIWebKitNetworkSessionCache& getJNIWebKitNetworkSessionCache()
 {
     static const JNIWebKitNetworkSessionCache s_singleton;
     return s_singleton;

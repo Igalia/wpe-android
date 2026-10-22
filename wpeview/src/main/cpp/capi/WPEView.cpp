@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 #include "WPEKeymapAndroid.h"
 
@@ -108,7 +109,7 @@ private:
     }
 };
 
-const JNIWPEViewCache& getJNIWPEViewCache()
+static const JNIWPEViewCache& getJNIWPEViewCache()
 {
     static const JNIWPEViewCache s_singleton;
     return s_singleton;

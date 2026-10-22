@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 #include "WPEToplevelAndroid.h"
 
@@ -100,7 +101,7 @@ private:
     }
 };
 
-const JNIWPEToplevelCache& getJNIWPEToplevelCache()
+static const JNIWPEToplevelCache& getJNIWPEToplevelCache()
 {
     static const JNIWPEToplevelCache s_singleton;
     return s_singleton;

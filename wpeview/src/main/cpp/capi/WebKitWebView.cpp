@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 
 #include <algorithm>
@@ -118,7 +119,7 @@ private:
     const JNI::Method<void(jstring)> m_commitResult;
 };
 
-const JNIWebKitWebViewEvalCallbackHolderCache& getJNIWebKitWebViewEvalCallbackHolderCache()
+static const JNIWebKitWebViewEvalCallbackHolderCache& getJNIWebKitWebViewEvalCallbackHolderCache()
 {
     static const JNIWebKitWebViewEvalCallbackHolderCache s_singleton;
     return s_singleton;
@@ -154,7 +155,7 @@ private:
     const JNI::Method<void(JNIBitmap)> m_commitResult;
 };
 
-const JNIWebKitWebViewSnapshotCallbackHolderCache& getJNIWebKitWebViewSnapshotCallbackHolderCache()
+static const JNIWebKitWebViewSnapshotCallbackHolderCache& getJNIWebKitWebViewSnapshotCallbackHolderCache()
 {
     static const JNIWebKitWebViewSnapshotCallbackHolderCache s_singleton;
     return s_singleton;
@@ -237,7 +238,7 @@ private:
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
 };
 
-const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
+static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
 {
     static const JNIWebKitWebViewCache s_singleton;
     return s_singleton;
@@ -498,8 +499,8 @@ static void copySnapshotPixels(
 {
     const size_t rowBytes = static_cast<size_t>(width) * 4;
     for (int y = 0; y < height; ++y) {
-        const auto* src = source + static_cast<size_t>(y) * sourceStride;
-        auto* dst = destination + static_cast<size_t>(y) * destinationStride;
+        const auto* src = source + (static_cast<size_t>(y) * sourceStride);
+        auto* dst = destination + (static_cast<size_t>(y) * destinationStride);
         for (size_t x = 0; x < rowBytes; x += 4)
             storeAsRGBA(dst + x, src[x], src[x + 1], src[x + 2], src[x + 3]);
     }
@@ -537,23 +538,23 @@ static void copyScaledSnapshotPixels(const uint8_t* source, int width, int heigh
         const int endRow = static_cast<int>(static_cast<int64_t>(y + 1) * height / scaled.height);
         std::fill(sums.begin(), sums.end(), 0);
         for (int row = firstRow; row < endRow; ++row) {
-            const auto* src = source + static_cast<size_t>(row) * sourceStride;
+            const auto* src = source + (static_cast<size_t>(row) * sourceStride);
             for (int x = 0; x < scaled.width; ++x) {
                 for (int column = columns[x]; column < columns[x + 1]; ++column) {
-                    const auto* pixel = src + static_cast<size_t>(column) * 4;
+                    const auto* pixel = src + (static_cast<size_t>(column) * 4);
                     for (int channel = 0; channel < 4; ++channel)
-                        sums[static_cast<size_t>(x) * 4 + channel] += pixel[channel];
+                        sums[(static_cast<size_t>(x) * 4) + channel] += pixel[channel];
                 }
             }
         }
 
-        auto* dst = destination + static_cast<size_t>(y) * destinationStride;
+        auto* dst = destination + (static_cast<size_t>(y) * destinationStride);
         for (int x = 0; x < scaled.width; ++x) {
             const uint64_t count = static_cast<uint64_t>(endRow - firstRow) * (columns[x + 1] - columns[x]);
             const auto* sum = &sums[static_cast<size_t>(x) * 4];
             auto average = [count](uint64_t total) { return static_cast<uint8_t>((total + count / 2) / count); };
             storeAsRGBA(
-                dst + static_cast<size_t>(x) * 4, average(sum[0]), average(sum[1]), average(sum[2]), average(sum[3]));
+                dst + (static_cast<size_t>(x) * 4), average(sum[0]), average(sum[1]), average(sum[2]), average(sum[3]));
         }
     }
 }
