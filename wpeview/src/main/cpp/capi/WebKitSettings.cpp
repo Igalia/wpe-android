@@ -50,7 +50,11 @@ public:
             JNI::NativeMethod<void(jlong, jboolean)>(
                 "nativeSetDeveloperExtrasEnabled", nativeSetDeveloperExtrasEnabled),
             JNI::NativeMethod<jboolean(jlong)>("nativeGetDisableWebSecurity", nativeGetDisableWebSecurity),
-            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetDisableWebSecurity", nativeSetDisableWebSecurity));
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetDisableWebSecurity", nativeSetDisableWebSecurity),
+            JNI::NativeMethod<jboolean(jlong)>(
+                "nativeGetAudiblePlaybackRequiresPageVisibility", nativeGetAudiblePlaybackRequiresPageVisibility),
+            JNI::NativeMethod<void(jlong, jboolean)>(
+                "nativeSetAudiblePlaybackRequiresPageVisibility", nativeSetAudiblePlaybackRequiresPageVisibility));
     }
 
 private:
@@ -96,6 +100,37 @@ private:
 
 #undef DEFINE_BOOL_SETTER_GETTER
     // NOLINTEND(cppcoreguidelines-macro-usage)
+
+    // A WebKit preference for embedders, without a webkit_settings function of its own: WebKit pauses the
+    // audible media of a hidden page, resumes it when the page is shown, and does not let a hidden page start it.
+    static WebKitFeature* requiresPageVisibilityToPlayAudio()
+    {
+        static WebKitFeature* const feature = [] {
+            g_autoptr(WebKitFeatureList) features = webkit_settings_get_all_features();
+            WebKitFeature* found = webkit_feature_list_find(features, "RequiresPageVisibilityToPlayAudio");
+            if (!found) {
+                Logging::logError("WebKitSettings: WebKit has no RequiresPageVisibilityToPlayAudio feature");
+                return static_cast<WebKitFeature*>(nullptr);
+            }
+            return webkit_feature_ref(found);
+        }();
+        return feature;
+    }
+
+    static jboolean nativeGetAudiblePlaybackRequiresPageVisibility(JNIEnv*, jobject, jlong settingsPtr)
+    {
+        WebKitFeature* feature = requiresPageVisibilityToPlayAudio();
+        return static_cast<jboolean>(
+            feature && webkit_settings_get_feature_enabled(JNI::from_jlong<WebKitSettings>(settingsPtr), feature));
+    }
+
+    static void nativeSetAudiblePlaybackRequiresPageVisibility(JNIEnv*, jobject, jlong settingsPtr, jboolean flag)
+    {
+        if (WebKitFeature* feature = requiresPageVisibilityToPlayAudio()) {
+            webkit_settings_set_feature_enabled(
+                JNI::from_jlong<WebKitSettings>(settingsPtr), feature, static_cast<gboolean>(flag));
+        }
+    }
 };
 
 const JNIWebKitSettingsCache& getJNIWebKitSettingsCache()

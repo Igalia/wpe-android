@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -37,6 +38,8 @@ public class WebViewWindowTest {
     private static final String HIDDEN = "\"hidden\"";
     private static final String PENDING = "\"pending\"";
     private static final String LOADING = "\"loading\"";
+    private static final String PLAYING = "\"playing\"";
+    private static final String PAUSED = "\"paused\"";
 
     // load() starts loading a new media element, and state says whether it has started; a page out of its
     // window does not start loading new media until it is back in one. Loading needs no audio output.
@@ -47,6 +50,13 @@ public class WebViewWindowTest {
                                              + "    audio.onloadstart = () => state = 'loading';\n"
                                              + "    audio.src = '" + silentWavUrl() + "';\n"
                                              + "}</script></body></html>";
+
+    // audio plays silence in a loop. WebKit counts it as audible, like music: it has an audio track and it is
+    // neither muted nor at volume 0.
+    private static final String AUDIO_PAGE = "<html><body><script>var audio = new Audio('" + silentWavUrl() + "');\n"
+                                             + "audio.loop = true;\n"
+                                             + "function state() { return audio.paused ? 'paused' : 'playing'; }\n"
+                                             + "</script></body></html>";
 
     // A tenth of a second of silence, as a WAV file in a data: URL.
     private static String silentWavUrl() {
@@ -189,6 +199,62 @@ public class WebViewWindowTest {
         scenario.onActivity(activity -> ((View)activity.getWebView().getParent()).setVisibility(View.VISIBLE));
         assertEquals(VISIBLE,
                      WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, VISIBILITY_STATE, VISIBLE));
+    }
+
+    // Turns the setting on if requirePageVisibility is true, and otherwise leaves its default.
+    private ActivityScenario<WebViewTestActivity> playAudio(boolean requirePageVisibility) throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = loadPage(new TestWebViewClient());
+        AtomicBoolean required = new AtomicBoolean();
+        scenario.onActivity(activity -> {
+            WebSettings settings = activity.getWebView().getSettings();
+            if (requirePageVisibility)
+                settings.setAudiblePlaybackRequiresPageVisibility(true);
+            required.set(settings.getAudiblePlaybackRequiresPageVisibility());
+        });
+        assertEquals(requirePageVisibility, required.get());
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, AUDIO_PAGE);
+        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "audio.play(); 0");
+        assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
+        return scenario;
+    }
+
+    private static void takeWebViewOutOfTheWindow(ActivityScenario<WebViewTestActivity> scenario,
+                                                  AtomicReference<ViewGroup> parent) {
+        scenario.onActivity(activity -> {
+            WebView webView = activity.getWebView();
+            parent.set((ViewGroup)webView.getParent());
+            parent.get().removeView(webView);
+        });
+    }
+
+    /** A tab that is not shown pauses its audible media, and plays it again when it is shown. */
+    @Test
+    public void testAudibleMediaPausesWhileThePageIsHidden() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = playAudio(true);
+
+        AtomicReference<ViewGroup> parent = new AtomicReference<>();
+        takeWebViewOutOfTheWindow(scenario, parent);
+        assertEquals(PAUSED, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PAUSED));
+
+        scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
+        assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
+    }
+
+    /** By default, audible media keeps playing in a hidden page, as it does without the setting in WebKit. */
+    @Test
+    public void testAudibleMediaKeepsPlayingWhileThePageIsHiddenByDefault() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = playAudio(false);
+
+        AtomicReference<ViewGroup> parent = new AtomicReference<>();
+        takeWebViewOutOfTheWindow(scenario, parent);
+        assertEquals(HIDDEN, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, VISIBILITY_STATE, HIDDEN));
+        String time = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+            scenario, new TestWebViewClient(), "audio.currentTime");
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                 scenario, "state() == 'playing' && audio.currentTime != " + time, "true"));
+
+        scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
     }
 
     @Test

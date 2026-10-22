@@ -36,6 +36,7 @@ public class WebSettings {
     private boolean allowFileAccessFromFileURLs;
     private boolean developerExtrasEnabled;
     private boolean disableWebSecurity;
+    private boolean audiblePlaybackRequiresPageVisibility;
 
     WebSettings(@NonNull WebKitSettings settings) { this.settings = settings; }
 
@@ -49,6 +50,7 @@ public class WebSettings {
         allowFileAccessFromFileURLs = settings.getAllowFileAccessFromFileURLs();
         developerExtrasEnabled = settings.getDeveloperExtrasEnabled();
         disableWebSecurity = settings.getDisableWebSecurity();
+        audiblePlaybackRequiresPageVisibility = settings.getAudiblePlaybackRequiresPageVisibility();
         settings = null;
     }
 
@@ -108,5 +110,24 @@ public class WebSettings {
             settings.setDisableWebSecurity(disable);
         else
             disableWebSecurity = disable;
+    }
+
+    public boolean getAudiblePlaybackRequiresPageVisibility() {
+        return settings != null ? settings.getAudiblePlaybackRequiresPageVisibility()
+                                : audiblePlaybackRequiresPageVisibility;
+    }
+    /**
+     * Whether the page plays audible media only while it is visible. When the page is hidden, for example
+     * because its WebView is out of the window like a tab that is not shown, or the activity is stopped, its
+     * audible media pauses, and resumes when the page is shown again; a hidden page cannot start it either.
+     * This covers audio and video elements, not Web Audio. WebKit reads the setting when it creates a media
+     * element, so set it before loading the page: the media elements a page already has keep the value they
+     * were created with. The default is false: the media keeps playing.
+     */
+    public void setAudiblePlaybackRequiresPageVisibility(boolean require) {
+        if (settings != null)
+            settings.setAudiblePlaybackRequiresPageVisibility(require);
+        else
+            audiblePlaybackRequiresPageVisibility = require;
     }
 }
