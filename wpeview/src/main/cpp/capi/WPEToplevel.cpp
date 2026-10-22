@@ -39,7 +39,9 @@ public:
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeSetPhysicalSize", nativeSetPhysicalSize),
             JNI::NativeMethod<void(jlong, jintArray)>("nativeGetSize", nativeGetSize),
             JNI::NativeMethod<void(jlong, JNISurface)>("nativeSetSurface", nativeSetSurface),
-            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetWindowFocused", nativeSetWindowFocused));
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetWindowFocused", nativeSetWindowFocused),
+            JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat)>(
+                "nativeSetBackgroundColor", nativeSetBackgroundColor));
     }
 
 private:
@@ -83,6 +85,12 @@ private:
 
         if (window)
             ANativeWindow_release(window);
+    }
+
+    static void nativeSetBackgroundColor(JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue)
+    {
+        wpe_toplevel_android_set_background_color(
+            WPE_TOPLEVEL_ANDROID(JNI::from_jlong<WPEToplevel>(nativePtr)), red, green, blue);
     }
 
     static void nativeSetWindowFocused(JNIEnv*, jobject, jlong nativePtr, jboolean focused)

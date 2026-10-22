@@ -30,6 +30,9 @@ struct _WPEToplevelAndroid {
     gboolean windowFocused;
     int physicalWidth;
     int physicalHeight;
+    float backgroundRed;
+    float backgroundGreen;
+    float backgroundBlue;
 };
 
 G_DEFINE_FINAL_TYPE(WPEToplevelAndroid, wpe_toplevel_android, WPE_TYPE_TOPLEVEL)
@@ -139,8 +142,11 @@ static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* klass)
     toplevelClass->get_screen = wpeToplevelAndroidGetScreen;
 }
 
-static void wpe_toplevel_android_init(WPEToplevelAndroid*)
+static void wpe_toplevel_android_init(WPEToplevelAndroid* toplevel)
 {
+    toplevel->backgroundRed = 1.0F;
+    toplevel->backgroundGreen = 1.0F;
+    toplevel->backgroundBlue = 1.0F;
 }
 
 WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window)
@@ -155,6 +161,23 @@ WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window
     if (window)
         wpe_toplevel_android_set_window(toplevel, window);
     return WPE_TOPLEVEL(toplevel);
+}
+
+void wpe_toplevel_android_set_background_color(WPEToplevelAndroid* toplevel, float red, float green, float blue)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+    g_return_if_fail(red >= 0.0F && red <= 1.0F && green >= 0.0F && green <= 1.0F && blue >= 0.0F && blue <= 1.0F);
+
+    toplevel->backgroundRed = red;
+    toplevel->backgroundGreen = green;
+    toplevel->backgroundBlue = blue;
+    if (!toplevel->rootSurfaceControl)
+        return;
+
+    ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+    ASurfaceTransaction_setColor(transaction, toplevel->rootSurfaceControl, red, green, blue, 1.0F, ADATASPACE_SRGB);
+    ASurfaceTransaction_apply(transaction);
+    ASurfaceTransaction_delete(transaction);
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
@@ -185,6 +208,10 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
         ASurfaceControl* newRoot = ASurfaceControl_createFromWindow(window, "WPEToplevelRoot");
 
         if (newRoot) {
+            // Cover Android's black SurfaceView background before the first web buffer arrives.
+            // Apply the color in the same transaction that attaches the web layer.
+            ASurfaceTransaction_setColor(transaction, newRoot, toplevel->backgroundRed, toplevel->backgroundGreen,
+                toplevel->backgroundBlue, 1.0F, ADATASPACE_SRGB);
             if (!toplevel->surfaceControl)
                 toplevel->surfaceControl = ASurfaceControl_create(newRoot, "WPEWebLayer");
             else

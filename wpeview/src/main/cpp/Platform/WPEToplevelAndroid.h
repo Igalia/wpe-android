@@ -31,6 +31,7 @@ G_DECLARE_FINAL_TYPE(WPEToplevelAndroid, wpe_toplevel_android, WPE, TOPLEVEL_AND
 WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window);
 
 void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow* window);
+void wpe_toplevel_android_set_background_color(WPEToplevelAndroid* toplevel, float red, float green, float blue);
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height);
 void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused);
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel);

@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
@@ -40,6 +41,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -97,12 +99,14 @@ public class WebView extends FrameLayout {
 
     public WebView(@NonNull android.content.Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
-        init(new WebContext(context), true, false);
+        // Validate XML before allocating the owned context or any native view objects.
+        int backgroundColor = initialBackgroundColor();
+        init(new WebContext(context), true, false, backgroundColor);
     }
 
     public WebView(@NonNull WebContext context) {
         super(context.getApplicationContext());
-        init(context, false, false);
+        init(context, false, false, initialBackgroundColor());
     }
 
     /**
@@ -113,7 +117,7 @@ public class WebView extends FrameLayout {
      */
     public WebView(@NonNull android.content.Context uiContext, @NonNull WebContext context) {
         super(uiContext);
-        init(context, false, false);
+        init(context, false, false, initialBackgroundColor());
     }
 
     /**
@@ -123,10 +127,11 @@ public class WebView extends FrameLayout {
      */
     public WebView(@NonNull WebContext context, boolean headless) {
         super(context.getApplicationContext());
-        init(context, false, headless);
+        init(context, false, headless, initialBackgroundColor());
     }
 
-    private void init(@NonNull WebContext context, boolean ownsContext, boolean headless) {
+    private void init(@NonNull WebContext context, boolean ownsContext, boolean headless,
+                      @ColorInt int backgroundColor) {
         this.wpeContext = context;
         this.ownsContext = ownsContext;
         this.headless = headless;
@@ -151,6 +156,12 @@ public class WebView extends FrameLayout {
         });
         this.webSettings = new WebSettings(webKitSettings);
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
+        applyBackgroundColor(backgroundColor);
+        // A new SurfaceView cuts its hole in the window only after its first draw. Until then the window shows this
+        // view's own background where the page goes, so give it the page color too. This also makes getBackground()
+        // match the page color.
+        if (getBackground() == null)
+            super.setBackgroundColor(backgroundColor);
         // WebKit gives every new view a toplevel of its own, which this replaces. The view starts out of any
         // toplevel and joins the WebView's when the WebView gets a surface; a headless WebView never gets one, so
         // its view stays in the toplevel for its whole life.
@@ -213,6 +224,44 @@ public class WebView extends FrameLayout {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+    }
+
+    /**
+     * Sets the opaque color behind the page, including before its first frame is available.
+     * The default is white. The same color is used by WebKit for pages without an explicit
+     * background; a page's CSS background takes precedence. This does not enable dark mode
+     * or change the page's text colors. Call again when the embedding app changes its theme.
+     * A solid XML background color is used as the initial color; other Android background
+     * drawables do not configure the native page background. To change the color later, call
+     * this method: setBackground() and setBackgroundResource() do not change it.
+     *
+     * <p>Unlike android.webkit.WebView, transparent and translucent backgrounds are not yet
+     * supported: the underlying SurfaceView has an opaque background layer.
+     *
+     * @throws IllegalArgumentException if the color is not opaque
+     */
+    @Override
+    public void setBackgroundColor(@ColorInt int color) {
+        applyBackgroundColor(color);
+        super.setBackgroundColor(color);
+    }
+
+    private int initialBackgroundColor() {
+        int color =
+            getBackground() instanceof ColorDrawable ? ((ColorDrawable)getBackground()).getColor() : Color.WHITE;
+        if (Color.alpha(color) != 255)
+            throw new IllegalArgumentException("WebView background color must be opaque");
+        return color;
+    }
+
+    private void applyBackgroundColor(@ColorInt int color) {
+        if (Color.alpha(color) != 255)
+            throw new IllegalArgumentException("WebView background color must be opaque");
+        // View construction and calls after destroy() have no native objects to update.
+        if (webKitWebView != null)
+            webKitWebView.setBackgroundColor(color);
+        if (wpeToplevel != null)
+            wpeToplevel.setBackgroundColor(color);
     }
 
     @NonNull
