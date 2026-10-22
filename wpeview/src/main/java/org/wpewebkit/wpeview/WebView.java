@@ -213,6 +213,9 @@ public class WebView extends FrameLayout {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+        // The page draws its own focus rings. Android's highlight, drawn when the view gets the focus from a
+        // key, would cover the whole page, since it is drawn over the SurfaceView.
+        setDefaultFocusHighlightEnabled(false);
     }
 
     @NonNull
