@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 
 #include <wpe/webkit.h>
 
@@ -80,7 +81,7 @@ private:
         m_invokeCreateWebKitWebViewForAutomation; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
-const JNIWebKitWebContextCache& getJNIWebKitWebContextCache()
+static const JNIWebKitWebContextCache& getJNIWebKitWebContextCache()
 {
     static const JNIWebKitWebContextCache s_singleton;
     return s_singleton;

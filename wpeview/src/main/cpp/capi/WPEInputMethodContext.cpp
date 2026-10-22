@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include "Logging.h"
 #include "WPEInputMethodContextAndroid.h"
 
@@ -56,7 +57,7 @@ private:
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
-const JNIWPEInputMethodContextFocusListenerCache& getJNIFocusListenerCache()
+static const JNIWPEInputMethodContextFocusListenerCache& getJNIFocusListenerCache()
 {
     static const JNIWPEInputMethodContextFocusListenerCache s_singleton;
     return s_singleton;
@@ -148,7 +149,7 @@ private:
     }
 };
 
-const JNIWPEInputMethodContextCache& getJNIWPEInputMethodContextCache()
+static const JNIWPEInputMethodContextCache& getJNIWPEInputMethodContextCache()
 {
     static const JNIWPEInputMethodContextCache s_singleton;
     return s_singleton;

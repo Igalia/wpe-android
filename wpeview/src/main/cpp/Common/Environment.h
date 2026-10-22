@@ -24,9 +24,9 @@
 enum class ProcessType : jint {
     FirstType = 0,
     WebProcess = FirstType,
-    NetworkProcess,
-    WebDriverProcess,
-    TypesCount
+    NetworkProcess = 1,
+    WebDriverProcess = 2,
+    TypesCount = 3
 };
 
 namespace Environment {

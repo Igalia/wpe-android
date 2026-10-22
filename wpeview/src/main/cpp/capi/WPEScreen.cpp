@@ -17,6 +17,7 @@
  */
 
 #include "JNI/JNI.h"
+#include "JNIMappings.h"
 #include <algorithm>
 #include <cmath>
 #include <wpe/wpe-platform.h>
@@ -59,7 +60,7 @@ private:
     }
 };
 
-const JNIWPEScreenCache& getJNIWPEScreenCache()
+static const JNIWPEScreenCache& getJNIWPEScreenCache()
 {
     static const JNIWPEScreenCache s_singleton;
     return s_singleton;

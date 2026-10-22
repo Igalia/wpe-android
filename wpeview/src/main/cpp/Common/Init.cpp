@@ -86,16 +86,16 @@ static void initializeWPEActivityObserver()
         return;
     }
 
-    klass.registerNativeMethods(
-        JNI::StaticNativeMethod<void(JNIActivity)>(
-            "handleActivityStarted",
-            +[](JNIEnv* env, jclass, JNIActivity activity) {
-                Logging::logDebug("WPEActivityObserver::handleActivityStarted(%p) current=%p [tid %d]", activity,
-                    s_currentActivity, gettid());
-                if (s_currentActivity != nullptr)
-                    env->DeleteGlobalRef(s_currentActivity);
-                s_currentActivity = activity ? static_cast<jobject>(env->NewGlobalRef(activity)) : nullptr;
-            }),
+    klass.registerNativeMethods(JNI::StaticNativeMethod<void(JNIActivity)>(
+                                    "handleActivityStarted",
+                                    +[](JNIEnv* env, jclass, JNIActivity activity) {
+                                        Logging::logDebug(
+                                            "WPEActivityObserver::handleActivityStarted(%p) current=%p [tid %d]",
+                                            activity, s_currentActivity, gettid());
+                                        if (s_currentActivity != nullptr)
+                                            env->DeleteGlobalRef(s_currentActivity);
+                                        s_currentActivity = activity ? env->NewGlobalRef(activity) : nullptr;
+                                    }),
         JNI::StaticNativeMethod<void(JNIActivity)>(
             "handleActivityStopped", +[](JNIEnv* env, jclass, JNIActivity activity) {
                 Logging::logDebug("WPEActivityObserver::handleActivityStopped(%p) current=%p [tid %d]", activity,
@@ -119,7 +119,7 @@ static void initializeWPERuntime()
             Logging::logDebug("WPERuntime::setApplicationContext(%p) [tid %d]", context, gettid());
             if (s_applicationContext != nullptr)
                 env->DeleteGlobalRef(s_applicationContext);
-            s_applicationContext = context ? static_cast<jobject>(env->NewGlobalRef(context)) : nullptr;
+            s_applicationContext = context ? env->NewGlobalRef(context) : nullptr;
         }));
 }
 
