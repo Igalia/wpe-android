@@ -18,8 +18,10 @@
 
 package org.wpewebkit.wpe;
 
+import android.graphics.Color;
 import android.view.Surface;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -46,6 +48,17 @@ public final class WPEToplevel {
 
     public void setWindowFocused(boolean focused) { nativeSetWindowFocused(mNativePtr, focused); }
 
+    /**
+     * Sets the color of the layer under the web content, kept across surface replacements. The layer is opaque, so
+     * the alpha is ignored.
+     */
+    public void setBackgroundColor(@ColorInt int color) {
+        if (mNativePtr != 0) {
+            Color rgb = Color.valueOf(color);
+            nativeSetBackgroundColor(mNativePtr, rgb.red(), rgb.green(), rgb.blue());
+        }
+    }
+
     public void destroy() {
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
@@ -59,4 +72,5 @@ public final class WPEToplevel {
     private native void nativeGetSize(long nativePtr, int[] out);
     private native void nativeSetSurface(long nativePtr, Surface surface);
     private native void nativeSetWindowFocused(long nativePtr, boolean focused);
+    private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue);
 }

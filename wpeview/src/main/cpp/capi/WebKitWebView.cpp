@@ -142,6 +142,8 @@ public:
             JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebViewPtr", nativeGetWebKitWebViewPtr),
             JNI::NativeMethod<jlong(jlong)>("nativeGetWPEView", nativeGetWPEView),
             JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", nativeSetZoomLevel),
+            JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat, jfloat)>(
+                "nativeSetBackgroundColor", nativeSetBackgroundColor),
             JNI::NativeMethod<void(jlong, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
             JNI::NativeMethod<void(jlong, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
@@ -183,6 +185,8 @@ private:
     static jlong nativeGetWebKitWebViewPtr(JNIEnv*, jobject, jlong nativePtr);
     static jlong nativeGetWPEView(JNIEnv*, jobject, jlong nativePtr);
     static void nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr, jdouble zoomLevel);
+    static void nativeSetBackgroundColor(
+        JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder);
     static void nativeCaptureSnapshot(
@@ -398,6 +402,13 @@ jlong JNIWebKitWebViewCache::nativeGetWPEView(JNIEnv*, jobject, jlong nativePtr)
 {
     return reinterpret_cast<jlong>(
         webkit_web_view_get_wpe_view(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView));
+}
+
+void JNIWebKitWebViewCache::nativeSetBackgroundColor(
+    JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue, jfloat alpha)
+{
+    WebKitColor backgroundColor = {red, green, blue, alpha};
+    webkit_web_view_set_background_color(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView, &backgroundColor);
 }
 
 void JNIWebKitWebViewCache::nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr, jdouble zoomLevel)

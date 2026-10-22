@@ -19,8 +19,10 @@
 package org.wpewebkit.wpe;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.util.Log;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -106,6 +108,13 @@ public final class WebKitWebView {
     }
 
     public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
+
+    public void setBackgroundColor(@ColorInt int color) {
+        if (mNativePtr != 0) {
+            Color rgba = Color.valueOf(color);
+            nativeSetBackgroundColor(mNativePtr, rgba.red(), rgba.green(), rgba.blue(), rgba.alpha());
+        }
+    }
 
     @UiThread
     public void captureSnapshot(int region, @NonNull SnapshotCallback callback) {
@@ -276,6 +285,7 @@ public final class WebKitWebView {
     private native long nativeGetWPEView(long nativePtr);
     private native long nativeGetWebKitWebViewPtr(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
+    private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue, float alpha);
     private native void nativeCaptureSnapshot(long nativePtr, int region,
                                               @NonNull SnapshotCallbackHolder callbackHolder);
     private native void nativeEvaluateJavascript(long nativePtr, String script,
