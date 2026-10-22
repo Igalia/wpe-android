@@ -37,7 +37,7 @@ To turn this output into something more readable you need to make use of the `nd
 we need with Cerbero. Run this command from the WPE Android root path:
 
 ```ssh
-adb logcat | build/cerbero/build/android-ndk-27/ndk-stack -sym wpeview/src/main/cpp/imported/lib/arm64-v8a
+adb logcat | build/cerbero/build/android-ndk-29/ndk-stack -sym wpeview/src/main/cpp/imported/lib/arm64-v8a
 ```
 
 You should see something like:
