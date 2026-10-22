@@ -65,6 +65,13 @@ public final class WebKitSettings {
     public boolean getDisableWebSecurity() { return nativeGetDisableWebSecurity(mNativePtr); }
     public void setDisableWebSecurity(boolean disable) { nativeSetDisableWebSecurity(mNativePtr, disable); }
 
+    public boolean getAudiblePlaybackRequiresPageVisibility() {
+        return nativeGetAudiblePlaybackRequiresPageVisibility(mNativePtr);
+    }
+    public void setAudiblePlaybackRequiresPageVisibility(boolean requires) {
+        nativeSetAudiblePlaybackRequiresPageVisibility(mNativePtr, requires);
+    }
+
     private native long nativeInit();
     private native void nativeDestroy(long nativePtr);
     private native String nativeGetUserAgentString(long nativePtr);
@@ -79,4 +86,6 @@ public final class WebKitSettings {
     private native void nativeSetDeveloperExtrasEnabled(long nativePtr, boolean flag);
     private native boolean nativeGetDisableWebSecurity(long nativePtr);
     private native void nativeSetDisableWebSecurity(long nativePtr, boolean disable);
+    private native boolean nativeGetAudiblePlaybackRequiresPageVisibility(long nativePtr);
+    private native void nativeSetAudiblePlaybackRequiresPageVisibility(long nativePtr, boolean requires);
 }
