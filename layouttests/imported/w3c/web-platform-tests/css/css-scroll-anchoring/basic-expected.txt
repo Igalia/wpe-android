@@ -1,5 +1,0 @@
-abc
-def
-
-FAIL Minimal scroll anchoring example. assert_equals: expected 250 but got 150
-

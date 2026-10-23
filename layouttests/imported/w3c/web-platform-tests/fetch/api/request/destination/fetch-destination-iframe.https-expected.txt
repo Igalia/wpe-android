@@ -1,4 +1,0 @@
-
-PASS Initialize global state
-PASS iframe fetches with a "iframe" Request.destination
-

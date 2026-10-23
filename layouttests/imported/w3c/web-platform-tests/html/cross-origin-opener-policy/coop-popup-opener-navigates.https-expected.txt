@@ -1,3 +1,0 @@
-
-PASS Verify that having the opener navigate instead of the openee also triggers COOP swaps.
-

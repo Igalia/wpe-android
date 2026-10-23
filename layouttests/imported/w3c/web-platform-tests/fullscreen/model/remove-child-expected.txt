@@ -1,3 +1,0 @@
-
-PASS Remove the child of the fullscreen element
-

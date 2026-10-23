@@ -1,3 +1,0 @@
-
-FAIL frame-src-cross-origin-same-document-navigation assert_unreached: same-document navigations aren't subject to CSP Reached unreachable code
-

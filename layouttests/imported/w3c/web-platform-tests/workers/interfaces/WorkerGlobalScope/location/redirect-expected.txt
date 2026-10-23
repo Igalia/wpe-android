@@ -1,3 +1,0 @@
-
-PASS WorkerLocation with redirects: classic dedicated workers
-

@@ -1,4 +1,0 @@
-
-PASS <ul dir=rtl><li dir=ltr>
-PASS <ul dir=ltr><li dir=rtl>
-

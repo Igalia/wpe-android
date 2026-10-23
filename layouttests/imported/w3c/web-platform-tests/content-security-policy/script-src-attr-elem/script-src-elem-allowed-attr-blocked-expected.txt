@@ -1,5 +1,0 @@
-
-
-PASS Should fire a security policy violation for the attribute
-PASS Should execute the inline script block
-

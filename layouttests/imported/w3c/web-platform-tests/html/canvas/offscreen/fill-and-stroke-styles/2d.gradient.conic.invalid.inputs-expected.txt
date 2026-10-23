@@ -1,7 +1,0 @@
-2d.gradient.conic.invalid.inputs
-
-Conic gradient function with invalid inputs
-
-
-PASS Conic gradient function with invalid inputs
-

@@ -1,3 +1,0 @@
-
-PASS Snaps to the positions adjusted by scroll-padding
-

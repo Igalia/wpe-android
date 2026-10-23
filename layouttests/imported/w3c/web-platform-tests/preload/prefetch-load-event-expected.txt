@@ -1,3 +1,0 @@
-
-PASS Prefetch should not block the load event
-

@@ -1,5 +1,0 @@
-
-
-PASS Test ':focus-within' after 'display:none' on input
-PASS Test ':focus-within' after 'display:none' on input's parent
-

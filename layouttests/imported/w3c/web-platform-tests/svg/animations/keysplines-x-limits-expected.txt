@@ -1,3 +1,0 @@
-
-PASS 'keySplines' with x-values outside of the 0 to 1 range
-

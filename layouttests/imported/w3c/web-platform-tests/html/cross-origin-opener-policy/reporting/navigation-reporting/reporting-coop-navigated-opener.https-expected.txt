@@ -1,3 +1,0 @@
-
-PASS navigation-report-from-opener-navigation
-

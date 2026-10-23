@@ -1,4 +1,0 @@
-done
-
-PASS pointerup event from mouse fired after pointerdown target is removed
-

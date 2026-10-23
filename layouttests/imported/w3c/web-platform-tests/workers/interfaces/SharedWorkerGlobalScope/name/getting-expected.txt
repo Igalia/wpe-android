@@ -1,5 +1,0 @@
-
-PASS getting name
-PASS getting name 1
-PASS getting name 2
-

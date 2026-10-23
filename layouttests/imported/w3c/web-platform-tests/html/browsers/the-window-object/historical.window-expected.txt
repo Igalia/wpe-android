@@ -1,3 +1,0 @@
-
-PASS showModalDialog() has been removed from the platform
-

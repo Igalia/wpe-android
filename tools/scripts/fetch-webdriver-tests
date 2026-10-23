@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Fetches WebKit's WebDriver tests and their runner at the revision in webdrivertests/upstream.json, applies
+webdrivertests/patches as commits, and prints the directory they are in.
+
+Only the paths listed in upstream.json are downloaded (a sparse, shallow, treeless clone), and nothing is fetched
+again until the revision or the patches change. Work in the checkout that is not exported to webdrivertests/patches
+(uncommitted changes, other commits, a git am or rebase in progress) is never deleted: the script stops instead,
+unless it is run with --force.
+"""
+
+import argparse
+import glob
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+TESTS_DIR = os.path.join(ROOT_DIR, "webdrivertests")
+CHECKOUT_DIR = os.path.join(ROOT_DIR, "build", "webdriver-tests")
+GIT_DIR = os.path.join(CHECKOUT_DIR, ".git")
+STAMP_FILE = os.path.join(GIT_DIR, "wpe-android-stamp")
+BASE_REF = "refs/wpe-android/base"
+# Changing how the checkout is made has to change this, so existing checkouts are made again.
+STAMP_VERSION = 2
+# The checkout's own settings, so the user's git configuration does not run hooks or change files in it.
+CHECKOUT_CONFIG = {
+    "core.hooksPath": "/dev/null",
+    "core.autocrlf": "false",
+    "advice.detachedHead": "false",
+    "advice.sparseIndexExpanded": "false",
+}
+
+
+def stop(message):
+    sys.exit("fetch-webdriver-tests: %s" % message)
+
+
+def git(*args):
+    subprocess.run(["git", "-C", CHECKOUT_DIR, *args], check=True, stdout=sys.stderr)
+
+
+def git_output(*args):
+    result = subprocess.run(["git", "-C", CHECKOUT_DIR, *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return result.stdout.decode().strip() if result.returncode == 0 else None
+
+
+def patch_id(diff):
+    result = subprocess.run(["git", "patch-id", "--stable"], input=diff, stdout=subprocess.PIPE, check=True)
+    return result.stdout.split()[:1]
+
+
+def inputs_digest(upstream, patches):
+    patch_digests = []
+    for patch in patches:
+        with open(patch, "rb") as f:
+            patch_digests.append([os.path.basename(patch), hashlib.sha256(f.read()).hexdigest()])
+    manifest = {
+        "version": STAMP_VERSION,
+        "repository": upstream["repository"],
+        "revision": upstream["revision"],
+        "paths": upstream["paths"],
+        "patches": patch_digests,
+    }
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+
+
+def read_stamp():
+    try:
+        with open(STAMP_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def write_stamp(inputs):
+    with open(STAMP_FILE + ".new", "w") as f:
+        json.dump({"inputs": inputs, "head": git_output("rev-parse", "HEAD")}, f)
+    os.replace(STAMP_FILE + ".new", STAMP_FILE)
+
+
+def operation_in_progress():
+    for name, operation in [("rebase-apply", "a git am or rebase"), ("rebase-merge", "a rebase"),
+                            ("MERGE_HEAD", "a merge"), ("CHERRY_PICK_HEAD", "a cherry-pick")]:
+        if os.path.exists(os.path.join(GIT_DIR, name)):
+            return operation
+    return None
+
+
+def exported(patches):
+    # Compared by patch-id, so a commit message changed only in the checkout does not count.
+    commits = git_output("rev-list", "--reverse", BASE_REF + "..HEAD")
+    if commits is None or len(commits.split()) != len(patches):
+        return False
+    for commit, patch in zip(commits.split(), patches):
+        diff = subprocess.run(["git", "-C", CHECKOUT_DIR, "show", commit], stdout=subprocess.PIPE, check=True).stdout
+        with open(patch, "rb") as f:
+            if patch_id(diff) != patch_id(f.read()):
+                return False
+    return True
+
+
+def checkout_is_usable(upstream, patches, inputs):
+    """Whether the existing checkout can be used. Stops when it has work that would be lost by making it again."""
+    operation = operation_in_progress()
+    if operation:
+        stop("%s is in the middle of %s: finish it (or abort it), export the patches as described in "
+             "webdrivertests/README.md and run again." % (CHECKOUT_DIR, operation))
+    if git_output("status", "--porcelain"):
+        stop("%s has uncommitted changes: commit them and export the patches as described in "
+             "webdrivertests/README.md, or run %s --force to drop them." % (CHECKOUT_DIR, sys.argv[0]))
+
+    stamp = read_stamp()
+    head = git_output("rev-parse", "--verify", "-q", "HEAD")
+    made = stamp["head"] if stamp else git_output("rev-parse", "--verify", "-q", BASE_REF)
+    if head == made:
+        return bool(stamp) and stamp["inputs"] == inputs
+
+    # Commits made in the checkout are fine once they are exported.
+    if git_output("rev-parse", "--verify", "-q", BASE_REF) == upstream["revision"] and exported(patches):
+        write_stamp(inputs)
+        return True
+    stop("%s has commits that are not in webdrivertests/patches: export them as described in "
+         "webdrivertests/README.md, or run %s --force to drop them." % (CHECKOUT_DIR, sys.argv[0]))
+
+
+def prepare(upstream, patches, inputs):
+    shutil.rmtree(CHECKOUT_DIR, ignore_errors=True)
+    os.makedirs(CHECKOUT_DIR)
+    git("init", "-q", "--template=")
+    for key, value in CHECKOUT_CONFIG.items():
+        git("config", key, value)
+    git("remote", "add", "origin", upstream["repository"])
+    git("sparse-checkout", "init", "--cone", "--sparse-index")
+    git("sparse-checkout", "set", *upstream["paths"])
+    print("Fetching the WebDriver tests at %s" % upstream["revision"], file=sys.stderr)
+    try:
+        git("fetch", "-q", "--depth=1", "--filter=tree:0", "origin", upstream["revision"])
+    except subprocess.CalledProcessError:
+        stop("cannot fetch %s from %s." % (upstream["revision"], upstream["repository"]))
+    git("update-ref", BASE_REF, "FETCH_HEAD")
+    git("checkout", "-q", "FETCH_HEAD")
+    if patches:
+        # As commits, so they can be rebased and exported again; the committer does not matter here.
+        try:
+            git("-c", "user.name=wpe-android", "-c", "user.email=wpe-android@invalid",
+                "am", "-q", "--no-gpg-sign", *patches)
+        except subprocess.CalledProcessError:
+            stop("a patch does not apply at %s (see above). Fix it with git am in %s, export the patches as "
+                 "described in webdrivertests/README.md and run again." % (upstream["revision"], CHECKOUT_DIR))
+    write_stamp(inputs)
+
+
+def fetch(force):
+    with open(os.path.join(TESTS_DIR, "upstream.json")) as f:
+        upstream = json.load(f)
+    patches = sorted(glob.glob(os.path.join(TESTS_DIR, "patches", "*.patch")))
+    inputs = inputs_digest(upstream, patches)
+
+    if force or not os.path.isdir(GIT_DIR) or not checkout_is_usable(upstream, patches, inputs):
+        prepare(upstream, patches, inputs)
+    return CHECKOUT_DIR
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--force", action="store_true", help="make the checkout again, dropping any work in it")
+    print(fetch(parser.parse_args().force))

@@ -1,5 +1,0 @@
-
-PASS ex unit in media queries should match initial font
-PASS ch unit in media queries should match initial font
-PASS ic unit in media queries should match initial font
-

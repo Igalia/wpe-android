@@ -1,4 +1,0 @@
-
-FAIL Test controlsList allowed values for <audio> undefined is not an object (evaluating 'element.controlsList.supports')
-FAIL Test controlsList allowed values for <video> undefined is not an object (evaluating 'element.controlsList.supports')
-

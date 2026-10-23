@@ -1,4 +1,0 @@
-
-PASS requestIdleCallback callbacks should be invoked in order (called iteratively)
-PASS requestIdleCallback callbacks should be invoked in order (called recursively)
-

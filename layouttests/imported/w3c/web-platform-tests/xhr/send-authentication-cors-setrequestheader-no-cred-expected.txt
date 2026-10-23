@@ -1,4 +1,0 @@
-
-PASS CORS request with setRequestHeader auth to URL accepting Authorization header
-PASS CORS request with setRequestHeader auth to URL NOT accepting Authorization header
-

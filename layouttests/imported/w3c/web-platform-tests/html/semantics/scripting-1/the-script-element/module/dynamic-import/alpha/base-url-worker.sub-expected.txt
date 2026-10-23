@@ -1,4 +1,0 @@
-
-PASS Relative URL-like from worker top-level script
-PASS Absolute URL-like from worker top-level script
-

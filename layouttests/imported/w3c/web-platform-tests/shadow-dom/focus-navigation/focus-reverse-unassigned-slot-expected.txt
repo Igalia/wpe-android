@@ -1,4 +1,0 @@
-
-PASS Verifies that focusing backwards from a button inside a slot which has no assigned nodes goes to the previous focusable element.
-
-

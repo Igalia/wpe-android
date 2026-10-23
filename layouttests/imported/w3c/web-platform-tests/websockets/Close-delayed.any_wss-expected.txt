@@ -1,3 +1,0 @@
-
-PASS Create WebSocket - Close the Connection - close should not emit until handshake completes - Connection should be closed
-

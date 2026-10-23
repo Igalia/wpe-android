@@ -1,3 +1,0 @@
-
-PASS Gradients should not count as contentful
-

@@ -1,4 +1,0 @@
-
-PASS [audio] recvonly transceiver can become sendrecv
-PASS [video] recvonly transceiver can become sendrecv
-

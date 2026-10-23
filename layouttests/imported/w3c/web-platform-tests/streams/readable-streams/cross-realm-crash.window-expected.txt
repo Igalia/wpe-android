@@ -1,3 +1,0 @@
-
-PASS should not crash on reading from stream cancelled in destroyed realm
-

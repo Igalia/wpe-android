@@ -1,3 +1,0 @@
-
-PASS font shorthand returns only CSS2 font-variant values
-

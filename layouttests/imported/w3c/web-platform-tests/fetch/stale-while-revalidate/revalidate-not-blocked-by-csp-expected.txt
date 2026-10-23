@@ -1,4 +1,0 @@
-
-
-PASS Request revalidation aren't blocked by CSP
-

@@ -1,3 +1,0 @@
-
-FAIL Ensure that the framebuffer given by the WebGL layer works with stencil for immersive assert_equals: Should not initially have any errors expected 0 but got 1282
-

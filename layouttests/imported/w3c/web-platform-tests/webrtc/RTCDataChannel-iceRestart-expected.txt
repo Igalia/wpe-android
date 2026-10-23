@@ -1,4 +1,0 @@
-
-PASS Data channel remains usable after ICE restart
-PASS Data channel remains usable at each step of an ICE restart
-

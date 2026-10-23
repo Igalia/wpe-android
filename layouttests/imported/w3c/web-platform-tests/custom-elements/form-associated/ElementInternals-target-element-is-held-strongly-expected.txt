@@ -1,3 +1,0 @@
-
-PASS Target element of ElementsInternals is held strongly and doesn't get GCed if there are no other references
-

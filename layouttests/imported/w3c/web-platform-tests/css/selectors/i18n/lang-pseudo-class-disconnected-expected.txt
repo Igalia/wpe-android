@@ -1,3 +1,0 @@
-
-PASS :lang pseudo class should work in a disconnected subtree
-

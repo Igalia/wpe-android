@@ -1,3 +1,0 @@
-
-PASS URL's percent-encoding is always in UTF-8 for WebSocket
-

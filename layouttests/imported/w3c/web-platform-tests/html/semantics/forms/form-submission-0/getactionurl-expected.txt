@@ -1,4 +1,0 @@
-
-
-PASS Verifies that a form element's target can be a data url.
-

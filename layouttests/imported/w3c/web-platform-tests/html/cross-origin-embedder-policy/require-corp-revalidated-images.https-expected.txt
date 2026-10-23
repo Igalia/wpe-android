@@ -1,8 +1,0 @@
-
-
-PASS NETWORK - No CORP image
-PASS NETWORK - CORP image
-PASS CACHED - No CORP image
-PASS CACHED - CORP image
-PASS main_test
-

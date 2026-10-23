@@ -1,3 +1,0 @@
-
-PASS Moving a node during mousedown should not crash
-

@@ -1,6 +1,0 @@
-
-PASS
-        Test that display:contents on fullscreen elements acts like
-        display:block
-
-

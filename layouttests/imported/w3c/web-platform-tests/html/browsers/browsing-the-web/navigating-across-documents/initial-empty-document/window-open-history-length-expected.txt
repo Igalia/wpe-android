@@ -1,5 +1,0 @@
-
-PASS Starting history.length for window.open()
-PASS Starting history.length for window.open(about:blank)
-PASS Starting history.length for window.open(url-with-204-response)
-

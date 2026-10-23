@@ -1,4 +1,0 @@
-
-
-PASS Replace before load, triggered by location.assign()
-

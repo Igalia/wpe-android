@@ -1,6 +1,0 @@
-2d.layer.valid-calls.restore
-No exception raised on lone restore() calls.
-Actual output:
-
-PASS No exception raised on lone restore() calls.
-

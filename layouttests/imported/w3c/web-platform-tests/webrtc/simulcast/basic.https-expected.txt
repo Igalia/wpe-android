@@ -1,3 +1,0 @@
-
-PASS Basic simulcast setup with two spatial layers
-

@@ -1,3 +1,0 @@
-
-FAIL Screen wake lock should not be allowed in dedicated worker undefined is not an object (evaluating 'navigator.wakeLock.request')
-

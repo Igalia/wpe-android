@@ -1,4 +1,0 @@
-
-
-PASS Speculative parsing, page load: meta-csp-img-src-asterisk
-

@@ -1,3 +1,0 @@
-
-PASS Shadows look correct for large blurs
-

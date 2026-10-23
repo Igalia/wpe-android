@@ -1,3 +1,0 @@
-
-PASS ResizeObserver skipped while hidden
-

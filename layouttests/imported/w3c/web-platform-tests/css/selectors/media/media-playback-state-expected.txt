@@ -1,7 +1,0 @@
-
-
-PASS Test :pseudo-class syntax is supported without throwing a SyntaxError
-PASS Test :playing pseudo-classes
-PASS Test :paused pseudo-classes
-PASS Test :seeking pseudo-class
-

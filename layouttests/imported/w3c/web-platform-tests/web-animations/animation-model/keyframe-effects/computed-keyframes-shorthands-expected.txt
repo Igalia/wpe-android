@@ -1,3 +1,0 @@
-
-PASS It should be possible to animate the all shorthand
-

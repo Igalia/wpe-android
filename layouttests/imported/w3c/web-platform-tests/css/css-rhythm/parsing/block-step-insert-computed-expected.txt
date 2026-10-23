@@ -1,4 +1,0 @@
-
-PASS Property block-step-insert value 'margin'
-PASS Property block-step-insert value 'padding'
-

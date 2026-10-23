@@ -1,4 +1,0 @@
-caption
-
-PASS caption-writing-mode-002
-

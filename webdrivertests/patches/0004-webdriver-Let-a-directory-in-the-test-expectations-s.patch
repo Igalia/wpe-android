@@ -1,0 +1,84 @@
+From eb0cce1e6d0606067c3e5e3b1bcbe8c7b201a740 Mon Sep 17 00:00:00 2001
+From: "Alejandro G. Castro" <alex@igalia.com>
+Date: Sun, 18 Oct 2026 20:10:35 +0200
+Subject: [PATCH 4/5] webdriver: Let a directory in the test expectations skip
+ all its tests
+
+Skipping a whole group of tests, like the BiDi ones where BiDi is not
+available, needed one entry per file.
+---
+ .../webkitpy/webdriver_tests/webdriver_test_runner.py    | 2 +-
+ .../webdriver_tests/webdriver_test_runner_selenium.py    | 9 +++++++--
+ .../webdriver_tests/webdriver_test_runner_w3c.py         | 9 +++++++--
+ 3 files changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
+index 41f7b819..d18cb11d 100644
+--- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
++++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
+@@ -64,7 +64,7 @@ class WebDriverTestRunner(object):
+             expectations_files = [os.path.join(self._tests_dir, 'TestExpectations.json')] + (options.expectations or [])
+         self._expectations = TestExpectations('wpe', expectations_files, 'Release')
+         for test in self._expectations._expectations.keys():
+-            if not os.path.isfile(os.path.join(self._tests_dir, test)):
++            if not os.path.exists(os.path.join(self._tests_dir, test)):
+                 _log.warning('Test %s does not exist' % test)
+ 
+         self._runners = [runner_cls(driver, self._filesystem, self._expectations, options) for runner_cls in self.RUNNER_CLASSES]
+diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py
+index 823e1095..16ccaabc 100644
+--- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py
++++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py
+@@ -65,8 +65,8 @@ class WebDriverTestRunnerSelenium(object):
+ 
+             test_path = os.path.join(self._tests_dir, test)
+             if os.path.isdir(test_path):
+-                selenium_tests.extend([test for test in collected_tests if test.startswith(test_path) and test not in skipped])
+-            elif test_path in collected_tests and test_path not in skipped:
++                selenium_tests.extend([test for test in collected_tests if test.startswith(test_path) and not self._is_skipped(test, skipped)])
++            elif test_path in collected_tests and not self._is_skipped(test_path, skipped):
+                 if subtest is not None:
+                     if subtest in collected_tests[test_path]:
+                         selenium_tests.append(test_path + '::' + subtest)
+@@ -74,6 +74,11 @@ class WebDriverTestRunnerSelenium(object):
+                     selenium_tests.append(test_path)
+         return selenium_tests
+ 
++    @staticmethod
++    def _is_skipped(test, skipped):
++        # A skipped directory skips every test in it.
++        return any(test == path or test.startswith(path + os.sep) for path in map(os.path.normpath, skipped))
++
+     def run(self, tests=[]):
+         if self._driver.selenium_name() is None:
+             return
+diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
+index a7a9e8da..1fd9ad85 100644
+--- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
++++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
+@@ -60,7 +60,7 @@ class WebDriverTestRunnerW3C(object):
+             test_path = os.path.join(self._tests_dir, test)
+             if os.path.isdir(test_path):
+                 w3c_tests.extend(self._scan_directory(test_path, skipped))
+-            elif self._is_test(test_path) and test_path not in skipped:
++            elif self._is_test(test_path) and not self._is_skipped(test_path, skipped):
+                 if subtest is not None:
+                     w3c_tests.append(test_path + '::' + subtest)
+                 else:
+@@ -81,10 +81,15 @@ class WebDriverTestRunnerW3C(object):
+     def _scan_directory(self, directory, skipped):
+         tests = []
+         for path in self._filesystem.files_under(directory):
+-            if self._is_test(path) and path not in skipped:
++            if self._is_test(path) and not self._is_skipped(path, skipped):
+                 tests.append(path)
+         return tests
+ 
++    @staticmethod
++    def _is_skipped(test, skipped):
++        # A skipped directory skips every test in it.
++        return any(test == path or test.startswith(path + os.sep) for path in map(os.path.normpath, skipped))
++
+     def _subtest_name(self, subtest):
+         path, test = subtest.split('::', 1)
+         return os.path.basename(path) + '::' + test

@@ -1,5 +1,0 @@
-
-PASS serialization via CSSStyleDeclaration
-PASS serialization via CSSStyleRule
-PASS serialization via CSSMediaRule
-

@@ -1,3 +1,0 @@
-
-PASS window.clientInformation exists and equals window.navigator
-

@@ -1,3 +1,0 @@
-
-PASS Verify that cross origin resources' timings aren't exposed when even as targets of HTTP redirects.
-

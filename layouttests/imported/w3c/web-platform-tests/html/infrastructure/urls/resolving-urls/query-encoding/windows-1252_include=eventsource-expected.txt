@@ -1,4 +1,0 @@
-
-PASS EventSource constructor
-PASS EventSource#url
-

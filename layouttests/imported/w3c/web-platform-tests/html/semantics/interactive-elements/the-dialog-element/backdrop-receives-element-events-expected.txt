@@ -1,3 +1,0 @@
-
-PASS Test that ::backdrop receives events for the associated element
-

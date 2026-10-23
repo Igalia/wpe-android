@@ -1,3 +1,0 @@
-
-PASS Meta refresh only applies while in the document tree, not in a shadow tree
-

@@ -1,3 +1,0 @@
-
-PASS Identical elements are all responsive to font-size transition
-

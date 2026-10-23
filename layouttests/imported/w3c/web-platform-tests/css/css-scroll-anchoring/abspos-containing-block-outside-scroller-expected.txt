@@ -1,3 +1,0 @@
-
-FAIL Abs-pos descendant with containing block outside the scroller. assert_equals: expected 50 but got 25
-

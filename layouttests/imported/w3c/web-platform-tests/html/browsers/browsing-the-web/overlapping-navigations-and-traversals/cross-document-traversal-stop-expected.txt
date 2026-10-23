@@ -1,3 +1,0 @@
-
-PASS cross-document traversals are not stopped by stop()
-

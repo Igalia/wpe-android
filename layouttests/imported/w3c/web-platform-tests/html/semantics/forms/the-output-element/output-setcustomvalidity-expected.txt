@@ -1,4 +1,0 @@
-
-
-PASS output setCustomValidity is correct
-

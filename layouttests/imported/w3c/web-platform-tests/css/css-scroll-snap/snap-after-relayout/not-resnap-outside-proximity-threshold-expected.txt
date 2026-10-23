@@ -1,3 +1,0 @@
-
-PASS Not re-snap once after a scroll operation has finished without snapping because the scroll destination was outside of the snap proximity threshold.
-

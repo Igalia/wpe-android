@@ -1,3 +1,0 @@
-
-PASS Javascript URI document.contentType === 'text/html'
-

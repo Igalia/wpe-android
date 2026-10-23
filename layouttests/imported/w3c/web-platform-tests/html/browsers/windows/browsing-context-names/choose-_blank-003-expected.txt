@@ -1,3 +1,0 @@
-
-PASS Context created by link targeting "_blank" should not have opener reference
-Link

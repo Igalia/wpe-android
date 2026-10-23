@@ -1,3 +1,0 @@
-
-PASS Inline violations have a blockedURI of 'inline'
-

@@ -1,3 +1,0 @@
-
-PASS Should apply the style attribute
-

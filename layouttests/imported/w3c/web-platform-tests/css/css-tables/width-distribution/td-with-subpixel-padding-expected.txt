@@ -1,9 +1,0 @@
-Passes if each row has two blue squares.
- 	
- 	
- 	
- 	
- 	
-
-PASS td-with-subpixel-padding
-

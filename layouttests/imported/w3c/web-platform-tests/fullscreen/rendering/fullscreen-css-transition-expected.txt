@@ -1,4 +1,0 @@
-Should be green
-
-PASS Transitions should not be stopped by going fullscreen
-

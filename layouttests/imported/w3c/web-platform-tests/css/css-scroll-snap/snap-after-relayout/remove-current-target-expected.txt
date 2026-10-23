@@ -1,3 +1,0 @@
-
-PASS Removing the current snap target should make the scroller snap to a new target.
-

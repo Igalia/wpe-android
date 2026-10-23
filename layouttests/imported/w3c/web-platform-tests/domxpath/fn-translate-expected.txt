@@ -1,4 +1,0 @@
-^^^bar$$$^^^barfoo
-
-PASS translate() arguments depending on the context node
-

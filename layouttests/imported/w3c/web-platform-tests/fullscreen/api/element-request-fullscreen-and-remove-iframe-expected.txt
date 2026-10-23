@@ -1,3 +1,0 @@
-
-PASS requestFullscreen() in iframe followed by removing the iframe
-

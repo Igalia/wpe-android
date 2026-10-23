@@ -1,3 +1,0 @@
-
-FAIL webrtc blocked with an explicit webrtc blocked policy assert_equals: expected "blocked" but got "allowed"
-

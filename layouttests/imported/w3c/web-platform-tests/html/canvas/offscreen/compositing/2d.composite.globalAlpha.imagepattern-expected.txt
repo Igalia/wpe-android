@@ -1,5 +1,0 @@
-2d.composite.globalAlpha.imagepattern
-
-
-FAIL OffscreenCanvas test: 2d.composite.globalAlpha.imagepattern promise_test: Unhandled rejection with value: object "TypeError: Type error"
-

@@ -1,5 +1,0 @@
-
-PASS "a" should cause the constructor to throw
-PASS no input should cause the constructor to throw
-PASS non-string input should cause the constructor to throw
-

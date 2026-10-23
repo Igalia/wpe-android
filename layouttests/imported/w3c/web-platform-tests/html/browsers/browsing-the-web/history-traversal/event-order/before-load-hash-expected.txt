@@ -1,3 +1,0 @@
-
-FAIL when changing hash, before load assert_array_equals: lengths differ, expected array ["popstate", "hashchange", "load"] length 3, got ["popstate", "load"] length 2
-

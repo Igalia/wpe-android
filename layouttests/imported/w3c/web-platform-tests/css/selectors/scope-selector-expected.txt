@@ -1,5 +1,0 @@
-
-PASS scope-selector
-PASS scope-selector 1
-PASS querySelector() with ":scope" should return the document element, if present in the subtree
-

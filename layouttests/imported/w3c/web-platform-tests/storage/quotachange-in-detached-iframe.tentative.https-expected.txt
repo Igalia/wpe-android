@@ -1,3 +1,0 @@
-
-FAIL Add quotachange listener on detached iframe. storageManager.addEventListener is not a function. (In 'storageManager.addEventListener('quotachange', emptyListener)', 'storageManager.addEventListener' is undefined)
-

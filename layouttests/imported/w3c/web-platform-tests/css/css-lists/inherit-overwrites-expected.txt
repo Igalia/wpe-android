@@ -1,4 +1,0 @@
-
-PASS Inheritance of counter-reset replaces existing value
-PASS Inheritance of counter-increment replaces existing value
-

@@ -1,3 +1,0 @@
-
-PASS Test SharedWorker.port.onmessage
-

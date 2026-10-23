@@ -1,3 +1,0 @@
-
-PASS requestFullscreen works even if previous requestFullscreen causes an error
-

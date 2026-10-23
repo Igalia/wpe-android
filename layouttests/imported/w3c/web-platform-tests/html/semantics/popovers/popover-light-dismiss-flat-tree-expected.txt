@@ -1,6 +1,0 @@
-Test passes if the inner popover opens after clicking the inner toggle.
-
-Toggle
-
-PASS Popover light dismiss uses the flat tree
-

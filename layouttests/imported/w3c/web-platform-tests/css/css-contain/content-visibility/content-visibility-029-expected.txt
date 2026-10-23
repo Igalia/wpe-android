@@ -1,4 +1,0 @@
-This text should be visible.
-
-PASS innerText on locked element.
-

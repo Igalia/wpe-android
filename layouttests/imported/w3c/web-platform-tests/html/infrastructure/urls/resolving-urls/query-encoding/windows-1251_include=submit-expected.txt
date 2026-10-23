@@ -1,5 +1,0 @@
-
-PASS submit form <form action>
-PASS submit form <input formaction>
-PASS submit form <button formaction>
-

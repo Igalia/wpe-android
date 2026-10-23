@@ -1,5 +1,0 @@
-
-PASS Lock requests are granted in order
-PASS Releasing exclusive lock grants multiple shared locks
-PASS An exclusive lock between shared locks
-

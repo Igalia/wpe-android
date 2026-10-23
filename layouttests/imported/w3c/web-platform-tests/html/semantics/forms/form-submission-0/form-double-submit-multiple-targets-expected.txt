@@ -1,4 +1,0 @@
-
-
-PASS Verifies that one form used to target multiple frames in succession navigates all of them.
-

@@ -1,4 +1,0 @@
-
-PASS Property backface-visibility value 'visible'
-PASS Property backface-visibility value 'hidden'
-

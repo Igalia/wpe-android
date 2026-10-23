@@ -90,6 +90,7 @@ tags
 *.diff
 *.orig
 *.patch
+!/webdrivertests/patches/*.patch
 *.rej
 interdiff*.txt
 

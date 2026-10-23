@@ -1,3 +1,0 @@
-
-FAIL sec-fetch-dest rel=stylesheet promise_test: Unhandled rejection with value: object "Error: Failed to query for recorded headers."
-

@@ -1,4 +1,0 @@
-Test passes if color is green.
-
-PASS CSS Selectors nested invalidation on changed parent
-
