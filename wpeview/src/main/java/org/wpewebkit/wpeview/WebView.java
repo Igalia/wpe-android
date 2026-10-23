@@ -713,9 +713,27 @@ public class WebView extends FrameLayout {
             platformView.setFocused(gainFocus);
     }
 
+    // Keys that Android handles, as in GeckoView: the volume keys change the volume, and Back, Forward, Menu, Search
+    // and the headset button go to the app or the system. They are not sent to the page, which would consume them.
+    private static boolean isKeyForAndroid(int keyCode) {
+        switch (keyCode) {
+        case KeyEvent.KEYCODE_VOLUME_UP:
+        case KeyEvent.KEYCODE_VOLUME_DOWN:
+        case KeyEvent.KEYCODE_VOLUME_MUTE:
+        case KeyEvent.KEYCODE_BACK:
+        case KeyEvent.KEYCODE_FORWARD:
+        case KeyEvent.KEYCODE_MENU:
+        case KeyEvent.KEYCODE_SEARCH:
+        case KeyEvent.KEYCODE_HEADSETHOOK:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (platformView == null)
+        if (platformView == null || isKeyForAndroid(event.getKeyCode()))
             return super.dispatchKeyEvent(event);
 
         int action = event.getAction();
