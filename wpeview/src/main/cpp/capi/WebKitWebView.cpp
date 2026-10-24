@@ -19,10 +19,13 @@
 #include "JNI/JNI.h"
 #include "Logging.h"
 
+#include <algorithm>
 #include <android/bitmap.h>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <pthread.h>
+#include <sys/resource.h>
 #include <vector>
 #include <wpe/webkit.h>
 #include <wpe/wpe-platform.h>
@@ -32,6 +35,45 @@ DECLARE_JNI_CLASS_SIGNATURE(
     JNIWebKitWebViewSnapshotCallbackHolder, "org/wpewebkit/wpe/WebKitWebView$SnapshotCallbackHolder");
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebView, "org/wpewebkit/wpe/WebKitWebView");
 DECLARE_JNI_CLASS_SIGNATURE(JNIBitmap, "android/graphics/Bitmap");
+
+namespace {
+
+struct SnapshotSize {
+    int width;
+    int height;
+};
+
+// What the snapshot callback needs, the size limits, and once WebKit delivers the snapshot, its size and pixels. The
+// pixels stay null if the snapshot failed.
+struct SnapshotRequest {
+    SnapshotRequest(JNIEnv* env, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder, int maxWidth, int maxHeight)
+        : holder(env, callbackHolder)
+        , maxWidth(maxWidth)
+        , maxHeight(maxHeight)
+    {
+    }
+
+    ~SnapshotRequest()
+    {
+        if (bytes)
+            g_bytes_unref(bytes);
+    }
+
+    SnapshotRequest(const SnapshotRequest&) = delete;
+    SnapshotRequest& operator=(const SnapshotRequest&) = delete;
+    SnapshotRequest(SnapshotRequest&&) = delete;
+    SnapshotRequest& operator=(SnapshotRequest&&) = delete;
+
+    JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder> holder;
+    int maxWidth;
+    int maxHeight;
+    int width {0};
+    int height {0};
+    size_t stride {0};
+    GBytes* bytes {nullptr};
+};
+
+} // namespace
 
 namespace WebKit {
 
@@ -146,7 +188,7 @@ public:
                 "nativeSetBackgroundColor", nativeSetBackgroundColor),
             JNI::NativeMethod<void(jlong, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
-            JNI::NativeMethod<void(jlong, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
+            JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
             JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose));
@@ -189,8 +231,8 @@ private:
         JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
     static void nativeEvaluateJavascript(
         JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder);
-    static void nativeCaptureSnapshot(
-        JNIEnv* env, jobject, jlong nativePtr, jint region, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
+    static void nativeCaptureSnapshot(JNIEnv* env, jobject, jlong nativePtr, jint region, jint maxWidth, jint maxHeight,
+        JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
 };
@@ -440,6 +482,16 @@ static bool isValidSnapshotLayout(int width, int height, size_t stride, size_t s
     return static_cast<size_t>(height - 1) <= (sourceSize - rowBytes) / stride;
 }
 
+// WebKit provides BGRA; Android RGBA_8888 bitmaps store RGBA bytes. Both are premultiplied, so only the channel
+// order changes.
+static void storeAsRGBA(uint8_t* destination, uint8_t blue, uint8_t green, uint8_t red, uint8_t alpha)
+{
+    destination[0] = red;
+    destination[1] = green;
+    destination[2] = blue;
+    destination[3] = alpha;
+}
+
 // Call only after validating the source layout with isValidSnapshotLayout().
 static void copySnapshotPixels(
     const uint8_t* source, int width, int height, size_t sourceStride, uint8_t* destination, size_t destinationStride)
@@ -448,51 +500,80 @@ static void copySnapshotPixels(
     for (int y = 0; y < height; ++y) {
         const auto* src = source + static_cast<size_t>(y) * sourceStride;
         auto* dst = destination + static_cast<size_t>(y) * destinationStride;
-        for (size_t x = 0; x < rowBytes; x += 4) {
-            // WebKit provides BGRA; Android RGBA_8888 bitmaps store RGBA bytes.
-            // Both are premultiplied, so only the channel order changes.
-            dst[x] = src[x + 2];
-            dst[x + 1] = src[x + 1];
-            dst[x + 2] = src[x];
-            dst[x + 3] = src[x + 3];
+        for (size_t x = 0; x < rowBytes; x += 4)
+            storeAsRGBA(dst + x, src[x], src[x + 1], src[x + 2], src[x + 3]);
+    }
+}
+
+// The size of a width by height snapshot scaled down to fit in maxWidth by maxHeight, keeping its aspect ratio. A
+// snapshot that already fits keeps its size, and a limit of 0 means no limit on that side.
+static SnapshotSize scaledSnapshotSize(int width, int height, int maxWidth, int maxHeight)
+{
+    const int64_t limitWidth = maxWidth > 0 ? maxWidth : width;
+    const int64_t limitHeight = maxHeight > 0 ? maxHeight : height;
+    if (width <= limitWidth && height <= limitHeight)
+        return {width, height};
+
+    // The tighter limit sets the scale. The other side is rounded to the nearest pixel, and is at least one.
+    if (width * limitHeight >= height * limitWidth)
+        return {static_cast<int>(limitWidth), std::max(1, static_cast<int>((height * limitWidth + width / 2) / width))};
+    return {std::max(1, static_cast<int>((width * limitHeight + height / 2) / height)), static_cast<int>(limitHeight)};
+}
+
+// Scales the snapshot down by averaging the source pixels that fall in each destination pixel. The pixels are
+// premultiplied, so a plain average of each channel is correct. Call only after validating the source layout with
+// isValidSnapshotLayout(), and with a size from scaledSnapshotSize().
+static void copyScaledSnapshotPixels(const uint8_t* source, int width, int height, size_t sourceStride,
+    uint8_t* destination, SnapshotSize scaled, size_t destinationStride)
+{
+    // The source columns of destination column x are columns[x] up to, but not including, columns[x + 1].
+    std::vector<int> columns(static_cast<size_t>(scaled.width) + 1);
+    for (int x = 0; x <= scaled.width; ++x)
+        columns[x] = static_cast<int>(static_cast<int64_t>(x) * width / scaled.width);
+
+    std::vector<uint64_t> sums(static_cast<size_t>(scaled.width) * 4);
+    for (int y = 0; y < scaled.height; ++y) {
+        const int firstRow = static_cast<int>(static_cast<int64_t>(y) * height / scaled.height);
+        const int endRow = static_cast<int>(static_cast<int64_t>(y + 1) * height / scaled.height);
+        std::fill(sums.begin(), sums.end(), 0);
+        for (int row = firstRow; row < endRow; ++row) {
+            const auto* src = source + static_cast<size_t>(row) * sourceStride;
+            for (int x = 0; x < scaled.width; ++x) {
+                for (int column = columns[x]; column < columns[x + 1]; ++column) {
+                    const auto* pixel = src + static_cast<size_t>(column) * 4;
+                    for (int channel = 0; channel < 4; ++channel)
+                        sums[static_cast<size_t>(x) * 4 + channel] += pixel[channel];
+                }
+            }
+        }
+
+        auto* dst = destination + static_cast<size_t>(y) * destinationStride;
+        for (int x = 0; x < scaled.width; ++x) {
+            const uint64_t count = static_cast<uint64_t>(endRow - firstRow) * (columns[x + 1] - columns[x]);
+            const auto* sum = &sums[static_cast<size_t>(x) * 4];
+            auto average = [count](uint64_t total) { return static_cast<uint8_t>((total + count / 2) / count); };
+            storeAsRGBA(
+                dst + static_cast<size_t>(x) * 4, average(sum[0]), average(sum[1]), average(sum[2]), average(sum[3]));
         }
     }
 }
 
-// Converts the snapshot directly into a Java-allocated bitmap. Returns null on failure.
-static JNI::ProtectedType<JNIBitmap> createSnapshotBitmap(
-    WebKitWebView* webView, GAsyncResult* result, JNIWebKitWebViewSnapshotCallbackHolder holder)
+// Converts the request's pixels into a Java-allocated bitmap, scaled down to fit the request's limits. Returns null
+// on failure. Call only after validating the request's layout with isValidSnapshotLayout().
+static JNI::ProtectedType<JNIBitmap> createSnapshotBitmap(const SnapshotRequest& request)
 {
-    g_autoptr(GError) error = nullptr;
-    g_autoptr(WebKitImage) image = webkit_web_view_get_snapshot_finish(webView, result, &error);
-    if (!image) {
-        if (error)
-            Logging::logError("cannot capture WebKitWebView snapshot: %s", error->message);
-        return {};
-    }
-
-    int width = webkit_image_get_width(image);
-    int height = webkit_image_get_height(image);
-    guint stride = webkit_image_get_stride(image);
-
-    // The bytes are borrowed from image and remain valid until image is released.
-    GBytes* bytes = webkit_image_as_bytes(image);
-    gsize dataSize = 0;
-    const auto* data = bytes ? static_cast<const uint8_t*>(g_bytes_get_data(bytes, &dataSize)) : nullptr;
-    if (!data || !isValidSnapshotLayout(width, height, stride, dataSize)) {
-        Logging::logError("invalid WebKitWebView snapshot buffer");
-        return {};
-    }
-
-    auto bitmap = getJNIWebKitWebViewSnapshotCallbackHolderCache().createBitmap(holder, width, height);
+    const auto* data = static_cast<const uint8_t*>(g_bytes_get_data(request.bytes, nullptr));
+    const auto scaled = scaledSnapshotSize(request.width, request.height, request.maxWidth, request.maxHeight);
+    auto bitmap = getJNIWebKitWebViewSnapshotCallbackHolderCache().createBitmap(
+        request.holder.get(), scaled.width, scaled.height);
     if (!bitmap)
         return {};
 
     auto* env = JNI::getCurrentThreadJNIEnv();
     AndroidBitmapInfo info {};
     if (AndroidBitmap_getInfo(env, bitmap.get(), &info) != ANDROID_BITMAP_RESULT_SUCCESS
-        || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width != static_cast<uint32_t>(width)
-        || info.height != static_cast<uint32_t>(height) || info.stride < static_cast<size_t>(width) * 4) {
+        || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width != static_cast<uint32_t>(scaled.width)
+        || info.height != static_cast<uint32_t>(scaled.height) || info.stride < static_cast<size_t>(scaled.width) * 4) {
         Logging::logError("unexpected snapshot bitmap layout");
         return {};
     }
@@ -502,25 +583,91 @@ static JNI::ProtectedType<JNIBitmap> createSnapshotBitmap(
         Logging::logError("cannot lock snapshot bitmap pixels");
         return {};
     }
-    copySnapshotPixels(data, width, height, stride, static_cast<uint8_t*>(pixels), info.stride);
+    auto* destination = static_cast<uint8_t*>(pixels);
+    // Without scaling, the plain copy gives the same pixels as copyScaledSnapshotPixels(), only faster.
+    if (scaled.width == request.width && scaled.height == request.height)
+        copySnapshotPixels(data, request.width, request.height, request.stride, destination, info.stride);
+    else
+        copyScaledSnapshotPixels(data, request.width, request.height, request.stride, destination, scaled, info.stride);
     AndroidBitmap_unlockPixels(env, bitmap.get());
     return bitmap;
 }
 
-void JNIWebKitWebViewCache::onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData)
+// Converts the request's pixels, if the snapshot did not fail, and hands the bitmap, or null, to the callback. Takes
+// ownership of the request.
+static void deliverSnapshot(SnapshotRequest* request)
 {
-    std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>> holder(
-        static_cast<JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>*>(userData));
-
-    if (!holder || !*holder)
-        return;
-
-    auto bitmap = createSnapshotBitmap(WEBKIT_WEB_VIEW(object), result, holder->get());
-    getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(holder->get(), bitmap.get());
+    std::unique_ptr<SnapshotRequest> ownedRequest(request);
+    auto bitmap = ownedRequest->bytes ? createSnapshotBitmap(*ownedRequest) : JNI::ProtectedType<JNIBitmap> {};
+    getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(ownedRequest->holder.get(), bitmap.get());
 }
 
-void JNIWebKitWebViewCache::nativeCaptureSnapshot(
-    JNIEnv* env, jobject, jlong nativePtr, jint region, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder)
+static void* snapshotThreadMain(void* queue)
+{
+    pthread_setname_np(pthread_self(), "WPESnapshot");
+    // Background priority, like Java's THREAD_PRIORITY_BACKGROUND, so that the copy does not compete with the UI. On
+    // Linux this only changes the calling thread.
+    setpriority(PRIO_PROCESS, 0, 10);
+    while (true)
+        deliverSnapshot(static_cast<SnapshotRequest*>(g_async_queue_pop(static_cast<GAsyncQueue*>(queue))));
+    return nullptr;
+}
+
+// Copying the pixels into the bitmap, and scaling them, takes milliseconds for a screen and longer for a long page,
+// so one worker thread does it, for one snapshot at a time and in the order WebKit delivers them. The thread starts
+// on first use. Returns null if it cannot be started.
+static GAsyncQueue* snapshotQueue()
+{
+    static GAsyncQueue* queue = []() -> GAsyncQueue* {
+        auto* newQueue = g_async_queue_new();
+        pthread_t id {};
+        if (int error = pthread_create(&id, nullptr, snapshotThreadMain, newQueue)) {
+            Logging::logError(
+                "cannot create the snapshot thread (error %d), snapshots will be converted on the main thread", error);
+            g_async_queue_unref(newQueue);
+            return nullptr;
+        }
+        pthread_detach(id);
+        return newQueue;
+    }();
+    return queue;
+}
+
+void JNIWebKitWebViewCache::onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData)
+{
+    std::unique_ptr<SnapshotRequest> request(static_cast<SnapshotRequest*>(userData));
+    if (!request || !request->holder)
+        return;
+
+    g_autoptr(GError) error = nullptr;
+    g_autoptr(WebKitImage) image = webkit_web_view_get_snapshot_finish(WEBKIT_WEB_VIEW(object), result, &error);
+    if (image) {
+        // Read the image here, on the main thread, and keep only a reference to its pixels, which stay valid after
+        // the image is released. A GBytes can be released on any thread.
+        request->width = webkit_image_get_width(image);
+        request->height = webkit_image_get_height(image);
+        request->stride = webkit_image_get_stride(image);
+        GBytes* bytes = webkit_image_as_bytes(image);
+        gsize dataSize = 0;
+        const void* data = bytes ? g_bytes_get_data(bytes, &dataSize) : nullptr;
+        if (data && isValidSnapshotLayout(request->width, request->height, request->stride, dataSize))
+            request->bytes = g_bytes_ref(bytes);
+        else
+            Logging::logError("invalid WebKitWebView snapshot buffer");
+    } else if (error)
+        Logging::logError("cannot capture WebKitWebView snapshot: %s", error->message);
+
+    // A failed snapshot goes through the queue too, without pixels, so that its null result does not overtake the
+    // snapshots WebKit delivered before it. The callback runs on the main thread, as commitResult posts it there.
+    if (auto* queue = snapshotQueue()) {
+        g_async_queue_push(queue, request.release());
+        return;
+    }
+    deliverSnapshot(request.release());
+}
+
+void JNIWebKitWebViewCache::nativeCaptureSnapshot(JNIEnv* env, jobject, jlong nativePtr, jint region, jint maxWidth,
+    jint maxHeight, JNIWebKitWebViewSnapshotCallbackHolder callbackHolder)
 {
     if (!callbackHolder)
         return;
@@ -535,14 +682,14 @@ void JNIWebKitWebViewCache::nativeCaptureSnapshot(
         return;
     }
 
-    auto holder = std::make_unique<JNI::GlobalRef<JNIWebKitWebViewSnapshotCallbackHolder>>(env, callbackHolder);
-    if (!*holder) {
+    auto request = std::make_unique<SnapshotRequest>(env, callbackHolder, maxWidth, maxHeight);
+    if (!request->holder) {
         JNI::clearJavaException(env);
         getJNIWebKitWebViewSnapshotCallbackHolderCache().onResult(callbackHolder, nullptr);
         return;
     }
     webkit_web_view_get_snapshot(bridge->m_webView, snapshotRegion, WEBKIT_SNAPSHOT_OPTIONS_NONE, nullptr,
-        onCaptureSnapshotReady, holder.release());
+        onCaptureSnapshotReady, request.release());
 }
 
 void JNIWebKitWebViewCache::nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text)
