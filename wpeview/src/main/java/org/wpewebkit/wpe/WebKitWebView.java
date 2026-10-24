@@ -116,13 +116,14 @@ public final class WebKitWebView {
         }
     }
 
+    // A maxWidth or maxHeight of 0 or less leaves that side unlimited. WebView checks the arguments.
     @UiThread
-    public void captureSnapshot(int region, @NonNull SnapshotCallback callback) {
+    public void captureSnapshot(int region, int maxWidth, int maxHeight, @NonNull SnapshotCallback callback) {
         if (mNativePtr == 0) {
             MainLooperDispatcher.postLater(() -> callback.onResult(null));
             return;
         }
-        nativeCaptureSnapshot(mNativePtr, region, new SnapshotCallbackHolder(callback));
+        nativeCaptureSnapshot(mNativePtr, region, maxWidth, maxHeight, new SnapshotCallbackHolder(callback));
     }
 
     public void evaluateJavascript(@NonNull String script, @Nullable EvalCallback callback) {
@@ -245,7 +246,9 @@ public final class WebKitWebView {
 
         SnapshotCallbackHolder(@NonNull SnapshotCallback callback) { this.callback = callback; }
 
-        // Called from native code, which fills the returned bitmap's pixels in place.
+        // Called from the native snapshot thread, or from the main thread if that thread could not be started, which
+        // fills the returned bitmap's pixels in place. commitResult can be called from any thread: it posts the
+        // callback to the main thread.
         @Keep
         public @Nullable Bitmap createBitmap(int width, int height) {
             try {
@@ -286,7 +289,7 @@ public final class WebKitWebView {
     private native long nativeGetWebKitWebViewPtr(long nativePtr);
     private native void nativeSetZoomLevel(long nativePtr, double zoomLevel);
     private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue, float alpha);
-    private native void nativeCaptureSnapshot(long nativePtr, int region,
+    private native void nativeCaptureSnapshot(long nativePtr, int region, int maxWidth, int maxHeight,
                                               @NonNull SnapshotCallbackHolder callbackHolder);
     private native void nativeEvaluateJavascript(long nativePtr, String script,
                                                  @Nullable EvalCallbackHolder callbackHolder);

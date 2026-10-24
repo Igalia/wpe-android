@@ -456,19 +456,52 @@ public class WebView extends FrameLayout {
      * <p>
      * A full document snapshot can be very large. The bitmap is in device pixels, 4 bytes each,
      * and WebKit does not limit its size, so a long page can take hundreds of megabytes. That
-     * memory is held twice for a moment, by WebKit and by the bitmap, while the pixels are copied
-     * on the main thread. Android does not draw bitmaps larger than 100 MB on a hardware
-     * accelerated canvas, so scale such a bitmap down before showing it.
+     * memory is held twice for a moment, by WebKit and by the bitmap, while the pixels are
+     * copied. Android does not draw bitmaps larger than 100 MB on a hardware accelerated canvas.
+     * To get a smaller bitmap, use {@link #captureSnapshot(int, int, int, SnapshotCallback)}.
      *
      * @throws IllegalArgumentException if the region is not one of the two above.
      * @throws NullPointerException if the callback is null.
      */
     public void captureSnapshot(@SnapshotRegion int region, @NonNull SnapshotCallback callback) {
+        checkSnapshotArguments(region, callback);
+        startSnapshot(region, 0, 0, callback);
+    }
+
+    /**
+     * Captures a snapshot like {@link #captureSnapshot(int, SnapshotCallback)}, scaled down to fit in
+     * {@code maxWidth} by {@code maxHeight} pixels, with the same aspect ratio rounded to whole pixels. A limit
+     * of 0 leaves that side unlimited, for example to limit only the width. A snapshot that already fits keeps its
+     * size: it is never enlarged.
+     * <p>
+     * The pixels are scaled while they are copied out of WebKit, so only the scaled bitmap is allocated, which
+     * suits thumbnails: at full size, a visible snapshot of a 1080 by 2400 view takes about 10 MB. WebKit still
+     * paints the snapshot at full size for a moment, in native memory.
+     *
+     * @throws IllegalArgumentException if the region is not {@link #SNAPSHOT_REGION_VISIBLE} or
+     *     {@link #SNAPSHOT_REGION_FULL_DOCUMENT}, or {@code maxWidth} or {@code maxHeight} is negative.
+     * @throws NullPointerException if the callback is null.
+     */
+    public void captureSnapshot(@SnapshotRegion int region, int maxWidth, int maxHeight,
+                                @NonNull SnapshotCallback callback) {
+        checkSnapshotArguments(region, callback);
+        if (maxWidth < 0 || maxHeight < 0)
+            throw new IllegalArgumentException("Snapshot size limits must not be negative: " + maxWidth + "x" +
+                                               maxHeight);
+        startSnapshot(region, maxWidth, maxHeight, callback);
+    }
+
+    private static void checkSnapshotArguments(@SnapshotRegion int region, @NonNull SnapshotCallback callback) {
         Objects.requireNonNull(callback, "callback");
         if (region != SNAPSHOT_REGION_VISIBLE && region != SNAPSHOT_REGION_FULL_DOCUMENT)
             throw new IllegalArgumentException("Unknown snapshot region: " + region);
+    }
+
+    // A maxWidth or maxHeight of 0 leaves that side unlimited.
+    private void startSnapshot(@SnapshotRegion int region, int maxWidth, int maxHeight,
+                               @NonNull SnapshotCallback callback) {
         if (webKitWebView != null)
-            webKitWebView.captureSnapshot(region, result -> callback.onResult(result));
+            webKitWebView.captureSnapshot(region, maxWidth, maxHeight, result -> callback.onResult(result));
         else
             getContext().getMainExecutor().execute(() -> callback.onResult(null));
     }
