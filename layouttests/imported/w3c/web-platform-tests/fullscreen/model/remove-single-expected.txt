@@ -1,3 +1,0 @@
-
-PASS Remove the single element on the fullscreen element stack
-

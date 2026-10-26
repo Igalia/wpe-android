@@ -1,3 +1,0 @@
-
-PASS textAlign end with rtl is the left edge
-

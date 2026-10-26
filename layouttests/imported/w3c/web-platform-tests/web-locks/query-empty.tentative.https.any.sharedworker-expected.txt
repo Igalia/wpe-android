@@ -1,3 +1,0 @@
-
-PASS query() returns dictionary with empty arrays when no locks are held
-

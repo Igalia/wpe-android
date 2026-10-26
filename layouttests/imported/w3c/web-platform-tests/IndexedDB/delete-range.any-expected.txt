@@ -1,6 +1,0 @@
-
-PASS Delete range
-PASS Delete range 1
-PASS Delete range 2
-PASS Delete range 3
-

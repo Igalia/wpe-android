@@ -1,4 +1,0 @@
-foobarberbar
-
-PASS starts-with() arguments depending on the context node
-

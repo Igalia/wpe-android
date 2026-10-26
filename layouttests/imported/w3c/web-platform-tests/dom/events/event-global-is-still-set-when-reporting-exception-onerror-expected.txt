@@ -1,5 +1,0 @@
-CONSOLE MESSAGE: ReferenceError: Can't find variable: foo
-
-
-PASS window.onerror handler restores window.event after it reports an exception
-

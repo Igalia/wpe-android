@@ -1,3 +1,0 @@
-
-PASS Mixed-Content: Expects allowed for script-tag-dynamic-import to same-https origin and no-redirect redirection from https context.
-

@@ -1,5 +1,0 @@
-
-Harness Error (TIMEOUT), message = null
-
-TIMEOUT First contentful paint fires due to transform-based intersection with document. Test timed out
-

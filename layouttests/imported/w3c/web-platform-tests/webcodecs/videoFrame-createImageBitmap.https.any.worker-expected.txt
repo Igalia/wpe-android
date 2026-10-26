@@ -1,3 +1,0 @@
-
-PASS Create ImageBitmap for a VideoFrame from VP9 decoder.
-

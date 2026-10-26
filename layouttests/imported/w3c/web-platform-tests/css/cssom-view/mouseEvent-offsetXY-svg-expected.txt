@@ -1,3 +1,0 @@
-
-PASS MouseEvent.offsetX/Y returns coordinates relative to the root svg
-

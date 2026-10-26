@@ -1,3 +1,0 @@
-
-PASS PerformanceResourceTiming sizes fetch with preflight test
-

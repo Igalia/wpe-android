@@ -1,4 +1,0 @@
-
-
-PASS autofocus when a modal dialog is opened
-

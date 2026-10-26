@@ -1,3 +1,0 @@
-
-PASS The revert works when appearing in setKeyframes
-

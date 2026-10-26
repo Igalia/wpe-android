@@ -1,3 +1,0 @@
-
-PASS ResizeObserver content-box size and scrollbars
-

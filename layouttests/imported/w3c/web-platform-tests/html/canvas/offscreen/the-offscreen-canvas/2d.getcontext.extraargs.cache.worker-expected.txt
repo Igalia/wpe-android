@@ -1,3 +1,0 @@
-
-PASS The 2D context doesn't throw with extra getContext arguments (cached)
-

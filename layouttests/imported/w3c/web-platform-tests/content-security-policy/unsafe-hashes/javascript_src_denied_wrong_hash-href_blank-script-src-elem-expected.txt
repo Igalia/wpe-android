@@ -1,3 +1,0 @@
-
-PASS javascript: navigation using <a href target=_blank> should be refused due to wrong hash
-

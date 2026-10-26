@@ -1,4 +1,0 @@
-
-
-PASS iframe still inherits correct CSP
-

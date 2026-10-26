@@ -1,4 +1,0 @@
-
-
-PASS base element in srcdoc document should resolve against its fallback base URI
-

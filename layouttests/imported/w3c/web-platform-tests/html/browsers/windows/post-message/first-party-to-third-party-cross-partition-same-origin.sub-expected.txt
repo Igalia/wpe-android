@@ -1,3 +1,0 @@
-
-PASS postMessage: First-Party to Third-Party, Cross-Partition, Same-Origin
-

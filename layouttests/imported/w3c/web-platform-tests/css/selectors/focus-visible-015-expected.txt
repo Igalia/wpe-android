@@ -1,5 +1,0 @@
-Initial
-Target
-
-PASS :focus-visible does not match after script focus move
-

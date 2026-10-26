@@ -1,3 +1,0 @@
-
-PASS Space characters at the start of a line are NOT collapsed
-

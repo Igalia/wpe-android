@@ -1,5 +1,0 @@
-There should be a green square below.
-
-
-PASS #flex 1
-

@@ -1,4 +1,0 @@
-Should be green
-
-PASS cssRules doesn't change on replace / replaceSync
-

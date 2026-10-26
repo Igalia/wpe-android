@@ -1,3 +1,0 @@
-
-PASS test that a header-preloaded module is loaded and consumed
-

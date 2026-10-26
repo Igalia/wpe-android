@@ -1,3 +1,0 @@
-
-PASS speechSynthesis.pause() and resume() state and events
-

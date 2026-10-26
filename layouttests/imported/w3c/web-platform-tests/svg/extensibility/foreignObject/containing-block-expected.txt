@@ -1,3 +1,0 @@
-
-FAIL position assert_equals: offsetTop expected 5 but got 0
-

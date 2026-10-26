@@ -1,4 +1,0 @@
-
-PASS Child document navigates same-origin parent via document.location
-PASS Child document navigates same-origin parent via form submission
-

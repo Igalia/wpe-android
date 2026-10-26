@@ -1,7 +1,0 @@
-
-PASS location [PutForwards]
-PASS location.assign()
-PASS location.replace()
-PASS location.href
-PASS location.search
-

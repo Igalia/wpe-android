@@ -1,3 +1,0 @@
-
-PASS No exception raised on save() + restore().
-

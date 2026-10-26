@@ -1,5 +1,0 @@
-out
-item1 item2
-
-PASS When the focus is set on an element outside of the focusgroup, an arrow keypress shouldn't move the focus at all.
-

@@ -1,3 +1,0 @@
-
-PASS Expecting logs: ["PASS: eval() blocked.","violated-directive=script-src"]
-

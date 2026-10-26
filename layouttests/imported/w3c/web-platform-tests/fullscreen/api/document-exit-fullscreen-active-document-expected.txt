@@ -1,5 +1,0 @@
-
-PASS
-    Document#exitFullscreen() when the document is not the active document
-
-

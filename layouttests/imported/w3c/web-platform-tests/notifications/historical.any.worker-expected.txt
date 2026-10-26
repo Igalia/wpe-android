@@ -1,3 +1,0 @@
-
-PASS Notification.get is obsolete
-

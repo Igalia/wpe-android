@@ -1,3 +1,0 @@
-
-PASS The empty string has zero width
-

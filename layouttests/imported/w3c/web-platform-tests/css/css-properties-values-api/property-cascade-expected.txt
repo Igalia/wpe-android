@@ -1,4 +1,0 @@
-
-PASS Registering a property does not affect cascade
-PASS Registering a property does not affect parsing
-

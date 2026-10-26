@@ -1,4 +1,0 @@
-
-PASS Same-origin dedicated worker blocked by host-source expression.
-PASS blob: dedicated worker blocked by 'blob:'.
-

@@ -1,3 +1,0 @@
-
-PASS Missing/invalid/null referrerPolicy should reflect as the empty string
-

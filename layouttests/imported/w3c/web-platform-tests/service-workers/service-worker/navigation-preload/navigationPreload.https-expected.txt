@@ -1,3 +1,0 @@
-
-PASS The navigationPreload attribute must return service worker registration's NavigationPreloadManager object.
-

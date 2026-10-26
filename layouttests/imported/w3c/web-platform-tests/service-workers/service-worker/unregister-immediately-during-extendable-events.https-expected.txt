@@ -1,3 +1,0 @@
-
-FAIL Clear-Site-Data must fail pending subresource fetch events. assert_unreached: Should have rejected: undefined Reached unreachable code
-

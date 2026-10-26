@@ -1,3 +1,0 @@
-
-PASS Traversing the history during beforeunload
-

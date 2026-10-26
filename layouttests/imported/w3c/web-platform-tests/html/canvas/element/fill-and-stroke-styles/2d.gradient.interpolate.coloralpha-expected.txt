@@ -1,7 +1,0 @@
-2d.gradient.interpolate.coloralpha
-Actual output:
-Expected output:
-
-
-PASS Canvas test: 2d.gradient.interpolate.coloralpha
-

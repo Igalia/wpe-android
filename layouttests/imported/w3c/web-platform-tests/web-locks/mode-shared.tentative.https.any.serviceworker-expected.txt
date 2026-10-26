@@ -1,4 +1,0 @@
-
-PASS Lock requests are granted in order
-PASS Shared locks are not exclusive
-

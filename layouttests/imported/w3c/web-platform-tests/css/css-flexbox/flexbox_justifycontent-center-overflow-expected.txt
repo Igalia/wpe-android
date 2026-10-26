@@ -1,6 +1,0 @@
-Blue is the flexbox. Orange are items that overflow it.
-
-PASS span 1
-PASS span 2
-PASS span 3
-

@@ -1,3 +1,0 @@
-
-PASS All the scrollers affected by scrollIntoView should land on a snap position if one exists. Otherwise, land according to the specified alignment
-

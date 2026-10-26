@@ -1,3 +1,0 @@
-
-PASS Module script queueing a microtask then throwing an exception
-

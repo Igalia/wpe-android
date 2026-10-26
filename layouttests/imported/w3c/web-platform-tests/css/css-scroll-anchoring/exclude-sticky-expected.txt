@@ -1,5 +1,0 @@
-sticky
-content
-
-FAIL Sticky-positioned headers shouldn't be chosen as scroll anchors (we should use 'content' instead) assert_equals: expected 200 but got 150
-

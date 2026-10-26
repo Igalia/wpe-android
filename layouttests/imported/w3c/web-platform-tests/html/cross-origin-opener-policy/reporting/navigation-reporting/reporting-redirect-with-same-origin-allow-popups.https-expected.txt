@@ -1,4 +1,0 @@
-
-PASS Same origin openee redirected to same-origin with same-origin-allow-popups
-PASS Cross origin openee redirected to same-origin with same-origin-allow-popups
-

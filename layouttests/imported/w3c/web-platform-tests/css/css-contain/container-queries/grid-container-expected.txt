@@ -1,3 +1,0 @@
-
-PASS Check that grid items can query grid container
-

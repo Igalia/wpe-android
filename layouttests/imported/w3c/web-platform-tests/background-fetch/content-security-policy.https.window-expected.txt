@@ -1,3 +1,0 @@
-
-PASS fetch blocked by CSP should reject
-

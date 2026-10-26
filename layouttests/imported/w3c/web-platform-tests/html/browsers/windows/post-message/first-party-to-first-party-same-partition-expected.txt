@@ -1,3 +1,0 @@
-
-PASS postMessage: First-Party to First-Party, Same-Partition
-

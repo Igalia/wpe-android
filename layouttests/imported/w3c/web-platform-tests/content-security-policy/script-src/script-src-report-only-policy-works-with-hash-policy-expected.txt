@@ -1,4 +1,0 @@
-
-PASS Test that script executes if allowed by proper hash values
-PASS Test that the securitypolicyviolation event is fired
-

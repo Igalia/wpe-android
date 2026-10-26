@@ -1,3 +1,0 @@
-
-PASS Test if global members exist in a shared worker
-

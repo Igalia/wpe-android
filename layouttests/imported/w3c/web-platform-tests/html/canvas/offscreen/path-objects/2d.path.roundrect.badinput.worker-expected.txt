@@ -1,3 +1,0 @@
-
-PASS roundRect() throws or does not throw errors given the strange inputs.
-

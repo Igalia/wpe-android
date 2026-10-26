@@ -1,4 +1,0 @@
-
-
-PASS Client IDs match between Locks API and Service Workers
-

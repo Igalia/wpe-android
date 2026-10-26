@@ -1,3 +1,0 @@
-
-PASS Simple document with non-ascii COOP header opening a same-origin popup
-

@@ -1,3 +1,0 @@
-
-PASS textAlign end with ltr is the right edge
-

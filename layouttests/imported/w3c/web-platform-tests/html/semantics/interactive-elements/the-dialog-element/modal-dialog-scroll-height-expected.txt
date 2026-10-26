@@ -1,3 +1,0 @@
-
-PASS dialogs should be centered before computing overflow.
-

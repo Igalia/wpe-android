@@ -1,3 +1,0 @@
-
-PASS Create WebSocket - Close the Connection - close(only reason) - INVALID_ACCESS_ERR is thrown
-

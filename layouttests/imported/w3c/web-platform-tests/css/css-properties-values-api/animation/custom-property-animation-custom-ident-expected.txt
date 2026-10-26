@@ -1,5 +1,0 @@
-
-PASS Animating a custom property of type <custom-ident> is discrete
-PASS Animating a custom property of type <custom-ident>+ is discrete
-PASS Animating a custom property of type <custom-ident># is discrete
-

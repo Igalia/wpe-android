@@ -1,3 +1,0 @@
-
-PASS "Calculate depth for node" algorithm with Shadow DOM
-

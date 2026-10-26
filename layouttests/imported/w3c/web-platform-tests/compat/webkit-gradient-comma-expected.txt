@@ -1,4 +1,0 @@
-
-PASS -webkit-radial-gradient accepts comma before color stops.
-PASS -webkit-radial-gradient rejects missing comma before color stops.
-

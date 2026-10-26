@@ -1,4 +1,0 @@
-
-
-PASS Default caret-color is not interpolable
-

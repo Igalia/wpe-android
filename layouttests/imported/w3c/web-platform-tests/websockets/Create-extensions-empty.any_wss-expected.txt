@@ -1,3 +1,0 @@
-
-PASS Create WebSocket - wsocket.extensions should be set to '' after connection is established - Connection should be closed
-

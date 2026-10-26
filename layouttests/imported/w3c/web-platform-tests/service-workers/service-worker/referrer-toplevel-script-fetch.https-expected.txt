@@ -1,4 +1,0 @@
-
-PASS Referrer of the top-level script fetch should be the document URL
-PASS Referrer of the module script fetch should be the document URL
-

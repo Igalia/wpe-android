@@ -1,5 +1,0 @@
-
-PASS different scriptURL
-PASS different updateViaCache
-PASS different type
-

@@ -1,3 +1,0 @@
-
-PASS Invalidation of nested part on hover
-

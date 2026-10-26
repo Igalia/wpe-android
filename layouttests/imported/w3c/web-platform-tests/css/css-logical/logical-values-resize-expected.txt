@@ -1,4 +1,0 @@
-
-PASS Test that 'resize: block' is supported.
-PASS Test that 'resize: inline' is supported.
-

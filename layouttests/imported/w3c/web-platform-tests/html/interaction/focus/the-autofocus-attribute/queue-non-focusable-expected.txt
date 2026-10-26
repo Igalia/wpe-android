@@ -1,4 +1,0 @@
-
-
-PASS If the first autofocus element is not focusable, but becomes focusable before a frame, it should be focused.
-

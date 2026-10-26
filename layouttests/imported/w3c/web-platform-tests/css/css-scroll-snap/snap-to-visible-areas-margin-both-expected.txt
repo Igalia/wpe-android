@@ -1,3 +1,0 @@
-
-PASS Snap to area such that only the scroll margin from both axes' areas are visible
-

@@ -1,4 +1,0 @@
-
-PASS scroll-snap-stop for areas on HTML should control snapping behavior and changing it takes effect
-PASS scroll-snap-stop for areas on DIV should control snapping behavior and changing it takes effect
-

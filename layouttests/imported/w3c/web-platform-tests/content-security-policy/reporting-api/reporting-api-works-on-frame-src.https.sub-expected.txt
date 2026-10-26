@@ -1,5 +1,0 @@
-
-
-PASS Event is fired
-PASS Violation report status OK.
-

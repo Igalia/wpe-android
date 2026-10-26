@@ -1,4 +1,0 @@
-A
-
-PASS First contentful paint fires only when some of the text is visible, considering ::first-letter.
-

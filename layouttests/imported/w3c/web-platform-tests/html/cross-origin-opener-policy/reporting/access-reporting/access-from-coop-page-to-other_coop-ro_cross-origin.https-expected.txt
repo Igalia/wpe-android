@@ -1,3 +1,0 @@
-
-FAIL access-from-coop-page-to-other (COOP-RO) assert_equals: expected (string) "coop" but got (undefined) undefined
-

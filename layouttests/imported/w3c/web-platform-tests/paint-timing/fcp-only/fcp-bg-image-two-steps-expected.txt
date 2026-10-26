@@ -1,5 +1,0 @@
-
-Harness Error (TIMEOUT), message = null
-
-TIMEOUT First contentful paint fires for background image only when visible. Test timed out
-

@@ -1,4 +1,0 @@
-main frame - has 1 onunload handler(s)
-
-PASS Traversing the history during unload
-

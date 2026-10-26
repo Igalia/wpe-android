@@ -1,3 +1,0 @@
-
-PASS when changing hash, after the load event
-

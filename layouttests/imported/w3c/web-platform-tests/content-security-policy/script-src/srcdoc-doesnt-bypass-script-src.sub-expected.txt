@@ -1,4 +1,0 @@
-
-
-PASS Expecting logs: ["violated-directive=script-src-elem"]
-

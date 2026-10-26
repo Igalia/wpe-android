@@ -1,3 +1,0 @@
-
-FAIL Image patterns do not get flipped when painted promise_test: Unhandled rejection with value: object "TypeError: Type error"
-

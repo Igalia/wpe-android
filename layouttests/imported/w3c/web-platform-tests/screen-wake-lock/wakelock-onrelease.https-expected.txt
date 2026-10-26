@@ -1,4 +1,0 @@
-
-PASS Test onreleased event's basic properties
-PASS Ensure onreleased is called before WakeLockSentinel.release() resolves
-

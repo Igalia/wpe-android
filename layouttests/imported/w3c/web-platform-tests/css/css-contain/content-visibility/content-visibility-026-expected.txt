@@ -1,4 +1,0 @@
-
-PASS content-visibility:hidden does not affect computed value of 'contain'
-PASS content-visibility:auto does not affect computed value of 'contain'
-

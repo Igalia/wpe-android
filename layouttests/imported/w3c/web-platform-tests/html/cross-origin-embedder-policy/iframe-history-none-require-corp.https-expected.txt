@@ -1,3 +1,0 @@
-
-PASS "none" top-level: navigating a frame back from "require-corp" should succeed
-

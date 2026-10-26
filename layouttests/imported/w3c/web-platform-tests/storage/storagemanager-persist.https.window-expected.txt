@@ -1,3 +1,0 @@
-
-PASS navigator.storage.persist() returns a promise that resolves.
-

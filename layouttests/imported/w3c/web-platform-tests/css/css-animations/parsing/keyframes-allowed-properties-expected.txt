@@ -1,3 +1,0 @@
-
-PASS @keyframes allows all non-animation properties and animation-timing-function
-

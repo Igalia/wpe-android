@@ -211,16 +211,10 @@ class CheckFormat:
         while top_level_path.startswith('..' + os.path.sep):
             top_level_path = top_level_path[len('..' + os.path.sep):]
 
-        if top_level_path.startswith("tools/scripts/libraries"):
-            return True
-
-        if top_level_path.startswith("tools/scripts/webkitpy"):
-            return True
-
         top_level_folder = top_level_path.split(os.path.sep)[0]
 
-        # Exclude imported folders
-        if top_level_folder in ["layouttests", "webdrivertests"]:
+        # Exclude the WebDriver test patches and expectations
+        if top_level_folder == "webdrivertests":
             return True
 
         file_ext = os.path.splitext(file)[1]
@@ -259,7 +253,7 @@ class CheckFormat:
 
     def _run_editor_config_checker(self):
         excludes = (
-            "\\.git/|\\.gradle/|\\.idea/|build/|gradlew.bat|layouttests/|webdrivertests/|tools/scripts/libraries/"
+            "\\.git/|\\.gradle/|\\.idea/|build/|gradlew.bat|webdrivertests/"
         )
         command = subprocess.run([self._editor_config_checker, "-no-color", "-disable-indentation",
                                   "-exclude", excludes],

@@ -1,3 +1,0 @@
-
-PASS Worker: Test Performance Observer inside a worker.
-

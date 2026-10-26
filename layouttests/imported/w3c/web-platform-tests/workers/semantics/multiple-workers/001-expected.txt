@@ -1,4 +1,0 @@
-
-PASS dedicated
-PASS shared
-

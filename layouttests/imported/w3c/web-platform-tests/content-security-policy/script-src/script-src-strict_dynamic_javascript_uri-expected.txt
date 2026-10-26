@@ -1,5 +1,0 @@
-Script injected via `javascript:` URIs are not allowed with `strict-dynamic`.
-
-
-PASS Script injected via `javascript:` URIs are not allowed with `strict-dynamic`.
-

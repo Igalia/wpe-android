@@ -1,5 +1,0 @@
-
-PASS img 1
-PASS img 2
-
-

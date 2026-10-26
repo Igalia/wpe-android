@@ -1,4 +1,0 @@
-
-PASS <input> element becomes invalid inside disconnected <fieldset>
-PASS <select> element becomes valid inside disconnected <fieldset>
-

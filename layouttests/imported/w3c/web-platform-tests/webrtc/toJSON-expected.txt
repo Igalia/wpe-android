@@ -1,4 +1,0 @@
-
-PASS RTCSessionDescription.toJSON serializes only specific attributes
-FAIL RTCIceCandidate.toJSON serializes only specific attributes assert_equals: expected (string) "test" but got (object) null
-

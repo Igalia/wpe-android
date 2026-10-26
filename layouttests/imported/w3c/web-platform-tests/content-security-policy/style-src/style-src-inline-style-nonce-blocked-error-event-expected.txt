@@ -1,4 +1,0 @@
-
-PASS Should fire a securitypolicyviolation event
-PASS Test that paragraph remains unmodified and error events received.
-Lorem ipsum
