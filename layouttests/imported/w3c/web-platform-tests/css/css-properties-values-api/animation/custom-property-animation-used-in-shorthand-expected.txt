@@ -1,3 +1,0 @@
-
-PASS Animated custom property is applied in a shorthand property.
-

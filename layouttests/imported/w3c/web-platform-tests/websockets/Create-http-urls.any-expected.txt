@@ -1,3 +1,0 @@
-
-PASS WebSocket: ensure both HTTP schemes are supported
-

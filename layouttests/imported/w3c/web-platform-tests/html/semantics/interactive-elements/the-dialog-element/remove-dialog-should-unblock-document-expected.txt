@@ -1,4 +1,0 @@
-
-
-PASS Test that removing dialog unblocks the document.
-

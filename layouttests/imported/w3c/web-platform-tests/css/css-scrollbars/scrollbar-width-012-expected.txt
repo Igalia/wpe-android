@@ -1,3 +1,0 @@
-
-PASS scrollbar-width none on the root overrides ::-webkit-scrollbar
-

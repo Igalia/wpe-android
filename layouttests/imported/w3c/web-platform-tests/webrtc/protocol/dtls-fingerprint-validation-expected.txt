@@ -1,3 +1,0 @@
-
-PASS Connection fails if one side provides a wrong DTLS fingerprint
-

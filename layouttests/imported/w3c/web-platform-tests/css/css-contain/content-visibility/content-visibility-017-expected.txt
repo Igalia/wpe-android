@@ -1,3 +1,0 @@
-
-PASS Content Visibility: hit testing (composited child)
-

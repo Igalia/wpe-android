@@ -1,5 +1,0 @@
-
-PASS Property image-rendering value 'auto'
-PASS Property image-rendering value 'optimizequality'
-PASS Property image-rendering value 'optimizespeed'
-

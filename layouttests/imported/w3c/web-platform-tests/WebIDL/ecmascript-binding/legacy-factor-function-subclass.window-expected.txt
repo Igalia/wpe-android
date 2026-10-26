@@ -1,3 +1,0 @@
-
-PASS [LegacyFactoryFunction] can be subclassed and correctly handles NewTarget
-

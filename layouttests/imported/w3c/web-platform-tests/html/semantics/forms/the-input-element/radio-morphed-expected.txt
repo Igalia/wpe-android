@@ -1,4 +1,0 @@
-
-
-PASS Setting type attribute must unset checkedness of other elements
-

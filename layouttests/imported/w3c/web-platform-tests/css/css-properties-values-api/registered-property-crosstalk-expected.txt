@@ -1,3 +1,0 @@
-
-PASS Only #c should be affected by --x:42
-

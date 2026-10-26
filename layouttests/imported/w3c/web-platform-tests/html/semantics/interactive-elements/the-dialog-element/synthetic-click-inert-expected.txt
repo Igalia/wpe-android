@@ -1,5 +1,0 @@
-Click me
-Click me too
-
-PASS Test that inert nodes still get programmatic click events
-

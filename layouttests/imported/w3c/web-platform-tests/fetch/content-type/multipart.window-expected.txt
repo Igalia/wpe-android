@@ -1,3 +1,0 @@
-
-PASS Ensure capital letters can be used in the boundary value.
-

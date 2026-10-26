@@ -1,3 +1,0 @@
-
-PASS Filling a line draws nothing
-

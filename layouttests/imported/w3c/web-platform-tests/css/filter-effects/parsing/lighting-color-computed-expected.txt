@@ -1,3 +1,0 @@
-
-PASS Property lighting-color value 'rgb(1, 2, 3)'
-

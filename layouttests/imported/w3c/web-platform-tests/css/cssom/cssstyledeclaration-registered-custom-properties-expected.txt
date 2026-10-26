@@ -1,4 +1,0 @@
-
-PASS Registered custom properties are included in CSSComputedStyleDeclaration
-PASS Only relevant custom properties are included
-

@@ -1,3 +1,0 @@
-
-PASS viewport does not display a scrollbar
-

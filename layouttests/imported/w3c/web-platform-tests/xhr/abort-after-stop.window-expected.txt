@@ -1,3 +1,0 @@
-
-PASS XMLHttpRequest: abort event should fire when stop() method is used
-

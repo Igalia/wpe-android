@@ -1,4 +1,0 @@
-Let's select this word
-
-PASS Select the text 'word'
-

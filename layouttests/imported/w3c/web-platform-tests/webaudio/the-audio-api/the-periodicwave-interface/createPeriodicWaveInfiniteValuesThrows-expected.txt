@@ -1,4 +1,0 @@
-
-PASS createPeriodicWave with Infinity real values should throw
-PASS createPeriodicWave with Infinity imag values should throw
-

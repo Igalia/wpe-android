@@ -1,3 +1,0 @@
-
-PASS Test unexpected properties are not in global scope
-

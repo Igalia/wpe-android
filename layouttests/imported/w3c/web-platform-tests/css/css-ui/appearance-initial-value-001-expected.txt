@@ -1,6 +1,0 @@
-
-PASS support for appearance
-PASS initial value for appearance
-PASS support for -webkit-appearance
-PASS initial value for -webkit-appearance
-

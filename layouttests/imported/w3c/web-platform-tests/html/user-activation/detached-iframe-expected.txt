@@ -1,3 +1,0 @@
-
-PASS navigator.userActivation retains state even if global is removed
-

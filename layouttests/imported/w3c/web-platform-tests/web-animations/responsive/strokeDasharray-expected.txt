@@ -1,3 +1,0 @@
-
-PASS strokeDasharray responsive to style changes
-

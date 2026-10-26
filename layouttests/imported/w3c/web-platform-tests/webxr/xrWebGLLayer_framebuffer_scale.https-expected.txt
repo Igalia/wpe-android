@@ -1,3 +1,0 @@
-
-FAIL Ensure framebuffer scaling works as expected. undefined is not an object (evaluating 'fakeDeviceController.displayInfo_.webxrDefaultFramebufferScale')
-

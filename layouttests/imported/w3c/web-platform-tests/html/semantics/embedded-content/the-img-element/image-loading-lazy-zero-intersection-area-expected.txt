@@ -1,3 +1,0 @@
-
-PASS Image with zero intersection area is lazy-loaded
-

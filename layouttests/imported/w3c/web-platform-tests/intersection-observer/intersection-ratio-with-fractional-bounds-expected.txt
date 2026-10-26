@@ -1,3 +1,0 @@
-
-PASS IntersectionObserver ratio with fractional bounds
-

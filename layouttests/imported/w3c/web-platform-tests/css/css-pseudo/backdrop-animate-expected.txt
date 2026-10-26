@@ -1,3 +1,0 @@
-
-PASS 'backgroundColor' animation
-Dialog contents

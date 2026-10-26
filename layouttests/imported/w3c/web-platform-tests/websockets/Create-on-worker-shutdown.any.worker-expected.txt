@@ -1,3 +1,0 @@
-
-PASS WebSocket created after a worker self.close()
-

@@ -1,3 +1,0 @@
-
-PASS Send binary data on a WebSocket - ArrayBufferView - Uint32Array with offset - Connection should be closed
-

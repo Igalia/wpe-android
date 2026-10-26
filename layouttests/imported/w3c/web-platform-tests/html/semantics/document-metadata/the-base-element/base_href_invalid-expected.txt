@@ -1,3 +1,0 @@
-
-PASS base element with unparseable href should have .href getter return attr value
-

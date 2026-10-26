@@ -1,3 +1,0 @@
-
-PASS style load event should fire when textContent changed
-

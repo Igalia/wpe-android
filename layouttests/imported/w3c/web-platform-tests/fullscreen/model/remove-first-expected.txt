@@ -1,3 +1,0 @@
-
-FAIL Remove the first element on the fullscreen element stack assert_equals: expected Document node with 2 children but got Element node <html><head><title>Remove the first element on the fullsc...
-

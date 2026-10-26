@@ -1,3 +1,0 @@
-
-PASS coop-same-origin-allow-popups-document-write
-

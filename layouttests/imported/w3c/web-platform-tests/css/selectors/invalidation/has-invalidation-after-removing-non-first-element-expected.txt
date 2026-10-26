@@ -1,4 +1,0 @@
-
-PASS initial_color: div#subject.color
-PASS remove descendant: div#subject.color
-

@@ -1,4 +1,0 @@
-
-
-PASS object setCustomValidity is correct
-

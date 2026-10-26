@@ -1,3 +1,0 @@
-
-PASS status is not garbage collected when it goes out of scope
-

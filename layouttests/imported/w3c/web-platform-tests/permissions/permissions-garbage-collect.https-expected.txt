@@ -1,3 +1,0 @@
-
-PASS Events fire even if the status object is garbage collected
-

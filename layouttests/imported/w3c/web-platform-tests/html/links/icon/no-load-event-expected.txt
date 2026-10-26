@@ -1,3 +1,0 @@
-
-PASS <link rel="icon"> doesn't fire a load event
-

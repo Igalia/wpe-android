@@ -1,4 +1,0 @@
-
-
-PASS autofocus is run every time a dialog is opened
-

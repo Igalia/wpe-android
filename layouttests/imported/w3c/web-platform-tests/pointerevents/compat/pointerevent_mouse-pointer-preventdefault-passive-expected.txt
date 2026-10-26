@@ -1,3 +1,0 @@
-
-PASS Canceling passive pointerevents does not affect compat mouseevents
-

@@ -1,4 +1,0 @@
-
-
-PASS parent cancels a pending navigation in a same-origin child
-

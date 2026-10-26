@@ -1,3 +1,0 @@
-
-PASS Executing modulepreload should not block the window's load event
-

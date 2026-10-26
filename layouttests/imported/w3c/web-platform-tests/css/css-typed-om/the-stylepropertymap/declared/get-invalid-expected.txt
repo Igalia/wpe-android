@@ -1,3 +1,0 @@
-
-PASS Calling StylePropertyMap.get with an unsupported property throws a TypeError
-

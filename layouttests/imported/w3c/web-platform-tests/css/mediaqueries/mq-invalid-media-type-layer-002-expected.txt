@@ -1,3 +1,0 @@
-
-PASS 'layer' used as media types is a syntax error
-

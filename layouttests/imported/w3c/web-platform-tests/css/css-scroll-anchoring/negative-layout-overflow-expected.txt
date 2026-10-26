@@ -1,3 +1,0 @@
-
-FAIL Anchor selection accounts for negative positioning. assert_equals: expected 350 but got 250
-

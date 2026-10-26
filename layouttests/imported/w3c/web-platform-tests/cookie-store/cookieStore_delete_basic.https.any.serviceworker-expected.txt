@@ -1,3 +1,0 @@
-
-FAIL cookieStore.delete return type is Promise<void> promise_test: Unhandled rejection with value: object "ReferenceError: Can't find variable: cookieStore"
-

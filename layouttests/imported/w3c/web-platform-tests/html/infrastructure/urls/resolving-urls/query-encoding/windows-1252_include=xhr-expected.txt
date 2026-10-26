@@ -1,3 +1,0 @@
-
-FAIL XMLHttpRequest#open() assert_equals: expected "%C3%A5" but got "%E5"
-

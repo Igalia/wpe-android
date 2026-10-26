@@ -1,4 +1,0 @@
-
-
-PASS javascript: aliases security origin
-

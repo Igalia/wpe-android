@@ -1,6 +1,0 @@
-two
-lines
-hello
-
-PASS #target > div 1
-

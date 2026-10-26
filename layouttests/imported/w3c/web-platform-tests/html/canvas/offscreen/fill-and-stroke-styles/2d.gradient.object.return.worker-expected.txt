@@ -1,3 +1,0 @@
-
-PASS createLinearGradient() and createRadialGradient() returns objects implementing CanvasGradient
-

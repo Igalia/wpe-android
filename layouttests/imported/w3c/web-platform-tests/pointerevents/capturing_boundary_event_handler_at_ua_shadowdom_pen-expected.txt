@@ -1,7 +1,0 @@
-
-done
-
-PASS Capturing boundary event handler at DIV
-PASS Capturing boundary event handler at VIDEO
-PASS Capturing boundary event handler at INPUT
-

@@ -1,3 +1,0 @@
-
-PASS A @keyframe animation with revert works when applied to multiple identical elements
-

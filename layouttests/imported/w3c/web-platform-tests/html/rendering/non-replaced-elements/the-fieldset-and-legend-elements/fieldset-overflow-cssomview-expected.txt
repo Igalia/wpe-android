@@ -1,4 +1,0 @@
-Legend
-
-PASS Test cssom-view API for FIELDSET
-

@@ -1,4 +1,0 @@
-
-
-PASS :dir on <input> isn't altered by text children
-

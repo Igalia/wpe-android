@@ -1,3 +1,0 @@
-
-FAIL cache-storage assert_equals: expected "not found" but got "value_2"
-

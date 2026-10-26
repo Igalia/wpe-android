@@ -1,3 +1,0 @@
-
-PASS Nested worker that issues a sync XHR
-

@@ -1,4 +1,0 @@
-
-PASS Same origin popup redirects to same-origin with same-origin-allow-popups
-PASS Cross origin popup redirects to same-origin with same-origin-allow-popups
-

@@ -1,6 +1,0 @@
-
-
-PASS keyword absbottom
-PASS keyword abscenter
-PASS keyword absmiddle
-

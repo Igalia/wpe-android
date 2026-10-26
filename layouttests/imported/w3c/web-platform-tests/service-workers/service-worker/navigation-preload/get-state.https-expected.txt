@@ -1,5 +1,0 @@
-
-PASS getState
-PASS getState from a worker
-PASS no active worker
-

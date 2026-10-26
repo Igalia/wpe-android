@@ -1,3 +1,0 @@
-
-PASS First test on computed value of 'direction' of root element.
-

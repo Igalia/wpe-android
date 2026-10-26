@@ -1,3 +1,0 @@
-
-PASS After module worker creation import maps are still effective
-

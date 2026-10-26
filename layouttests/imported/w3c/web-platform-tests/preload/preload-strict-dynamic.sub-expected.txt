@@ -1,5 +1,0 @@
-
-FAIL static-no-nonce assert_true: sawViolation expected true got false
-PASS static-nonce
-PASS dynamic
-

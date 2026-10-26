@@ -1,4 +1,0 @@
-
-PASS location.href
-PASS location.assign
-

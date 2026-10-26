@@ -1,3 +1,0 @@
-
-PASS setParameters() with modified headerExtensions should reject with InvalidModificationError
-

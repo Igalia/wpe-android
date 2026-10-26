@@ -1,3 +1,0 @@
-
-PASS test SyncAccessHandle.getSize after SyncAccessHandle.write
-

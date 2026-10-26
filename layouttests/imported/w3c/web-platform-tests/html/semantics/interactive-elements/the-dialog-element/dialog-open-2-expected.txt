@@ -1,3 +1,0 @@
-
-PASS Tests that dialog is visible after show() is called and not visible after close() is called.
-

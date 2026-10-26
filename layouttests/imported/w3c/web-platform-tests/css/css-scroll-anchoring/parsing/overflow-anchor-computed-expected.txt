@@ -1,4 +1,0 @@
-
-PASS Property overflow-anchor value 'auto'
-PASS Property overflow-anchor value 'none'
-

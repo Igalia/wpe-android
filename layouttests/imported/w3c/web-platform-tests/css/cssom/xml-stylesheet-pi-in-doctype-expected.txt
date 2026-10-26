@@ -1,3 +1,0 @@
-
-FAIL xml-stylesheet processing instruction in doctype internal subset assert_equals: expected "auto" but got "1"
-

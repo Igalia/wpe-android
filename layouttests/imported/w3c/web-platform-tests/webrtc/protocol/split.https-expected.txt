@@ -1,3 +1,0 @@
-
-FAIL Connect audio and video to two independent PeerConnections assert_equals: expected "connected" but got "connecting"
-

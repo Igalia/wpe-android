@@ -1,6 +1,0 @@
-
-
-PASS
-  Check sandbox-flags inheritance in case of javascript window reuse.
-
-

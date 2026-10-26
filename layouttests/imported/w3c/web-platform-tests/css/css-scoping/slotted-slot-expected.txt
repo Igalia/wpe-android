@@ -1,4 +1,0 @@
-This text should be green.
-
-PASS Check that ::slotted does not match slot elements
-

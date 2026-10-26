@@ -1,4 +1,0 @@
-
-PASS Property transform value 'perspective(none)'
-PASS Property transform value 'perspective(10px)'
-

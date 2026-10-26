@@ -1,4 +1,0 @@
-x
-
-PASS Hit test
-

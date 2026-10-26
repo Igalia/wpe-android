@@ -1,5 +1,0 @@
-Test dialog modal is closed by escape key with input focused
-
-
-PASS Test dialog modal is closed by escape key with input focused
-

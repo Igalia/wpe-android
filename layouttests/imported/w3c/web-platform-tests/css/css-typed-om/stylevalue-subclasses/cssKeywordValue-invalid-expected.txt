@@ -1,3 +1,0 @@
-
-PASS Constructing CSSKeywordValue with an empty string throws a TypeError
-

@@ -1,4 +1,0 @@
-
-
-PASS <iframe src='javascript:...'>'s inherits policy (dynamically inserted <iframe> is blocked)
-

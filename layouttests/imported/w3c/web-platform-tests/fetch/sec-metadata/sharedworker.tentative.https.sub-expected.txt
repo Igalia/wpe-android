@@ -1,4 +1,0 @@
-
-Harness Error (FAIL), message = TypeError: null is not an object (evaluating 'sharedWorker.port.start')
-
-

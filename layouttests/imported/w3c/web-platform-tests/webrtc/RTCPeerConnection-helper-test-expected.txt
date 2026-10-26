@@ -1,3 +1,0 @@
-
-PASS Setting up a connection using helpers and defaults should work
-

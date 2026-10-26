@@ -1,3 +1,0 @@
-
-PASS Test terminating a nested workers by calling terminate() from its parent worker
-

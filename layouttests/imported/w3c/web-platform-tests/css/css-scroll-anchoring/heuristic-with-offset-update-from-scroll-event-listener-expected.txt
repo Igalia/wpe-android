@@ -1,3 +1,0 @@
-
-PASS Positioned ancestors with dynamic changes to offsets trigger scroll suppressions.
-

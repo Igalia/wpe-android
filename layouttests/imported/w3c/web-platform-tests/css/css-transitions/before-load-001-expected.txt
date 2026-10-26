@@ -1,4 +1,0 @@
-
-
-PASS CSS Transitions Test: Transitioning before load event
-

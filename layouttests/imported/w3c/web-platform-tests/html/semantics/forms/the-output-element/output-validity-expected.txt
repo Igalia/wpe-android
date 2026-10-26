@@ -1,4 +1,0 @@
-
-
-PASS :valid and :invalid pseudo-class on output element
-

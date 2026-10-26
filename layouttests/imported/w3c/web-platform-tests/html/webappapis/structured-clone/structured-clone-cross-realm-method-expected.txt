@@ -1,7 +1,0 @@
-
-
-PASS Object instance
-PASS Array instance
-PASS Date instance
-PASS RegExp instance
-

@@ -1,4 +1,0 @@
-Hello
-
-PASS offsetX is correctly adjusted
-

@@ -1,3 +1,0 @@
-
-PASS Computed value for interpolated transforms is not null
-

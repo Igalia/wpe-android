@@ -1,3 +1,0 @@
-
-PASS scrollbar-width thin on the body doesn't override ::-webkit-scrollbar on root
-

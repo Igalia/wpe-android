@@ -1,3 +1,0 @@
-
-PASS The copy event
-Trigger copy

@@ -1,7 +1,0 @@
-2d.composite.globalAlpha.imagepattern
-Actual output:
-Expected output:
-
-
-FAIL Canvas test: 2d.composite.globalAlpha.imagepattern promise_test: Unhandled rejection with value: object "TypeError: Type error"
-

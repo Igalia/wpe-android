@@ -1,3 +1,0 @@
-
-PASS Test currentSrc behaviour in various playback scenarios
-

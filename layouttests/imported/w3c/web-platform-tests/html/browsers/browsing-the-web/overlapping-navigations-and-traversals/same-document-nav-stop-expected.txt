@@ -1,4 +1,0 @@
-
-PASS fragment navigations are not stopped by stop()
-PASS pushState() navigations are not stopped by stop()
-

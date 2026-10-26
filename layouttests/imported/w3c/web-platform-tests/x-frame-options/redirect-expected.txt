@@ -1,3 +1,0 @@
-
-PASS XFO on redirect responses is ignored
-

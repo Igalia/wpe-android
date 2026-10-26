@@ -1,3 +1,0 @@
-
-PASS computed style for translate
-

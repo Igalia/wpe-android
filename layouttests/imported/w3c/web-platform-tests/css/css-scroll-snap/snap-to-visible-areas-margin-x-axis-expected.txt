@@ -1,3 +1,0 @@
-
-PASS Scroll margin should be considered when calculating snap area visibilty while snapping on the x-axis
-

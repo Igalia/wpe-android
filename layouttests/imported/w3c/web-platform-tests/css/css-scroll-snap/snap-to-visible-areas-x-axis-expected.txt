@@ -1,3 +1,0 @@
-
-PASS Only snap to visible area on X axis, even when the non-visible ones are closer
-

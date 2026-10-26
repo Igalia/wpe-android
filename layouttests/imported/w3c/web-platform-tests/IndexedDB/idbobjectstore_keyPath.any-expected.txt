@@ -1,3 +1,0 @@
-
-PASS IDBObjectStore's keyPath attribute returns the same object.
-

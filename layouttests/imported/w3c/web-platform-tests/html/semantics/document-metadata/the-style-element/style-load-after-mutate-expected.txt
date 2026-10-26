@@ -1,3 +1,0 @@
-
-PASS The 'load' event on the style element should still fire after mutation
-

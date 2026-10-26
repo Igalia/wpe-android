@@ -1,7 +1,0 @@
-
-item 1
-item 2
-
-PASS [data-expected-width] 1
-PASS [data-expected-width] 2
-

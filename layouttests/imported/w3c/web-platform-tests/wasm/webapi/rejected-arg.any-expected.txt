@@ -1,4 +1,0 @@
-
-PASS compileStreaming
-PASS instantiateStreaming
-

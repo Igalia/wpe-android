@@ -1,3 +1,0 @@
-
-PASS Simple document with duplicated COOP header opening a same-origin popup
-

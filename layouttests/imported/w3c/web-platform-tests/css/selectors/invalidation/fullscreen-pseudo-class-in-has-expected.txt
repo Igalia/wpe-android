@@ -1,5 +1,0 @@
-This is some text.
-
-PASS :fullscreen pseudo-class invalidation with requestFullscreen + exitFullscreen
-PASS :fullscreen pseudo-class invalidation with requestFullscreen + remove
-

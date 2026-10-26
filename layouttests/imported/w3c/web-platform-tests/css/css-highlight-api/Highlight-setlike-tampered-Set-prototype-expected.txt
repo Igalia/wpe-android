@@ -1,3 +1,0 @@
-
-PASS Highlight is a setlike interface that works as expected even if Set.prototype is tampered.
-

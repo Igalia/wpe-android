@@ -1,3 +1,0 @@
-
-PASS Verify that cross-origin resources don't implicitly expose their redirect timings
-
