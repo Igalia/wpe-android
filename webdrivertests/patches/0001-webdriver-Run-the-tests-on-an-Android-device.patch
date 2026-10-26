@@ -1,4 +1,4 @@
-From 6e7ee8491f94ebdb233a497da1c38d9542d72603 Mon Sep 17 00:00:00 2001
+From f2a35afbf3257d003a43da27f852296105567688 Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:05:39 +0200
 Subject: [PATCH 1/5] webdriver: Run the tests on an Android device
@@ -10,17 +10,16 @@ environment instead of being autoinstalled. The expectations and the
 driver script are passed on the command line. BiDi is off by default, as
 the device's BiDi endpoint is not forwarded yet.
 ---
- Tools/Scripts/run-webdriver-tests             |  48 +++-----
- .../webkitpy/webdriver_tests/pytest_runner.py |  46 +++++++-
- .../webdriver_tests/webdriver_driver.py       |  19 +++-
- .../webdriver_tests/webdriver_driver_wpe.py   |  41 ++++---
- .../webdriver_selenium_executor.py            |  46 +++++++-
- .../webdriver_tests/webdriver_test_runner.py  |  52 ++-------
- .../webdriver_test_runner_selenium.py         |  17 ++-
- .../webdriver_test_runner_w3c.py              |  14 +--
- .../webdriver_tests/webdriver_w3c_executor.py | 104 ++++++++++++++----
- .../webdriver_w3c_web_server.py               |  46 ++++----
- 10 files changed, 266 insertions(+), 167 deletions(-)
+ Tools/Scripts/run-webdriver-tests             | 48 ++++++-----------
+ .../webdriver_tests/webdriver_driver.py       | 19 ++++---
+ .../webdriver_tests/webdriver_driver_wpe.py   | 41 +++++++++------
+ .../webdriver_selenium_executor.py            | 46 +++++++++++++---
+ .../webdriver_tests/webdriver_test_runner.py  | 52 ++++---------------
+ .../webdriver_test_runner_selenium.py         | 17 +++---
+ .../webdriver_test_runner_w3c.py              | 14 ++---
+ .../webdriver_tests/webdriver_w3c_executor.py | 41 ++++++++++++---
+ .../webdriver_w3c_web_server.py               | 46 ++++++++--------
+ 9 files changed, 174 insertions(+), 150 deletions(-)
 
 diff --git a/Tools/Scripts/run-webdriver-tests b/Tools/Scripts/run-webdriver-tests
 index 7d8d2255..1943ec8d 100755
@@ -106,77 +105,6 @@ index 7d8d2255..1943ec8d 100755
  
  sys.exit(retval)
  
-diff --git a/Tools/Scripts/webkitpy/webdriver_tests/pytest_runner.py b/Tools/Scripts/webkitpy/webdriver_tests/pytest_runner.py
-index 4f0dedb6..253020c5 100644
---- a/Tools/Scripts/webkitpy/webdriver_tests/pytest_runner.py
-+++ b/Tools/Scripts/webkitpy/webdriver_tests/pytest_runner.py
-@@ -155,6 +155,48 @@ class SubtestResultRecorder(object):
-         self.results.append(new_result)
- 
- 
-+class StopOnUnresponsiveDriver(object):
-+    """Stop the test file once the WebDriver stops answering, and record the tests left as errors.
-+
-+    Otherwise each test left waits for its timeouts, and the runner gives up on the file and drops all its results.
-+    """
-+
-+    def __init__(self, subtests_recorder):
-+        self._subtests_recorder = subtests_recorder
-+        self._pending = []
-+
-+    def pytest_collection_finish(self, session):
-+        self._pending = [item.nodeid for item in session.items]
-+
-+    def pytest_runtest_logfinish(self, nodeid, location):
-+        if nodeid in self._pending:
-+            self._pending.remove(nodeid)
-+
-+    def pytest_sessionfinish(self, session, exitstatus):
-+        if not session.shouldstop:
-+            return
-+        for nodeid in self._pending:
-+            self._subtests_recorder.record(nodeid, 'ERROR', 'not run: %s' % session.shouldstop)
-+
-+    @pytest.hookimpl(hookwrapper=True)
-+    def pytest_runtest_makereport(self, item, call):
-+        yield
-+        if call.excinfo is not None and self._driver_stopped_answering(call):
-+            item.session.shouldstop = 'the WebDriver stopped answering during %s of %s' % (call.when, item.nodeid)
-+
-+    @staticmethod
-+    def _driver_stopped_answering(call):
-+        # Only the HTTP client counts: asyncio.TimeoutError is TimeoutError too, and BiDi
-+        # tests raise it when an event they wait for never comes.
-+        if not any(str(entry.path).endswith(os.path.join('webdriver', 'transport.py')) for entry in call.excinfo.traceback):
-+            return False
-+        # The client gave up waiting for a command.
-+        if call.excinfo.errisinstance(TimeoutError):
-+            return True
-+        # Tests can be expected to time out, but not a fixture waiting for the WebDriver.
-+        return call.when != 'call' and str(call.excinfo.value).startswith('Timeout')
-+
-+
- class TestExpectationsMarker(object):
- 
-     def __init__(self, expectations, timeout, ignore_param):
-@@ -242,7 +284,6 @@ def run(path, args, timeout, env, expectations, ignore_param=None, extra_plugins
-     _environ = dict(os.environ)
-     os.environ.clear()
-     os.environ.update(env)
--
-     with TemporaryDirectory() as cache_directory:
-         try:
-             cmd = ['-vv',
-@@ -253,7 +294,8 @@ def run(path, args, timeout, env, expectations, ignore_param=None, extra_plugins
-                    '-p', 'no:cacheprovider']
-             cmd.extend(args)
-             cmd.append(path)
--            result = pytest.main(cmd, plugins=[harness_recorder, subtests_recorder, expectations_marker, TimeoutSignalHandler(), *(extra_plugins or [])])
-+            result = pytest.main(cmd, plugins=[harness_recorder, subtests_recorder, expectations_marker, StopOnUnresponsiveDriver(subtests_recorder),
-+                                               TimeoutSignalHandler(), *(extra_plugins or [])])
- 
-             if result == ExitCode.INTERNAL_ERROR:
-                 harness_recorder.outcome = ('ERROR', None)
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py
 index 554ec7a5..d0b7c64d 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py
@@ -546,38 +474,18 @@ index fc2fff7b..a7a9e8da 100644
          need_restart = False
          try:
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
-index ee65b453..c695217e 100644
+index 3ac8ce72..bdec1d66 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
-@@ -20,15 +20,25 @@
- # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
-+import faulthandler
+@@ -23,6 +23,7 @@
  import logging
  import os
  import json
- import queue
-+import signal
 +import subprocess
  import sys
-+import tempfile
-+import time
  
--import multiprocessing as mp
--_mp_context = mp.get_context('fork')
-+import multiprocessing
- 
-+# The runner shares state with this process through closures/queues, which
-+# requires the fork start method (the default changed away from fork on
-+# Python >= 3.14).
-+_mp_context = multiprocessing.get_context('fork')
-+Process = _mp_context.Process
-+Queue = _mp_context.Queue
  from webkitpy.common.system.filesystem import FileSystem
- from webkitpy.common.webkit_finder import WebKitFinder
- 
-@@ -119,19 +129,40 @@ class WebKitDriverBrowser(WebDriverBrowser):
+@@ -116,17 +117,38 @@ class WebKitDriverBrowser(WebDriverBrowser):
  
      def __init__(self, logger, binary=None, webdriver_binary=None, webdriver_args=None, host="127.0.0.1", port=None, base_path="/", env=None, supports_pac=True, **kwargs):
          WebDriverBrowser.__init__(self, logger, binary, webdriver_binary, webdriver_args, host, port, base_path, self.test_env, supports_pac, manager_number=0)
@@ -611,8 +519,6 @@ index ee65b453..c695217e 100644
 +
  
  class WebDriverW3CExecutor(WdspecExecutor):
-     RESULT_TIMEOUT_SECONDS = 300
-     TEARDOWN_TIMEOUT_SECONDS = 10
  
 -    def __init__(self, driver, server, env, timeout, expectations):
 -        WebKitDriverBrowser.test_env = env
@@ -622,7 +528,7 @@ index ee65b453..c695217e 100644
          server_config = {'browser_host': server.host(),
                           'domains': {'': {'': server.host()},
                                       'alt':{ '': '127.0.0.1'}},
-@@ -139,7 +170,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
+@@ -134,7 +156,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
                                     'https': [server.https_port()]},
                           'doc_root': server.document_root()}
          self.runner = TestRunner()
@@ -631,103 +537,36 @@ index ee65b453..c695217e 100644
          WdspecExecutor.__init__(self, self.runner.logger, browser, server_config, driver.binary_path(), None, capabilities=driver.capabilities(), target_platform=None)
  
          self._timeout = timeout
-@@ -147,14 +178,19 @@ class WebDriverW3CExecutor(WdspecExecutor):
-         self._test_queue = None
-         self._result_queue = None
-         self._process = None
-+        self._stacks_path = None
+@@ -143,6 +165,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
  
      def setup(self):
          super(WebDriverW3CExecutor, self).setup(self.runner)
--        self._test_queue = _mp_context.Queue()
--        self._result_queue = _mp_context.Queue()
 +        self.browser.setup()
          self.browser.start(None)
-+        self._test_queue = Queue()
-+        self._result_queue = Queue()
-+        stacks_fd, self._stacks_path = tempfile.mkstemp(prefix='webdriver-w3c-stacks-', suffix='.txt')
-+        os.close(stacks_fd)
-         args = (self._test_queue,
-                 self._result_queue,
-+                self._stacks_path,
-                 self.browser.host,
-                 self.browser.port,
-                 self.capabilities,
-@@ -166,23 +202,33 @@ class WebDriverW3CExecutor(WdspecExecutor):
-         self._process.start()
- 
-     def teardown(self):
+         # When a subtest times out, the browser may be stuck too, for example showing a dialog.
+         self._test_process = TestProcess(self._run_file, self._timeout, restart=self._restart_driver)
+@@ -152,8 +175,11 @@ class WebDriverW3CExecutor(WdspecExecutor):
+         if self._test_process is not None:
+             self._test_process.stop()
+             self._test_process = None
 -        self.protocol.teardown()
 -        self.browser.stop(force=True)
--        if self._process is not None:
--            self._test_queue.put('TEARDOWN')
--            self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
--            if self._process.is_alive():
--                self._process.terminate()
 +        try:
 +            self.protocol.teardown()
 +            self.browser.stop(force=True)
-+            self.browser.cleanup()
 +        finally:
-+            if self._process is not None:
-+                self._test_queue.put('TEARDOWN')
-                 self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
--            self._process = None
--        self._test_queue = None
--        self._result_queue = None
-+                if self._process.is_alive():
-+                    self._process.terminate()
-+                    self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
-+                self._process = None
-+            self._test_queue = None
-+            self._result_queue = None
-+            if self._stacks_path is not None:
-+                os.unlink(self._stacks_path)
-+                self._stacks_path = None
++            self.browser.cleanup()
  
-     @staticmethod
--    def _runner(test_queue, result_queue, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
-+    def _runner(test_queue, result_queue, stacks_path, host, port, capabilities, webdriver_binary, server_config, timeout, expectations):
-         if pytest_runner is None:
-             do_delayed_imports()
+     def _restart_driver(self):
+         # Stopping the driver also stops the browser it launched.
+@@ -180,7 +206,6 @@ class WebDriverW3CExecutor(WdspecExecutor):
+             with open(config_path, 'w') as f:
+                 json.dump(config, f)
  
-+        # Let the parent ask where this process is stuck when a test file never finishes.
-+        stacks_file = open(stacks_path, 'w')
-+        faulthandler.register(signal.SIGUSR1, file=stacks_file, all_threads=True)
-+
-         while True:
-             test = test_queue.get()
-             if test == 'TEARDOWN':
-@@ -203,7 +249,6 @@ class WebDriverW3CExecutor(WdspecExecutor):
-                 with open(config_path, 'w') as f:
-                     json.dump(config, f)
- 
--                env.update(WebKitDriverBrowser.test_env)
-                 args = ['--strict-markers', '-p', 'no:mozlog']
-                 result_queue.put(pytest_runner.run(test, args, timeout, env, expectations))
- 
-@@ -215,6 +260,19 @@ class WebDriverW3CExecutor(WdspecExecutor):
-             _log.error('No result for %s after %d seconds, terminating the test process'
-                        % (test, self.RESULT_TIMEOUT_SECONDS))
-             if self._process is not None:
--                self._process.terminate()
--                self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
-+                try:
-+                    self._log_process_stacks()
-+                finally:
-+                    self._process.terminate()
-+                    self._process.join(self.TEARDOWN_TIMEOUT_SECONDS)
-             return ('ERROR', 'no result after %d seconds' % self.RESULT_TIMEOUT_SECONDS), []
-+
-+    def _log_process_stacks(self):
-+        if not self._process.is_alive():
-+            return
-+        os.kill(self._process.pid, signal.SIGUSR1)
-+        # faulthandler writes from its signal handler; give it a moment.
-+        time.sleep(1)
-+        with open(self._stacks_path) as f:
-+            stacks = f.read()
-+        _log.error('Stacks of the test process:\n%s' % (stacks or '(nothing was written)'))
+-            env.update(WebKitDriverBrowser.test_env)
+             args = ['--strict-markers', '-p', 'no:mozlog']
+             harness_result, _ = pytest_runner.run(test, args, self._timeout, env, self._expectations, report=report, deselected=deselected)
+             return harness_result
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py
 index 21d51446..5332dee3 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py

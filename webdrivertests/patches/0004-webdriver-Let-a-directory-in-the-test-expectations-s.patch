@@ -1,4 +1,4 @@
-From eb0cce1e6d0606067c3e5e3b1bcbe8c7b201a740 Mon Sep 17 00:00:00 2001
+From a5389b72b5ebec5242908c248edb28d8539768f9 Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:10:35 +0200
 Subject: [PATCH 4/5] webdriver: Let a directory in the test expectations skip

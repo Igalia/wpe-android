@@ -42,6 +42,7 @@
     "imported/selenium/py/test/selenium/webdriver/common/interactions_tests.py": {
         "subtests": {
             "test_can_scroll_from_viewport_with_offset_by_amount": {"expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/184967"}}},
+            "test_context_click": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_errors_when_origin_offset_not_in_viewport": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_sending_keys_to_element": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
@@ -49,6 +50,7 @@
     "imported/selenium/py/test/selenium/webdriver/common/interactions_with_device_tests.py": {
         "subtests": {
             "test_can_scroll_from_viewport_with_offset_by_amount_with_wheel": {"expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/184967"}}},
+            "test_context_click_with_pointer": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_errors_when_origin_offset_not_in_viewport_with_wheel": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_sending_keys_to_element_with_keyboard": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
@@ -80,6 +82,7 @@
     },
     "imported/selenium/py/test/selenium/webdriver/common/w3c_interaction_tests.py": {
         "subtests": {
+            "test_context_click": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_double_click": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
@@ -161,7 +164,12 @@
     },
     "imported/w3c/webdriver/tests/classic/element_click/user_prompts.py": {
         "subtests": {
-            "test_accept[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
+            "test_accept[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
+            "test_accept_and_notify[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
+            "test_default[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
+            "test_dismiss[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
+            "test_dismiss_and_notify[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
+            "test_ignore[beforeunload]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/element_send_keys/content_editable.py": {
