@@ -1,4 +1,4 @@
-From 62d1cf5dc025c5f5820c1c6a9364b56830db1b71 Mon Sep 17 00:00:00 2001
+From c01a1aa148d1cc2017d8e2be8f3e1dc642af5e83 Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:05:40 +0200
 Subject: [PATCH 2/5] webdriver: Selenium changes for wpe-android

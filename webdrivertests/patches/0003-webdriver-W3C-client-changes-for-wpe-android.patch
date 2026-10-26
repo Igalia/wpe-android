@@ -1,4 +1,4 @@
-From 97c506ce8599b9d805d183dabf0942ac6e47a057 Mon Sep 17 00:00:00 2001
+From a5ebf283d84a348d45627fc9b57c57ad2bb1446f Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:05:40 +0200
 Subject: [PATCH 3/5] webdriver: W3C client changes for wpe-android
