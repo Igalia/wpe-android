@@ -35,7 +35,7 @@ public class WebViewImeTest {
     /**
      * Verifies that focusing an editable element in the page makes the WebView an active text
      * editor and produces a valid {@link InputConnection} through the WPE input-method bridge
-     * (WebKit input-method-context focus-in -> WPEInputMethodContext focus listener ->
+     * (WebKit input-method-context focus-in -> WPEInputMethodContext.Listener ->
      * WebView.onImeFieldFocused). This is the part of IME handling this widget owns; whether the
      * soft keyboard is actually rendered additionally depends on the window holding focus, which is
      * not guaranteed under ActivityScenario instrumentation.

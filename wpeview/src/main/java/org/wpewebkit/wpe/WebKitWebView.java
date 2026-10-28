@@ -137,8 +137,8 @@ public final class WebKitWebView {
     }
 
     public void destroy() {
-        // Must run before nativeDestroy: the focus listener cleanup needs the live IM context.
-        inputMethodContext.setFocusListener(null);
+        // Must run before nativeDestroy: the listener cleanup needs the live IM context.
+        inputMethodContext.setListener(null);
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
             mNativePtr = 0;

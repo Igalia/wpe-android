@@ -349,7 +349,7 @@ Borrowed proxies:
 | Java class | Native owner |
 | --- | --- |
 | `WPEView` | Borrowed from `WebKitWebView`. It must not outlive the parent `WebKitWebView`. |
-| `WPEInputMethodContext` | Borrowed from `WebKitWebView` (attached to the borrowed `WPEView`); `destroy()` clears the focus listener and drops its JNI global ref. An input method may still hold it after the parent `WebKitWebView` is destroyed; from then on it ignores text sent to it. |
+| `WPEInputMethodContext` | Borrowed from `WebKitWebView` (attached to the borrowed `WPEView`); `destroy()` clears the listener and drops its JNI global ref. An input method may still hold it after the parent `WebKitWebView` is destroyed; from then on it ignores text sent to it. |
 | `WPEScreen` | Borrowed from `WPEDisplay`. It must not outlive the parent `WPEDisplay`. |
 | `WebKitWebsiteDataManager` | Borrowed from `WebKitNetworkSession`. It must not outlive the parent `WebKitNetworkSession`. |
 
