@@ -102,6 +102,11 @@ static void wpeInputMethodContextAndroidFocusOut(WPEInputMethodContext* context)
         self->focusOutCallback(self->focusCallbackUserData);
 }
 
+static bool isSecretInputPurpose(WPEInputPurpose purpose)
+{
+    return purpose == WPE_INPUT_PURPOSE_PASSWORD || purpose == WPE_INPUT_PURPOSE_PIN;
+}
+
 static void wpeInputMethodContextAndroidSetSurrounding(
     WPEInputMethodContext* context, const gchar* text, guint length, guint cursorIndex, guint selectionIndex)
 {
@@ -111,8 +116,7 @@ static void wpeInputMethodContextAndroidSetSurrounding(
 
     // The keyboard is a separate app: don't hand it the contents of password or PIN fields. A null text tells
     // them apart from an empty field.
-    auto purpose = wpe_input_method_context_get_input_purpose(context);
-    if (purpose == WPE_INPUT_PURPOSE_PASSWORD || purpose == WPE_INPUT_PURPOSE_PIN) {
+    if (isSecretInputPurpose(wpe_input_method_context_get_input_purpose(context))) {
         self->surroundingCallback(nullptr, 0, 0, 0, self->surroundingCallbackUserData);
         return;
     }
@@ -123,6 +127,19 @@ static void wpeInputMethodContextAndroidSetSurrounding(
     } else if (length == static_cast<guint>(-1)) // wpe_input_method_context_set_surrounding() allows it.
         length = strlen(text);
     self->surroundingCallback(text, length, cursorIndex, selectionIndex, self->surroundingCallbackUserData);
+}
+
+static void wpeInputMethodContextAndroidInputPurposeChanged(GObject* object, GParamSpec*, gpointer)
+{
+    // WebKit doesn't send the surrounding text again when only the purpose changes, as when a "show password"
+    // button turns a password field into a text field and back, so take back the text the keyboard was given as
+    // soon as the field becomes secret. The other way round, the text is reported on the next change: focus can
+    // move from a password field to another field without a focus-out, so the text WebKit sent last may be a
+    // password, and it is not kept.
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(object);
+    if (self->surroundingCallback
+        && isSecretInputPurpose(wpe_input_method_context_get_input_purpose(WPE_INPUT_METHOD_CONTEXT(self))))
+        self->surroundingCallback(nullptr, 0, 0, 0, self->surroundingCallbackUserData);
 }
 
 static void wpeInputMethodContextAndroidReset(WPEInputMethodContext* context)
@@ -152,7 +169,8 @@ static void wpe_input_method_context_android_class_init(WPEInputMethodContextAnd
 
 static void wpe_input_method_context_android_init(WPEInputMethodContextAndroid* context)
 {
-    UNUSED_PARAM(context);
+    g_signal_connect(
+        context, "notify::input-purpose", G_CALLBACK(wpeInputMethodContextAndroidInputPurposeChanged), nullptr);
 }
 
 WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view)
