@@ -144,7 +144,7 @@ public class WebView extends FrameLayout {
         this.platformView = webKitWebView.getWPEView();
         this.imContext = webKitWebView.getInputMethodContext();
         this.inputMethodManager = (InputMethodManager)getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        this.imContext.setFocusListener(new WPEInputMethodContext.FocusListener() {
+        this.imContext.setListener(new WPEInputMethodContext.Listener() {
             @Override
             public void onFocusIn() {
                 onImeFieldFocused(true);

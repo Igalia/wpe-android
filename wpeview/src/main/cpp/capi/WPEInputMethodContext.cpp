@@ -24,27 +24,26 @@
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWPEInputMethodContext, "org/wpewebkit/wpe/WPEInputMethodContext");
-DECLARE_JNI_CLASS_SIGNATURE(
-    JNIWPEInputMethodContextFocusListener, "org/wpewebkit/wpe/WPEInputMethodContext$FocusListenerHolder");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWPEInputMethodContextListener, "org/wpewebkit/wpe/WPEInputMethodContext$ListenerHolder");
 
 namespace WebKit {
 
-class JNIWPEInputMethodContextFocusListenerCache final : public JNI::TypedClass<JNIWPEInputMethodContextFocusListener> {
+class JNIWPEInputMethodContextListenerCache final : public JNI::TypedClass<JNIWPEInputMethodContextListener> {
 public:
-    JNIWPEInputMethodContextFocusListenerCache()
-        : JNI::TypedClass<JNIWPEInputMethodContextFocusListener>(true)
+    JNIWPEInputMethodContextListenerCache()
+        : JNI::TypedClass<JNIWPEInputMethodContextListener>(true)
         , m_onFocusIn(getMethod<void()>("onFocusIn"))
         , m_onFocusOut(getMethod<void()>("onFocusOut"))
     {
     }
 
-    void onFocusIn(JNIWPEInputMethodContextFocusListener listener) const
+    void onFocusIn(JNIWPEInputMethodContextListener listener) const
     {
         if (!m_onFocusIn.invoke(listener))
             Logging::logError("cannot call WPEInputMethodContext focus-in callback");
     }
 
-    void onFocusOut(JNIWPEInputMethodContextFocusListener listener) const
+    void onFocusOut(JNIWPEInputMethodContextListener listener) const
     {
         if (!m_onFocusOut.invoke(listener))
             Logging::logError("cannot call WPEInputMethodContext focus-out callback");
@@ -57,41 +56,41 @@ private:
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
-static const JNIWPEInputMethodContextFocusListenerCache& getJNIFocusListenerCache()
+static const JNIWPEInputMethodContextListenerCache& getJNIListenerCache()
 {
-    static const JNIWPEInputMethodContextFocusListenerCache s_singleton;
+    static const JNIWPEInputMethodContextListenerCache s_singleton;
     return s_singleton;
 }
 
 namespace {
 
-    struct FocusListenerHolder {
-        JNI::GlobalRef<JNIWPEInputMethodContextFocusListener> ref;
+    struct ListenerHolder {
+        JNI::GlobalRef<JNIWPEInputMethodContextListener> ref;
     };
 
-    GQuark focusListenerQuark()
+    GQuark listenerQuark()
     {
-        static GQuark quark = g_quark_from_static_string("wpe-im-context-android-focus-listener");
+        static GQuark quark = g_quark_from_static_string("wpe-im-context-android-listener");
         return quark;
     }
 
-    void destroyFocusListenerHolder(gpointer ptr) noexcept
+    void destroyListenerHolder(gpointer ptr) noexcept
     {
-        delete static_cast<FocusListenerHolder*>(ptr);
+        delete static_cast<ListenerHolder*>(ptr);
     }
 
     void onFocusInThunk(gpointer userData)
     {
-        auto* holder = static_cast<FocusListenerHolder*>(userData);
+        auto* holder = static_cast<ListenerHolder*>(userData);
         if (holder && holder->ref)
-            getJNIFocusListenerCache().onFocusIn(holder->ref.get());
+            getJNIListenerCache().onFocusIn(holder->ref.get());
     }
 
     void onFocusOutThunk(gpointer userData)
     {
-        auto* holder = static_cast<FocusListenerHolder*>(userData);
+        auto* holder = static_cast<ListenerHolder*>(userData);
         if (holder && holder->ref)
-            getJNIFocusListenerCache().onFocusOut(holder->ref.get());
+            getJNIListenerCache().onFocusOut(holder->ref.get());
     }
 
 } // namespace
@@ -103,8 +102,7 @@ public:
     {
         registerNativeMethods(JNI::NativeMethod<void(jlong, jstring)>("nativeCommitText", nativeCommitText),
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeDeleteSurrounding", nativeDeleteSurrounding),
-            JNI::NativeMethod<void(jlong, JNIWPEInputMethodContextFocusListener)>(
-                "nativeSetFocusListener", nativeSetFocusListener),
+            JNI::NativeMethod<void(jlong, JNIWPEInputMethodContextListener)>("nativeSetListener", nativeSetListener),
             JNI::StaticNativeMethod<jlong(jlong)>("nativeGetForView", nativeGetForView));
     }
 
@@ -127,19 +125,17 @@ private:
             JNI::from_jlong<WPEInputMethodContextAndroid>(nativePtr), offset, static_cast<unsigned int>(count));
     }
 
-    static void nativeSetFocusListener(
-        JNIEnv* env, jobject, jlong nativePtr, JNIWPEInputMethodContextFocusListener listener)
+    static void nativeSetListener(JNIEnv* env, jobject, jlong nativePtr, JNIWPEInputMethodContextListener listener)
     {
         auto* context = JNI::from_jlong<WPEInputMethodContextAndroid>(nativePtr);
         if (listener) {
-            auto* holder
-                = new FocusListenerHolder {JNI::GlobalRef<JNIWPEInputMethodContextFocusListener>(env, listener)};
+            auto* holder = new ListenerHolder {JNI::GlobalRef<JNIWPEInputMethodContextListener>(env, listener)};
             // qdata owns the holder: the destroy notify runs on context dispose and on listener replacement.
-            g_object_set_qdata_full(G_OBJECT(context), focusListenerQuark(), holder, destroyFocusListenerHolder);
+            g_object_set_qdata_full(G_OBJECT(context), listenerQuark(), holder, destroyListenerHolder);
             wpe_input_method_context_android_set_focus_callbacks(context, onFocusInThunk, onFocusOutThunk, holder);
         } else {
             wpe_input_method_context_android_set_focus_callbacks(context, nullptr, nullptr, nullptr);
-            g_object_set_qdata(G_OBJECT(context), focusListenerQuark(), nullptr);
+            g_object_set_qdata(G_OBJECT(context), listenerQuark(), nullptr);
         }
     }
 
@@ -157,7 +153,7 @@ static const JNIWPEInputMethodContextCache& getJNIWPEInputMethodContextCache()
 
 void configureWPEInputMethodContextJNIMappings()
 {
-    getJNIFocusListenerCache();
+    getJNIListenerCache();
     getJNIWPEInputMethodContextCache();
 }
 

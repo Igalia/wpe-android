@@ -28,7 +28,7 @@ import androidx.annotation.Nullable;
  * parent WebKitWebView.
  */
 public final class WPEInputMethodContext {
-    public interface FocusListener {
+    public interface Listener {
         void onFocusIn();
         void onFocusOut();
     }
@@ -49,18 +49,18 @@ public final class WPEInputMethodContext {
             nativeDeleteSurrounding(mNativePtr, offset, count);
     }
 
-    public void setFocusListener(@Nullable FocusListener listener) {
-        nativeSetFocusListener(mNativePtr, listener != null ? new FocusListenerHolder(listener) : null);
+    public void setListener(@Nullable Listener listener) {
+        nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
     }
 
     void invalidate() { mNativePtr = 0; }
 
     static long getForView(@NonNull WPEView view) { return nativeGetForView(view.getNativePtr()); }
 
-    private static class FocusListenerHolder {
-        private final FocusListener delegate;
+    private static class ListenerHolder {
+        private final Listener delegate;
 
-        FocusListenerHolder(@NonNull FocusListener delegate) { this.delegate = delegate; }
+        ListenerHolder(@NonNull Listener delegate) { this.delegate = delegate; }
 
         @Keep
         public void onFocusIn() {
@@ -75,6 +75,6 @@ public final class WPEInputMethodContext {
 
     private native void nativeCommitText(long nativePtr, String text);
     private native void nativeDeleteSurrounding(long nativePtr, int offset, int count);
-    private native void nativeSetFocusListener(long nativePtr, @Nullable FocusListenerHolder listener);
+    private native void nativeSetListener(long nativePtr, @Nullable ListenerHolder listener);
     private static native long nativeGetForView(long viewPtr);
 }
