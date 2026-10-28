@@ -437,6 +437,30 @@ public class ImeEditorTest {
     }
 
     @Test
+    public void testTextAroundTheSelection() {
+        editor.onSurroundingChanged("hello world", 8, 6);
+        assertEquals("hello ", editor.getTextBeforeCursor(10));
+        assertEquals("lo ", editor.getTextBeforeCursor(3));
+        assertEquals("wo", editor.getSelectedText());
+        assertEquals("rl", editor.getTextAfterCursor(2));
+        assertEquals("rld", editor.getTextAfterCursor(10));
+
+        editor.onSurroundingChanged("hello world", 5, 5);
+        assertEquals(null, editor.getSelectedText());
+        assertEquals("", editor.getTextBeforeCursor(0));
+    }
+
+    @Test
+    public void testTextAroundTheCursorHasTheComposingText() {
+        editor.onSurroundingChanged("hello ", 6, 6);
+        editor.setComposingText("wor", 1);
+        assertEquals("hello wor", editor.getTextBeforeCursor(20));
+        editor.setComposingText("wor", 0);
+        assertEquals("hello ", editor.getTextBeforeCursor(20));
+        assertEquals("wor", editor.getTextAfterCursor(20));
+    }
+
+    @Test
     public void testComposingRegionOverAnExistingWord() {
         // The cursor is in "world", and the input method resumes composing it.
         editor.onSurroundingChanged("hello world", 8, 8);

@@ -117,6 +117,25 @@ final class ImeEditor {
     /** Whether the text of the field is known: false for password fields, and until WebKit reports the text. */
     boolean isTextKnown() { return !hidden; }
 
+    @NonNull
+    String getTextBeforeCursor(int length) {
+        int start = getSelectionStart();
+        return getText().substring(Math.max(0, start - length), start);
+    }
+
+    @NonNull
+    String getTextAfterCursor(int length) {
+        String text = getText();
+        int end = getSelectionEnd();
+        return text.substring(end, end + Math.min(length, text.length() - end));
+    }
+
+    @Nullable
+    String getSelectedText() {
+        return getSelectionStart() != getSelectionEnd() ? getText().substring(getSelectionStart(), getSelectionEnd())
+                                                        : null;
+    }
+
     /**
      * WebKit reports the text of the focused field, without the preedit. The cursor and the anchor are indices into
      * it. The text is null for password and PIN fields.

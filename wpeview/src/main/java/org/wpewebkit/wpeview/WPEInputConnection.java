@@ -19,8 +19,10 @@
 package org.wpewebkit.wpeview;
 
 import android.os.Build;
+import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.SurroundingText;
 import android.view.inputmethod.TextAttribute;
 
 import androidx.annotation.NonNull;
@@ -46,6 +48,45 @@ public class WPEInputConnection extends BaseInputConnection {
     @Override
     public boolean commitText(@Nullable CharSequence text, int newCursorPosition) {
         return editor.commitText(text, newCursorPosition);
+    }
+
+    // The text getters answer from what WebKit last reported, with the composing text and the edits WebKit has not
+    // reported back yet, so the input method knows what it is editing: for example, that the character before the
+    // cursor is an emoji, two Java chars long.
+
+    @Override
+    @Nullable
+    public CharSequence getTextBeforeCursor(int n, int flags) {
+        return n >= 0 ? editor.getTextBeforeCursor(n) : null;
+    }
+
+    @Override
+    @Nullable
+    public CharSequence getTextAfterCursor(int n, int flags) {
+        return n >= 0 ? editor.getTextAfterCursor(n) : null;
+    }
+
+    @Override
+    @Nullable
+    public CharSequence getSelectedText(int flags) {
+        return editor.getSelectedText();
+    }
+
+    @Override
+    @Nullable
+    public SurroundingText getSurroundingText(int beforeLength, int afterLength, int flags) {
+        if (beforeLength < 0 || afterLength < 0)
+            return null;
+        String before = editor.getTextBeforeCursor(beforeLength);
+        String selected = editor.getSelectedText();
+        String text = before + (selected != null ? selected : "") + editor.getTextAfterCursor(afterLength);
+        return new SurroundingText(text, before.length(), before.length() + (selected != null ? selected.length() : 0),
+                                   editor.getSelectionStart() - before.length());
+    }
+
+    @Override
+    public int getCursorCapsMode(int reqModes) {
+        return TextUtils.getCapsMode(editor.getText(), editor.getSelectionStart(), reqModes);
     }
 
     @Override

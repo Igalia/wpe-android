@@ -830,6 +830,12 @@ public class WebView extends FrameLayout {
         outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.actionLabel = null;
+        // Left unknown (-1) when the text is not known, rather than an empty field.
+        if (imeEditor.isTextKnown()) {
+            outAttrs.initialSelStart = imeEditor.getSelectionStart();
+            outAttrs.initialSelEnd = imeEditor.getSelectionEnd();
+            outAttrs.setInitialSurroundingText(imeEditor.getText());
+        }
         return new WPEInputConnection(this, /* fullEditor */ true);
     }
 
