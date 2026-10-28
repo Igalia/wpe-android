@@ -28,6 +28,7 @@ G_DECLARE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_andr
     WPEInputMethodContext)
 
 using WPEInputMethodContextAndroidFocusCallback = void (*)(gpointer userData);
+using WPEInputMethodContextAndroidResetCallback = void (*)(gpointer userData);
 
 WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view);
 
@@ -37,9 +38,19 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextA
     WPEInputMethodContextAndroidFocusCallback focusIn, WPEInputMethodContextAndroidFocusCallback focusOut,
     gpointer userData);
 
+// Called when WebKit ends the composition itself, for example when the page is tapped.
+void wpe_input_method_context_android_set_reset_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidResetCallback callback, gpointer userData);
+
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text);
 
 void wpe_input_method_context_android_delete_surrounding(
     WPEInputMethodContextAndroid* context, int offset, unsigned int count);
+
+// cursorOffset is in UTF-16 code units from the start of text, as WebKit counts it.
+void wpe_input_method_context_android_set_preedit(
+    WPEInputMethodContextAndroid* context, const char* text, unsigned int cursorOffset);
+
+void wpe_input_method_context_android_finish_preedit(WPEInputMethodContextAndroid* context);
 
 G_END_DECLS

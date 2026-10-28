@@ -153,6 +153,10 @@ public class WebView extends FrameLayout {
             public void onFocusOut() {
                 onImeFieldFocused(false);
             }
+            @Override
+            public void onPreeditReset() {
+                onImePreeditReset();
+            }
         });
         this.webSettings = new WebSettings(webKitSettings);
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
@@ -737,6 +741,14 @@ public class WebView extends FrameLayout {
         } else if (getWindowToken() != null) {
             inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
         }
+    }
+
+    // WebKit ended the composition (a tap in the page, for instance) and kept its text. The input method still
+    // thinks it is composing and would send the whole word again with its next key, so restart it.
+    void onImePreeditReset() {
+        if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
+            return;
+        inputMethodManager.restartInput(this);
     }
 
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new

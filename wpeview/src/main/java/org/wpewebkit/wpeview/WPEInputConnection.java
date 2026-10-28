@@ -30,7 +30,8 @@ import org.wpewebkit.wpe.WPEInputMethodContext;
  * Bridges Android IME input to WebKit by translating BaseInputConnection callbacks into
  * WPEInputMethodContext operations. deleteSurroundingText is split into before/after halves
  * because WPE's "delete-surrounding" signal is single-sided; sendKeyEvent goes through the parent
- * WebView so IME-synthesised hardware keys follow the same path as physical key presses.
+ * WebView so IME-synthesised hardware keys follow the same path as physical key presses. Composing
+ * text becomes a WebKit preedit, so the page shows it as a composition rather than as final text.
  */
 public class WPEInputConnection extends BaseInputConnection {
     private final WebView webView;
@@ -44,9 +45,8 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean commitText(@Nullable CharSequence text, int newCursorPosition) {
-        if (text == null || text.length() == 0)
-            return true;
-        imContext.commitText(text.toString());
+        // Empty text still matters while composing: it replaces the composing text with nothing.
+        imContext.commitText(text != null ? text.toString() : "");
         return true;
     }
 
@@ -69,13 +69,24 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean setComposingText(@Nullable CharSequence text, int newCursorPosition) {
-        // Preedit is not wired through WPE yet; commit as final text.
-        return commitText(text, newCursorPosition);
+        String composing = text != null ? text.toString() : "";
+        imContext.setPreedit(composing, preeditCursorOffset(composing.length(), newCursorPosition));
+        return true;
     }
 
     @Override
     public boolean finishComposingText() {
+        imContext.finishPreedit();
         return true;
+    }
+
+    /**
+     * Turns InputConnection's newCursorPosition into an offset in the preedit. A positive one is at or after the end
+     * of the composing text, any other at or before its start, and WebKit keeps the caret inside the preedit, so the
+     * caret ends up at the nearest end.
+     */
+    private static int preeditCursorOffset(int length, int newCursorPosition) {
+        return newCursorPosition > 0 ? length : 0;
     }
 
     @Override

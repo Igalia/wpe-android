@@ -25,6 +25,11 @@ struct _WPEInputMethodContextAndroid {
     WPEInputMethodContextAndroidFocusCallback focusInCallback;
     WPEInputMethodContextAndroidFocusCallback focusOutCallback;
     gpointer focusCallbackUserData;
+    WPEInputMethodContextAndroidResetCallback resetCallback;
+    gpointer resetCallbackUserData;
+    // Non-null while a preedit is shown, even when it is empty.
+    gchar* preeditText;
+    guint preeditCursorOffset;
 };
 
 G_DEFINE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_android, WPE_TYPE_INPUT_METHOD_CONTEXT)
@@ -46,22 +51,42 @@ static void wpeInputMethodContextAndroidDispose(GObject* object)
     G_OBJECT_CLASS(wpe_input_method_context_android_parent_class)->dispose(object);
 }
 
+static void wpeInputMethodContextAndroidFinalize(GObject* object)
+{
+    g_free(WPE_INPUT_METHOD_CONTEXT_ANDROID(object)->preeditText);
+
+    G_OBJECT_CLASS(wpe_input_method_context_android_parent_class)->finalize(object);
+}
+
 static void wpeInputMethodContextAndroidGetPreeditString(
     WPEInputMethodContext* context, gchar** text, GList** underlines, guint* cursorOffset)
 {
-    UNUSED_PARAM(context);
-    // Preedit is not supported: BaseInputConnection's composing text is forwarded as committed text.
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(context);
     if (text)
-        *text = nullptr;
+        *text = g_strdup(self->preeditText ? self->preeditText : "");
+    // No underlines: WebKit then underlines the whole preedit.
     if (underlines)
         *underlines = nullptr;
     if (cursorOffset)
-        *cursorOffset = 0;
+        *cursorOffset = self->preeditText ? self->preeditCursorOffset : 0;
+}
+
+// Forgets the preedit without telling WebKit. Returns whether there was one.
+static bool clearPreedit(WPEInputMethodContextAndroid* self)
+{
+    if (!self->preeditText)
+        return false;
+    g_clear_pointer(&self->preeditText, g_free);
+    self->preeditCursorOffset = 0;
+    return true;
 }
 
 static void wpeInputMethodContextAndroidFocusIn(WPEInputMethodContext* context)
 {
     auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(context);
+    // A preedit set while no field was focused never reached WebKit, which ignores it then. Forget it, or finishing
+    // it would commit its text into the field focused now.
+    clearPreedit(self);
     if (self->focusInCallback)
         self->focusInCallback(self->focusCallbackUserData);
 }
@@ -75,13 +100,20 @@ static void wpeInputMethodContextAndroidFocusOut(WPEInputMethodContext* context)
 
 static void wpeInputMethodContextAndroidReset(WPEInputMethodContext* context)
 {
-    UNUSED_PARAM(context);
+    // WebKit has already confirmed or dropped the composition on its side (InputMethodFilter::cancelComposition),
+    // so only the input method still thinks it is composing. Forget the preedit before telling the WebView: it
+    // restarts the input method right away, and the old connection finishing its composition must not commit the
+    // text again.
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(context);
+    if (clearPreedit(self) && self->resetCallback)
+        self->resetCallback(self->resetCallbackUserData);
 }
 
 static void wpe_input_method_context_android_class_init(WPEInputMethodContextAndroidClass* klass)
 {
     GObjectClass* objectClass = G_OBJECT_CLASS(klass);
     objectClass->dispose = wpeInputMethodContextAndroidDispose;
+    objectClass->finalize = wpeInputMethodContextAndroidFinalize;
 
     WPEInputMethodContextClass* imContextClass = WPE_INPUT_METHOD_CONTEXT_CLASS(klass);
     imContextClass->get_preedit_string = wpeInputMethodContextAndroidGetPreeditString;
@@ -123,11 +155,61 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextA
     context->focusCallbackUserData = userData;
 }
 
+void wpe_input_method_context_android_set_reset_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidResetCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    context->resetCallback = callback;
+    context->resetCallbackUserData = userData;
+}
+
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text)
 {
     g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
     g_return_if_fail(text != nullptr);
+    if (!*text) {
+        // Committing nothing replaces the preedit with nothing: empty it, then finish it.
+        if (context->preeditText) {
+            wpe_input_method_context_android_set_preedit(context, "", 0);
+            wpe_input_method_context_android_finish_preedit(context);
+        }
+        return;
+    }
+    // A commit replaces the preedit: WebKit confirms the composition with the committed text.
+    bool hadPreedit = clearPreedit(context);
     g_signal_emit_by_name(context, "committed", text);
+    if (hadPreedit)
+        g_signal_emit_by_name(context, "preedit-finished");
+}
+
+void wpe_input_method_context_android_set_preedit(
+    WPEInputMethodContextAndroid* context, const char* text, unsigned int cursorOffset)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    g_return_if_fail(text != nullptr);
+    bool started = !context->preeditText;
+    if (started && !*text)
+        return;
+    g_free(context->preeditText);
+    context->preeditText = g_strdup(text);
+    context->preeditCursorOffset = cursorOffset;
+    if (started)
+        g_signal_emit_by_name(context, "preedit-started");
+    g_signal_emit_by_name(context, "preedit-changed");
+}
+
+void wpe_input_method_context_android_finish_preedit(WPEInputMethodContextAndroid* context)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    if (!context->preeditText)
+        return;
+    g_autofree gchar* text = context->preeditText;
+    context->preeditText = nullptr;
+    context->preeditCursorOffset = 0;
+    // Committing the preedit text keeps it in the page; finishing an empty preedit drops the composition.
+    if (*text)
+        g_signal_emit_by_name(context, "committed", text);
+    g_signal_emit_by_name(context, "preedit-finished");
 }
 
 void wpe_input_method_context_android_delete_surrounding(
