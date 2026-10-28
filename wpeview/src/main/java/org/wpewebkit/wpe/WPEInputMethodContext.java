@@ -31,6 +31,8 @@ public final class WPEInputMethodContext {
     public interface Listener {
         void onFocusIn();
         void onFocusOut();
+        /** WebKit ended the composition itself, for example because the page was tapped. */
+        void onPreeditReset();
     }
 
     private long mNativePtr = 0;
@@ -47,6 +49,21 @@ public final class WPEInputMethodContext {
     public void deleteSurrounding(int offset, int count) {
         if (mNativePtr != 0)
             nativeDeleteSurrounding(mNativePtr, offset, count);
+    }
+
+    /**
+     * Shows text as a composition (preedit) that replaces the current one. cursorOffset is in UTF-16
+     * code units from the start of text.
+     */
+    public void setPreedit(@NonNull String text, int cursorOffset) {
+        if (mNativePtr != 0)
+            nativeSetPreedit(mNativePtr, text, cursorOffset);
+    }
+
+    /** Commits the current preedit text, if any, as final text. */
+    public void finishPreedit() {
+        if (mNativePtr != 0)
+            nativeFinishPreedit(mNativePtr);
     }
 
     public void setListener(@Nullable Listener listener) {
@@ -71,10 +88,17 @@ public final class WPEInputMethodContext {
         public void onFocusOut() {
             MainLooperDispatcher.post(delegate::onFocusOut);
         }
+
+        @Keep
+        public void onPreeditReset() {
+            MainLooperDispatcher.post(delegate::onPreeditReset);
+        }
     }
 
     private native void nativeCommitText(long nativePtr, String text);
     private native void nativeDeleteSurrounding(long nativePtr, int offset, int count);
+    private native void nativeSetPreedit(long nativePtr, String text, int cursorOffset);
+    private native void nativeFinishPreedit(long nativePtr);
     private native void nativeSetListener(long nativePtr, @Nullable ListenerHolder listener);
     private static native long nativeGetForView(long viewPtr);
 }
