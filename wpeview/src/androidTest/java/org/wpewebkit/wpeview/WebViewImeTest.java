@@ -189,6 +189,10 @@ public class WebViewImeTest {
         + "  editor.addEventListener(type, e => window.events.push(type + ':' + e.data));\n"
         + "</script></body></html>";
 
+    // The test drives its own connection. The device's keyboard would get the selection updates too, take them for
+    // the user moving the cursor, and edit the field as well: never start it.
+    private static void keepKeyboardOut(WebView webView) { webView.inputMethodManager = null; }
+
     // Focuses the page's #editor and returns the WebView's connection to it.
     private static InputConnection focusEditor(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
         return focusEditor(scenario, "editor");
@@ -197,6 +201,7 @@ public class WebViewImeTest {
     // Focuses the element with the given id and returns the WebView's connection to it.
     private static InputConnection focusEditor(ActivityScenario<WebViewTestActivity> scenario, String id)
         throws Throwable {
+        scenario.onActivity(activity -> keepKeyboardOut(activity.getWebView()));
         AtomicBoolean isTextEditor = new AtomicBoolean(false);
         for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
             scenario.onActivity(activity -> {

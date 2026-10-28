@@ -26,6 +26,8 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -76,7 +78,9 @@ public class WebView extends FrameLayout {
     WebKitWebView webKitWebView;
     private WPEToplevel wpeToplevel;
     WPEView platformView;
-    private WPEInputMethodContext imContext;
+    // Package-private: read by the ImeEditor target (avoids a synthetic accessor).
+    WPEInputMethodContext imContext;
+    private ImeEditor imeEditor;
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
@@ -157,6 +161,48 @@ public class WebView extends FrameLayout {
             public void onPreeditReset() {
                 onImePreeditReset();
             }
+        });
+        this.imeEditor = new ImeEditor(
+            new ImeEditor.Target() {
+                // An input method can still call in after destroy(), which drops the context.
+                @Override
+                public void commitText(@NonNull String text) {
+                    if (imContext != null)
+                        imContext.commitText(text);
+                }
+                @Override
+                public void deleteSurrounding(int offset, int count) {
+                    if (imContext != null)
+                        imContext.deleteSurrounding(offset, count);
+                }
+                @Override
+                public void setPreedit(@NonNull String text, int cursorOffset) {
+                    if (imContext != null)
+                        imContext.setPreedit(text, cursorOffset);
+                }
+                @Override
+                public void finishPreedit() {
+                    if (imContext != null)
+                        imContext.finishPreedit();
+                }
+            },
+            // Not View.postDelayed(), which holds the task back while the view is detached.
+            new ImeEditor.Scheduler() {
+                private final Handler handler = new Handler(Looper.getMainLooper());
+                @Override
+                public void postDelayed(@NonNull Runnable task, long delayMillis) {
+                    handler.postDelayed(task, delayMillis);
+                }
+                @Override
+                public void cancel(@NonNull Runnable task) {
+                    handler.removeCallbacks(task);
+                }
+            },
+            this::onImeSelectionChanged);
+        this.imContext.setSurroundingListener((text, cursor, anchor) -> {
+            // Like the focus changes, a report posted before destroy() may arrive after it.
+            if (webKitWebView != null)
+                imeEditor.onSurroundingChanged(text, cursor, anchor);
         });
         this.webSettings = new WebSettings(webKitSettings);
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
@@ -293,6 +339,7 @@ public class WebView extends FrameLayout {
             // The view and input method proxies are borrowed from the WebKitWebView, and die with it.
             platformView = null;
             imContext = null;
+            imeEditor.reset();
             if (inputMethodConnected)
                 releaseInputMethod();
         }
@@ -732,6 +779,7 @@ public class WebView extends FrameLayout {
         if (webKitWebView == null)
             return;
         inputFieldFocused = focused;
+        imeEditor.reset();
         if (inputMethodManager == null)
             return;
         if (focused) {
@@ -746,9 +794,22 @@ public class WebView extends FrameLayout {
     // WebKit ended the composition (a tap in the page, for instance) and kept its text. The input method still
     // thinks it is composing and would send the whole word again with its next key, so restart it.
     void onImePreeditReset() {
-        if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
+        if (webKitWebView == null)
+            return;
+        imeEditor.onPreeditReset();
+        if (!inputFieldFocused || inputMethodManager == null)
             return;
         inputMethodManager.restartInput(this);
+    }
+
+    private void onImeSelectionChanged(int selectionStart, int selectionEnd, int composingStart, int composingEnd) {
+        if (inputFieldFocused && inputMethodManager != null)
+            inputMethodManager.updateSelection(this, selectionStart, selectionEnd, composingStart, composingEnd);
+    }
+
+    @NonNull
+    ImeEditor getImeEditor() {
+        return imeEditor;
     }
 
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
