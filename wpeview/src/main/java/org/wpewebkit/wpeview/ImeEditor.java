@@ -300,6 +300,27 @@ final class ImeEditor {
         return true;
     }
 
+    boolean setSelection(int start, int end) {
+        if (hidden)
+            return true;
+        // Like BaseInputConnection, ignore positions outside the text.
+        String text = getText();
+        if (start < 0 || end < 0 || start > text.length() || end > text.length())
+            return true;
+        if (Math.min(start, end) == getSelectionStart() && Math.max(start, end) == getSelectionEnd())
+            return true;
+        // A delete-surrounding with a count of 0 moves the cursor, but there is no way to select. Nor to move the
+        // cursor while composing: WebKit ignores a preedit update that only moves it. Nor while a commit is on its
+        // way, as for setComposingRegion().
+        if (start != end || isComposing() || commitPending)
+            return false;
+
+        target.deleteSurrounding(start - selectionStart, 0);
+        recordEdit(this.text, start, start);
+        notifySelectionChanged();
+        return true;
+    }
+
     boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
         // Without the text, code points can't be told from Java chars.
         if (hidden)

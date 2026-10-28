@@ -49,6 +49,11 @@ public class WPEInputConnection extends BaseInputConnection {
     }
 
     @Override
+    public boolean setSelection(int start, int end) {
+        return editor.setSelection(start, end);
+    }
+
+    @Override
     public boolean deleteSurroundingText(int beforeLength, int afterLength) {
         return editor.deleteSurroundingText(beforeLength, afterLength);
     }

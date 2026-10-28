@@ -529,4 +529,62 @@ public class ImeEditorTest {
         assertFalse("Without the text", editor.setComposingRegion(0, 1));
         assertSent();
     }
+
+    @Test
+    public void testSetSelectionMovesTheCursor() {
+        editor.onSurroundingChanged("hello", 5, 5);
+        assertTrue(editor.setSelection(2, 2));
+        assertSent("delete:-3,0");
+        assertState("hello", 2, 2);
+        assertEquals("Until WebKit reports it", 1, scheduled.size());
+    }
+
+    @Test
+    public void testBackspaceWithASelection() {
+        // What LatinIME does: move the cursor to the end of the selection, then delete the selection's length
+        // before it.
+        editor.onSurroundingChanged("hello", 1, 4);
+        editor.setSelection(4, 4);
+        editor.onSurroundingChanged("hello", 4, 4);
+        editor.deleteSurroundingText(3, 0);
+        assertSent("delete:3,0", "delete:-3,3");
+        assertState("ho", 1, 1);
+    }
+
+    @Test
+    public void testSetSelectionCannotSelect() {
+        editor.onSurroundingChanged("hello", 5, 5);
+        assertFalse(editor.setSelection(1, 3));
+        assertTrue("Out of range is ignored", editor.setSelection(1, 9));
+        assertTrue("Already there", editor.setSelection(5, 5));
+        assertSent();
+    }
+
+    @Test
+    public void testSetSelectionWhileComposing() {
+        editor.onSurroundingChanged("ab", 2, 2);
+        editor.setComposingText("cd", 1);
+        sent.clear();
+        assertTrue("Already there", editor.setSelection(4, 4));
+        assertFalse(editor.setSelection(3, 3));
+        assertFalse(editor.setSelection(0, 0));
+        assertSent();
+    }
+
+    @Test
+    public void testSetSelectionWaitsForACommitToBeConfirmed() {
+        editor.onSurroundingChanged("hello", 5, 5);
+        editor.commitText("!", 1);
+        assertFalse(editor.setSelection(0, 0));
+        editor.onSurroundingChanged("hello!", 6, 6);
+        assertTrue(editor.setSelection(0, 0));
+    }
+
+    @Test
+    public void testHiddenFieldIgnoresSetSelection() {
+        // Nothing to move the cursor relative to.
+        editor.onSurroundingChanged(null, 0, 0);
+        assertTrue(editor.setSelection(0, 0));
+        assertSent();
+    }
 }
