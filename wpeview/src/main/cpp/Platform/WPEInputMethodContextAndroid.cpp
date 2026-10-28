@@ -20,6 +20,8 @@
 
 #include "Logging.h"
 
+#include <cstring>
+
 struct _WPEInputMethodContextAndroid {
     WPEInputMethodContext parent;
     WPEInputMethodContextAndroidFocusCallback focusInCallback;
@@ -30,6 +32,8 @@ struct _WPEInputMethodContextAndroid {
     // Non-null while a preedit is shown, even when it is empty.
     gchar* preeditText;
     guint preeditCursorOffset;
+    WPEInputMethodContextAndroidSurroundingCallback surroundingCallback;
+    gpointer surroundingCallbackUserData;
 };
 
 G_DEFINE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_android, WPE_TYPE_INPUT_METHOD_CONTEXT)
@@ -98,6 +102,29 @@ static void wpeInputMethodContextAndroidFocusOut(WPEInputMethodContext* context)
         self->focusOutCallback(self->focusCallbackUserData);
 }
 
+static void wpeInputMethodContextAndroidSetSurrounding(
+    WPEInputMethodContext* context, const gchar* text, guint length, guint cursorIndex, guint selectionIndex)
+{
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(context);
+    if (!self->surroundingCallback)
+        return;
+
+    // The keyboard is a separate app: don't hand it the contents of password or PIN fields. A null text tells
+    // them apart from an empty field.
+    auto purpose = wpe_input_method_context_get_input_purpose(context);
+    if (purpose == WPE_INPUT_PURPOSE_PASSWORD || purpose == WPE_INPUT_PURPOSE_PIN) {
+        self->surroundingCallback(nullptr, 0, 0, 0, self->surroundingCallbackUserData);
+        return;
+    }
+
+    if (!text) {
+        text = "";
+        length = 0;
+    } else if (length == static_cast<guint>(-1)) // wpe_input_method_context_set_surrounding() allows it.
+        length = strlen(text);
+    self->surroundingCallback(text, length, cursorIndex, selectionIndex, self->surroundingCallbackUserData);
+}
+
 static void wpeInputMethodContextAndroidReset(WPEInputMethodContext* context)
 {
     // WebKit has already confirmed or dropped the composition on its side (InputMethodFilter::cancelComposition),
@@ -119,6 +146,7 @@ static void wpe_input_method_context_android_class_init(WPEInputMethodContextAnd
     imContextClass->get_preedit_string = wpeInputMethodContextAndroidGetPreeditString;
     imContextClass->focus_in = wpeInputMethodContextAndroidFocusIn;
     imContextClass->focus_out = wpeInputMethodContextAndroidFocusOut;
+    imContextClass->set_surrounding = wpeInputMethodContextAndroidSetSurrounding;
     imContextClass->reset = wpeInputMethodContextAndroidReset;
 }
 
@@ -161,6 +189,14 @@ void wpe_input_method_context_android_set_reset_callback(
     g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
     context->resetCallback = callback;
     context->resetCallbackUserData = userData;
+}
+
+void wpe_input_method_context_android_set_surrounding_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidSurroundingCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    context->surroundingCallback = callback;
+    context->surroundingCallbackUserData = userData;
 }
 
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text)

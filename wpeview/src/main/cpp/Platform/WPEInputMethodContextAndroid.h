@@ -30,6 +30,11 @@ G_DECLARE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_andr
 using WPEInputMethodContextAndroidFocusCallback = void (*)(gpointer userData);
 using WPEInputMethodContextAndroidResetCallback = void (*)(gpointer userData);
 
+// The text is UTF-8 and not nul-terminated; the indices are byte offsets into it. The text is null for password
+// and PIN fields, which don't give it out.
+using WPEInputMethodContextAndroidSurroundingCallback
+    = void (*)(const char* text, unsigned length, unsigned cursorIndex, unsigned selectionIndex, gpointer userData);
+
 WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view);
 
 WPEInputMethodContextAndroid* wpe_input_method_context_android_from_view(WPEView* view);
@@ -41,6 +46,9 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextA
 // Called when WebKit ends the composition itself, for example when the page is tapped.
 void wpe_input_method_context_android_set_reset_callback(
     WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidResetCallback callback, gpointer userData);
+
+void wpe_input_method_context_android_set_surrounding_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidSurroundingCallback callback, gpointer userData);
 
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text);
 
