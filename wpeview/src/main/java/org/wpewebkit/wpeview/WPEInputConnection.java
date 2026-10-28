@@ -24,25 +24,19 @@ import android.view.inputmethod.BaseInputConnection;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import org.wpewebkit.wpe.WPEInputMethodContext;
-
 /**
- * Bridges Android IME input to WebKit by translating BaseInputConnection callbacks into
- * WPEInputMethodContext operations. Commits and composing text go through the WebView's ImeEditor,
- * which keeps track of the text they leave; composing text becomes a WebKit preedit.
- * deleteSurroundingText is split into before/after halves because WPE's "delete-surrounding" signal
- * is single-sided; sendKeyEvent goes through the parent WebView so IME-synthesised hardware keys
- * follow the same path as physical key presses.
+ * Bridges Android IME input to WebKit. Edits go through the WebView's ImeEditor, which turns them into
+ * WPEInputMethodContext operations and keeps track of the text they leave; composing text becomes a
+ * WebKit preedit. sendKeyEvent goes through the parent WebView so IME-synthesised hardware keys follow
+ * the same path as physical key presses.
  */
 public class WPEInputConnection extends BaseInputConnection {
     private final WebView webView;
-    private final WPEInputMethodContext imContext;
     private final ImeEditor editor;
 
-    public WPEInputConnection(@NonNull WebView webView, boolean fullEditor, @NonNull WPEInputMethodContext imContext) {
+    public WPEInputConnection(@NonNull WebView webView, boolean fullEditor) {
         super(webView, fullEditor);
         this.webView = webView;
-        this.imContext = imContext;
         this.editor = webView.getImeEditor();
     }
 
@@ -53,19 +47,12 @@ public class WPEInputConnection extends BaseInputConnection {
 
     @Override
     public boolean deleteSurroundingText(int beforeLength, int afterLength) {
-        // Java char units per BaseInputConnection contract: supplementary chars count as 2.
-        if (beforeLength > 0)
-            imContext.deleteSurrounding(-beforeLength, beforeLength);
-        if (afterLength > 0)
-            imContext.deleteSurrounding(0, afterLength);
-        return true;
+        return editor.deleteSurroundingText(beforeLength, afterLength);
     }
 
     @Override
     public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
-        // We don't track the local text buffer, so codepoint counts cannot be translated to char
-        // counts accurately; for BMP-only text the two are equivalent.
-        return deleteSurroundingText(beforeLength, afterLength);
+        return editor.deleteSurroundingTextInCodePoints(beforeLength, afterLength);
     }
 
     @Override

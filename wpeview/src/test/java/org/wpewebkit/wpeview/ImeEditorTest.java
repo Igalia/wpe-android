@@ -330,4 +330,109 @@ public class ImeEditorTest {
         editor.commitText("d", 1);
         assertState("abcd", 4, 4);
     }
+
+    @Test
+    public void testDeleteAroundTheCursor() {
+        editor.onSurroundingChanged("abcd", 2, 2);
+        editor.deleteSurroundingText(1, 1);
+        assertSent("delete:0,1", "delete:-1,1");
+        assertState("ad", 1, 1);
+    }
+
+    @Test
+    public void testDeleteIsClampedToTheText() {
+        // WebKit would ignore the first delete, and report nothing.
+        editor.onSurroundingChanged("ab", 1, 1);
+        editor.deleteSurroundingText(5, 5);
+        assertSent("delete:0,1", "delete:-1,1");
+        assertState("", 0, 0);
+    }
+
+    @Test
+    public void testDeleteWithNothingToDeleteSendsNothing() {
+        editor.onSurroundingChanged("ab", 0, 0);
+        editor.deleteSurroundingText(1, 0);
+        assertSent();
+        assertTrue(scheduled.isEmpty());
+    }
+
+    @Test
+    public void testOlderReportCanConfirmAnEditThatLooksTheSame() {
+        // Known limit: "a", deleted, "a" again, with the report of the first "a" arriving late. It confirms the last
+        // edit, and the report for the delete is then applied as it comes, until WebKit catches up.
+        editor.commitText("a", 1);
+        editor.deleteSurroundingText(1, 0);
+        editor.commitText("a", 1);
+        editor.onSurroundingChanged("a", 1, 1);
+        assertTrue(scheduled.isEmpty());
+        editor.onSurroundingChanged("", 0, 0);
+        assertState("", 0, 0);
+    }
+
+    @Test
+    public void testDeleteAroundASelection() {
+        // The text after the selection goes first, at an offset from the start of the selection. That collapses
+        // the selection at its end, so the text before it is then deleted from there.
+        editor.onSurroundingChanged("abcdef", 2, 4);
+        editor.deleteSurroundingText(1, 1);
+        assertSent("delete:2,1", "delete:-3,1");
+        assertState("acdf", 1, 1);
+
+        editor.onSurroundingChanged("acdf", 1, 1);
+        editor.onSurroundingChanged("acdf", 1, 3);
+        editor.deleteSurroundingText(1, 0);
+        assertSent("delete:-1,1");
+        assertState("cdf", 0, 0);
+
+        editor.onSurroundingChanged("cdf", 0, 0);
+        editor.onSurroundingChanged("cdf", 0, 2);
+        editor.deleteSurroundingText(0, 1);
+        assertSent("delete:2,1");
+        assertState("cd", 2, 2);
+    }
+
+    @Test
+    public void testDeleteInCodePoints() {
+        // "a" followed by U+1F600, two Java chars.
+        editor.onSurroundingChanged("a😀b", 3, 3);
+        editor.deleteSurroundingTextInCodePoints(1, 5);
+        assertSent("delete:0,1", "delete:-2,2");
+        assertState("a", 1, 1);
+    }
+
+    @Test
+    public void testDeleteAfterTheComposingTextWasEmptied() {
+        // Backspace over the last letter of the word, then over the space before it. WebKit ended the composition
+        // when it got an empty one.
+        editor.onSurroundingChanged("hola ", 5, 5);
+        editor.setComposingText("m", 1);
+        editor.setComposingText("", 1);
+        sent.clear();
+        editor.deleteSurroundingText(1, 0);
+        assertSent("delete:-1,1");
+        assertState("hola", 4, 4);
+    }
+
+    @Test
+    public void testDeleteWhileComposingIsSentAsAsked() {
+        editor.onSurroundingChanged("ab", 2, 2);
+        editor.setComposingText("c", 1);
+        sent.clear();
+        editor.deleteSurroundingText(5, 1);
+        assertSent("delete:-5,5", "delete:0,1");
+        // Counted around the cursor in the composing text.
+        editor.onSurroundingChanged("😀", 2, 2);
+        editor.deleteSurroundingTextInCodePoints(2, 0);
+        assertSent("delete:-3,3");
+    }
+
+    @Test
+    public void testHiddenFieldDeletesAsAsked() {
+        // Nothing to clamp to: WebKit gets what the input method asked for.
+        editor.onSurroundingChanged(null, 0, 0);
+        editor.deleteSurroundingText(1, 0);
+        assertSent("delete:-1,1");
+        editor.deleteSurroundingTextInCodePoints(2, 1);
+        assertSent("delete:-2,2", "delete:0,1");
+    }
 }

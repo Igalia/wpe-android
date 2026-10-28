@@ -209,6 +209,59 @@ final class ImeEditor {
         return true;
     }
 
+    boolean deleteSurroundingText(int beforeLength, int afterLength) {
+        // Without the text, or while composing, the offsets can't be worked out: WebKit counts them from its caret,
+        // which is inside the composition, and the report leaves the composition out. Send them as asked, and let
+        // the next report set the text right.
+        if (hidden || isComposing()) {
+            if (beforeLength > 0)
+                target.deleteSurrounding(-beforeLength, beforeLength);
+            if (afterLength > 0)
+                target.deleteSurrounding(0, afterLength);
+            return true;
+        }
+
+        // Only delete what is there, like BaseInputConnection. WebKit ignores a delete that starts before the
+        // beginning of the field.
+        int before = clamp(beforeLength, 0, selectionStart);
+        int after = clamp(afterLength, 0, text.length() - selectionEnd);
+        if (before == 0 && after == 0)
+            return true;
+
+        // WebKit counts the offset from the start of the selection, and replaces the selection with the range it
+        // deletes. So delete the text after the selection first, while the start of the selection still says where
+        // that is. The selection is not kept, unlike what Android asks: the cursor ends up where text was deleted.
+        int cursor = selectionStart;
+        if (after > 0) {
+            target.deleteSurrounding(selectionEnd - selectionStart, after);
+            cursor = selectionEnd;
+        }
+        if (before > 0) {
+            target.deleteSurrounding(selectionStart - before - cursor, before);
+            cursor = selectionStart - before;
+        }
+
+        recordEdit(text.substring(0, selectionStart - before) + text.substring(selectionStart, selectionEnd) +
+                       text.substring(selectionEnd + after),
+                   cursor, cursor);
+        notifySelectionChanged();
+        return true;
+    }
+
+    boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+        // Without the text, code points can't be told from Java chars.
+        if (hidden)
+            return deleteSurroundingText(beforeLength, afterLength);
+        // Counted in the text the input method sees, which has the composing text in it.
+        String text = getText();
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
+        int before = clamp(beforeLength, 0, text.codePointCount(0, start));
+        int after = clamp(afterLength, 0, text.codePointCount(end, text.length()));
+        return deleteSurroundingText(start - text.offsetByCodePoints(start, -before),
+                                     text.offsetByCodePoints(end, after) - end);
+    }
+
     /**
      * Turns InputConnection's newCursorPosition into an offset in the preedit. A positive one is at or after the end
      * of the composing text, any other at or before its start, and WebKit keeps the caret inside the preedit, so the
