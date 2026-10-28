@@ -18,11 +18,14 @@
 
 package org.wpewebkit.wpeview;
 
+import android.os.Build;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.TextAttribute;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 
 /**
  * Bridges Android IME input to WebKit. Edits go through the WebView's ImeEditor, which turns them into
@@ -58,6 +61,19 @@ public class WPEInputConnection extends BaseInputConnection {
     @Override
     public boolean setComposingText(@Nullable CharSequence text, int newCursorPosition) {
         return editor.setComposingText(text, newCursorPosition);
+    }
+
+    @Override
+    public boolean setComposingRegion(int start, int end) {
+        return editor.setComposingRegion(start, end);
+    }
+
+    // BaseInputConnection's would edit its own copy of the text, which WebKit never sees.
+    @Override
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    public boolean replaceText(int start, int end, @NonNull CharSequence text, int newCursorPosition,
+                               @Nullable TextAttribute textAttribute) {
+        return editor.replaceText(start, end, text);
     }
 
     @Override

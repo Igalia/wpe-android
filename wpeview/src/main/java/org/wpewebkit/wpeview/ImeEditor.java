@@ -84,10 +84,13 @@ final class ImeEditor {
     private int reportedSelectionStart = 0;
     private int reportedSelectionEnd = 0;
     private boolean editPending = false;
+    // One of the pending edits is a commit, which WebKit queues behind earlier key events.
+    private boolean commitPending = false;
     // The text of the field is not known: it is a password field, or WebKit hasn't reported it yet.
     private boolean hidden = true;
     private final Runnable editConfirmationTimeout = () -> {
         editPending = false;
+        commitPending = false;
         applyReport();
     };
 
@@ -137,6 +140,7 @@ final class ImeEditor {
             // A report can also match an older edit, when the same state comes up twice in a row ("a", "", "a").
             // The reports for the edits after it are then applied as they come, until WebKit catches up.
             editPending = false;
+            commitPending = false;
             scheduler.cancel(editConfirmationTimeout);
         }
         applyReport();
@@ -178,6 +182,7 @@ final class ImeEditor {
         clearPreedit();
         // newCursorPosition is not followed: WebKit leaves the cursor after the committed text.
         replaceSelection(newText);
+        commitPending = editPending;
         notifySelectionChanged();
         return true;
     }
@@ -197,6 +202,52 @@ final class ImeEditor {
         return true;
     }
 
+    /**
+     * Composes over text that is already in the field, as input methods do to resume a word. The text is taken out
+     * of the field and shown again as the preedit, since WebKit can't turn text into a composition. The positions
+     * are in the text the input method sees, with the composing text in it.
+     */
+    boolean setComposingRegion(int start, int end) {
+        int regionStart = Math.min(start, end);
+        int regionEnd = Math.max(start, end);
+        if (regionStart == regionEnd)
+            return finishComposingText();
+        if (isComposing())
+            return regionStart == getComposingStart() && regionEnd == getComposingEnd();
+        // Without the text there is nothing to compose over, and a selection would be replaced by the composition.
+        if (hidden || regionStart < 0 || regionEnd > text.length() || selectionStart != selectionEnd)
+            return false;
+        // Nor while a commit is on its way: WebKit would delete the word before the commit moves its caret, and the
+        // positions come from text it hasn't confirmed, which is wrong if the page changes what is typed.
+        if (commitPending)
+            return false;
+
+        String word = text.substring(regionStart, regionEnd);
+        int cursor = clamp(selectionStart - regionStart, 0, word.length());
+        // WebKit sends a delete straight away, and queues a preedit behind earlier key events, so they arrive in this
+        // order.
+        target.deleteSurrounding(regionStart - selectionStart, word.length());
+        target.setPreedit(word, cursor);
+        recordEdit(text.substring(0, regionStart) + text.substring(regionEnd), regionStart, regionStart);
+        preedit = word;
+        preeditCursor = cursor;
+        notifySelectionChanged();
+        return true;
+    }
+
+    /**
+     * Replaces text in the field, as BaseInputConnection.replaceText() does. The positions are in the text the input
+     * method sees. A range is composed over and the replacement committed. Inserting only works at the cursor, since
+     * there is no way to commit anywhere else.
+     */
+    boolean replaceText(int start, int end, @Nullable CharSequence text) {
+        if (start != end)
+            return setComposingRegion(start, end) && commitText(text, 1);
+        if (hidden || isComposing() || start != selectionStart || selectionStart != selectionEnd)
+            return false;
+        return commitText(text, 1);
+    }
+
     boolean finishComposingText() {
         target.finishPreedit();
         if (preedit == null)
@@ -205,6 +256,7 @@ final class ImeEditor {
         String committed = preedit;
         clearPreedit();
         replaceSelection(committed);
+        commitPending = editPending;
         notifySelectionChanged();
         return true;
     }
@@ -304,6 +356,7 @@ final class ImeEditor {
     private void forgetText() {
         hidden = true;
         editPending = false;
+        commitPending = false;
         scheduler.cancel(editConfirmationTimeout);
         reportedText = "";
         reportedSelectionStart = reportedSelectionEnd = 0;

@@ -435,4 +435,98 @@ public class ImeEditorTest {
         editor.deleteSurroundingTextInCodePoints(2, 1);
         assertSent("delete:-2,2", "delete:0,1");
     }
+
+    @Test
+    public void testComposingRegionOverAnExistingWord() {
+        // The cursor is in "world", and the input method resumes composing it.
+        editor.onSurroundingChanged("hello world", 8, 8);
+        assertTrue(editor.setComposingRegion(6, 11));
+        assertSent("delete:-2,5", "preedit:world,2");
+        assertState("hello world", 8, 8);
+        assertComposing(6, 11);
+        assertEquals("8,8 composing 6,11", lastSelection);
+
+        // What WebKit reports then: the word is in the composition.
+        editor.onSurroundingChanged("hello ", 6, 6);
+        assertState("hello world", 8, 8);
+        assertTrue("The report confirms the delete", scheduled.isEmpty());
+
+        editor.setComposingText("worlds", 1);
+        editor.finishComposingText();
+        assertSent("preedit:worlds,6", "finish");
+        assertState("hello worlds", 12, 12);
+    }
+
+    @Test
+    public void testComposingRegionWaitsForACommitToBeConfirmed() {
+        editor.onSurroundingChanged("hello ", 6, 6);
+        editor.commitText("w", 1);
+        assertFalse(editor.setComposingRegion(6, 7));
+        assertSent("commit:w");
+        editor.onSurroundingChanged("hello w", 7, 7);
+        assertTrue(editor.setComposingRegion(6, 7));
+        assertSent("delete:-1,1", "preedit:w,1");
+    }
+
+    @Test
+    public void testComposingRegionAfterTheComposingTextWasEmptied() {
+        editor.onSurroundingChanged("hola ", 5, 5);
+        editor.setComposingText("m", 1);
+        editor.setComposingText("", 1);
+        sent.clear();
+        assertTrue(editor.setComposingRegion(0, 4));
+        assertSent("delete:-5,4", "preedit:hola,4");
+        assertState("hola ", 4, 4);
+        assertComposing(0, 4);
+    }
+
+    @Test
+    public void testReplaceText() {
+        // A correction of an earlier word: composed over and replaced.
+        editor.onSurroundingChanged("teh x", 5, 5);
+        assertTrue(editor.replaceText(0, 3, "the"));
+        assertSent("delete:-5,3", "preedit:teh,3", "commit:the");
+        assertState("the x", 3, 3);
+        assertComposing(-1, -1);
+    }
+
+    @Test
+    public void testReplaceTextInsertsOnlyAtTheCursor() {
+        editor.onSurroundingChanged("ab", 2, 2);
+        assertTrue(editor.replaceText(2, 2, "c"));
+        assertSent("commit:c");
+        assertState("abc", 3, 3);
+        assertFalse(editor.replaceText(1, 1, "x"));
+        assertSent();
+    }
+
+    @Test
+    public void testComposingRegionWhileComposing() {
+        editor.onSurroundingChanged("ab ", 3, 3);
+        editor.setComposingText("cd", 1);
+        sent.clear();
+        assertTrue("The region it is composing", editor.setComposingRegion(3, 5));
+        assertFalse("Any other region", editor.setComposingRegion(0, 2));
+        assertSent();
+    }
+
+    @Test
+    public void testEmptyComposingRegionFinishesComposing() {
+        editor.setComposingText("ab", 1);
+        editor.setComposingRegion(1, 1);
+        assertSent("preedit:ab,2", "finish");
+        assertState("ab", 2, 2);
+        assertComposing(-1, -1);
+    }
+
+    @Test
+    public void testComposingRegionThatCannotBeComposed() {
+        editor.onSurroundingChanged("hello", 5, 5);
+        assertFalse("Out of the text", editor.setComposingRegion(2, 9));
+        editor.onSurroundingChanged("hello", 1, 3);
+        assertFalse("Over a selection", editor.setComposingRegion(0, 5));
+        editor.onSurroundingChanged(null, 0, 0);
+        assertFalse("Without the text", editor.setComposingRegion(0, 1));
+        assertSent();
+    }
 }
