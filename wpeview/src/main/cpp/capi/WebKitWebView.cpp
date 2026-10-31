@@ -26,6 +26,7 @@
 #include <limits>
 #include <memory>
 #include <pthread.h>
+#include <string>
 #include <sys/resource.h>
 #include <vector>
 #include <wpe/webkit.h>
@@ -96,6 +97,18 @@ struct WebKitWebViewBridge {
     WebKitWebView* m_webView;
     JNI::GlobalRef<JNIWebKitWebView> m_javaRef;
     std::vector<gulong> m_signalIds;
+    // The address and method of the last main frame navigation WebKit decided on. For a load the page starts itself,
+    // WebKit changes its URI only after the start of the load is reported, so the start is reported with this address,
+    // while the load has not started yet. Each navigation is decided on before its load starts, so one that never
+    // starts is replaced by the next one. The method is for the failure of the load.
+    std::string m_navigationUri;
+    std::string m_navigationMethod;
+    bool m_navigationPending {false};
+    // The server redirects of the current main frame load.
+    unsigned m_redirectCount {0};
+    // The address of the current main frame load once it failed. WebKit keeps the web view's URI at the previous page,
+    // but the end of the load is reported with the address that failed, as with android.webkit.WebView.
+    std::string m_failedLoadUri;
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -172,6 +185,7 @@ public:
         , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
         , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
+        , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
@@ -202,6 +216,7 @@ public:
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
     const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
+    const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
 
 private:
@@ -212,6 +227,8 @@ private:
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static gboolean onDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
+    static gboolean onLoadFailed(
+        WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
@@ -255,11 +272,20 @@ void JNIWebKitWebViewCache::onLoadChanged(
 {
     // WEBKIT_LOAD_REDIRECTED and WEBKIT_LOAD_COMMITTED are intentionally not surfaced.
     if (loadEvent == WEBKIT_LOAD_STARTED) {
-        auto jUri = JNI::String(webkit_web_view_get_uri(webView));
+        // For a load the page starts itself, a link or a script, the web view's URI is still the old one here.
+        auto jUri = JNI::String(
+            bridge->m_navigationPending ? bridge->m_navigationUri.c_str() : webkit_web_view_get_uri(webView));
+        bridge->m_navigationPending = false;
+        bridge->m_redirectCount = 0;
+        bridge->m_failedLoadUri.clear();
         if (!getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadStarted callback");
+    } else if (loadEvent == WEBKIT_LOAD_REDIRECTED) {
+        bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
-        auto jUri = JNI::String(webkit_web_view_get_uri(webView));
+        auto jUri = JNI::String(
+            bridge->m_failedLoadUri.empty() ? webkit_web_view_get_uri(webView) : bridge->m_failedLoadUri.c_str());
+        bridge->m_failedLoadUri.clear();
         if (!getJNIWebKitWebViewCache().m_onLoadFinished.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadFinished callback");
     }
@@ -267,7 +293,13 @@ void JNIWebKitWebViewCache::onLoadChanged(
 
 void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
-    auto jUri = JNI::String(webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj)));
+    // A navigation within the page is decided on, but it does not start a load. The address also changes back when a
+    // load is stopped, maybe for a navigation that is decided on and has not started yet.
+    const char* uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj));
+    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)) && uri && bridge->m_navigationUri == uri)
+        bridge->m_navigationPending = false;
+
+    auto jUri = JNI::String(uri);
     if (!getJNIWebKitWebViewCache().m_onUriChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
         Logging::logError("cannot deliver WebKitWebView onUriChanged callback");
 }
@@ -292,7 +324,25 @@ void JNIWebKitWebViewCache::onTitleChanged(GObject* obj, GParamSpec*, WebKitWebV
 gboolean JNIWebKitWebViewCache::onDecidePolicy(
     WebKitWebView*, WebKitPolicyDecision* decision, WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge)
 {
-    if (decisionType != WEBKIT_POLICY_DECISION_TYPE_RESPONSE || !decision)
+    if (!decision)
+        return FALSE;
+
+    if (decisionType == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION) {
+        auto* action
+            = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(decision));
+        WebKitFrameInfo* frame = action ? webkit_navigation_action_get_target_frame_info(action) : nullptr;
+        if (frame && webkit_frame_info_is_main_frame(frame)) {
+            auto* request = webkit_navigation_action_get_request(action);
+            const char* uri = webkit_uri_request_get_uri(request);
+            const char* method = webkit_uri_request_get_http_method(request);
+            bridge->m_navigationUri = uri ? uri : "";
+            bridge->m_navigationMethod = method ? method : "GET";
+            bridge->m_navigationPending = true;
+        }
+        return FALSE;
+    }
+
+    if (decisionType != WEBKIT_POLICY_DECISION_TYPE_RESPONSE)
         return FALSE;
 
     auto* responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
@@ -310,6 +360,99 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(
             static_cast<jstring>(jMethod), static_cast<jstring>(jMimeType), static_cast<jint>(statusCode)))
         Logging::logError("cannot deliver WebKitWebView onReceivedHttpError callback");
 
+    return FALSE;
+}
+
+// The error codes of android.webkit.WebViewClient, which WebViewClient's are.
+enum class LoadErrorCode : jint {
+    None = 0,
+    Unknown = -1,
+    HostLookup = -2,
+    Connect = -6,
+    Io = -7,
+    Timeout = -8,
+    RedirectLoop = -9,
+    UnsupportedScheme = -10,
+    FailedSslHandshake = -11,
+    FileNotFound = -14,
+};
+
+// The WebViewClient error code for a load that failed with this error, or None if the load was cancelled, or handed
+// to the media player, which apps are not told as an error, as with android.webkit.WebView.
+static LoadErrorCode loadErrorCode(const GError* error)
+{
+    if (g_error_matches(error, WEBKIT_NETWORK_ERROR, WEBKIT_NETWORK_ERROR_CANCELLED)
+        || g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)
+        || g_error_matches(error, WEBKIT_POLICY_ERROR, WEBKIT_POLICY_ERROR_FRAME_LOAD_INTERRUPTED_BY_POLICY_CHANGE)
+        || g_error_matches(error, WEBKIT_MEDIA_ERROR, WEBKIT_MEDIA_ERROR_WILL_HANDLE_LOAD))
+        return LoadErrorCode::None;
+
+    if (error->domain == G_RESOLVER_ERROR)
+        return LoadErrorCode::HostLookup;
+    if (error->domain == G_TLS_ERROR)
+        return LoadErrorCode::FailedSslHandshake;
+    if (error->domain == WEBKIT_NETWORK_ERROR) {
+        switch (error->code) {
+        case WEBKIT_NETWORK_ERROR_UNKNOWN_PROTOCOL:
+            return LoadErrorCode::UnsupportedScheme;
+        case WEBKIT_NETWORK_ERROR_FILE_DOES_NOT_EXIST:
+            return LoadErrorCode::FileNotFound;
+        case WEBKIT_NETWORK_ERROR_HTTPS_UPGRADE_REDIRECT_LOOP:
+            return LoadErrorCode::RedirectLoop;
+        default:
+            return LoadErrorCode::Unknown;
+        }
+    }
+    if (error->domain == WEBKIT_POLICY_ERROR && error->code == WEBKIT_POLICY_ERROR_CANNOT_SHOW_URI)
+        return LoadErrorCode::UnsupportedScheme;
+    // WebKit follows redirects itself, and fails with libsoup's error after too many.
+    if (g_error_matches(error, SOUP_SESSION_ERROR, SOUP_SESSION_ERROR_TOO_MANY_REDIRECTS))
+        return LoadErrorCode::RedirectLoop;
+    if (error->domain != G_IO_ERROR)
+        return LoadErrorCode::Unknown;
+
+    switch (error->code) {
+    case G_IO_ERROR_HOST_NOT_FOUND:
+        return LoadErrorCode::HostLookup;
+    case G_IO_ERROR_CONNECTION_REFUSED:
+    case G_IO_ERROR_HOST_UNREACHABLE:
+    case G_IO_ERROR_NETWORK_UNREACHABLE:
+        return LoadErrorCode::Connect;
+    case G_IO_ERROR_TIMED_OUT:
+        return LoadErrorCode::Timeout;
+    case G_IO_ERROR_NOT_FOUND:
+        return LoadErrorCode::FileNotFound;
+    default:
+        return LoadErrorCode::Io;
+    }
+}
+
+gboolean JNIWebKitWebViewCache::onLoadFailed(
+    WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge)
+{
+    // A load that is cancelled leaves the navigation alone: when a page goes elsewhere while it is still loading, its
+    // own load fails, as it is stopped, and the new one, maybe to the same address, must keep its address.
+    LoadErrorCode code = error ? loadErrorCode(error) : LoadErrorCode::Unknown;
+    if (code == LoadErrorCode::None)
+        return FALSE;
+    // The navigation that failed, if WebKit decided on it, maybe before its load started.
+    bool isNavigation = failingUri && bridge->m_navigationUri == failingUri;
+    if (isNavigation)
+        bridge->m_navigationPending = false;
+    // WebKit stops following redirects after 20, with an error that has neither a domain nor a code.
+    static constexpr unsigned maximumRedirects = 20;
+    if (code == LoadErrorCode::Unknown && bridge->m_redirectCount >= maximumRedirects)
+        code = LoadErrorCode::RedirectLoop;
+    bridge->m_failedLoadUri = failingUri ? failingUri : "";
+
+    auto jUri = JNI::String(failingUri ? failingUri : "");
+    auto jMethod = JNI::String(isNavigation ? bridge->m_navigationMethod.c_str() : "GET");
+    auto jDescription = JNI::String(error && error->message ? error->message : "");
+    if (!getJNIWebKitWebViewCache().m_onLoadFailed.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
+            static_cast<jstring>(jMethod), static_cast<jint>(code), static_cast<jstring>(jDescription)))
+        Logging::logError("cannot deliver WebKitWebView onLoadFailed callback");
+
+    // WebKit shows its error page.
     return FALSE;
 }
 
@@ -390,6 +533,7 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
         g_signal_connect(webView, "close", G_CALLBACK(onClose), bridge),
         g_signal_connect(webView, "decide-policy", G_CALLBACK(onDecidePolicy), bridge),
         g_signal_connect(webView, "load-changed", G_CALLBACK(onLoadChanged), bridge),
+        g_signal_connect(webView, "load-failed", G_CALLBACK(onLoadFailed), bridge),
         g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onEstimatedLoadProgress), bridge),
         g_signal_connect(webView, "notify::title", G_CALLBACK(onTitleChanged), bridge),
         g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), bridge),

@@ -164,6 +164,7 @@ public final class WebKitWebView {
         void onLoadProgress(double progress);
         void onTitleChanged(@NonNull String title, boolean canGoBack, boolean canGoForward);
         void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode);
+        void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
     }
@@ -219,6 +220,13 @@ public final class WebKitWebView {
         Listener currentListener = listener;
         if (currentListener != null)
             MainLooperDispatcher.post(() -> currentListener.onReceivedHttpError(uri, method, mimeType, statusCode));
+    }
+
+    @Keep
+    private void onLoadFailed(String uri, String method, int errorCode, String description) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onReceivedError(uri, method, errorCode, description));
     }
 
     @Keep
