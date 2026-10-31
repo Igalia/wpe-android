@@ -14,7 +14,8 @@ android {
 
     defaultConfig {
         minSdk = libs.versions.min.android.sdk.get().toInteger()
-        targetSdk = libs.versions.target.android.sdk.get().toInteger()
+        // Only the test app uses it. The local network test needs one that targets Android 17: -PtestTargetSdk=37.
+        targetSdk = (findProperty("testTargetSdk") ?: libs.versions.target.android.sdk.get()).toInteger()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

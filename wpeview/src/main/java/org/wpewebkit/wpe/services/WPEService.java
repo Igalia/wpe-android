@@ -30,13 +30,19 @@ import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.IWPEService;
 import org.wpewebkit.wpe.IWPEServiceHost;
 
 public abstract class WPEService extends Service {
     private static final String LOGTAG = "WPEService";
+
+    // The app's process that this process serves, for the call from native code below. Each process runs one service.
+    // Package-private: set from the binder inner class (avoids a synthetic accessor).
+    static volatile @Nullable IWPEServiceHost currentServiceHost = null;
 
     private final IWPEService.Stub binder = new IWPEService.Stub() {
         private IWPEServiceHost serviceHost = null;
@@ -46,6 +52,7 @@ public abstract class WPEService extends Service {
         public int connect(@NonNull Bundle args, @NonNull IWPEServiceHost serviceHost) {
             Log.d(LOGTAG, "IWPEService.Stub::connect()");
             this.serviceHost = serviceHost;
+            currentServiceHost = serviceHost;
 
             long pid = args.getLong("pid");
             final ParcelFileDescriptor parcelFd;
@@ -71,6 +78,21 @@ public abstract class WPEService extends Service {
             return -1;
         }
     };
+
+    // Called from native code (LocalNetwork.cpp) when Android blocks a connection to the local network, before the
+    // connection is ended.
+    @Keep
+    private static void onLocalNetworkBlocked(@NonNull String host) {
+        IWPEServiceHost serviceHost = currentServiceHost;
+        if (serviceHost == null)
+            return;
+
+        try {
+            serviceHost.notifyLocalNetworkBlocked(host);
+        } catch (RemoteException e) {
+            Log.e(LOGTAG, "Failed to tell that the local network is blocked", e);
+        }
+    }
 
     protected static native void setupNativeEnvironment(@NonNull String[] envStringsArray);
     protected static native void initializeNativeMain(long pid, int processType, int fd);

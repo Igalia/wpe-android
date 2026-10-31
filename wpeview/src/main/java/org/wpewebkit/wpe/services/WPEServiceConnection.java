@@ -35,6 +35,7 @@ import androidx.annotation.NonNull;
 
 import org.wpewebkit.wpe.IWPEService;
 import org.wpewebkit.wpe.IWPEServiceHost;
+import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEProcessType;
 
 public final class WPEServiceConnection implements ServiceConnection {
@@ -80,6 +81,11 @@ public final class WPEServiceConnection implements ServiceConnection {
                     listener.onCleanExit(WPEServiceConnection.this);
                 else
                     handler.post(() -> listener.onCleanExit(WPEServiceConnection.this));
+            }
+
+            @Override
+            public void notifyLocalNetworkBlocked(String host) {
+                LocalNetworkAccess.getInstance().onBlocked(host);
             }
         };
 
