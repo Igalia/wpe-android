@@ -26,6 +26,27 @@ import androidx.annotation.NonNull;
  * WebViewClient provides the high-level navigation and resource callbacks for {@link WebView}.
  */
 public class WebViewClient {
+    // The error codes of onReceivedError, those of android.webkit.WebViewClient.
+
+    /** Generic error. */
+    public static final int ERROR_UNKNOWN = android.webkit.WebViewClient.ERROR_UNKNOWN;
+    /** Server or proxy hostname lookup failed. */
+    public static final int ERROR_HOST_LOOKUP = android.webkit.WebViewClient.ERROR_HOST_LOOKUP;
+    /** Failed to connect to the server. */
+    public static final int ERROR_CONNECT = android.webkit.WebViewClient.ERROR_CONNECT;
+    /** Failed to read or write to the server. */
+    public static final int ERROR_IO = android.webkit.WebViewClient.ERROR_IO;
+    /** Connection timed out. */
+    public static final int ERROR_TIMEOUT = android.webkit.WebViewClient.ERROR_TIMEOUT;
+    /** Too many redirects. */
+    public static final int ERROR_REDIRECT_LOOP = android.webkit.WebViewClient.ERROR_REDIRECT_LOOP;
+    /** Unsupported URI scheme. */
+    public static final int ERROR_UNSUPPORTED_SCHEME = android.webkit.WebViewClient.ERROR_UNSUPPORTED_SCHEME;
+    /** Failed to perform SSL handshake. */
+    public static final int ERROR_FAILED_SSL_HANDSHAKE = android.webkit.WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
+    /** File not found. */
+    public static final int ERROR_FILE_NOT_FOUND = android.webkit.WebViewClient.ERROR_FILE_NOT_FOUND;
+
     /**
      * Notify the host application that a page has started loading.
      * @param view The WebView that is initiating the callback.
@@ -66,6 +87,18 @@ public class WebViewClient {
      */
     public void onReceivedHttpError(@NonNull WebView view, @NonNull WPEResourceRequest request,
                                     @NonNull WPEResourceResponse errorResponse) {}
+
+    /**
+     * Notify the host application that the page in the main frame failed to load, for example because the server
+     * could not be reached. Loads that are cancelled, for example by loading another page, are not reported. The load
+     * then ends with {@link #onPageFinished} for the address that failed, and WebKit shows its error page, which comes
+     * with its own {@link #onPageStarted} and {@link #onPageFinished}.
+     * @param view The WebView that is initiating the callback.
+     * @param request The request of the page that failed to load.
+     * @param error Why it failed: an {@code ERROR_*} code and a description.
+     */
+    public void onReceivedError(@NonNull WebView view, @NonNull WPEResourceRequest request,
+                                @NonNull WPEResourceError error) {}
 
     /**
      * The interface used to accept or reject an invalid SSL certificate.

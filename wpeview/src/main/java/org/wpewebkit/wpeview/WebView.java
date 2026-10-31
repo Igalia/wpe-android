@@ -215,6 +215,12 @@ public class WebView extends FrameLayout {
             }
 
             @Override
+            public void onReceivedError(String uri, String method, int errorCode, String description) {
+                WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method);
+                viewClient.onReceivedError(WebView.this, request, new WPEResourceError(errorCode, description));
+            }
+
+            @Override
             public void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
                 showScriptDialog(dialogPtr, type, url, message, defaultText);
             }
