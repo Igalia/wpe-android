@@ -21,4 +21,9 @@ package org.wpewebkit.wpe;
 
 interface IWPEServiceHost {
     void notifyCleanExit();
+
+    // Android 17 blocked a connection of the network process to the local network, as the app does not have the
+    // permission. Not oneway: the network process ends the connection once this returns, so that the app's process
+    // knows why before the load fails.
+    void notifyLocalNetworkBlocked(String host);
 }

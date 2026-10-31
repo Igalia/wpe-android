@@ -19,6 +19,7 @@
 
 #include "Environment.h"
 #include "Init.h"
+#include "LocalNetwork.h"
 #include "Logging.h"
 
 #include <cassert>
@@ -62,6 +63,9 @@ void initializeNativeMain(JNIEnv* /*env*/, jclass /*klass*/, jlong pid, jint typ
         = reinterpret_cast<ProcessEntryPoint*>(dlsym(RTLD_DEFAULT, entrypointName[static_cast<int>(processType)]));
     Logging::logDebug("initializeNativeMain() for %s, fd: %d, entrypoint: %p",
         processName[static_cast<int>(processType)], fileDesc, entrypoint);
+
+    if (processType == ProcessType::NetworkProcess)
+        LocalNetwork::watchConnections();
 
     static constexpr size_t NUMBER_BUFFER_SIZE = 32;
     char arg1String[NUMBER_BUFFER_SIZE];

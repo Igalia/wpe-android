@@ -46,6 +46,13 @@ public class WebViewClient {
     public static final int ERROR_FAILED_SSL_HANDSHAKE = android.webkit.WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
     /** File not found. */
     public static final int ERROR_FILE_NOT_FOUND = android.webkit.WebViewClient.ERROR_FILE_NOT_FOUND;
+    /**
+     * Android blocked the connection to the local network, because the app does not have the local network permission
+     * ({@code android.permission.ACCESS_LOCAL_NETWORK}, shown as "Nearby devices", Android 17 and later). Not in
+     * android.webkit.WebViewClient. The app can request the permission, which it must declare in its manifest, and load
+     * the page again once it is granted. Only pages report it: a blocked subresource just fails to load.
+     */
+    public static final int ERROR_LOCAL_NETWORK_ACCESS_DENIED = -100;
 
     /**
      * Notify the host application that a page has started loading.

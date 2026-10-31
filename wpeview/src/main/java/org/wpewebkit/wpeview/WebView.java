@@ -48,6 +48,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import org.wpewebkit.R;
+import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEToplevel;
@@ -216,8 +217,24 @@ public class WebView extends FrameLayout {
 
             @Override
             public void onReceivedError(String uri, String method, int errorCode, String description) {
-                WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method);
-                viewClient.onReceivedError(WebView.this, request, new WPEResourceError(errorCode, description));
+                // The network process tells when Android blocked a connection before it ends it, so it is known by
+                // the time the load fails because of it. Ending the connection fails the load with one of these codes;
+                // other failures, such as a host name that does not resolve, have another reason.
+                Uri parsedUri = Uri.parse(uri);
+                String host = parsedUri.getHost();
+                boolean endedConnection = errorCode == WebViewClient.ERROR_IO ||
+                                          errorCode == WebViewClient.ERROR_CONNECT ||
+                                          errorCode == WebViewClient.ERROR_UNKNOWN;
+                boolean blocked =
+                    endedConnection && host != null && LocalNetworkAccess.getInstance().isBlocked(getContext(), host);
+                WPEResourceRequest request = new HttpResourceRequest(parsedUri, method);
+                // WebKit's description would say that the server ended the connection.
+                WPEResourceError error =
+                    blocked ? new WPEResourceError(WebViewClient.ERROR_LOCAL_NETWORK_ACCESS_DENIED,
+                                                   "Could not connect to " + host +
+                                                       ": the app does not have the local network permission")
+                            : new WPEResourceError(errorCode, description);
+                viewClient.onReceivedError(WebView.this, request, error);
             }
 
             @Override

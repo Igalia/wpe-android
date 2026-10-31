@@ -149,7 +149,7 @@ target_link_libraries(
     WPEAndroidCommon)
 
 # libWPEAndroidService
-add_library(WPEAndroidService SHARED Service/EntryPoint.cpp)
+add_library(WPEAndroidService SHARED Service/EntryPoint.cpp Service/LocalNetwork.cpp)
 target_configure_quality(WPEAndroidService)
 target_link_libraries(
     WPEAndroidService
