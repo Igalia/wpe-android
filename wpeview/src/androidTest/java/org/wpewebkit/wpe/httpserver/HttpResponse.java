@@ -3,6 +3,7 @@ package org.wpewebkit.wpe.httpserver;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -44,19 +45,18 @@ public class HttpResponse {
         }
 
         final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
-        writer.print("Date: " + dateFormat.format(new Date()));
+        writer.println("Date: " + dateFormat.format(new Date()));
+
+        String body = bodyText != null ? String.format(bodyTemplate, bodyText, bodyText) : null;
+        if (body != null)
+            writer.println("Content-Length: " + body.getBytes(StandardCharsets.UTF_8).length);
 
         // End of headers
         writer.println();
 
         // Write body
-        if (bodyText != null) {
-            String body = String.format(bodyTemplate, bodyText, bodyText);
-            addHeader("Content-Length", Integer.toString(body.length()));
+        if (body != null)
             writer.print(body);
-        } else {
-            writer.println();
-        }
 
         writer.flush();
     }
