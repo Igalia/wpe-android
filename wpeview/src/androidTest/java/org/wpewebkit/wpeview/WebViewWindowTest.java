@@ -2,8 +2,12 @@ package org.wpewebkit.wpeview;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
+import android.os.SystemClock;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
@@ -20,6 +24,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -269,6 +275,32 @@ public class WebViewWindowTest {
         Matcher focusedWindow = Pattern.compile("mCurrentFocus=.*").matcher(windows);
         fail("The window of the activity never got the focus, " +
              (focusedWindow.find() ? focusedWindow.group() : "no window has it"));
+    }
+
+    /** A destroyed WebView that stays in the window ignores input, focus and size changes, and its surface. */
+    @Test
+    public void testDestroyedWebViewInTheWindow() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = loadPage(new TestWebViewClient());
+        scenario.onActivity(activity -> {
+            WebView webView = activity.getWebView();
+            webView.requestFocus();
+            webView.destroy();
+
+            webView.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A));
+            long now = SystemClock.uptimeMillis();
+            MotionEvent touch = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 10, 10, 0);
+            webView.dispatchTouchEvent(touch);
+            touch.recycle();
+            webView.clearFocus();
+            webView.setVisibility(View.INVISIBLE);
+            webView.setVisibility(View.VISIBLE);
+            webView.setLayoutParams(new LinearLayout.LayoutParams(200, 200));
+            ViewGroup parent = (ViewGroup)webView.getParent();
+            parent.removeView(webView);
+            parent.addView(webView);
+        });
+        getInstrumentation().waitForIdleSync();
+        scenario.onActivity(activity -> assertEquals(200, activity.getWebView().getWidth()));
     }
 
     @Test
