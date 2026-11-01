@@ -28,6 +28,7 @@ jobs:
           with:
             api-level: 35
             arch: x86_64
+            emulator-build: 16428233
             cmake: 3.31.1
             target: google_apis
             force-avd-creation: false
