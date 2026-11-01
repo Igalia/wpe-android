@@ -25,9 +25,25 @@ import android.os.Bundle;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.UiThread;
+
+import java.util.ArrayList;
 
 public class WPEActivityObserver implements Application.ActivityLifecycleCallbacks {
     private static final String LOGTAG = "WPEActivityObserver";
+
+    // The started activities, in the order they started. Android starts an activity before it stops the one it
+    // replaces, and several activities are started at once in multi window mode, so the current activity is the last
+    // one to start that has not stopped yet.
+    private static final ArrayList<Activity> startedActivities = new ArrayList<>();
+
+    // The activity that WebKit uses as the current one, for example to start WebXR sessions, or null if no activity is
+    // started. Package-private: read by the tests.
+    @UiThread
+    static @Nullable Activity getCurrentActivity() {
+        return startedActivities.isEmpty() ? null : startedActivities.get(startedActivities.size() - 1);
+    }
 
     @Override
     public void onActivityCreated(@NonNull Activity a, @NonNull Bundle b) {
@@ -37,7 +53,9 @@ public class WPEActivityObserver implements Application.ActivityLifecycleCallbac
     @Override
     public void onActivityStarted(@NonNull Activity a) {
         Log.d(LOGTAG, "activity started: " + a);
-        handleActivityStarted(a);
+        startedActivities.remove(a);
+        startedActivities.add(a);
+        setCurrentActivity(a);
     }
 
     @Override
@@ -53,7 +71,10 @@ public class WPEActivityObserver implements Application.ActivityLifecycleCallbac
     @Override
     public void onActivityStopped(@NonNull Activity a) {
         Log.d(LOGTAG, "activity stopped: " + a);
-        handleActivityStopped(a);
+        boolean wasCurrent = getCurrentActivity() == a;
+        startedActivities.remove(a);
+        if (wasCurrent)
+            setCurrentActivity(getCurrentActivity());
     }
 
     @Override
@@ -66,6 +87,5 @@ public class WPEActivityObserver implements Application.ActivityLifecycleCallbac
         Log.d(LOGTAG, "activity save state: " + a);
     }
 
-    private static native void handleActivityStarted(@NonNull Activity a);
-    private static native void handleActivityStopped(@NonNull Activity a);
+    private static native void setCurrentActivity(@Nullable Activity a);
 }

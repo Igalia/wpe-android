@@ -87,23 +87,13 @@ static void initializeWPEActivityObserver()
     }
 
     klass.registerNativeMethods(JNI::StaticNativeMethod<void(JNIActivity)>(
-                                    "handleActivityStarted",
-                                    +[](JNIEnv* env, jclass, JNIActivity activity) {
-                                        Logging::logDebug(
-                                            "WPEActivityObserver::handleActivityStarted(%p) current=%p [tid %d]",
-                                            activity, s_currentActivity, gettid());
-                                        if (s_currentActivity != nullptr)
-                                            env->DeleteGlobalRef(s_currentActivity);
-                                        s_currentActivity = activity ? env->NewGlobalRef(activity) : nullptr;
-                                    }),
-        JNI::StaticNativeMethod<void(JNIActivity)>(
-            "handleActivityStopped", +[](JNIEnv* env, jclass, JNIActivity activity) {
-                Logging::logDebug("WPEActivityObserver::handleActivityStopped(%p) current=%p [tid %d]", activity,
-                    s_currentActivity, gettid());
-                if (s_currentActivity != nullptr)
-                    env->DeleteGlobalRef(s_currentActivity);
-                s_currentActivity = nullptr;
-            }));
+        "setCurrentActivity", +[](JNIEnv* env, jclass, JNIActivity activity) {
+            Logging::logDebug("WPEActivityObserver::setCurrentActivity(%p) current=%p [tid %d]", activity,
+                s_currentActivity, gettid());
+            if (s_currentActivity != nullptr)
+                env->DeleteGlobalRef(s_currentActivity);
+            s_currentActivity = activity ? env->NewGlobalRef(activity) : nullptr;
+        }));
 }
 
 static void initializeWPERuntime()
