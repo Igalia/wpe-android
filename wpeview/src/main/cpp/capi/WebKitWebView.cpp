@@ -1515,9 +1515,12 @@ void JNIWebKitWebViewCache::nativeCaptureSnapshot(JNIEnv* env, jobject, jlong na
 void JNIWebKitWebViewCache::nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text)
 {
     auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
-    if (webkit_script_dialog_get_dialog_type(dialog) == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
+    WebKitScriptDialogType type = webkit_script_dialog_get_dialog_type(dialog);
+    // A prompt without text gives null, as when it is cancelled. An alert has no answer.
+    if (type == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
         webkit_script_dialog_prompt_set_text(dialog, JNI::String(text).getContent().get());
-    webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
+    if (type == WEBKIT_SCRIPT_DIALOG_CONFIRM || type == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM)
+        webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
 }
 
 void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr)
