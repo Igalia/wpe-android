@@ -24,8 +24,8 @@ import androidx.annotation.Nullable;
 
 /**
  * WPEInputMethodContext is a borrowed JNI proxy for the native WPEInputMethodContext that WebKit
- * attaches to a WPEView. The native context is owned by WebKit; this wrapper must not outlive the
- * parent WebKitWebView.
+ * attaches to a WPEView. The native context is owned by WebKit. The methods of this wrapper do nothing
+ * once the WebKitWebView is destroyed.
  */
 public final class WPEInputMethodContext {
     public interface Listener {
@@ -42,7 +42,7 @@ public final class WPEInputMethodContext {
 
     WPEInputMethodContext(long nativePtr) { this.mNativePtr = nativePtr; }
 
-    // These do nothing once the WebKitWebView is destroyed: an input method may still hold a connection to it.
+    // An input method may still hold a connection to the context after the WebKitWebView is destroyed.
     public void commitText(@NonNull String text) {
         if (mNativePtr != 0)
             nativeCommitText(mNativePtr, text);
@@ -77,7 +77,8 @@ public final class WPEInputMethodContext {
     public int getInputHints() { return mNativePtr != 0 ? nativeGetInputHints(mNativePtr) : WPEInputHints.NONE; }
 
     public void setListener(@Nullable Listener listener) {
-        nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
+        if (mNativePtr != 0)
+            nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
     }
 
     void invalidate() { mNativePtr = 0; }

@@ -23,7 +23,7 @@ import androidx.annotation.Nullable;
 
 /**
  * WPEView is a borrowed JNI proxy for the native WPEView object owned by WebKitWebView.
- * This wrapper does not own the native pointer and must not outlive the parent WebKitWebView.
+ * This wrapper does not own the native pointer. Its methods do nothing once the WebKitWebView is destroyed.
  */
 public final class WPEView {
     private long mNativePtr = 0;
@@ -33,26 +33,41 @@ public final class WPEView {
     WPEView(long nativePtr) { this.mNativePtr = nativePtr; }
 
     public void setToplevel(@Nullable WPEToplevel toplevel) {
-        nativeSetToplevel(mNativePtr, toplevel != null ? toplevel.getNativePtr() : 0);
+        if (mNativePtr != 0)
+            nativeSetToplevel(mNativePtr, toplevel != null ? toplevel.getNativePtr() : 0);
     }
 
-    public void resized(int width, int height) { nativeResized(mNativePtr, width, height); }
+    public void resized(int width, int height) {
+        if (mNativePtr != 0)
+            nativeResized(mNativePtr, width, height);
+    }
 
-    public void setMapped(boolean mapped) { nativeSetMapped(mNativePtr, mapped); }
+    public void setMapped(boolean mapped) {
+        if (mNativePtr != 0)
+            nativeSetMapped(mNativePtr, mapped);
+    }
 
-    public void setVisible(boolean visible) { nativeSetVisible(mNativePtr, visible); }
+    public void setVisible(boolean visible) {
+        if (mNativePtr != 0)
+            nativeSetVisible(mNativePtr, visible);
+    }
 
-    public void setFocused(boolean focused) { nativeSetFocused(mNativePtr, focused); }
+    public void setFocused(boolean focused) {
+        if (mNativePtr != 0)
+            nativeSetFocused(mNativePtr, focused);
+    }
 
     public void dispatchTouchEvent(long time, int type, int pointerCount, @NonNull int[] ids, @NonNull float[] xs,
                                    @NonNull float[] ys) {
-        if (pointerCount <= 0 || ids.length < pointerCount || xs.length < pointerCount || ys.length < pointerCount)
+        if (mNativePtr == 0 || pointerCount <= 0 || ids.length < pointerCount || xs.length < pointerCount ||
+            ys.length < pointerCount)
             return;
         nativeDispatchTouchEvent(mNativePtr, time, type, pointerCount, ids, xs, ys);
     }
 
     public void dispatchKeyEvent(long time, int type, int keyCode, int unicodeChar, int metaState) {
-        nativeDispatchKeyEvent(mNativePtr, time, type, keyCode, unicodeChar, metaState);
+        if (mNativePtr != 0)
+            nativeDispatchKeyEvent(mNativePtr, time, type, keyCode, unicodeChar, metaState);
     }
 
     void invalidate() { mNativePtr = 0; }

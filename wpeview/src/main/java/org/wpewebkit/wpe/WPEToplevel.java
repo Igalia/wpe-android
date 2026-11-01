@@ -37,23 +37,46 @@ public final class WPEToplevel {
         mNativePtr = nativeInit(display.getNativePtr(), surface);
     }
 
-    public void setPhysicalSize(int width, int height) { nativeSetPhysicalSize(mNativePtr, width, height); }
+    public void setPhysicalSize(int width, int height) {
+        if (mNativePtr != 0)
+            nativeSetPhysicalSize(mNativePtr, width, height);
+    }
 
-    public void getSize(@NonNull int[] out) { nativeGetSize(mNativePtr, out); }
+    /** Gives the size in logical pixels, which is 0 by 0 once the toplevel is destroyed. */
+    public void getSize(@NonNull int[] out) {
+        if (mNativePtr != 0) {
+            nativeGetSize(mNativePtr, out);
+        } else {
+            out[0] = 0;
+            out[1] = 0;
+        }
+    }
 
-    /** Returns the scale of the screen the toplevel is on, the ratio of physical to logical pixels. */
-    public float getScale() { return nativeGetScale(mNativePtr); }
+    /**
+     * Returns the scale of the screen the toplevel is on, the ratio of physical to logical pixels, which is 1 once the
+     * toplevel is destroyed.
+     */
+    public float getScale() { return mNativePtr != 0 ? nativeGetScale(mNativePtr) : 1; }
 
     public void onSurfaceCreated(@NonNull Surface surface) { setSurface(surface); }
 
     public void onSurfaceDestroyed() { setSurface(null); }
 
-    public void setSurface(@Nullable Surface surface) { nativeSetSurface(mNativePtr, surface); }
+    public void setSurface(@Nullable Surface surface) {
+        if (mNativePtr != 0)
+            nativeSetSurface(mNativePtr, surface);
+    }
 
-    public void setWindowFocused(boolean focused) { nativeSetWindowFocused(mNativePtr, focused); }
+    public void setWindowFocused(boolean focused) {
+        if (mNativePtr != 0)
+            nativeSetWindowFocused(mNativePtr, focused);
+    }
 
     /** Moves the toplevel to the screen of the Android display that its window shows on. */
-    public void setScreen(@NonNull WPEScreen screen) { nativeSetScreen(mNativePtr, screen.getNativePtr()); }
+    public void setScreen(@NonNull WPEScreen screen) {
+        if (mNativePtr != 0)
+            nativeSetScreen(mNativePtr, screen.getNativePtr());
+    }
 
     /**
      * Receives WebKit's requests to enter and leave fullscreen, which the toplevel has already done when they arrive.

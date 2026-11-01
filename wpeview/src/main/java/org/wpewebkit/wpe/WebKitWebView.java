@@ -65,7 +65,7 @@ public final class WebKitWebView {
 
     public long getNativePtr() { return mNativePtr; }
 
-    long getWebKitWebViewPtr() { return nativeGetWebKitWebViewPtr(mNativePtr); }
+    long getWebKitWebViewPtr() { return mNativePtr != 0 ? nativeGetWebKitWebViewPtr(mNativePtr) : 0; }
 
     public WebKitWebView(@NonNull WPEDisplay display, @NonNull WebKitWebContext context, @Nullable WPEToplevel toplevel,
                          @Nullable WebKitNetworkSession networkSession, @Nullable WebKitSettings settings) {
@@ -162,7 +162,10 @@ public final class WebKitWebView {
 
     public boolean isMuted() { return mNativePtr != 0 && nativeIsMuted(mNativePtr); }
 
-    public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
+    public void setZoomLevel(double zoomLevel) {
+        if (mNativePtr != 0)
+            nativeSetZoomLevel(mNativePtr, zoomLevel);
+    }
 
     public void setBackgroundColor(@ColorInt int color) {
         if (mNativePtr != 0) {
