@@ -37,7 +37,16 @@ jobs:
             pre-emulator-launch-script: ./gradlew wpeview:build
             script: ./gradlew wpeview:connectedDebugAndroidTest --stacktrace
         - name: Create Test Summary
+          if: always()
           uses: test-summary/action@v2
           with:
             paths: "**/*est-results/**/*.xml"
             show: "pass, fail, skip"
+        - name: Save Test Results
+          if: always()
+          uses: actions/upload-artifact@v6
+          with:
+            name: instrumentation-test-results
+            path: |
+              wpeview/build/outputs/androidTest-results/
+              wpeview/build/reports/androidTests/
