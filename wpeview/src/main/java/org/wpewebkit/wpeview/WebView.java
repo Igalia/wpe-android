@@ -40,6 +40,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -70,6 +71,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -102,6 +104,9 @@ public class WebView extends FrameLayout {
     private WebSettings webSettings;
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
+    // The JavaScript dialogs that are not answered yet, which destroy() cancels. Package-private: changed by the
+    // ScriptDialogResult inner class (avoids a synthetic accessor).
+    final ArrayList<ScriptDialogResult> pendingScriptDialogs = new ArrayList<>();
 
     WebViewClient viewClient = new WebViewClient();
     WebChromeClient chromeClient = new WebChromeClient();
@@ -446,6 +451,9 @@ public class WebView extends FrameLayout {
 
     public void destroy() {
         exitFullscreen();
+        // Answer the dialogs while the page can still take the answers, and close the built-in ones.
+        while (!pendingScriptDialogs.isEmpty())
+            pendingScriptDialogs.get(0).cancel();
         // Unfocusing the view, when it leaves its toplevel, clears inputFieldFocused through the input method
         // context.
         boolean inputMethodConnected = inputFieldFocused;
@@ -865,6 +873,7 @@ public class WebView extends FrameLayout {
     void showScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                           @NonNull String defaultText) {
         ScriptDialogResult result = new ScriptDialogResult(dialogPtr);
+        pendingScriptDialogs.add(result);
         boolean handled = false;
         if (type == WebKitWebView.SCRIPT_DIALOG_ALERT) {
             handled = chromeClient.onJsAlert(this, url, message, result);
@@ -875,7 +884,8 @@ public class WebView extends FrameLayout {
         } else if (type == WebKitWebView.SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM) {
             handled = chromeClient.onJsBeforeUnload(this, url, message, result);
         }
-        if (handled)
+        // The app may also have answered without taking the dialog over, or destroyed the view.
+        if (handled || result.answered)
             return;
 
         String title = url;
@@ -914,37 +924,50 @@ public class WebView extends FrameLayout {
         if (type != WebKitWebView.SCRIPT_DIALOG_ALERT) {
             builder.setNegativeButton(negativeTextId, new ScriptDialogCancelListener(result));
         }
-        builder.show();
+        try {
+            result.shownDialog = builder.show();
+        } catch (WindowManager.BadTokenException exception) {
+            // Android shows dialogs only for a running activity, and the WebView's context may be the application.
+            Log.w("WPEAndroid", "Cannot show the JavaScript dialog, cancelling it", exception);
+            result.cancel();
+        }
     }
 
+    // WebKit takes one answer per dialog, and the native dialog is released with it, so later answers do nothing.
     private class ScriptDialogResult implements WPEJsPromptResult {
         private final long dialogPtr;
-        private @Nullable String stringResult;
+        boolean answered;
+        // The built-in dialog that asks the user, if the app did not take the dialog over.
+        @Nullable
+        AlertDialog shownDialog;
 
         ScriptDialogResult(long dialogPtr) { this.dialogPtr = dialogPtr; }
 
         @Override
         public void cancel() {
-            // webKitWebView is null once the view has been destroyed; the dialog is torn down with
-            // the page in that case, so there is nothing to answer.
-            if (webKitWebView != null) {
-                webKitWebView.scriptDialogConfirm(dialogPtr, false, stringResult);
-                webKitWebView.scriptDialogClose(dialogPtr);
-            }
+            answer(false, null);
         }
 
         @Override
         public void confirm() {
-            if (webKitWebView != null) {
-                webKitWebView.scriptDialogConfirm(dialogPtr, true, stringResult);
-                webKitWebView.scriptDialogClose(dialogPtr);
-            }
+            answer(true, null);
         }
 
         @Override
         public void confirm(@NonNull String result) {
-            stringResult = result;
-            confirm();
+            answer(true, result);
+        }
+
+        private void answer(boolean confirmed, @Nullable String text) {
+            if (answered)
+                return;
+            answered = true;
+            pendingScriptDialogs.remove(this);
+            if (shownDialog != null && shownDialog.isShowing())
+                shownDialog.dismiss();
+            shownDialog = null;
+            webKitWebView.scriptDialogConfirm(dialogPtr, confirmed, text);
+            webKitWebView.scriptDialogClose(dialogPtr);
         }
     }
 
