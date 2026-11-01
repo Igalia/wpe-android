@@ -53,8 +53,14 @@ private:
         } else if (ephemeral)
             session = webkit_network_session_new_ephemeral();
         else {
-            session = webkit_network_session_new(
-                JNI::String(dataDir).getContent().get(), JNI::String(cacheDir).getContent().get());
+            // The JNI::String must outlive its content, whose release uses the Java string.
+            auto dataDirectory = JNI::String(dataDir);
+            auto dataDirectoryContent = dataDirectory.getContent();
+            session = webkit_network_session_new(dataDirectoryContent.get(), JNI::String(cacheDir).getContent().get());
+            // WebKit keeps cookies in memory only, unless it has a file for them. Ephemeral sessions have none.
+            g_autofree char* cookieFile = g_build_filename(dataDirectoryContent.get(), "cookies.sqlite", nullptr);
+            webkit_cookie_manager_set_persistent_storage(webkit_network_session_get_cookie_manager(session), cookieFile,
+                WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE);
         }
         return reinterpret_cast<jlong>(session);
     }
