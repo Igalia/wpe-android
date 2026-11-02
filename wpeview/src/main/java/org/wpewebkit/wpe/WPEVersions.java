@@ -32,8 +32,4 @@ public class WPEVersions {
     public static int GSTREAMER_MICRO = 0;
     public static int GSTREAMER_NANO = 0;
     public static @NonNull String GSTREAMER = "";
-
-    public static @NonNull String versionedAssets(@NonNull String componentName) {
-        return componentName + "_" + WEBKIT + "_gst_" + GSTREAMER;
-    }
 }

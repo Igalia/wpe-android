@@ -28,7 +28,6 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 
 import org.wpewebkit.wpe.WPEProcessType;
-import org.wpewebkit.wpe.WPEVersions;
 
 import java.io.File;
 
@@ -45,13 +44,7 @@ public class NetworkProcessService extends WPEService {
 
         // android.os.Debug.waitForDebugger();
 
-        final String assetsVersion = WPEVersions.versionedAssets("network_process");
         Context context = getApplicationContext();
-        if (ServiceUtils.needAssets(context, assetsVersion)) {
-            ServiceUtils.copyFileOrDir(context, getAssets(), "gio", true);
-            ServiceUtils.saveAssetsVersion(context, assetsVersion);
-        }
-
         String[] envStringsArray = {"XDG_RUNTIME_DIR", context.getCacheDir().getAbsolutePath(), "GIO_EXTRA_MODULES",
                                     new File(context.getFilesDir(), "gio").getAbsolutePath()};
 
