@@ -195,8 +195,6 @@ public class WebView extends FrameLayout {
             @Override
             public void onURLChanged(String uri) {
                 currentUrl = uri;
-                viewClient.doUpdateVisitedHistory(WebView.this, uri, /* isReload */ false);
-                updateTitle();
             }
 
             @Override
@@ -206,10 +204,16 @@ public class WebView extends FrameLayout {
             }
 
             @Override
-            public void onTitleChanged(String title, boolean goBack, boolean goForward) {
+            public void onTitleChanged(String title) {
                 currentTitle = title;
+                updateTitle();
+            }
+
+            @Override
+            public void onHistoryChanged(String uri, boolean goBack, boolean goForward) {
                 canGoBack = goBack;
                 canGoForward = goForward;
+                viewClient.doUpdateVisitedHistory(WebView.this, uri, /* isReload */ false);
                 updateTitle();
             }
 
@@ -425,7 +429,8 @@ public class WebView extends FrameLayout {
         return title.replace("%20", " ");
     }
 
-    // A page without a title has its address as its title, so the title changes with the title and the address.
+    // A page without a title has its address as its title, so the title changes with the title, and with the address
+    // once a navigation is done, not when a load starts, as with android.webkit.WebView.
     void updateTitle() {
         String title = pageTitle();
         if (title.equals(reportedTitle))

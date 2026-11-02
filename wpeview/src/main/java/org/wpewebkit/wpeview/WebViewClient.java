@@ -70,7 +70,9 @@ public class WebViewClient {
 
     /**
      * Notify the host application that the current page's visited URL has been updated.
-     * Mirrors {@code android.webkit.WebViewClient.doUpdateVisitedHistory}.
+     * Mirrors {@code android.webkit.WebViewClient.doUpdateVisitedHistory}. Called once for each navigation that is
+     * done: when a page commits, also for a reload, or when a navigation within the page changes the address or the
+     * Back/Forward state. {@link WebView#canGoBack()} and {@link WebView#canGoForward()} then return the new state.
      * @param view The WebView that is initiating the callback.
      * @param url The URL of the visited page.
      * @param isReload True if this URL was reached as the result of a reload.

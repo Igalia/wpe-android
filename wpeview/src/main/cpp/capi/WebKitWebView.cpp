@@ -91,12 +91,22 @@ struct WebKitWebViewBridge {
         for (gulong id : m_signalIds)
             g_signal_handler_disconnect(m_webView, id);
         m_signalIds.clear();
+        if (m_backForwardListChangedId)
+            g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         g_object_unref(m_webView);
     }
 
     WebKitWebView* m_webView;
     JNI::GlobalRef<JNIWebKitWebView> m_javaRef;
     std::vector<gulong> m_signalIds;
+    gulong m_backForwardListChangedId {0};
+    // The address and the Back/Forward state last reported, none at first.
+    std::string m_historyUri;
+    bool m_historyCanGoBack {false};
+    bool m_historyCanGoForward {false};
+    // Whether a load started and has not committed yet, and whether the title changed meanwhile.
+    bool m_loadStarting {false};
+    bool m_titlePending {false};
     // The address and method of the last main frame navigation WebKit decided on. For a load the page starts itself,
     // WebKit changes its URI only after the start of the load is reported, so the start is reported with this address,
     // while the load has not started yet. Each navigation is decided on before its load starts, so one that never
@@ -183,7 +193,8 @@ public:
         , m_onLoadFinished(getMethod<void(jstring)>("onLoadFinished"))
         , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
         , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
-        , m_onTitleChanged(getMethod<void(jstring, jboolean, jboolean)>("onTitleChanged"))
+        , m_onTitleChanged(getMethod<void(jstring)>("onTitleChanged"))
+        , m_onHistoryChanged(getMethod<void(jstring, jboolean, jboolean)>("onHistoryChanged"))
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
@@ -214,7 +225,8 @@ public:
     const JNI::Method<void(jstring)> m_onLoadFinished;
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
-    const JNI::Method<void(jstring, jboolean, jboolean)> m_onTitleChanged;
+    const JNI::Method<void(jstring)> m_onTitleChanged;
+    const JNI::Method<void(jstring, jboolean, jboolean)> m_onHistoryChanged;
     const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
@@ -225,6 +237,11 @@ private:
     static void onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void reportTitle(WebKitWebViewBridge* bridge);
+    static void onIsLoadingChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void onBackForwardListChanged(
+        WebKitBackForwardList*, WebKitBackForwardListItem*, gpointer, WebKitWebViewBridge* bridge);
+    static void reportHistory(WebKitWebViewBridge* bridge, bool committed = false);
     static gboolean onDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
     static gboolean onLoadFailed(
@@ -270,7 +287,8 @@ void JNIWebKitWebViewCache::onClose(WebKitWebView*, WebKitWebViewBridge* bridge)
 void JNIWebKitWebViewCache::onLoadChanged(
     WebKitWebView* webView, WebKitLoadEvent loadEvent, WebKitWebViewBridge* bridge)
 {
-    // WEBKIT_LOAD_REDIRECTED and WEBKIT_LOAD_COMMITTED are intentionally not surfaced.
+    // WEBKIT_LOAD_REDIRECTED and WEBKIT_LOAD_COMMITTED are intentionally not surfaced, but a page that commits is
+    // reported as visited.
     if (loadEvent == WEBKIT_LOAD_STARTED) {
         // For a load the page starts itself, a link or a script, the web view's URI is still the old one here.
         auto jUri = JNI::String(
@@ -278,11 +296,21 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_navigationPending = false;
         bridge->m_redirectCount = 0;
         bridge->m_failedLoadUri.clear();
+        bridge->m_loadStarting = true;
         if (!getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadStarted callback");
     } else if (loadEvent == WEBKIT_LOAD_REDIRECTED) {
         bridge->m_redirectCount++;
+    } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
+        bridge->m_loadStarting = false;
+        if (bridge->m_titlePending)
+            reportTitle(bridge);
+        reportHistory(bridge, true);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
+        // Also the end of a load that failed or stopped before it committed.
+        bridge->m_loadStarting = false;
+        if (bridge->m_titlePending)
+            reportTitle(bridge);
         auto jUri = JNI::String(
             bridge->m_failedLoadUri.empty() ? webkit_web_view_get_uri(webView) : bridge->m_failedLoadUri.c_str());
         bridge->m_failedLoadUri.clear();
@@ -305,6 +333,53 @@ void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebVie
     auto jUri = JNI::String(uri);
     if (!getJNIWebKitWebViewCache().m_onUriChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
         Logging::logError("cannot deliver WebKitWebView onUriChanged callback");
+
+    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)))
+        reportHistory(bridge);
+}
+
+void JNIWebKitWebViewCache::onIsLoadingChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
+{
+    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)))
+        reportHistory(bridge);
+}
+
+// A navigation within the page that keeps the address, such as history.pushState to the same address, or a navigation
+// in a frame, changes only the Back/Forward list. One that changes the address changes the list first, and is reported
+// when the address changes.
+void JNIWebKitWebViewCache::onBackForwardListChanged(
+    WebKitBackForwardList* list, WebKitBackForwardListItem*, gpointer, WebKitWebViewBridge* bridge)
+{
+    if (webkit_web_view_is_loading(bridge->m_webView))
+        return;
+    auto* item = webkit_back_forward_list_get_current_item(list);
+    if (item && !g_strcmp0(webkit_back_forward_list_item_get_uri(item), webkit_web_view_get_uri(bridge->m_webView)))
+        reportHistory(bridge);
+}
+
+// Reports a navigation once it is done, with the address and the Back/Forward state it leaves, as Android does: a new
+// page when it commits, also for a reload, as WebKit's error page for a load that fails does. A navigation within the
+// page has no load events, so it is reported when the address or the Back/Forward list changes while nothing loads, or
+// when a load WebKit was asked for ends without a new page, such as going back to an address within the page. A load
+// stopped before it commits changes nothing.
+void JNIWebKitWebViewCache::reportHistory(WebKitWebViewBridge* bridge, bool committed)
+{
+    const char* uri = webkit_web_view_get_uri(bridge->m_webView);
+    bool canGoBack = webkit_web_view_can_go_back(bridge->m_webView);
+    bool canGoForward = webkit_web_view_can_go_forward(bridge->m_webView);
+    // A page that commits is always a navigation, also a reload or a load of the same address.
+    if (!uri
+        || (!committed && bridge->m_historyUri == uri && bridge->m_historyCanGoBack == canGoBack
+            && bridge->m_historyCanGoForward == canGoForward))
+        return;
+
+    bridge->m_historyUri = uri;
+    bridge->m_historyCanGoBack = canGoBack;
+    bridge->m_historyCanGoForward = canGoForward;
+    auto jUri = JNI::String(uri);
+    if (!getJNIWebKitWebViewCache().m_onHistoryChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
+            static_cast<jboolean>(canGoBack), static_cast<jboolean>(canGoForward)))
+        Logging::logError("cannot deliver WebKitWebView onHistoryChanged callback");
 }
 
 void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
@@ -314,15 +389,23 @@ void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, W
         Logging::logError("cannot deliver WebKitWebView onEstimatedLoadProgress callback");
 }
 
-void JNIWebKitWebViewCache::onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
+// WebKit empties the title when a new page commits, which can be before it tells the address of that page. A page
+// without a title has its address as its title, so a title that changes while a load starts waits for the commit.
+void JNIWebKitWebViewCache::onTitleChanged(GObject*, GParamSpec*, WebKitWebViewBridge* bridge)
 {
-    auto* webView = WEBKIT_WEB_VIEW(obj);
+    if (bridge->m_loadStarting)
+        bridge->m_titlePending = true;
+    else
+        reportTitle(bridge);
+}
+
+void JNIWebKitWebViewCache::reportTitle(WebKitWebViewBridge* bridge)
+{
+    bridge->m_titlePending = false;
     // WebKit has no title until it knows the first one. A page without a title has an empty one.
-    const char* title = webkit_web_view_get_title(webView);
+    const char* title = webkit_web_view_get_title(bridge->m_webView);
     auto jTitle = JNI::String(title ? title : "");
-    if (!getJNIWebKitWebViewCache().m_onTitleChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jTitle),
-            static_cast<jboolean>(webkit_web_view_can_go_back(webView)),
-            static_cast<jboolean>(webkit_web_view_can_go_forward(webView))))
+    if (!getJNIWebKitWebViewCache().m_onTitleChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jTitle)))
         Logging::logError("cannot deliver WebKitWebView onTitleChanged callback");
 }
 
@@ -542,8 +625,11 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
         g_signal_connect(webView, "notify::estimated-load-progress", G_CALLBACK(onEstimatedLoadProgress), bridge),
         g_signal_connect(webView, "notify::title", G_CALLBACK(onTitleChanged), bridge),
         g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), bridge),
+        g_signal_connect(webView, "notify::is-loading", G_CALLBACK(onIsLoadingChanged), bridge),
         g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
     };
+    bridge->m_backForwardListChangedId = g_signal_connect(
+        webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
 
     return reinterpret_cast<jlong>(bridge);
 }
