@@ -91,7 +91,11 @@ public class WebView extends FrameLayout {
     WebChromeClient chromeClient = new WebChromeClient();
     private @Nullable String originalUrl = null;
     String currentUrl = "about:blank";
+    // The title of the page, empty while it has none.
     String currentTitle = "";
+    // The last title given to the chrome client, which getTitle returns.
+    @Nullable
+    String reportedTitle;
     int currentProgress = 0;
     boolean canGoBack = false;
     boolean canGoForward = false;
@@ -192,6 +196,7 @@ public class WebView extends FrameLayout {
             public void onURLChanged(String uri) {
                 currentUrl = uri;
                 viewClient.doUpdateVisitedHistory(WebView.this, uri, /* isReload */ false);
+                updateTitle();
             }
 
             @Override
@@ -205,7 +210,7 @@ public class WebView extends FrameLayout {
                 currentTitle = title;
                 canGoBack = goBack;
                 canGoForward = goForward;
-                chromeClient.onReceivedTitle(WebView.this, title);
+                updateTitle();
             }
 
             @Override
@@ -387,10 +392,47 @@ public class WebView extends FrameLayout {
 
     public @NonNull String getUrl() { return currentUrl; }
     public @Nullable String getOriginalUrl() { return originalUrl; }
-    public @NonNull String getTitle() { return currentTitle; }
+    /**
+     * Returns the title of the page, or while it has none, its address, as {@link #titleFromUrl} shows it. This is
+     * the title that {@link WebChromeClient#onReceivedTitle} reports, and it is empty before the first one, as with
+     * android.webkit.WebView.
+     */
+    public @NonNull String getTitle() { return reportedTitle != null ? reportedTitle : ""; }
+
+    private @NonNull String pageTitle() { return currentTitle.isEmpty() ? titleFromUrl(currentUrl) : currentTitle; }
+
     public int getProgress() { return currentProgress; }
     public boolean canGoBack() { return canGoBack; }
     public boolean canGoForward() { return canGoForward; }
+
+    /**
+     * Shows the address of a page without a title as android.webkit.WebView does: without "http://", "https://",
+     * the user name and password, or "www.", without the "/" after a bare host name, and with spaces unescaped.
+     */
+    static @NonNull String titleFromUrl(@NonNull String url) {
+        String title;
+        if (url.startsWith("http://"))
+            title = url.substring("http://".length());
+        else if (url.startsWith("https://"))
+            title = url.substring("https://".length());
+        else
+            return url;
+        title = title.replaceFirst("^[^/?#]*@", "");
+        if (title.startsWith("www."))
+            title = title.substring("www.".length());
+        if (title.endsWith("/") && title.indexOf('/') == title.length() - 1)
+            title = title.substring(0, title.length() - 1);
+        return title.replace("%20", " ");
+    }
+
+    // A page without a title has its address as its title, so the title changes with the title and the address.
+    void updateTitle() {
+        String title = pageTitle();
+        if (title.equals(reportedTitle))
+            return;
+        reportedTitle = title;
+        chromeClient.onReceivedTitle(this, title);
+    }
 
     public void loadUrl(@NonNull String url) {
         originalUrl = url;

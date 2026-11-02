@@ -29,6 +29,7 @@ import androidx.annotation.Nullable;
 public class WebChromeClient {
     public void onCloseWindow(@NonNull WebView window) {}
     public void onProgressChanged(@NonNull WebView view, int newProgress) {}
+    /** Reports a new title of the page, as {@link WebView#getTitle()} returns it: its address while it has none. */
     public void onReceivedTitle(@NonNull WebView view, @NonNull String title) {}
 
     public interface CustomViewCallback {
