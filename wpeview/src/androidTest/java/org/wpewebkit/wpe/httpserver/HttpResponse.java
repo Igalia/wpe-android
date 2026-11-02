@@ -18,6 +18,7 @@ public class HttpResponse {
     private String statusMessage;
     private final Map<String, String> headers = new HashMap<>();
     private String bodyText;
+    private String body;
 
     private static final String bodyTemplate = "<html><head><title>%s</title></head><body>%s</body></html>";
 
@@ -33,6 +34,9 @@ public class HttpResponse {
 
     public void setBodyText(String bodyText) { this.bodyText = bodyText; }
 
+    /** Sends this page as it is, instead of a page made from the body text with that text as its title. */
+    public void setBody(String body) { this.body = body; }
+
     public void send(OutputStream outputStream) throws IOException {
         PrintWriter writer = new PrintWriter(outputStream);
 
@@ -47,7 +51,9 @@ public class HttpResponse {
         final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
         writer.println("Date: " + dateFormat.format(new Date()));
 
-        String body = bodyText != null ? String.format(bodyTemplate, bodyText, bodyText) : null;
+        String body = this.body;
+        if (body == null && bodyText != null)
+            body = String.format(bodyTemplate, bodyText, bodyText);
         if (body != null)
             writer.println("Content-Length: " + body.getBytes(StandardCharsets.UTF_8).length);
 

@@ -296,7 +296,10 @@ void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebVie
     // A navigation within the page is decided on, but it does not start a load. The address also changes back when a
     // load is stopped, maybe for a navigation that is decided on and has not started yet.
     const char* uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj));
-    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)) && uri && bridge->m_navigationUri == uri)
+    // The Java side always has an address, and WebKit has none until its first one.
+    if (!uri)
+        return;
+    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)) && bridge->m_navigationUri == uri)
         bridge->m_navigationPending = false;
 
     auto jUri = JNI::String(uri);
@@ -314,7 +317,9 @@ void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, W
 void JNIWebKitWebViewCache::onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
     auto* webView = WEBKIT_WEB_VIEW(obj);
-    auto jTitle = JNI::String(webkit_web_view_get_title(webView));
+    // WebKit has no title until it knows the first one. A page without a title has an empty one.
+    const char* title = webkit_web_view_get_title(webView);
+    auto jTitle = JNI::String(title ? title : "");
     if (!getJNIWebKitWebViewCache().m_onTitleChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jTitle),
             static_cast<jboolean>(webkit_web_view_can_go_back(webView)),
             static_cast<jboolean>(webkit_web_view_can_go_forward(webView))))
