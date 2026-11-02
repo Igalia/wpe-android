@@ -30,6 +30,8 @@ import org.junit.runner.RunWith;
 import org.wpewebkit.wpe.httpserver.HttpResponse;
 import org.wpewebkit.wpe.httpserver.HttpServer;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -56,12 +58,19 @@ public class WebViewTitleTest {
     private HttpServer httpServer;
     private final BlockingQueue<String> titles = new LinkedBlockingQueue<>();
     private final BlockingQueue<String> finishedUrls = new LinkedBlockingQueue<>();
+    // The loads that start and the titles, in order.
+    private final BlockingQueue<String> events = new LinkedBlockingQueue<>();
 
     @Before
     public void setUp() throws Exception {
         httpServer = HttpServer.start();
         webViewActivityTestRule.getScenario().onActivity(activity -> {
             activity.getWebView().setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageStarted(@NonNull WebView view, @NonNull String url) {
+                    events.add("started " + url);
+                }
+
                 @Override
                 public void onPageFinished(@NonNull WebView view, @NonNull String url) {
                     finishedUrls.add(url);
@@ -71,6 +80,7 @@ public class WebViewTitleTest {
                 @Override
                 public void onReceivedTitle(@NonNull WebView view, @NonNull String title) {
                     titles.add(title != null ? title : NULL_TITLE);
+                    events.add("title " + title);
                 }
             });
         });
@@ -97,6 +107,10 @@ public class WebViewTitleTest {
 
     private void loadAndWait(String url) throws InterruptedException {
         webViewActivityTestRule.getScenario().onActivity(activity -> activity.getWebView().loadUrl(url));
+        waitForPageFinished(url);
+    }
+
+    private void waitForPageFinished(String url) throws InterruptedException {
         String finished;
         do {
             finished = finishedUrls.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -155,6 +169,26 @@ public class WebViewTitleTest {
         waitForTitle("Set by script");
         evaluateJavascript("document.title = ''");
         waitForTitle(withoutScheme(otherUntitled) + "#part");
+    }
+
+    /**
+     * The address of a page without a title becomes its title once that page loads, after its load starts, for apps
+     * that clear the title when a load starts. It used to change with the address, before the load started.
+     */
+    @Test
+    public void testTitleAfterLoadStarts() throws Exception {
+        String first = setPage("/first.html", "<p>No title</p>");
+        String second = setPage("/second.html", "<p>No title either</p>");
+
+        loadAndWait(first);
+        waitForTitle(withoutScheme(first));
+        events.clear();
+        loadAndWait(second);
+        assertEquals(Arrays.asList("started " + second, "title " + withoutScheme(second)), new ArrayList<>(events));
+        events.clear();
+        webViewActivityTestRule.getScenario().onActivity(activity -> activity.getWebView().goBack());
+        waitForPageFinished(first);
+        assertEquals(Arrays.asList("started " + first, "title " + withoutScheme(first)), new ArrayList<>(events));
     }
 
     @Test

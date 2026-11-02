@@ -155,11 +155,18 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
         selectedTab.webview.setWebViewClient(object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String) {
-                binding.toolbarEditText.setText(url)
+                showUrl(url)
             }
 
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                binding.toolbarEditText.setText(url)
+                showUrl(url)
+            }
+
+            // The address the user is typing is kept.
+            private fun showUrl(url: String) {
+                if (!binding.toolbarEditText.hasFocus()) {
+                    binding.toolbarEditText.setText(url)
+                }
             }
         })
     }
