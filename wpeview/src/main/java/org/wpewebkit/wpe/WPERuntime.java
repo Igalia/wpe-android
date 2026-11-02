@@ -123,13 +123,10 @@ public final class WPERuntime {
             applicationContext = context.getApplicationContext();
             setApplicationContext(applicationContext);
 
-            final String assetsVersion = WPEVersions.versionedAssets("ui_process");
-            if (ServiceUtils.needAssets(applicationContext, assetsVersion)) {
-                ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "injected-bundles",
-                                           true);
-                ServiceUtils.copyFileOrDir(applicationContext, applicationContext.getAssets(), "mime", false);
-                ServiceUtils.saveAssetsVersion(applicationContext, assetsVersion);
-            }
+            ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "injected-bundles", true);
+            ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "mime", false);
+            // Every process loads the GIO modules, so they are copied here, before this process starts the others.
+            ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "gio", true);
 
             ApplicationInfo appInfo = applicationContext.getApplicationInfo();
             List<String> envStrings = new ArrayList<>(46);
