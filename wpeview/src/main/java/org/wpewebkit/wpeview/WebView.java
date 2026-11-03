@@ -55,6 +55,7 @@ import org.wpewebkit.R;
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
+import org.wpewebkit.wpe.WPEInputPurpose;
 import org.wpewebkit.wpe.WPEScreen;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
@@ -207,6 +208,10 @@ public class WebView extends FrameLayout {
             @Override
             public void onPreeditReset() {
                 onImePreeditReset();
+            }
+            @Override
+            public void onInputPurposeChanged() {
+                onImeInputPurposeChanged();
             }
         });
         this.webSettings = new WebSettings(webKitSettings);
@@ -1043,6 +1048,37 @@ public class WebView extends FrameLayout {
         inputMethodManager.restartInput(this);
     }
 
+    // The focused field changed its purpose without losing focus, as a password field does when a "show password"
+    // button turns it into a text field, or the focus moved to a field with another purpose: WebKit tells no focus
+    // out or focus in for that. Restart the input method so that it asks for the new input type.
+    void onImeInputPurposeChanged() {
+        if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
+            return;
+        inputMethodManager.restartInput(this);
+    }
+
+    private static int inputTypeForPurpose(int purpose) {
+        switch (purpose) {
+        case WPEInputPurpose.DIGITS:
+            return EditorInfo.TYPE_CLASS_NUMBER;
+        case WPEInputPurpose.NUMBER:
+            return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_FLAG_SIGNED |
+                EditorInfo.TYPE_NUMBER_FLAG_DECIMAL;
+        case WPEInputPurpose.PHONE:
+            return EditorInfo.TYPE_CLASS_PHONE;
+        case WPEInputPurpose.URL:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_URI;
+        case WPEInputPurpose.EMAIL:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
+        case WPEInputPurpose.PASSWORD:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+        case WPEInputPurpose.PIN:
+            return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD;
+        default:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        }
+    }
+
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
     // connection, which no longer exists. Package-private: also called from the WebKitWebView.Listener inner class
     // when the web process ends (avoids a synthetic accessor).
@@ -1059,7 +1095,7 @@ public class WebView extends FrameLayout {
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
             return null;
-        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        outAttrs.inputType = inputTypeForPurpose(imContext.getInputPurpose());
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.actionLabel = null;
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
