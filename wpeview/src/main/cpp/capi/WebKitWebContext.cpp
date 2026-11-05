@@ -62,7 +62,8 @@ public:
         registerNativeMethods(JNI::NativeMethod<jlong(jboolean)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<jboolean(jlong)>("nativeIsAutomationMode", nativeIsAutomationMode),
-            JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebContextPtr", nativeGetWebKitWebContextPtr));
+            JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebContextPtr", nativeGetWebKitWebContextPtr),
+            JNI::NativeMethod<void(jlong, jstringArray)>("nativeSetPreferredLanguages", nativeSetPreferredLanguages));
     }
 
     WebKitWebView* invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const;
@@ -76,6 +77,7 @@ private:
     static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr);
     static jboolean nativeIsAutomationMode(JNIEnv*, jobject, jlong nativePtr);
     static jlong nativeGetWebKitWebContextPtr(JNIEnv*, jobject, jlong nativePtr);
+    static void nativeSetPreferredLanguages(JNIEnv*, jobject, jlong nativePtr, jstringArray languagesArray);
 
     const JNI::Method<jlong()>
         m_invokeCreateWebKitWebViewForAutomation; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
@@ -139,6 +141,23 @@ jboolean JNIWebKitWebContextCache::nativeIsAutomationMode(JNIEnv*, jobject, jlon
 jlong JNIWebKitWebContextCache::nativeGetWebKitWebContextPtr(JNIEnv*, jobject, jlong nativePtr)
 {
     return reinterpret_cast<jlong>(JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context);
+}
+
+void JNIWebKitWebContextCache::nativeSetPreferredLanguages(
+    JNIEnv*, jobject, jlong nativePtr, jstringArray languagesArray)
+{
+    g_autoptr(GStrvBuilder) builder = g_strv_builder_new();
+    for (auto language : JNI::ObjectArray<jstring>(languagesArray).getReadOnlyContent()) {
+        // The JNI::String must outlive its content, whose release uses the Java string.
+        auto javaLanguage = JNI::String(language);
+        auto languageContent = javaLanguage.getContent();
+        if (languageContent)
+            g_strv_builder_add(builder, languageContent.get());
+    }
+    g_auto(GStrv) languages = g_strv_builder_end(builder);
+
+    webkit_web_context_set_preferred_languages(
+        JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context, languages);
 }
 
 WebKitWebView* JNIWebKitWebContextCache::invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const

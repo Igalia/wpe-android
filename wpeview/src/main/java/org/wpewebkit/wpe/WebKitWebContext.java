@@ -18,9 +18,11 @@
 
 package org.wpewebkit.wpe;
 
+import android.content.Context;
 import android.os.Looper;
 
 import androidx.annotation.Keep;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.util.concurrent.CountDownLatch;
@@ -39,10 +41,18 @@ public final class WebKitWebContext {
     public long getNativePtr() { return mNativePtr; }
     private @Nullable Client client;
 
-    public WebKitWebContext(boolean automationMode) { mNativePtr = nativeInit(automationMode); }
+    public WebKitWebContext(boolean automationMode) {
+        Context applicationContext = WPERuntime.getInstance().getApplicationContext();
+        if (applicationContext == null)
+            throw new IllegalStateException(
+                "WPERuntime.initialize() must be called before creating a WebKitWebContext");
+        mNativePtr = nativeInit(automationMode);
+        PreferredLanguages.add(applicationContext, this);
+    }
 
     public void destroy() {
         if (mNativePtr != 0) {
+            PreferredLanguages.remove(this);
             nativeDestroy(mNativePtr);
             mNativePtr = 0;
         }
@@ -82,8 +92,20 @@ public final class WebKitWebContext {
 
     public long getWebKitWebContextPtr() { return nativeGetWebKitWebContextPtr(mNativePtr); }
 
+    /**
+     * Sets the languages pages get, most preferred first, as BCP 47 tags: {@code navigator.languages} and the
+     * {@code Accept-Language} header. WebKit keeps them for the whole process, so they apply to every web context,
+     * but only the running processes of this one hear of them; {@link PreferredLanguages} calls this on every web
+     * context for that reason.
+     */
+    void setPreferredLanguages(@NonNull String[] languages) {
+        if (mNativePtr != 0)
+            nativeSetPreferredLanguages(mNativePtr, languages);
+    }
+
     private native long nativeInit(boolean automationMode);
     private native void nativeDestroy(long nativePtr);
     private native boolean nativeIsAutomationMode(long nativePtr);
     private native long nativeGetWebKitWebContextPtr(long nativePtr);
+    private native void nativeSetPreferredLanguages(long nativePtr, String[] languages);
 }
