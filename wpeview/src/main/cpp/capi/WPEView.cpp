@@ -19,6 +19,7 @@
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
 #include "Logging.h"
+#include "WPEGestureControllerAndroid.h"
 #include "WPEKeymapAndroid.h"
 
 #include <algorithm>
@@ -84,11 +85,15 @@ private:
         JNI::ScalarArray<jfloat> pointerYs(ys);
 
         auto eventType = static_cast<WPEEventType>(type);
+        auto* gestureController = wpe_view_get_gesture_controller(view);
         for (int i = 0; i < pointerCount; i++) {
             g_autoptr(WPEEvent) event = wpe_event_touch_new(eventType, view, WPE_INPUT_SOURCE_TOUCHSCREEN,
                 static_cast<uint32_t>(time), WPEModifiers {}, static_cast<uint32_t>(pointerIds.getReadOnlyContent()[i]),
                 static_cast<double>(pointerXs.getReadOnlyContent()[i]),
                 static_cast<double>(pointerYs.getReadOnlyContent()[i]));
+            // Before WebKit, which only passes on the events that the page did not cancel.
+            if (gestureController && WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController))
+                wpe_gesture_controller_android_observe_touch(WPE_GESTURE_CONTROLLER_ANDROID(gestureController), event);
             wpe_view_event(view, event);
         }
 
