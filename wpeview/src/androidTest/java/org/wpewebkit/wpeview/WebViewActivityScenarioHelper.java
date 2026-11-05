@@ -51,6 +51,15 @@ public class WebViewActivityScenarioHelper {
         webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
     }
 
+    public static void loadUrlSync(ActivityScenario<WebViewTestActivity> scenario, TestWebViewClient webViewClient,
+                                   String url) {
+        scenario.onActivity(activity -> {
+            activity.getWebView().setWebViewClient(webViewClient);
+            activity.getWebView().loadUrl(url);
+        });
+        webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
+    }
+
     public static String evaluateJavaScriptAndWaitForResult(ActivityScenario<WebViewTestActivity> scenario,
                                                             TestWebViewClient webViewClient, String script)
         throws TimeoutException {

@@ -3,6 +3,7 @@ package org.wpewebkit.wpe.httpserver;
 import android.util.Log;
 
 import androidx.annotation.GuardedBy;
+import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +26,7 @@ public class HttpServer {
 
     private final Object lock = new Object();
     private final Map<String, HttpResponse> responseMap = new HashMap<>();
+    private final Map<String, HttpRequest> requestMap = new HashMap<>();
 
     private HttpServer(int port) throws Exception {
         serverThread = new ServerThread(port);
@@ -60,6 +62,12 @@ public class HttpServer {
     public String setResponse(String requestPath, HttpResponse response) {
         synchronized (lock) { responseMap.put(requestPath, response); }
         return serverUri + requestPath;
+    }
+
+    /** The last request the server got for the path, or null if it got none. */
+    @Nullable
+    public HttpRequest getLastRequest(String requestPath) {
+        synchronized (lock) { return requestMap.get(requestPath); }
     }
 
     private class ServerThread extends Thread {
@@ -184,7 +192,10 @@ public class HttpServer {
         private void handleRequest(HttpRequest request, PrintStream stream) throws IOException {
             HttpResponse response;
             // The server's lock, which guards the responses, not this thread's.
-            synchronized (HttpServer.this.lock) { response = responseMap.get(request.getURI()); }
+            synchronized (HttpServer.this.lock) {
+                requestMap.put(request.getURI(), request);
+                response = responseMap.get(request.getURI());
+            }
             if (response != null) {
                 response.send(stream);
             }
