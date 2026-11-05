@@ -19,6 +19,7 @@
 #include "WPEViewAndroid.h"
 
 #include "Logging.h"
+#include "WPEGestureControllerAndroid.h"
 #include "WPEToplevelAndroid.h"
 
 #include <android/native_window.h>
@@ -226,8 +227,11 @@ static void wpe_view_android_class_init(WPEViewAndroidClass* klass)
     viewClass->can_be_mapped = wpeViewAndroidCanBeMapped;
 }
 
-static void wpe_view_android_init(WPEViewAndroid*)
+static void wpe_view_android_init(WPEViewAndroid* view)
 {
+    // Taps and drags as Android finds them, also on pages that cancel touchmove.
+    g_autoptr(WPEGestureController) gestureController = wpe_gesture_controller_android_new();
+    wpe_view_set_gesture_controller(WPE_VIEW(view), gestureController);
 }
 
 WPEView* wpe_view_android_new(WPEDisplay* display)
