@@ -532,7 +532,10 @@ public class WebViewImeTest {
         "<html><body><input id='text'><input id='password' type='password'><input id='email' type='email'>"
         + "<input id='tel' type='tel'><input id='url' type='url'><input id='number' type='number'>"
         + "<input id='numeric' inputmode='numeric'><input id='revealed' type='password'>"
-        + "<input id='revealed-pin' type='password' inputmode='numeric'><script>"
+        + "<input id='revealed-pin' type='password' inputmode='numeric'><input id='characters' "
+        + "autocapitalize='characters'><input id='words' autocapitalize='words'><input id='sentences' "
+        + "autocapitalize='sentences'><form autocapitalize='words'><input id='form-password' type='password'>"
+        + "</form><script>"
         + "document.getElementById('revealed').type = document.getElementById('revealed-pin').type = 'text'"
         + "</script></body></html>";
 
@@ -590,6 +593,12 @@ public class WebViewImeTest {
         assertInputType(scenario, "revealed-pin",
                         EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD);
         assertFalse("The input method may learn from #revealed-pin", inputMethodMayLearn(scenario));
+        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        assertInputType(scenario, "characters", text | EditorInfo.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        assertInputType(scenario, "words", text | EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS);
+        assertInputType(scenario, "sentences", text | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        assertInputType(scenario, "form-password",
+                        EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
     }
 
     // Records the input type of each connection that Android asks the WebView for, as the input method gets it.
