@@ -34,6 +34,7 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
 void wpe_toplevel_android_set_background_color(WPEToplevelAndroid* toplevel, float red, float green, float blue);
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height);
 void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused);
+void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* screen);
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel);
 ANativeWindow* wpe_toplevel_android_get_window(WPEToplevelAndroid* toplevel);
 

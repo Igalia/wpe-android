@@ -116,10 +116,9 @@ static void wpeViewAndroidOnTransactionCompleted(void* context, ASurfaceTransact
 static void wpeViewAndroidDispose(GObject* object)
 {
     auto* view = WPE_VIEW_ANDROID(object);
-    if (view->screenRefreshRateChangedID) {
-        g_signal_handler_disconnect(view->screen, view->screenRefreshRateChangedID);
-        view->screenRefreshRateChangedID = 0;
-        view->screen = nullptr;
+    if (view->screen) {
+        g_clear_signal_handler(&view->screenRefreshRateChangedID, view->screen);
+        g_clear_object(&view->screen);
     }
     g_clear_object(&view->frontBuffer);
     G_OBJECT_CLASS(wpe_view_android_parent_class)->dispose(object);
@@ -135,12 +134,13 @@ static void wpeViewAndroidEnsureScreenObserver(WPEViewAndroid* view, WPEScreen* 
     if (view->screen == screen)
         return;
 
-    if (view->screenRefreshRateChangedID) {
-        g_signal_handler_disconnect(view->screen, view->screenRefreshRateChangedID);
-        view->screenRefreshRateChangedID = 0;
+    // A screen lasts as long as its display, which can go while the view still observes its screen.
+    if (view->screen) {
+        g_clear_signal_handler(&view->screenRefreshRateChangedID, view->screen);
+        g_clear_object(&view->screen);
     }
 
-    view->screen = screen;
+    view->screen = screen ? WPE_SCREEN(g_object_ref(screen)) : nullptr;
     view->frameRateDirty = true;
 
     if (screen) {

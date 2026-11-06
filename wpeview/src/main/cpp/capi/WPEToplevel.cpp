@@ -39,8 +39,10 @@ public:
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jint, jint)>("nativeSetPhysicalSize", nativeSetPhysicalSize),
             JNI::NativeMethod<void(jlong, jintArray)>("nativeGetSize", nativeGetSize),
+            JNI::NativeMethod<jfloat(jlong)>("nativeGetScale", nativeGetScale),
             JNI::NativeMethod<void(jlong, JNISurface)>("nativeSetSurface", nativeSetSurface),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetWindowFocused", nativeSetWindowFocused),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeSetScreen", nativeSetScreen),
             JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat)>(
                 "nativeSetBackgroundColor", nativeSetBackgroundColor));
     }
@@ -77,6 +79,11 @@ private:
         env->SetIntArrayRegion(out, 0, 2, data);
     }
 
+    static jfloat nativeGetScale(JNIEnv*, jobject, jlong nativePtr)
+    {
+        return static_cast<jfloat>(wpe_toplevel_get_scale(JNI::from_jlong<WPEToplevel>(nativePtr)));
+    }
+
     static void nativeSetSurface(JNIEnv* env, jobject, jlong nativePtr, JNISurface surface)
     {
         auto* toplevel = JNI::from_jlong<WPEToplevel>(nativePtr);
@@ -98,6 +105,12 @@ private:
     {
         wpe_toplevel_android_set_window_focused(
             WPE_TOPLEVEL_ANDROID(JNI::from_jlong<WPEToplevel>(nativePtr)), focused ? TRUE : FALSE);
+    }
+
+    static void nativeSetScreen(JNIEnv*, jobject, jlong nativePtr, jlong screenPtr)
+    {
+        wpe_toplevel_android_set_screen(
+            WPE_TOPLEVEL_ANDROID(JNI::from_jlong<WPEToplevel>(nativePtr)), JNI::from_jlong<WPEScreen>(screenPtr));
     }
 };
 

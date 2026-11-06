@@ -26,6 +26,6 @@ G_BEGIN_DECLS
 #define WPE_TYPE_SCREEN_ANDROID (wpe_screen_android_get_type())
 G_DECLARE_FINAL_TYPE(WPEScreenAndroid, wpe_screen_android, WPE, SCREEN_ANDROID, WPEScreen)
 
-WPEScreen* wpe_screen_android_new(void);
+WPEScreen* wpe_screen_android_new(guint32 id);
 
 G_END_DECLS

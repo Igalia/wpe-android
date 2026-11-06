@@ -28,4 +28,7 @@ G_DECLARE_FINAL_TYPE(WPEDisplayAndroid, wpe_display_android, WPE, DISPLAY_ANDROI
 
 WPEDisplay* wpe_display_android_new(void);
 
+void wpe_display_android_add_screen(WPEDisplayAndroid* display, WPEScreen* screen);
+void wpe_display_android_remove_screen(WPEDisplayAndroid* display, WPEScreen* screen);
+
 G_END_DECLS

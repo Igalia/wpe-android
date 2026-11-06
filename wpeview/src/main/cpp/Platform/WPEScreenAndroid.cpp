@@ -60,12 +60,12 @@ static void wpe_screen_android_class_init(WPEScreenAndroidClass* klass)
 
 static void wpe_screen_android_init(WPEScreenAndroid* screen)
 {
-    // FIXME: Get actual scale and refresh rate via Android Display APIs / JNI.
-    wpe_screen_set_scale(WPE_SCREEN(screen), 1.0);
-    wpe_screen_set_refresh_rate(WPE_SCREEN(screen), 60000);
+    UNUSED_PARAM(screen);
 }
 
-WPEScreen* wpe_screen_android_new(void)
+// The screen of an Android display. Its size, scale and refresh rate come from the display, through WPEScreen.java.
+WPEScreen* wpe_screen_android_new(guint32 id)
 {
-    return WPE_SCREEN(g_object_new(WPE_TYPE_SCREEN_ANDROID, "id", 1, nullptr));
+    g_return_val_if_fail(id, nullptr);
+    return WPE_SCREEN(g_object_new(WPE_TYPE_SCREEN_ANDROID, "id", id, nullptr));
 }

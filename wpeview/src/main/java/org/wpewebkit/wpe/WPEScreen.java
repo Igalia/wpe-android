@@ -19,26 +19,61 @@
 package org.wpewebkit.wpe;
 
 /**
- * WPEScreen is a borrowed JNI proxy for the native WPEScreen object owned by WPEDisplay.
- * This wrapper does not own the native pointer and must not outlive the parent WPEDisplay.
+ * WPEScreen is an owning JNI proxy for the native WPEScreen of an Android display. WPEDisplay makes one for each
+ * display, keeps it up to date, and destroys it when the display goes.
  */
 public final class WPEScreen {
     private long mNativePtr = 0;
     public long getNativePtr() { return mNativePtr; }
 
-    // This constructor wraps a borrowed pointer returned by WPEDisplay.
-    WPEScreen(long nativePtr) { this.mNativePtr = nativePtr; }
+    // WebKit takes 0 for no screen, while Android numbers its first display 0: the id of a screen is the id of its
+    // display plus one.
+    WPEScreen(int displayId) { mNativePtr = nativeInit(displayId + 1); }
 
-    public float getScale() { return nativeGetScale(mNativePtr); }
+    /** Returns the width of the screen in logical pixels, the CSS pixels of pages, or -1 if it is not known. */
+    public int getWidth() { return mNativePtr != 0 ? nativeGetWidth(mNativePtr) : -1; }
 
-    public void setScale(float scale) { nativeSetScale(mNativePtr, scale); }
+    /** Returns the height of the screen in logical pixels, the CSS pixels of pages, or -1 if it is not known. */
+    public int getHeight() { return mNativePtr != 0 ? nativeGetHeight(mNativePtr) : -1; }
 
-    public float getRefreshRateHz() { return nativeGetRefreshRateHz(mNativePtr); }
+    void setSize(int width, int height) {
+        if (mNativePtr != 0)
+            nativeSetSize(mNativePtr, width, height);
+    }
 
-    public void setRefreshRateHz(float refreshRateHz) { nativeSetRefreshRateHz(mNativePtr, refreshRateHz); }
+    // The size in millimeters.
+    void setPhysicalSize(int width, int height) {
+        if (mNativePtr != 0)
+            nativeSetPhysicalSize(mNativePtr, width, height);
+    }
 
-    void invalidate() { mNativePtr = 0; }
+    public float getScale() { return mNativePtr != 0 ? nativeGetScale(mNativePtr) : 1; }
 
+    void setScale(float scale) {
+        if (mNativePtr != 0)
+            nativeSetScale(mNativePtr, scale);
+    }
+
+    public float getRefreshRateHz() { return mNativePtr != 0 ? nativeGetRefreshRateHz(mNativePtr) : 0; }
+
+    void setRefreshRateHz(float refreshRateHz) {
+        if (mNativePtr != 0)
+            nativeSetRefreshRateHz(mNativePtr, refreshRateHz);
+    }
+
+    void destroy() {
+        if (mNativePtr != 0) {
+            nativeDestroy(mNativePtr);
+            mNativePtr = 0;
+        }
+    }
+
+    private native long nativeInit(int id);
+    private native void nativeDestroy(long nativePtr);
+    private native int nativeGetWidth(long nativePtr);
+    private native int nativeGetHeight(long nativePtr);
+    private native void nativeSetSize(long nativePtr, int width, int height);
+    private native void nativeSetPhysicalSize(long nativePtr, int width, int height);
     private native float nativeGetScale(long nativePtr);
     private native void nativeSetScale(long nativePtr, float scale);
     private native float nativeGetRefreshRateHz(long nativePtr);
