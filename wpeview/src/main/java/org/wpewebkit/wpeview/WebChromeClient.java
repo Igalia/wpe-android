@@ -20,6 +20,7 @@ package org.wpewebkit.wpeview;
 
 import android.view.View;
 
+import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -122,5 +123,48 @@ public class WebChromeClient {
          * or none if the field takes any file. The file name extensions in that attribute are not given.
          */
         public @NonNull String[] getAcceptTypes() { return acceptTypes.clone(); }
+    }
+
+    /**
+     * Asks the host to choose a color for a color field of the page, as when the user taps one. Return {@code true} to
+     * take over, and end with {@link ColorChooserCallback#confirm} or {@link ColorChooserCallback#cancel}. The page may
+     * end it first, with {@link #onHideColorChooser}. Return {@code false} to cancel the request, which leaves the
+     * field as it was.
+     */
+    public boolean onShowColorChooser(@NonNull WebView view, @NonNull ColorChooserParams params,
+                                      @NonNull ColorChooserCallback callback) {
+        return false;
+    }
+
+    /**
+     * Tells the host that the page ended the color request it is showing, for example because the field went away or
+     * the page was left. Its callback does nothing any more.
+     */
+    public void onHideColorChooser(@NonNull WebView view) {}
+
+    /** Answers the request of a color field, given to {@link #onShowColorChooser}, once. */
+    public interface ColorChooserCallback {
+        /** Ends with the color, which the page gets with an input and a change event if it is a new one. */
+        void confirm(@ColorInt int color);
+
+        /** Ends with the color the field had, as if it had not asked. */
+        void cancel();
+    }
+
+    /** What a color field of the page asks for, given to {@link #onShowColorChooser}. */
+    public static final class ColorChooserParams {
+        private final @ColorInt int color;
+        private final boolean supportsAlpha;
+
+        ColorChooserParams(@ColorInt int color, boolean supportsAlpha) {
+            this.color = color;
+            this.supportsAlpha = supportsAlpha;
+        }
+
+        /** The color of the field when it asked. */
+        public @ColorInt int getColor() { return color; }
+
+        /** Whether the field takes a color with an alpha, for its alpha attribute. If not, its colors are opaque. */
+        public boolean supportsAlpha() { return supportsAlpha; }
     }
 }
