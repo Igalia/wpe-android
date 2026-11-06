@@ -72,6 +72,10 @@ class MainActivity : AppCompatActivity() {
         val currentFragment = navHost.childFragmentManager.fragments.firstOrNull()
         if (currentFragment is BrowserFragment) {
             val webView = currentFragment.selectedTab().webview
+            if (webView.isFullscreen) {
+                webView.exitFullscreen()
+                return
+            }
             if (webView.canGoBack()) {
                 webView.goBack()
                 return

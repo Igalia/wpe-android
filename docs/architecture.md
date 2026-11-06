@@ -280,12 +280,12 @@ Android view:
 | Android event | What `WebView` does | What the page sees |
 | --- | --- | --- |
 | `surfaceCreated()`, `surfaceChanged()` | Puts its `WPEView` in its `WPEToplevel`, passing on the window focus, the view focus and whether the `WebView` is shown. Then gives the native window and its size to the `WPEToplevel`, and maps the `WPEView` if the `WebView` is shown. | It is in a window, visible and rendered. |
-| `onVisibilityAggregated()` | Sets whether the `WPEView` is visible; a view that is not visible is unmapped. This covers the `WebView` and any of its ancestors. | It is hidden while the `WebView` is not shown, and stays in its window. |
+| `onVisibilityAggregated()` | Sets whether the `WPEView` is visible; a view that is not visible is unmapped, and the `WPEToplevel` leaves fullscreen. This covers the `WebView` and any of its ancestors. | It is hidden while the `WebView` is not shown, and stays in its window. |
 | `onWindowFocusChanged()` | Makes the `WPEToplevel` active while the Android window has focus. | Its window is active. |
 | `onFocusChanged()` | Focuses or unfocuses the `WPEView`. | It has the focus, and the input method can engage. |
-| `surfaceDestroyed()` | Unmaps and unfocuses the `WPEView`, makes the `WPEToplevel` inactive, takes the view out of it, and takes the native window from the `WPEToplevel`. | It is hidden and out of its window. |
+| `surfaceDestroyed()` | Unmaps and unfocuses the `WPEView`, makes the `WPEToplevel` inactive and takes it out of fullscreen, takes the view out of it, and takes the native window from the `WPEToplevel`. | It is hidden and out of its window, and not fullscreen. |
 | `onDetachedFromWindow()` | Nothing more: the `SurfaceView` detaches first, and its surface is gone. | It is out of its window. |
-| `destroy()` | Takes the view out of its toplevel, and destroys its `WPEToplevel`, `WebKitWebView` and `WebKitSettings`. | It is closed. |
+| `destroy()` | Takes the `WPEToplevel` out of fullscreen and the view out of it, and destroys its `WPEToplevel`, `WebKitWebView` and `WebKitSettings`. | It is closed. |
 
 ```mermaid
 stateDiagram-v2
@@ -325,6 +325,51 @@ The usual cases follow from the table:
 - **Headless.** A headless `WebView` (`new WebView(context, true)`) has no
   surface and is never attached to a window. Its `WPEView` stays in its
   `WPEToplevel` for the whole life of the `WebView`, unmapped and never active.
+
+## Fullscreen
+
+When an element of the page goes fullscreen, as a video does with its
+fullscreen button or any element with `element.requestFullscreen()`, WebKit
+asks the page's `WPEToplevel` to go fullscreen. The `WebView` draws the page
+itself, so the element fills the `WebView` and there is no other view to show:
+`WPEToplevelAndroid` takes the fullscreen state at once, and the `WebView`
+calls `WebChromeClient.onEnterFullscreen()`. There the app gives the `WebView`
+the whole screen where it is, for example by hiding the controls around it and
+the system bars.
+
+The page leaves fullscreen in two ways, and the app hears of both through
+`WebChromeClient.onExitFullscreen()`, where it brings its controls back:
+
+- **By itself**, with `document.exitFullscreen()` or the controls of a video.
+  WebKit asks the `WPEToplevel` to leave fullscreen.
+- **From the app**, with `WebView.exitFullscreen()`, for example on Back. The
+  `WPEToplevel` leaves fullscreen, and WebKit then takes the page out of it.
+
+```mermaid
+sequenceDiagram
+    participant Page
+    participant WebKit
+    participant Toplevel as WPEToplevelAndroid
+    participant WebView
+    participant App as WebChromeClient
+    Page->>WebKit: element.requestFullscreen()
+    WebKit->>Toplevel: wpe_toplevel_fullscreen()
+    Note over Toplevel: state FULLSCREEN
+    Toplevel->>WebView: fullscreen requested
+    WebView->>App: onEnterFullscreen()
+    Note over App: Back
+    App->>WebView: exitFullscreen()
+    WebView->>Toplevel: setFullscreen(false)
+    WebView->>App: onExitFullscreen()
+    Toplevel->>WebKit: state without FULLSCREEN
+    WebKit->>Page: fullscreenchange
+```
+
+A hidden page, or one out of its window, cannot stay fullscreen. So the
+`WebView` leaves fullscreen when it is hidden, as a tab hidden in place is, and
+before its view leaves the toplevel, as when the `WebView` is moved to another
+parent or its activity stops: WebKit sees the state of the `WPEToplevel` only
+while the view is in it. `destroy()` leaves fullscreen too.
 
 ## Ownership and Lifetime
 
