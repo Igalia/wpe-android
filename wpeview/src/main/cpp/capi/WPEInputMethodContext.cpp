@@ -36,7 +36,7 @@ public:
         , m_onFocusIn(getMethod<void()>("onFocusIn"))
         , m_onFocusOut(getMethod<void()>("onFocusOut"))
         , m_onPreeditReset(getMethod<void()>("onPreeditReset"))
-        , m_onInputPurposeChanged(getMethod<void()>("onInputPurposeChanged"))
+        , m_onContentTypeChanged(getMethod<void()>("onContentTypeChanged"))
     {
     }
 
@@ -58,10 +58,10 @@ public:
             Logging::logError("cannot call WPEInputMethodContext preedit-reset callback");
     }
 
-    void onInputPurposeChanged(JNIWPEInputMethodContextListener listener) const
+    void onContentTypeChanged(JNIWPEInputMethodContextListener listener) const
     {
-        if (!m_onInputPurposeChanged.invoke(listener))
-            Logging::logError("cannot call WPEInputMethodContext input-purpose callback");
+        if (!m_onContentTypeChanged.invoke(listener))
+            Logging::logError("cannot call WPEInputMethodContext content-type callback");
     }
 
 private:
@@ -69,7 +69,7 @@ private:
     const JNI::Method<void()> m_onFocusIn;
     const JNI::Method<void()> m_onFocusOut;
     const JNI::Method<void()> m_onPreeditReset;
-    const JNI::Method<void()> m_onInputPurposeChanged;
+    const JNI::Method<void()> m_onContentTypeChanged;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
@@ -117,11 +117,11 @@ namespace {
             getJNIListenerCache().onPreeditReset(holder->ref.get());
     }
 
-    void onInputPurposeChangedThunk(gpointer userData)
+    void onContentTypeChangedThunk(gpointer userData)
     {
         auto* holder = static_cast<ListenerHolder*>(userData);
         if (holder && holder->ref)
-            getJNIListenerCache().onInputPurposeChanged(holder->ref.get());
+            getJNIListenerCache().onContentTypeChanged(holder->ref.get());
     }
 
     // GetStringUTFChars returns modified UTF-8 (CESU-8), which mangles supplementary characters
@@ -198,11 +198,11 @@ private:
             g_object_set_qdata_full(G_OBJECT(context), listenerQuark(), holder, destroyListenerHolder);
             wpe_input_method_context_android_set_focus_callbacks(context, onFocusInThunk, onFocusOutThunk, holder);
             wpe_input_method_context_android_set_reset_callback(context, onPreeditResetThunk, holder);
-            wpe_input_method_context_android_set_input_purpose_callback(context, onInputPurposeChangedThunk, holder);
+            wpe_input_method_context_android_set_content_type_callback(context, onContentTypeChangedThunk, holder);
         } else {
             wpe_input_method_context_android_set_focus_callbacks(context, nullptr, nullptr, nullptr);
             wpe_input_method_context_android_set_reset_callback(context, nullptr, nullptr);
-            wpe_input_method_context_android_set_input_purpose_callback(context, nullptr, nullptr);
+            wpe_input_method_context_android_set_content_type_callback(context, nullptr, nullptr);
             g_object_set_qdata(G_OBJECT(context), listenerQuark(), nullptr);
         }
     }

@@ -33,8 +33,8 @@ public final class WPEInputMethodContext {
         void onFocusOut();
         /** WebKit ended the composition itself, for example because the page was tapped. */
         void onPreeditReset();
-        /** The focused field asks for another keyboard, for example a password field that now shows its text. */
-        default void onInputPurposeChanged() {}
+        /** The input purpose or the input hints changed. */
+        default void onContentTypeChanged() {}
     }
 
     private long mNativePtr = 0;
@@ -104,9 +104,10 @@ public final class WPEInputMethodContext {
             MainLooperDispatcher.post(delegate::onPreeditReset);
         }
 
+        // WebKit sets the purpose and the hints one after the other. Run the delegate after both are set.
         @Keep
-        public void onInputPurposeChanged() {
-            MainLooperDispatcher.post(delegate::onInputPurposeChanged);
+        public void onContentTypeChanged() {
+            MainLooperDispatcher.postLater(delegate::onContentTypeChanged);
         }
     }
 
