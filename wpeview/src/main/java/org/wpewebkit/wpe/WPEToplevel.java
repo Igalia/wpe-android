@@ -22,6 +22,7 @@ import android.graphics.Color;
 import android.view.Surface;
 
 import androidx.annotation.ColorInt;
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -55,6 +56,29 @@ public final class WPEToplevel {
     public void setScreen(@NonNull WPEScreen screen) { nativeSetScreen(mNativePtr, screen.getNativePtr()); }
 
     /**
+     * Receives WebKit's requests to enter and leave fullscreen, which the toplevel has already done when they arrive.
+     */
+    public interface Listener {
+        void onFullscreenRequested(boolean fullscreen);
+    }
+
+    public void setListener(@Nullable Listener listener) {
+        if (mNativePtr != 0)
+            nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
+    }
+
+    /**
+     * Sets whether the toplevel is fullscreen, without telling the listener. Leaving fullscreen this way takes the page
+     * out of fullscreen.
+     */
+    public void setFullscreen(boolean fullscreen) {
+        if (mNativePtr != 0)
+            nativeSetFullscreen(mNativePtr, fullscreen);
+    }
+
+    public boolean isFullscreen() { return mNativePtr != 0 && nativeIsFullscreen(mNativePtr); }
+
+    /**
      * Sets the color of the layer under the web content, kept across surface replacements. The layer is opaque, so
      * the alpha is ignored.
      */
@@ -67,8 +91,20 @@ public final class WPEToplevel {
 
     public void destroy() {
         if (mNativePtr != 0) {
+            nativeSetListener(mNativePtr, null);
             nativeDestroy(mNativePtr);
             mNativePtr = 0;
+        }
+    }
+
+    private static class ListenerHolder {
+        private final Listener delegate;
+
+        ListenerHolder(@NonNull Listener delegate) { this.delegate = delegate; }
+
+        @Keep
+        public void onFullscreenRequested(boolean fullscreen) {
+            MainLooperDispatcher.post(() -> delegate.onFullscreenRequested(fullscreen));
         }
     }
 
@@ -80,5 +116,8 @@ public final class WPEToplevel {
     private native void nativeSetSurface(long nativePtr, Surface surface);
     private native void nativeSetWindowFocused(long nativePtr, boolean focused);
     private native void nativeSetScreen(long nativePtr, long screenPtr);
+    private native void nativeSetFullscreen(long nativePtr, boolean fullscreen);
+    private native boolean nativeIsFullscreen(long nativePtr);
+    private native void nativeSetListener(long nativePtr, @Nullable ListenerHolder listener);
     private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue);
 }

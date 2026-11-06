@@ -210,6 +210,7 @@ public class WebView extends FrameLayout {
         });
         this.webSettings = new WebSettings(webKitSettings);
         this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
+        this.wpeToplevel.setListener(this::onFullscreenRequested);
         applyBackgroundColor(backgroundColor);
         // A new SurfaceView cuts its hole in the window only after its first draw. Until then the window shows this
         // view's own background where the page goes, so give it the page color too. This also makes getBackground()
@@ -367,6 +368,7 @@ public class WebView extends FrameLayout {
     }
 
     public void destroy() {
+        exitFullscreen();
         // Unfocusing the view, when it leaves its toplevel, clears inputFieldFocused through the input method
         // context.
         boolean inputMethodConnected = inputFieldFocused;
@@ -449,7 +451,8 @@ public class WebView extends FrameLayout {
     }
 
     // Leaving the toplevel neither unmaps the view nor clears the focus and activity it took from it, so this
-    // does both before the view leaves.
+    // does both before the view leaves. A page out of its window cannot stay fullscreen, and WebKit only sees the
+    // toplevel leave fullscreen while the view is in it.
     private void leaveToplevel() {
         if (platformView == null || !inToplevel)
             return;
@@ -457,7 +460,36 @@ public class WebView extends FrameLayout {
         platformView.setMapped(false);
         platformView.setFocused(false);
         wpeToplevel.setWindowFocused(false);
+        exitFullscreen();
         platformView.setToplevel(null);
+    }
+
+    // WebKit asks the toplevel to enter fullscreen when an element of the page goes fullscreen, and to leave it when
+    // the page leaves fullscreen by itself. The toplevel has done it already.
+    private void onFullscreenRequested(boolean fullscreen) {
+        if (fullscreen)
+            chromeClient.onEnterFullscreen(this);
+        else
+            chromeClient.onExitFullscreen(this);
+    }
+
+    /**
+     * Whether an element of the page is fullscreen, from {@link WebChromeClient#onEnterFullscreen} until
+     * {@link WebChromeClient#onExitFullscreen}.
+     */
+    public boolean isFullscreen() { return wpeToplevel != null && wpeToplevel.isFullscreen(); }
+
+    /**
+     * Takes the page out of fullscreen, as the user asks with Back, and calls {@link WebChromeClient#onExitFullscreen}
+     * right away. The page sees it a moment later, with a {@code fullscreenchange} event. Does nothing if the page is
+     * not fullscreen.
+     */
+    public void exitFullscreen() {
+        if (!isFullscreen())
+            return;
+        // WebKit takes the page out of fullscreen when the toplevel leaves it, without asking the toplevel again.
+        wpeToplevel.setFullscreen(false);
+        chromeClient.onExitFullscreen(this);
     }
 
     public void setWebViewClient(@NonNull WebViewClient client) { this.viewClient = client; }
@@ -1009,9 +1041,13 @@ public class WebView extends FrameLayout {
     @Override
     public void onVisibilityAggregated(boolean isVisible) {
         super.onVisibilityAggregated(isVisible);
-        // Hiding the WebView or one of its ancestors keeps its surface; WPE unmaps a view that is not visible.
-        if (webKitWebView != null && !headless)
+        // Hiding the WebView or one of its ancestors keeps its surface; WPE unmaps a view that is not visible. A hidden
+        // page cannot stay fullscreen either, as when a tab is hidden in place.
+        if (webKitWebView != null && !headless) {
             platformView.setVisible(isVisible);
+            if (!isVisible)
+                exitFullscreen();
+        }
     }
 
     @Override
