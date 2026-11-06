@@ -875,9 +875,21 @@ public class WebView extends FrameLayout {
         case WPEInputPurpose.PIN:
             return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD;
         default:
-            return EditorInfo.TYPE_CLASS_TEXT | (isPrivate ? EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-                                                           : EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT);
+            if (isPrivate)
+                return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+                capitalizationFlags(hints);
         }
+    }
+
+    private static int capitalizationFlags(int hints) {
+        if ((hints & WPEInputHints.UPPERCASE_CHARS) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_CHARACTERS;
+        if ((hints & WPEInputHints.UPPERCASE_WORDS) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS;
+        if ((hints & WPEInputHints.UPPERCASE_SENTENCES) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES;
+        return 0;
     }
 
     // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard.
