@@ -28,6 +28,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * WebKitWebView is an owning JNI proxy for a native WebKitWebView object.
  */
@@ -52,6 +56,8 @@ public final class WebKitWebView {
     private final WPEInputMethodContext inputMethodContext;
     private final WebKitSettings settings;
     private final WebKitNetworkSession networkSession;
+    // The downloads of the view's pages that wait for the listener to set their destination or cancel them.
+    private final Set<WebKitDownload> undecidedDownloads = new HashSet<>();
 
     public long getNativePtr() { return mNativePtr; }
 
@@ -175,6 +181,9 @@ public final class WebKitWebView {
     }
 
     public void destroy() {
+        // Nothing else would end the downloads that still wait for a destination. Those already started go on.
+        for (WebKitDownload download : new ArrayList<>(undecidedDownloads))
+            download.cancel();
         // Must run before nativeDestroy: the listener cleanup needs the live IM context.
         inputMethodContext.setListener(null);
         if (mNativePtr != 0) {
@@ -218,6 +227,7 @@ public final class WebKitWebView {
 
         boolean shouldOverrideUrlLoading(@NonNull String uri, @NonNull String method, boolean isMainFrame,
                                          boolean hasGesture, boolean isRedirect);
+        void onDownloadStarted(@NonNull WebKitDownload download);
     }
 
     private @Nullable Listener listener;
@@ -320,6 +330,22 @@ public final class WebKitWebView {
         Listener currentListener = listener;
         return currentListener != null &&
             currentListener.shouldOverrideUrlLoading(uri, method, isMainFrame, hasGesture, isRedirect);
+    }
+
+    // The download waits until the listener sets its destination or cancels it, maybe later, or until the view is
+    // destroyed.
+    @Keep
+    private void onDownloadStarted(long downloadPtr, String uri, String suggestedFilename, String mimeType,
+                                   long contentLength) {
+        WebKitDownload download = new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength);
+        Listener currentListener = listener;
+        if (currentListener == null) {
+            download.cancel();
+            return;
+        }
+        undecidedDownloads.add(download);
+        download.setDecidedCallback(() -> undecidedDownloads.remove(download));
+        MainLooperDispatcher.post(() -> currentListener.onDownloadStarted(download));
     }
 
     /**
