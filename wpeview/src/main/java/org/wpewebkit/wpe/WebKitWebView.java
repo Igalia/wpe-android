@@ -118,6 +118,18 @@ public final class WebKitWebView {
         }
     }
 
+    public @Nullable byte[] saveState() { return mNativePtr != 0 ? nativeSaveState(mNativePtr) : null; }
+
+    // Restores the Back/Forward list and loads its current page. Returns false if WebKit cannot read the state, or if
+    // it has no page.
+    public boolean restoreState(@NonNull byte[] state) {
+        return mNativePtr != 0 && nativeRestoreState(mNativePtr, state);
+    }
+
+    public boolean canGoBack() { return mNativePtr != 0 && nativeCanGoBack(mNativePtr); }
+
+    public boolean canGoForward() { return mNativePtr != 0 && nativeCanGoForward(mNativePtr); }
+
     public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
 
     public void setBackgroundColor(@ColorInt int color) {
@@ -331,4 +343,8 @@ public final class WebKitWebView {
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
     private native void nativeScriptDialogClose(long dialogPtr);
     private native void nativeTerminateWebProcess(long nativePtr);
+    private native byte[] nativeSaveState(long nativePtr);
+    private native boolean nativeRestoreState(long nativePtr, @NonNull byte[] state);
+    private native boolean nativeCanGoBack(long nativePtr);
+    private native boolean nativeCanGoForward(long nativePtr);
 }

@@ -497,6 +497,31 @@ public class WebView extends FrameLayout {
         if (webKitWebView != null)
             webKitWebView.terminateWebProcess();
     }
+
+    /**
+     * Saves the history of the view, for {@link #restoreState} to give it to a new WebView later, for example after
+     * Android ended the app: the Back/Forward list with its current page, and for each page its address, its title, and
+     * the scroll position and form contents that WebKit kept for it. Form contents may be private, so keep the state in
+     * the app's own storage. Cookies, storage and the state of scripts are not in it. Returns null once the view is
+     * destroyed.
+     */
+    public @Nullable byte[] saveState() { return webKitWebView != null ? webKitWebView.saveState() : null; }
+
+    /**
+     * Gives a new WebView, before it loads anything, the history that {@link #saveState} saved, and loads its current
+     * page again. {@link #canGoBack} and {@link #canGoForward} follow the restored Back/Forward list at once, while the
+     * page loads. Returns false, and loads nothing, if the state has no page, or if this version of WPE WebKit cannot
+     * read it, as one saved by a newer version: the app can load the address of the page instead.
+     */
+    public boolean restoreState(@NonNull byte[] state) {
+        Objects.requireNonNull(state, "state");
+        if (webKitWebView == null || !webKitWebView.restoreState(state))
+            return false;
+        canGoBack = webKitWebView.canGoBack();
+        canGoForward = webKitWebView.canGoForward();
+        return true;
+    }
+
     /**
      * Returns the settings of this WebView. Every WebView has its own, starting from the defaults of its
      * {@link WebContext}, so changing them does not affect other WebViews. After {@link #destroy()} they keep
