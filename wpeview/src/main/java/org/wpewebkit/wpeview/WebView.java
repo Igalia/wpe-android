@@ -30,6 +30,7 @@ import android.net.Uri;
 import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.LongSparseArray;
 import android.view.Display;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
@@ -115,6 +116,8 @@ public class WebView extends FrameLayout {
     // The request of the color field that the page has open, if any. WebKit has one at most.
     @Nullable
     ColorChooserResult colorChooser;
+    // The requests for HTTP authentication that the client has not answered, by their id.
+    final LongSparseArray<HttpAuthRequest> httpAuthRequests = new LongSparseArray<>();
 
     public WebView(@NonNull android.content.Context context) { this(context, (AttributeSet)null); }
 
@@ -342,6 +345,23 @@ public class WebView extends FrameLayout {
             public void onColorChooserFinished(long requestPtr) {
                 hideColorChooser(requestPtr);
             }
+
+            @Override
+            public void onHttpAuthRequest(long requestId, String host, int port, String scheme, String realm,
+                                          boolean isProxy, boolean isRetry) {
+                HttpAuthRequest handler = new HttpAuthRequest(requestId, scheme, port, isProxy, isRetry);
+                httpAuthRequests.put(requestId, handler);
+                viewClient.onReceivedHttpAuthRequest(WebView.this, handler, host, realm);
+            }
+
+            @Override
+            public void onHttpAuthRequestCancelled(long requestId) {
+                HttpAuthRequest handler = httpAuthRequests.get(requestId);
+                if (handler == null)
+                    return;
+                httpAuthRequests.remove(requestId);
+                viewClient.onHttpAuthRequestCanceled(WebView.this, handler);
+            }
         });
 
         if (!headless) {
@@ -415,6 +435,7 @@ public class WebView extends FrameLayout {
         if (webKitWebView != null) {
             webKitWebView.destroy();
             webKitWebView = null;
+            httpAuthRequests.clear();
             // The view and input method proxies are borrowed from the WebKitWebView, and die with it.
             platformView = null;
             imContext = null;
@@ -1022,6 +1043,61 @@ public class WebView extends FrameLayout {
                 return;
             end();
             webKitWebView.colorChooserCancel(requestPtr);
+        }
+    }
+
+    // Package-private, like the field that keeps the requests: read by the WebKitWebView.Listener inner class.
+    class HttpAuthRequest implements WebViewClient.HttpAuthHandler {
+        private final long requestId;
+        private final String scheme;
+        private final int port;
+        private final boolean isProxy;
+        private final boolean isRetry;
+
+        HttpAuthRequest(long requestId, @NonNull String scheme, int port, boolean isProxy, boolean isRetry) {
+            this.requestId = requestId;
+            this.scheme = scheme;
+            this.port = port;
+            this.isProxy = isProxy;
+            this.isRetry = isRetry;
+        }
+
+        // The app may answer from any thread, as after it looked the credentials up. webKitWebView is null once the
+        // view has been destroyed, which cancelled the request.
+        @Override
+        public void proceed(@NonNull String username, @NonNull String password) {
+            if (runOnMainThread(() -> proceed(username, password)) || webKitWebView == null)
+                return;
+            httpAuthRequests.remove(requestId);
+            webKitWebView.authenticate(requestId, username, password);
+        }
+
+        @Override
+        public void cancel() {
+            if (runOnMainThread(this::cancel) || webKitWebView == null)
+                return;
+            httpAuthRequests.remove(requestId);
+            webKitWebView.cancelAuthentication(requestId);
+        }
+
+        @Override
+        public boolean isProxy() {
+            return isProxy;
+        }
+
+        @Override
+        public boolean isRetry() {
+            return isRetry;
+        }
+
+        @Override
+        public @NonNull String getScheme() {
+            return scheme;
+        }
+
+        @Override
+        public int getPort() {
+            return port;
         }
     }
 
