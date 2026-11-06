@@ -40,6 +40,9 @@ public final class WPEToplevel {
 
     public void getSize(@NonNull int[] out) { nativeGetSize(mNativePtr, out); }
 
+    /** Returns the scale of the screen the toplevel is on, the ratio of physical to logical pixels. */
+    public float getScale() { return nativeGetScale(mNativePtr); }
+
     public void onSurfaceCreated(@NonNull Surface surface) { setSurface(surface); }
 
     public void onSurfaceDestroyed() { setSurface(null); }
@@ -47,6 +50,9 @@ public final class WPEToplevel {
     public void setSurface(@Nullable Surface surface) { nativeSetSurface(mNativePtr, surface); }
 
     public void setWindowFocused(boolean focused) { nativeSetWindowFocused(mNativePtr, focused); }
+
+    /** Moves the toplevel to the screen of the Android display that its window shows on. */
+    public void setScreen(@NonNull WPEScreen screen) { nativeSetScreen(mNativePtr, screen.getNativePtr()); }
 
     /**
      * Sets the color of the layer under the web content, kept across surface replacements. The layer is opaque, so
@@ -70,7 +76,9 @@ public final class WPEToplevel {
     private native void nativeDestroy(long nativePtr);
     private native void nativeSetPhysicalSize(long nativePtr, int width, int height);
     private native void nativeGetSize(long nativePtr, int[] out);
+    private native float nativeGetScale(long nativePtr);
     private native void nativeSetSurface(long nativePtr, Surface surface);
     private native void nativeSetWindowFocused(long nativePtr, boolean focused);
+    private native void nativeSetScreen(long nativePtr, long screenPtr);
     private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue);
 }
