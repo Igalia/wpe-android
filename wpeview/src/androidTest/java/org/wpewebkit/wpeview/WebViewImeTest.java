@@ -3,7 +3,9 @@ package org.wpewebkit.wpeview;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.InputDevice;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -22,8 +24,11 @@ import org.wpewebkit.wpe.WPEInputMethodContext;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -350,6 +355,185 @@ public class WebViewImeTest {
         assertComposition(scenario, "The composition ended by the tap was committed again",
                           "document.getElementById('other').value === 'x' && "
                               + "document.getElementById('editor').value === 'wor'");
+    }
+
+    // A tap: the finger moves a few pixels and comes back, well within the touch slop.
+    private static final float[][] TAP = {{0, 0}, {2, 1}, {3, 3}, {1, 2}, {1, 2}};
+
+    // A drag of 600 pixels upwards, which scrolls the page down.
+    private static final float[][] DRAG = {{0, 0},    {0, -100}, {0, -200}, {0, -300},
+                                           {0, -400}, {0, -500}, {0, -600}, {0, -600}};
+
+    // The finger goes far and comes back to where it started before it is lifted: not a tap.
+    private static final float[][] AWAY_AND_BACK = {{0, 0}, {0, -150}, {0, -300}, {0, -150}, {0, 0}, {0, 0}};
+
+    // Event times go on from the last touch, so that a touch never starts before the one before it ended.
+    private long lastEventTime;
+
+    /**
+     * A tap on the page brings back the keyboard of the focused field, which Back may have hidden. A scroll does not,
+     * nor a touch of two fingers, nor a long press. The page is all one field, tall enough to scroll.
+     */
+    @Test
+    public void testOnlyATapShowsTheKeyboard() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        AtomicReference<WebView> webView = new AtomicReference<>();
+        AtomicInteger keyboardRequests = new AtomicInteger();
+        CountDownLatch loaded = new CountDownLatch(1);
+        try {
+            scenario.onActivity(activity -> {
+                webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)) {
+                    @Override
+                    void showSoftInput() {
+                        keyboardRequests.incrementAndGet();
+                        super.showSoftInput();
+                    }
+                });
+                webView.get().setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                        loaded.countDown();
+                    }
+                });
+                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
+                webView.get().requestFocus();
+                webView.get().loadHtml("<html><head><meta name=viewport content='width=device-width'><style>"
+                                           + "body { margin: 0; height: 5000px }</style></head>"
+                                           + "<body contenteditable id='editor'></body></html>",
+                                       null);
+            });
+            assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+
+            AtomicBoolean isTextEditor = new AtomicBoolean(false);
+            for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
+                scenario.onActivity(activity -> {
+                    webView.get().evaluateJavascript("document.getElementById('editor').focus()", null);
+                    isTextEditor.set(webView.get().onCheckIsTextEditor());
+                });
+                if (!isTextEditor.get())
+                    Thread.sleep(250);
+            }
+            assertTrue("The WebView did not become a text editor", isTextEditor.get());
+
+            // Each touch is sent and counted in one go on the main thread, so that only its own requests count.
+            AtomicInteger dragRequests = new AtomicInteger();
+            scenario.onActivity(activity -> {
+                keyboardRequests.set(0);
+                moveFinger(webView.get(), DRAG);
+                dragRequests.set(keyboardRequests.get());
+            });
+            assertEquals("The drag did not scroll the page", "true",
+                         WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                             scenario, activity -> webView.get(), "scrollY > 0", "true"));
+            assertEquals("A scroll showed the keyboard", 0, dragRequests.get());
+
+            AtomicInteger twoFingerRequests = new AtomicInteger();
+            scenario.onActivity(activity -> {
+                keyboardRequests.set(0);
+                touchWithTwoFingers(webView.get());
+                twoFingerRequests.set(keyboardRequests.get());
+            });
+            assertEquals("A touch of two fingers showed the keyboard", 0, twoFingerRequests.get());
+
+            AtomicInteger awayAndBackRequests = new AtomicInteger();
+            scenario.onActivity(activity -> {
+                keyboardRequests.set(0);
+                moveFinger(webView.get(), AWAY_AND_BACK);
+                awayAndBackRequests.set(keyboardRequests.get());
+            });
+            assertEquals("A finger that went away and came back showed the keyboard", 0, awayAndBackRequests.get());
+
+            // The finger stays down past the long press timeout, on the clock of the main thread's messages.
+            long pressTime = ViewConfiguration.getLongPressTimeout() + 500;
+            AtomicLong pressDownTime = new AtomicLong();
+            AtomicInteger longPressRequests = new AtomicInteger();
+            scenario.onActivity(activity -> {
+                keyboardRequests.set(0);
+                pressDownTime.set(Math.max(SystemClock.uptimeMillis(), lastEventTime + 50));
+                WebView view = webView.get();
+                sendTouch(view, pressDownTime.get(), 0, MotionEvent.ACTION_DOWN, new int[] {0},
+                          new float[] {view.getWidth() / 2f}, view.getHeight() / 2f);
+            });
+            Thread.sleep(pressTime + pressDownTime.get() - SystemClock.uptimeMillis());
+            scenario.onActivity(activity -> {
+                WebView view = webView.get();
+                sendTouch(view, pressDownTime.get(), pressTime, MotionEvent.ACTION_UP, new int[] {0},
+                          new float[] {view.getWidth() / 2f}, view.getHeight() / 2f);
+                longPressRequests.set(keyboardRequests.get());
+            });
+            assertEquals("A long press showed the keyboard", 0, longPressRequests.get());
+
+            // Two taps in a row, as quick as a double tap, each bring back the keyboard.
+            AtomicInteger tapRequests = new AtomicInteger();
+            scenario.onActivity(activity -> {
+                keyboardRequests.set(0);
+                moveFinger(webView.get(), TAP);
+                moveFinger(webView.get(), TAP);
+                tapRequests.set(keyboardRequests.get());
+            });
+            assertEquals("Taps did not show the keyboard", 2, tapRequests.get());
+        } finally {
+            scenario.onActivity(activity -> {
+                WebView view = webView.get();
+                if (view != null) {
+                    if (view.getParent() != null)
+                        ((ViewGroup)view.getParent()).removeView(view);
+                    view.destroy();
+                }
+            });
+        }
+    }
+
+    /**
+     * Moves a finger over the view: down at the first point, through the others, and up at the last one. Each point
+     * is an offset in pixels from the middle of the view.
+     */
+    private void moveFinger(WebView view, float[][] path) {
+        long downTime = Math.max(SystemClock.uptimeMillis(), lastEventTime + 50);
+        for (int i = 0; i < path.length; i++) {
+            int action = i == 0                 ? MotionEvent.ACTION_DOWN
+                         : i == path.length - 1 ? MotionEvent.ACTION_UP
+                                                : MotionEvent.ACTION_MOVE;
+            sendTouch(view, downTime, 16L * i, action, new int[] {0}, new float[] {view.getWidth() / 2f + path[i][0]},
+                      view.getHeight() / 2f + path[i][1]);
+        }
+    }
+
+    // Puts two fingers on the view, as a pinch starts, and lifts them without moving.
+    private void touchWithTwoFingers(WebView view) {
+        long downTime = Math.max(SystemClock.uptimeMillis(), lastEventTime + 50);
+        float y = view.getHeight() / 2f;
+        float left = view.getWidth() / 4f;
+        float right = view.getWidth() * 3 / 4f;
+        int second = 1 << MotionEvent.ACTION_POINTER_INDEX_SHIFT;
+        sendTouch(view, downTime, 0, MotionEvent.ACTION_DOWN, new int[] {0}, new float[] {left}, y);
+        sendTouch(view, downTime, 16, MotionEvent.ACTION_POINTER_DOWN | second, new int[] {0, 1},
+                  new float[] {left, right}, y);
+        sendTouch(view, downTime, 32, MotionEvent.ACTION_POINTER_UP | second, new int[] {0, 1},
+                  new float[] {left, right}, y);
+        sendTouch(view, downTime, 48, MotionEvent.ACTION_UP, new int[] {0}, new float[] {left}, y);
+    }
+
+    private void sendTouch(WebView view, long downTime, long offset, int action, int[] ids, float[] xs, float y) {
+        MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[ids.length];
+        MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            properties[i] = new MotionEvent.PointerProperties();
+            properties[i].id = ids[i];
+            properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
+            coords[i] = new MotionEvent.PointerCoords();
+            coords[i].x = xs[i];
+            coords[i].y = y;
+            coords[i].pressure = 1;
+            coords[i].size = 1;
+        }
+        lastEventTime = downTime + offset;
+        MotionEvent event = MotionEvent.obtain(downTime, lastEventTime, action, ids.length, properties, coords, 0, 0, 1,
+                                               1, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0);
+        view.dispatchTouchEvent(event);
+        event.recycle();
     }
 
     /** Text with an unpaired surrogate (half an emoji) still reaches the page, with U+FFFD for the bad unit. */
