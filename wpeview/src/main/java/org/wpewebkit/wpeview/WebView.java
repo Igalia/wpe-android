@@ -26,6 +26,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -249,6 +250,11 @@ public class WebView extends FrameLayout {
             @Override
             public void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
                 showScriptDialog(dialogPtr, type, url, message, defaultText);
+            }
+
+            @Override
+            public boolean onRunFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+                return showFileChooser(requestPtr, mimeTypes, selectMultiple);
             }
         });
 
@@ -707,6 +713,47 @@ public class WebView extends FrameLayout {
             } else {
                 result.confirm();
             }
+        }
+    }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    boolean showFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+        WebChromeClient.FileChooserParams params =
+            new WebChromeClient.FileChooserParams(selectMultiple ? WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+                                                                 : WebChromeClient.FileChooserParams.MODE_OPEN,
+                                                  mimeTypes);
+        return chromeClient.onShowFileChooser(this, params, new FileChooserResult(requestPtr));
+    }
+
+    private class FileChooserResult implements WPECallback<String[]> {
+        private final long requestPtr;
+        // Once answered, the request is gone, and its pointer may be used by another one.
+        private boolean answered;
+
+        FileChooserResult(long requestPtr) { this.requestPtr = requestPtr; }
+
+        @Override
+        public void onResult(@Nullable String[] paths) {
+            // WebKit would take a relative path from the directory of its own process.
+            if (paths != null) {
+                for (String path : paths) {
+                    if (path == null || !path.startsWith("/"))
+                        throw new IllegalArgumentException("Not the absolute path of a file: " + path);
+                }
+            }
+            // WebKit is answered on the main thread, where its main loop runs.
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                getContext().getMainExecutor().execute(() -> onResult(paths));
+                return;
+            }
+            // webKitWebView is null once the view has been destroyed, which cancelled the request.
+            if (answered || webKitWebView == null)
+                return;
+            answered = true;
+            if (paths == null || paths.length == 0)
+                webKitWebView.fileChooserCancel(requestPtr);
+            else
+                webKitWebView.fileChooserSelect(requestPtr, paths);
         }
     }
 

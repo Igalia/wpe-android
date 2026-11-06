@@ -28,6 +28,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * WebKitWebView is an owning JNI proxy for a native WebKitWebView object.
  */
@@ -47,6 +51,8 @@ public final class WebKitWebView {
     private final WPEInputMethodContext inputMethodContext;
     private final WebKitSettings settings;
     private final WebKitNetworkSession networkSession;
+    // The file chooser requests taken from WebKit and not answered yet.
+    private final Set<Long> fileChoosers = new HashSet<>();
 
     public long getNativePtr() { return mNativePtr; }
 
@@ -139,6 +145,8 @@ public final class WebKitWebView {
     public void destroy() {
         // Must run before nativeDestroy: the listener cleanup needs the live IM context.
         inputMethodContext.setListener(null);
+        for (long requestPtr : new ArrayList<>(fileChoosers))
+            fileChooserCancel(requestPtr);
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
             mNativePtr = 0;
@@ -168,6 +176,11 @@ public final class WebKitWebView {
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
+        /**
+         * A file field of the page asks for files, on the main thread. Returns whether the request is taken, to be
+         * answered later with {@link #fileChooserSelect} or {@link #fileChooserCancel}; one that is not is cancelled.
+         */
+        boolean onRunFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple);
     }
 
     private @Nullable Listener listener;
@@ -257,6 +270,36 @@ public final class WebKitWebView {
     /** Releases the native script dialog reported via {@link Listener#onScriptDialog}. */
     public void scriptDialogClose(long dialogPtr) { nativeScriptDialogClose(dialogPtr); }
 
+    // Called by WebKit on the main thread, where its main loop runs. The request is taken first, so that it is
+    // cancelled if anything fails.
+    @Keep
+    private void onRunFileChooser(long requestPtr, String[] mimeTypes, boolean selectMultiple) {
+        fileChoosers.add(requestPtr);
+        boolean taken = false;
+        try {
+            Listener currentListener = listener;
+            taken = currentListener != null && currentListener.onRunFileChooser(requestPtr, mimeTypes, selectMultiple);
+        } finally {
+            if (!taken)
+                fileChooserCancel(requestPtr);
+        }
+    }
+
+    /**
+     * Answers a file chooser request reported via {@link Listener#onRunFileChooser} with the paths of local files. A
+     * request that was already answered, or cancelled when the view was destroyed, is left alone.
+     */
+    public void fileChooserSelect(long requestPtr, @NonNull String[] paths) {
+        if (fileChoosers.remove(requestPtr))
+            nativeFileChooserSelect(requestPtr, paths);
+    }
+
+    /** Cancels a file chooser request reported via {@link Listener#onRunFileChooser}, if it is not answered yet. */
+    public void fileChooserCancel(long requestPtr) {
+        if (fileChoosers.remove(requestPtr))
+            nativeFileChooserCancel(requestPtr);
+    }
+
     private static class SnapshotCallbackHolder {
         private final SnapshotCallback callback;
 
@@ -311,4 +354,6 @@ public final class WebKitWebView {
                                                  @Nullable EvalCallbackHolder callbackHolder);
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
     private native void nativeScriptDialogClose(long dialogPtr);
+    private native void nativeFileChooserSelect(long requestPtr, @NonNull String[] paths);
+    private native void nativeFileChooserCancel(long requestPtr);
 }
