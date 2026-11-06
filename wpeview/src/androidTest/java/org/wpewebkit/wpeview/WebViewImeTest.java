@@ -610,41 +610,56 @@ public class WebViewImeTest {
         return restarted.get();
     }
 
+    // Shows the page in a new InputTypeRecordingWebView that has the focus, and waits for it to load.
+    private static void loadInRecordingWebView(ActivityScenario<WebViewTestActivity> scenario,
+                                               AtomicReference<InputTypeRecordingWebView> webView, String html)
+        throws Throwable {
+        CountDownLatch loaded = new CountDownLatch(1);
+        scenario.onActivity(activity -> {
+            webView.set(
+                new InputTypeRecordingWebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+            webView.get().setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                    loaded.countDown();
+                }
+            });
+            activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                              ViewGroup.LayoutParams.MATCH_PARENT));
+            webView.get().requestFocus();
+            webView.get().loadHtml(html, null);
+        });
+        assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+    }
+
+    private static void destroyRecordingWebView(ActivityScenario<WebViewTestActivity> scenario,
+                                                AtomicReference<InputTypeRecordingWebView> webView) {
+        scenario.onActivity(activity -> {
+            WebView view = webView.get();
+            if (view != null) {
+                if (view.getParent() != null)
+                    ((ViewGroup)view.getParent()).removeView(view);
+                view.destroy();
+            }
+        });
+    }
+
     /**
      * A script turns the focused password field into a text field and back, as a "show password" button that keeps
-     * the focus on the field does. WebKit tells the new purpose of a field that keeps focus only when it is tapped,
-     * so the test taps it after each change. The WebView then restarts the input method, which gets the new input
-     * type: a visible password one while the field shows its text. The test never asks for a connection itself: each
-     * one it sees comes from Android.
+     * the focus on the field does. WebKit tells the new purpose of the field, and the WebView restarts the input
+     * method, which gets the new input type: a visible password one while the field shows its text. Nothing taps the
+     * field, and the test never asks for a connection itself: each one it sees comes from Android.
      */
     @Test
-    public void testTappingAFieldThatChangedTypeRestartsTheInputMethod() throws Throwable {
+    public void testChangingTheTypeOfTheFocusedFieldRestartsTheInputMethod() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
         int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
         AtomicReference<InputTypeRecordingWebView> webView = new AtomicReference<>();
-        CountDownLatch loaded = new CountDownLatch(1);
         try {
-            scenario.onActivity(activity -> {
-                webView.set(
-                    new InputTypeRecordingWebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
-                webView.get().setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
-                        loaded.countDown();
-                    }
-                });
-                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
-                webView.get().requestFocus();
-                webView.get().loadHtml(
-                    "<html><style>html, body { margin: 0 } input { display: block; box-sizing: border-box; "
-                        +
-                        "width: 100%; height: 100vh }</style><body><input id='password' type='password'></body></html>",
-                    null);
-            });
-            assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+            loadInRecordingWebView(scenario, webView,
+                                   "<html><body><input id='password' type='password'></body></html>");
             assumeTrue("No input method connected to the WebView",
                        waitForRestart(scenario, webView, 0, password, "password"));
 
@@ -653,22 +668,41 @@ public class WebViewImeTest {
                 scenario.onActivity(activity -> {
                     InputTypeRecordingWebView view = webView.get();
                     from.set(view.inputTypes.size());
-                    view.evaluateJavascript("document.getElementById('password').type = '" + type + "'",
-                                            value -> tap(view, view.getWidth() / 2f, view.getHeight() / 2f));
+                    view.evaluateJavascript("document.getElementById('password').type = '" + type + "'", null);
                 });
                 assertTrue(
                     "The input method was not restarted with the input type for type " + type,
                     waitForRestart(scenario, webView, from.get(), type.equals("text") ? revealed : password, null));
             }
         } finally {
-            scenario.onActivity(activity -> {
-                WebView view = webView.get();
-                if (view != null) {
-                    if (view.getParent() != null)
-                        ((ViewGroup)view.getParent()).removeView(view);
-                    view.destroy();
-                }
-            });
+            destroyRecordingWebView(scenario, webView);
+        }
+    }
+
+    /**
+     * The focus moves from a text field to a password field and back. WebKit tells no focus out or focus in for
+     * that, only the new purpose, and the WebView restarts the input method with the input type of each field.
+     */
+    @Test
+    public void testFocusingAFieldOfAnotherTypeRestartsTheInputMethod() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+        AtomicReference<InputTypeRecordingWebView> webView = new AtomicReference<>();
+        try {
+            loadInRecordingWebView(scenario, webView,
+                                   "<html><body><input id='text'><input id='password' type='password'></body></html>");
+            assumeTrue("No input method connected to the WebView", waitForRestart(scenario, webView, 0, text, "text"));
+
+            for (String id : new String[] {"password", "text"}) {
+                AtomicInteger from = new AtomicInteger();
+                scenario.onActivity(activity -> from.set(webView.get().inputTypes.size()));
+                assertTrue("The input method was not restarted with the input type of #" + id,
+                           waitForRestart(scenario, webView, from.get(), id.equals("text") ? text : password, id));
+            }
+        } finally {
+            destroyRecordingWebView(scenario, webView);
         }
     }
 
