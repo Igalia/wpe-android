@@ -1,0 +1,33 @@
+/**
+ * Copyright (C) 2026 Igalia S.L.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+#include <jni.h>
+#include <wpe/webkit.h>
+
+namespace WebKit {
+
+// Starts following a download whose destination is to be decided, for the Java object that reports it to the app,
+// which attaches itself with the returned pointer. Follows it until WebKit ends it.
+jlong createWebKitDownloadBridge(WebKitDownload* download);
+
+// Whether the Java object that reports the download attached itself.
+bool isWebKitDownloadBridgeAttached(jlong bridgePtr);
+
+} // namespace WebKit

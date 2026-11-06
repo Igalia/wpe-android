@@ -171,6 +171,7 @@ public final class WebKitWebView {
                             @NonNull String defaultText);
         boolean shouldOverrideUrlLoading(@NonNull String uri, @NonNull String method, boolean isMainFrame,
                                          boolean hasGesture, boolean isRedirect);
+        void onDownloadStarted(@NonNull WebKitDownload download);
     }
 
     private @Nullable Listener listener;
@@ -257,6 +258,18 @@ public final class WebKitWebView {
         Listener currentListener = listener;
         return currentListener != null &&
             currentListener.shouldOverrideUrlLoading(uri, method, isMainFrame, hasGesture, isRedirect);
+    }
+
+    // The download waits until the listener sets its destination or cancels it, maybe later.
+    @Keep
+    private void onDownloadStarted(long downloadPtr, String uri, String suggestedFilename, String mimeType,
+                                   long contentLength) {
+        WebKitDownload download = new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength);
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onDownloadStarted(download));
+        else
+            download.cancel();
     }
 
     /**

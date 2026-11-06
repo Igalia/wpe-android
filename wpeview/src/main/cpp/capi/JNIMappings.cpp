@@ -24,6 +24,7 @@ void configureJNIMappings()
 {
     configureWebKitCookieManagerJNIMappings();
     configureWebKitCookieManagerAcceptPolicyCallbackHolderJNIMappings();
+    configureWebKitDownloadJNIMappings();
     configureWebKitNetworkSessionJNIMappings();
     configureWebKitSettingsJNIMappings();
     configureWebKitWebContextJNIMappings();

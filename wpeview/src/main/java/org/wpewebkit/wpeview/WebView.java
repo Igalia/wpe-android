@@ -53,6 +53,7 @@ import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
+import org.wpewebkit.wpe.WebKitDownload;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
@@ -257,6 +258,11 @@ public class WebView extends FrameLayout {
                                                     boolean isRedirect) {
                 return viewClient.shouldOverrideUrlLoading(
                     WebView.this, new HttpResourceRequest(Uri.parse(uri), method, isMainFrame, hasGesture, isRedirect));
+            }
+
+            @Override
+            public void onDownloadStarted(WebKitDownload download) {
+                viewClient.onDownloadStart(WebView.this, new WPEDownload(download));
             }
         });
 
