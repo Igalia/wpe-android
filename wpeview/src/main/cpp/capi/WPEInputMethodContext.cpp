@@ -160,6 +160,7 @@ public:
             JNI::NativeMethod<void(jlong)>("nativeFinishPreedit", nativeFinishPreedit),
             JNI::NativeMethod<void(jlong, JNIWPEInputMethodContextListener)>("nativeSetListener", nativeSetListener),
             JNI::NativeMethod<jint(jlong)>("nativeGetInputPurpose", nativeGetInputPurpose),
+            JNI::NativeMethod<jint(jlong)>("nativeGetInputHints", nativeGetInputHints),
             JNI::StaticNativeMethod<jlong(jlong)>("nativeGetForView", nativeGetForView));
     }
 
@@ -209,6 +210,12 @@ private:
     static jint nativeGetInputPurpose(JNIEnv*, jobject, jlong nativePtr)
     {
         return static_cast<jint>(wpe_input_method_context_get_input_purpose(
+            WPE_INPUT_METHOD_CONTEXT(JNI::from_jlong<WPEInputMethodContextAndroid>(nativePtr))));
+    }
+
+    static jint nativeGetInputHints(JNIEnv*, jobject, jlong nativePtr)
+    {
+        return static_cast<jint>(wpe_input_method_context_get_input_hints(
             WPE_INPUT_METHOD_CONTEXT(JNI::from_jlong<WPEInputMethodContextAndroid>(nativePtr))));
     }
 

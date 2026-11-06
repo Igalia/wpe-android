@@ -73,6 +73,9 @@ public final class WPEInputMethodContext {
         return mNativePtr != 0 ? nativeGetInputPurpose(mNativePtr) : WPEInputPurpose.FREE_FORM;
     }
 
+    /** A combination of {@link WPEInputHints} flags, for the focused field. */
+    public int getInputHints() { return mNativePtr != 0 ? nativeGetInputHints(mNativePtr) : WPEInputHints.NONE; }
+
     public void setListener(@Nullable Listener listener) {
         nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
     }
@@ -113,5 +116,6 @@ public final class WPEInputMethodContext {
     private native void nativeFinishPreedit(long nativePtr);
     private native void nativeSetListener(long nativePtr, @Nullable ListenerHolder listener);
     private native int nativeGetInputPurpose(long nativePtr);
+    private native int nativeGetInputHints(long nativePtr);
     private static native long nativeGetForView(long viewPtr);
 }
