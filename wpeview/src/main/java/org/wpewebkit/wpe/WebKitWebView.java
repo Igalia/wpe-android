@@ -68,6 +68,21 @@ public final class WebKitWebView {
         inputMethodContext = new WPEInputMethodContext(WPEInputMethodContext.getForView(wpeView));
     }
 
+    /**
+     * Makes the view of a new window that the page in {@code relatedView} asks for, in {@link Listener#onCreateWindow}
+     * of {@code relatedView}, which returns it: WebKit puts the page of the window only in a view made then. It shares
+     * the display, the web context and the network session of {@code relatedView}.
+     */
+    public WebKitWebView(@NonNull WebKitWebView relatedView, @Nullable WebKitSettings settings) {
+        if (relatedView.mNativePtr == 0)
+            throw new IllegalStateException("The related WebKitWebView was destroyed");
+        this.networkSession = relatedView.networkSession;
+        this.settings = settings;
+        mNativePtr = nativeInitRelated(relatedView.mNativePtr, settings != null ? settings.getNativePtr() : 0);
+        wpeView = new WPEView(nativeGetWPEView(mNativePtr));
+        inputMethodContext = new WPEInputMethodContext(WPEInputMethodContext.getForView(wpeView));
+    }
+
     public @NonNull WPEView getWPEView() { return wpeView; }
 
     public @NonNull WPEInputMethodContext getInputMethodContext() { return inputMethodContext; }
@@ -192,6 +207,13 @@ public final class WebKitWebView {
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
         void onWebProcessTerminated(int reason);
+
+        /**
+         * Asks for the view of a new window that the page opens, made with
+         * {@link #WebKitWebView(WebKitWebView, WebKitSettings)} before this returns, or null to open none.
+         */
+        @Nullable
+        WebKitWebView onCreateWindow(boolean isUserGesture);
     }
 
     private @Nullable Listener listener;
@@ -277,6 +299,15 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onWebProcessTerminated(reason));
     }
 
+    // WebKit needs the view of the new window before this returns, so the listener is called right away. Like every
+    // signal of the view, this comes on the main thread, which runs WebKit's main loop.
+    @Keep
+    private long onCreateWindow(boolean isUserGesture) {
+        Listener currentListener = listener;
+        WebKitWebView newView = currentListener != null ? currentListener.onCreateWindow(isUserGesture) : null;
+        return newView != null && newView.mNativePtr != 0 ? newView.getWebKitWebViewPtr() : 0;
+    }
+
     /**
      * Answers a script dialog reported via {@link Listener#onScriptDialog}. Must be paired with
      *  {@link #scriptDialogClose}. For prompts, {@code text} carries the user's input.
@@ -325,6 +356,7 @@ public final class WebKitWebView {
 
     private native long nativeInit(long displayPtr, long contextPtr, long toplevelPtr, long networkSessionPtr,
                                    long settingsPtr);
+    private native long nativeInitRelated(long relatedPtr, long settingsPtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, String url);
     private native void nativeLoadHtml(long nativePtr, String content, String baseUri);

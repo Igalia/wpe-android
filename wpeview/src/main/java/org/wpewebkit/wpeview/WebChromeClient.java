@@ -27,6 +27,31 @@ import androidx.annotation.Nullable;
  * WebChromeClient provides the high-level chrome and UI callbacks for {@link WebView}.
  */
 public class WebChromeClient {
+    /**
+     * Asks the app to open a new window for the page in {@code view}: for a link to a new window, as with
+     * target=_blank, or for window.open(). WebKit lets window.open() open one only from a user gesture, such as a tap,
+     * and {@code isUserGesture} tells whether one asked for this window.
+     *
+     * <p>To open the window, make its WebView with {@link WebView#WebView(android.content.Context, WebView)}, give it
+     * its clients, show it, and return it, all before this returns: WebKit needs it right away. WebKit then loads the
+     * page into it, so load nothing into it. The page there has the page in {@code view} as its window.opener, unless
+     * it asked for none, as links with target=_blank do. When it closes its window, {@link #onCloseWindow} is called
+     * with the new WebView.
+     *
+     * <p>Return null to open no window, which is the default: window.open() then returns null, and the link does
+     * nothing. A WebView made for the window but not returned is the app's to destroy. Returning any other WebView
+     * opens no window either, and logs an error. The app may destroy {@code view} here, once it made the window.
+     *
+     * <p>Unlike android.webkit.WebChromeClient, this does not tell whether the window is a dialog: WebKit knows the
+     * features the page asked for only once the window is made.
+     */
+    public @Nullable WebView onCreateWindow(@NonNull WebView view, boolean isUserGesture) { return null; }
+
+    /**
+     * Asks the app to close {@code window}, for window.close() in its page, which WebKit allows in a window that a page
+     * opened ({@link #onCreateWindow}), or with a single page in its history. The app takes the WebView out of its
+     * layout and destroys it, which it can do right away.
+     */
     public void onCloseWindow(@NonNull WebView window) {}
     public void onProgressChanged(@NonNull WebView view, int newProgress) {}
     /** Reports a new title of the page, as {@link WebView#getTitle()} returns it: its address while it has none. */
