@@ -80,6 +80,9 @@ final class AuxiliaryProcessesContainer {
 
         public WPEProcessType getProcessType() { return serviceConnection.getProcessType(); }
 
-        public void terminate() { WPERuntime.getInstance().getApplicationContext().unbindService(serviceConnection); }
+        public void terminate() {
+            serviceConnection.dispose();
+            WPERuntime.getInstance().getApplicationContext().unbindService(serviceConnection);
+        }
     }
 }

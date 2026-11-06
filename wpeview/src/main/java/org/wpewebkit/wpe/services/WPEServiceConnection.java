@@ -38,6 +38,8 @@ import org.wpewebkit.wpe.IWPEServiceHost;
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEProcessType;
 
+import java.io.IOException;
+
 public final class WPEServiceConnection implements ServiceConnection {
     private static final String LOGTAG = "WPEServiceConnection";
 
@@ -69,9 +71,10 @@ public final class WPEServiceConnection implements ServiceConnection {
         Log.d(LOGTAG, "onServiceConnected() for " + name + " (pid: " + pid + ", fd: " + parcelFd.getFd() + ")");
         IWPEService wpeService = IWPEService.Stub.asInterface(service);
 
+        ParcelFileDescriptor fd = parcelFd;
         Bundle bundle = new Bundle();
         bundle.putLong("pid", pid);
-        bundle.putParcelable("fd", parcelFd);
+        bundle.putParcelable("fd", fd);
         parcelFd = null;
 
         IWPEServiceHost serviceHost = new IWPEServiceHost.Stub() {
@@ -93,6 +96,26 @@ public final class WPEServiceConnection implements ServiceConnection {
             wpeService.connect(bundle, serviceHost);
         } catch (android.os.RemoteException e) {
             Log.e(LOGTAG, "Failed to connect to service", e);
+        } finally {
+            // The service has its own copy of the socket now. Keeping this one open would keep the connection open
+            // after the service's process ends, as when Android ends it, and WebKit would not know that it is gone.
+            closeSocket(fd);
+        }
+    }
+
+    /** Lets go of the socket of a service that is no longer needed before it connected. */
+    public void dispose() {
+        if (parcelFd != null) {
+            closeSocket(parcelFd);
+            parcelFd = null;
+        }
+    }
+
+    private static void closeSocket(@NonNull ParcelFileDescriptor fd) {
+        try {
+            fd.close();
+        } catch (IOException e) {
+            Log.w(LOGTAG, "Cannot close the socket of the service", e);
         }
     }
 
