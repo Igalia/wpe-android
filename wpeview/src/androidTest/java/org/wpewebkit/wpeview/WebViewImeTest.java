@@ -388,7 +388,10 @@ public class WebViewImeTest {
     private static final String PURPOSE_PAGE =
         "<html><body><input id='text'><input id='password' type='password'><input id='email' type='email'>"
         + "<input id='tel' type='tel'><input id='url' type='url'><input id='number' type='number'>"
-        + "<input id='numeric' inputmode='numeric'></body></html>";
+        + "<input id='numeric' inputmode='numeric'><input id='revealed' type='password'>"
+        + "<input id='revealed-pin' type='password' inputmode='numeric'><script>"
+        + "document.getElementById('revealed').type = document.getElementById('revealed-pin').type = 'text'"
+        + "</script></body></html>";
 
     private static int inputTypeOf(WebView view) {
         EditorInfo editorInfo = new EditorInfo();
@@ -423,6 +426,10 @@ public class WebViewImeTest {
                         EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_FLAG_SIGNED |
                             EditorInfo.TYPE_NUMBER_FLAG_DECIMAL);
         assertInputType(scenario, "numeric", EditorInfo.TYPE_CLASS_NUMBER);
+        assertInputType(scenario, "revealed",
+                        EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        assertInputType(scenario, "revealed-pin",
+                        EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD);
     }
 
     // Records the input type of each connection that Android asks the WebView for, as the input method gets it.
@@ -465,14 +472,15 @@ public class WebViewImeTest {
      * A script turns the focused password field into a text field and back, as a "show password" button that keeps
      * the focus on the field does. WebKit tells the new purpose of a field that keeps focus only when it is tapped,
      * so the test taps it after each change. The WebView then restarts the input method, which gets the new input
-     * type. The test never asks for a connection itself: each one it sees comes from Android.
+     * type: a visible password one while the field shows its text. The test never asks for a connection itself: each
+     * one it sees comes from Android.
      */
     @Test
     public void testTappingAFieldThatChangedTypeRestartsTheInputMethod() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
-        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
         AtomicReference<InputTypeRecordingWebView> webView = new AtomicReference<>();
         CountDownLatch loaded = new CountDownLatch(1);
         try {
@@ -506,8 +514,9 @@ public class WebViewImeTest {
                     view.evaluateJavascript("document.getElementById('password').type = '" + type + "'",
                                             value -> tap(view, view.getWidth() / 2f, view.getHeight() / 2f));
                 });
-                assertTrue("The input method was not restarted with the input type for type " + type,
-                           waitForRestart(scenario, webView, from.get(), type.equals("text") ? text : password, null));
+                assertTrue(
+                    "The input method was not restarted with the input type for type " + type,
+                    waitForRestart(scenario, webView, from.get(), type.equals("text") ? revealed : password, null));
             }
         } finally {
             scenario.onActivity(activity -> {

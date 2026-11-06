@@ -50,6 +50,7 @@ import androidx.annotation.UiThread;
 import org.wpewebkit.R;
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEEventType;
+import org.wpewebkit.wpe.WPEInputHints;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 import org.wpewebkit.wpe.WPEInputPurpose;
 import org.wpewebkit.wpe.WPEToplevel;
@@ -835,10 +836,13 @@ public class WebView extends FrameLayout {
         inputMethodManager.restartInput(this);
     }
 
-    private static int inputTypeForPurpose(int purpose) {
+    // A field that has been a password field has the private hint, also when a "show password" button turns it into
+    // a text field. It gets a visible password keyboard, which neither suggests nor learns what is typed.
+    private static int inputTypeForPurpose(int purpose, int hints) {
+        boolean isPrivate = (hints & WPEInputHints.PRIVATE) != 0;
         switch (purpose) {
         case WPEInputPurpose.DIGITS:
-            return EditorInfo.TYPE_CLASS_NUMBER;
+            return EditorInfo.TYPE_CLASS_NUMBER | (isPrivate ? EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD : 0);
         case WPEInputPurpose.NUMBER:
             return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_FLAG_SIGNED |
                 EditorInfo.TYPE_NUMBER_FLAG_DECIMAL;
@@ -853,7 +857,8 @@ public class WebView extends FrameLayout {
         case WPEInputPurpose.PIN:
             return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD;
         default:
-            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+            return EditorInfo.TYPE_CLASS_TEXT | (isPrivate ? EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                                                           : EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT);
         }
     }
 
@@ -872,7 +877,7 @@ public class WebView extends FrameLayout {
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
             return null;
-        outAttrs.inputType = inputTypeForPurpose(imContext.getInputPurpose());
+        outAttrs.inputType = inputTypeForPurpose(imContext.getInputPurpose(), imContext.getInputHints());
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         outAttrs.actionLabel = null;
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
