@@ -18,8 +18,6 @@
 
 package org.wpewebkit.wpeview;
 
-import android.view.View;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -57,13 +55,25 @@ public class WebChromeClient {
     /** Reports a new title of the page, as {@link WebView#getTitle()} returns it: its address while it has none. */
     public void onReceivedTitle(@NonNull WebView view, @NonNull String title) {}
 
-    public interface CustomViewCallback {
-        void onCustomViewHidden();
-    }
+    /**
+     * Tells the app that an element of the page went fullscreen, as a video does with its fullscreen button, or any
+     * element with {@code element.requestFullscreen()}. The element now fills the {@link WebView}, which draws the page
+     * itself, so there is no other view to show: the app gives the WebView the whole screen where it is, for example
+     * by hiding the controls around it and the system bars, until {@link #onExitFullscreen}. Fullscreen ends when the
+     * WebView is hidden or leaves its window, as when it is moved to another parent or its activity stops.
+     *
+     * <p>The app takes the page out of fullscreen with {@link WebView#exitFullscreen()}, for example on Back or when
+     * it shows another page. An app that does not show pages fullscreen can call it from here. If the app does
+     * nothing, the element fills the WebView where it is.
+     */
+    public void onEnterFullscreen(@NonNull WebView view) {}
 
-    // FIXME: wire WebKit enter-fullscreen / leave-fullscreen signals to invoke these callbacks.
-    public void onShowCustomView(@NonNull View view, @NonNull CustomViewCallback callback) {}
-    public void onHideCustomView() {}
+    /**
+     * Tells the app that the page left fullscreen, by itself, as with {@code document.exitFullscreen()} or the
+     * controls of a video, or because of {@link WebView#exitFullscreen()}. The app brings back what it changed in
+     * {@link #onEnterFullscreen}.
+     */
+    public void onExitFullscreen(@NonNull WebView view) {}
 
     /**
      * Notifies the host of a JavaScript {@code alert()}. Return {@code true} to take over the

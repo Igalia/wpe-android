@@ -28,6 +28,8 @@ G_BEGIN_DECLS
 #define WPE_TYPE_TOPLEVEL_ANDROID (wpe_toplevel_android_get_type())
 G_DECLARE_FINAL_TYPE(WPEToplevelAndroid, wpe_toplevel_android, WPE, TOPLEVEL_ANDROID, WPEToplevel)
 
+using WPEToplevelAndroidFullscreenCallback = void (*)(gboolean fullscreen, gpointer userData);
+
 WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window);
 
 void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow* window);
@@ -35,6 +37,9 @@ void wpe_toplevel_android_set_background_color(WPEToplevelAndroid* toplevel, flo
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height);
 void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused);
 void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* screen);
+void wpe_toplevel_android_set_fullscreen(WPEToplevelAndroid* toplevel, gboolean fullscreen);
+void wpe_toplevel_android_set_fullscreen_callback(
+    WPEToplevelAndroid* toplevel, WPEToplevelAndroidFullscreenCallback callback, gpointer userData);
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel);
 ANativeWindow* wpe_toplevel_android_get_window(WPEToplevelAndroid* toplevel);
 

@@ -25,7 +25,9 @@ import android.util.Log
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.FrameLayout
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
@@ -47,8 +49,6 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
     private lateinit var binding: FragmentBrowserBinding
 
     private val browserViewModel by activityViewModels<BrowserViewModel>()
-
-    private var fullscreenView: View? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         Log.i(TAG, "onCreateView")
@@ -118,38 +118,21 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         selectedTab.webview.setWebChromeClient(object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, progress: Int) {
                 binding.pageProgress.progress = progress
-                if (progress in 1..99) {
+                // Not over a fullscreen page, which has no toolbar.
+                if (progress in 1..99 && binding.toolbar.isVisible) {
                     binding.pageProgress.visibility = View.VISIBLE
                 } else {
                     binding.pageProgress.visibility = View.GONE
                 }
             }
 
-            override fun onShowCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {
-                fullscreenView?.let {
-                    (it.parent as ViewGroup).removeView(it)
-                }
-                fullscreenView = view
-                requireActivity().window.insetsController?.hide(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-                requireActivity().window.addContentView(
-                    fullscreenView,
-                    FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT, Gravity.CENTER
-                    )
-                )
+            // The page fills the WebView, which gets the whole screen when the toolbar and the system bars go.
+            override fun onEnterFullscreen(view: WebView) {
+                showBrowserControls(false)
             }
 
-            override fun onHideCustomView() {
-                fullscreenView?.let {
-                    requireActivity().window.insetsController?.show(
-                        WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                    )
-                    (it.parent as ViewGroup).removeView(it)
-                }
-                fullscreenView = null
+            override fun onExitFullscreen(view: WebView) {
+                showBrowserControls(true)
             }
         })
 
@@ -225,6 +208,20 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
         val url = normalizeAddress(address)
         selectedTab().webview.loadUrl(url)
         binding.toolbarEditText.setText(url)
+    }
+
+    private fun showBrowserControls(show: Boolean) {
+        binding.toolbar.isVisible = show
+        if (!show)
+            binding.pageProgress.visibility = View.GONE
+        val insetsController = WindowInsetsControllerCompat(requireActivity().window, binding.root)
+        if (show) {
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        }
     }
 
     private fun hideKeyboard() {

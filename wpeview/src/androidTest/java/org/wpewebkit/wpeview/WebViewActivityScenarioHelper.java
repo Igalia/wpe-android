@@ -1,6 +1,7 @@
 package org.wpewebkit.wpeview;
 
 import android.os.ParcelFileDescriptor;
+import android.util.Base64;
 
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -10,6 +11,8 @@ import org.junit.Assert;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -27,6 +30,19 @@ public class WebViewActivityScenarioHelper {
         if (sharedWebContext == null)
             sharedWebContext = new WebContext(activity.getApplicationContext(), false, true);
         return sharedWebContext;
+    }
+
+    // A tenth of a second of silence, as a WAV file in a data: URL.
+    public static String silentWavUrl() {
+        int samples = 800;
+        ByteBuffer wav = ByteBuffer.allocate(44 + samples).order(ByteOrder.LITTLE_ENDIAN);
+        wav.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + samples);
+        wav.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16);
+        wav.putShort((short)1).putShort((short)1).putInt(8000).putInt(8000).putShort((short)1).putShort((short)8);
+        wav.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(samples);
+        while (wav.hasRemaining())
+            wav.put((byte)0x80);
+        return "data:audio/wav;base64," + Base64.encodeToString(wav.array(), Base64.NO_WRAP);
     }
 
     /** Runs a shell command as the shell user, and returns its output. */

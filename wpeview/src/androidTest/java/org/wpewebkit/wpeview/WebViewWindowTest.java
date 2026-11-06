@@ -2,7 +2,6 @@ package org.wpewebkit.wpeview;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.util.Base64;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -15,9 +14,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,6 +23,7 @@ import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.wpewebkit.wpeview.WebViewActivityScenarioHelper.silentWavUrl;
 
 /**
  * How the window of a WebView reaches its page: the page is hidden while its WebView is out of the
@@ -62,19 +59,6 @@ public class WebViewWindowTest {
                                              + "function play() { audio.play().then(() => started = true); }\n"
                                              + "function state() { return audio.paused ? 'paused' : 'playing'; }\n"
                                              + "</script></body></html>";
-
-    // A tenth of a second of silence, as a WAV file in a data: URL.
-    private static String silentWavUrl() {
-        int samples = 800;
-        ByteBuffer wav = ByteBuffer.allocate(44 + samples).order(ByteOrder.LITTLE_ENDIAN);
-        wav.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + samples);
-        wav.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16);
-        wav.putShort((short)1).putShort((short)1).putInt(8000).putInt(8000).putShort((short)1).putShort((short)8);
-        wav.put("data".getBytes(StandardCharsets.US_ASCII)).putInt(samples);
-        while (wav.hasRemaining())
-            wav.put((byte)0x80);
-        return "data:audio/wav;base64," + Base64.encodeToString(wav.array(), Base64.NO_WRAP);
-    }
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
