@@ -250,6 +250,14 @@ public class WebView extends FrameLayout {
             public void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
                 showScriptDialog(dialogPtr, type, url, message, defaultText);
             }
+
+            @Override
+            public void onWebProcessTerminated(int reason) {
+                // The focused field went with the page, so the input method lets go of it.
+                if (inputFieldFocused)
+                    releaseInputMethod();
+                viewClient.onWebProcessTerminated(WebView.this, reason);
+            }
         });
 
         if (!headless) {
@@ -477,6 +485,17 @@ public class WebView extends FrameLayout {
     public void stopLoading() {
         if (webKitWebView != null)
             webKitWebView.stopLoading();
+    }
+
+    /**
+     * Ends the web process that runs the page, for example when the page stops responding. The view then gets
+     * {@link WebViewClient#onWebProcessTerminated} with {@link WebViewClient#WEB_PROCESS_TERMINATED_BY_API}, and stays
+     * usable: {@link #reload()} loads the page again. Other views whose pages run in the same web process lose them
+     * too.
+     */
+    public void terminateWebProcess() {
+        if (webKitWebView != null)
+            webKitWebView.terminateWebProcess();
     }
     /**
      * Returns the settings of this WebView. Every WebView has its own, starting from the defaults of its
@@ -822,8 +841,9 @@ public class WebView extends FrameLayout {
     }
 
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
-    // connection, which no longer exists.
-    private void releaseInputMethod() {
+    // connection, which no longer exists. Package-private: also called from the WebKitWebView.Listener inner class
+    // when the web process ends (avoids a synthetic accessor).
+    void releaseInputMethod() {
         inputFieldFocused = false;
         if (inputMethodManager == null)
             return;
