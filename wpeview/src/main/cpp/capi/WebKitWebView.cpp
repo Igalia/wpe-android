@@ -28,6 +28,7 @@
 #include <memory>
 #include <pthread.h>
 #include <string>
+#include <string_view>
 #include <sys/resource.h>
 #include <vector>
 #include <wpe/webkit.h>
@@ -223,6 +224,7 @@ public:
         , m_shouldOverrideUrlLoading(
               getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
         , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong)>("onDownloadStarted"))
+        , m_onRunFileChooser(getMethod<void(jlong, jstringArray, jboolean)>("onRunFileChooser"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -248,7 +250,9 @@ public:
             JNI::NativeMethod<jbyteArray(jlong)>("nativeSaveState", nativeSaveState),
             JNI::NativeMethod<jboolean(jlong, jbyteArray)>("nativeRestoreState", nativeRestoreState),
             JNI::NativeMethod<jboolean(jlong)>("nativeCanGoBack", nativeCanGoBack),
-            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoForward", nativeCanGoForward));
+            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoForward", nativeCanGoForward),
+            JNI::NativeMethod<void(jlong, jstringArray)>("nativeFileChooserSelect", nativeFileChooserSelect),
+            JNI::NativeMethod<void(jlong)>("nativeFileChooserCancel", nativeFileChooserCancel));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -265,6 +269,7 @@ public:
     const JNI::Method<jlong(jboolean)> m_onCreateWindow;
     const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
     const JNI::Method<void(jlong, jstring, jstring, jstring, jlong)> m_onDownloadStarted;
+    const JNI::Method<void(jlong, jstringArray, jboolean)> m_onRunFileChooser;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -289,6 +294,7 @@ private:
     static WebKitWebView* onCreate(WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge);
     static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
     static gboolean onDecideDownloadDestination(WebKitDownload* download, const char* suggestedFilename, gpointer);
+    static gboolean onRunFileChooser(WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -319,6 +325,8 @@ private:
     static jboolean nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data);
     static jboolean nativeCanGoBack(JNIEnv*, jobject, jlong nativePtr);
     static jboolean nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr);
+    static void nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray);
+    static void nativeFileChooserCancel(JNIEnv*, jobject, jlong requestPtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -761,6 +769,44 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
     return TRUE;
 }
 
+// Marks a file chooser request that Java answered, which released the reference taken for it.
+static constexpr const char* fileChooserAnsweredKey = "wpeview-file-chooser-answered";
+
+static void releaseAnsweredFileChooser(WebKitFileChooserRequest* request)
+{
+    g_object_set_data(G_OBJECT(request), fileChooserAnsweredKey, GINT_TO_POINTER(TRUE));
+    g_object_unref(request);
+}
+
+// A file field of the page asks for files. Java takes the request, and answers it with nativeFileChooserSelect or
+// nativeFileChooserCancel, which release it, also when the app does not choose any file.
+gboolean JNIWebKitWebViewCache::onRunFileChooser(
+    WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge)
+{
+    // The MIME types of the field's accept attribute, none if it takes any file.
+    const gchar* const* mimeTypes = webkit_file_chooser_request_get_mime_types(request);
+    size_t mimeTypeCount = 0;
+    while (mimeTypes && mimeTypes[mimeTypeCount])
+        mimeTypeCount++;
+    auto jMimeTypes = JNI::ObjectArray<jstring>(JNI::TypedClass<jstring>().createArray(mimeTypeCount));
+    for (size_t i = 0; i < mimeTypeCount; i++)
+        jMimeTypes.setValue(i, JNI::String(mimeTypes[i]));
+
+    auto requestPtr = reinterpret_cast<jlong>(g_object_ref(request));
+    if (!getJNIWebKitWebViewCache().m_onRunFileChooser.invoke(bridge->m_javaRef.get(), requestPtr,
+            static_cast<jstringArray>(jMimeTypes),
+            static_cast<jboolean>(webkit_file_chooser_request_get_select_multiple(request)))) {
+        Logging::logError("cannot deliver WebKitWebView onRunFileChooser callback");
+        // Java answers the request when anything fails after it took it. If the call failed before, nothing else would.
+        // WebKit still holds the request while it asks, so it can be checked after Java released it.
+        if (!g_object_get_data(G_OBJECT(request), fileChooserAnsweredKey)) {
+            webkit_file_chooser_request_cancel(request);
+            g_object_unref(request);
+        }
+    }
+    return TRUE;
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -843,6 +889,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "notify::is-loading", G_CALLBACK(onIsLoadingChanged), bridge),
         g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
         g_signal_connect(webView, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), bridge),
+        g_signal_connect(webView, "run-file-chooser", G_CALLBACK(onRunFileChooser), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1232,6 +1279,38 @@ jboolean JNIWebKitWebViewCache::nativeCanGoForward(JNIEnv*, jobject, jlong nativ
 {
     return webkit_web_view_can_go_forward(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
                                                                                                       : JNI_FALSE;
+}
+
+void JNIWebKitWebViewCache::nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray)
+{
+    auto* request = JNI::from_jlong<WebKitFileChooserRequest>(requestPtr);
+    g_autoptr(GStrvBuilder) builder = g_strv_builder_new();
+    for (auto path : JNI::ObjectArray<jstring>(pathsArray).getReadOnlyContent()) {
+        // The JNI::String must outlive its content, whose release uses the Java string.
+        auto javaPath = JNI::String(path);
+        auto pathContent = javaPath.getContent();
+        if (!pathContent)
+            continue;
+        // WebKit decodes the escape sequences of the paths it is given, so a percent sign in a file name is escaped.
+        std::string escapedPath;
+        for (char c : std::string_view(pathContent.get())) {
+            if (c == '%')
+                escapedPath += "%25";
+            else
+                escapedPath += c;
+        }
+        g_strv_builder_add(builder, escapedPath.c_str());
+    }
+    g_auto(GStrv) paths = g_strv_builder_end(builder);
+    webkit_file_chooser_request_select_files(request, paths);
+    releaseAnsweredFileChooser(request);
+}
+
+void JNIWebKitWebViewCache::nativeFileChooserCancel(JNIEnv*, jobject, jlong requestPtr)
+{
+    auto* request = JNI::from_jlong<WebKitFileChooserRequest>(requestPtr);
+    webkit_file_chooser_request_cancel(request);
+    releaseAnsweredFileChooser(request);
 }
 
 void configureWebKitWebViewJNIMappings()

@@ -27,6 +27,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Display;
@@ -322,6 +323,11 @@ public class WebView extends FrameLayout {
             @Override
             public void onDownloadStarted(WebKitDownload download) {
                 viewClient.onDownloadStart(WebView.this, new WPEDownload(download));
+            }
+
+            @Override
+            public boolean onRunFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+                return showFileChooser(requestPtr, mimeTypes, selectMultiple);
             }
         });
 
@@ -891,6 +897,59 @@ public class WebView extends FrameLayout {
             } else {
                 result.confirm();
             }
+        }
+    }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    boolean showFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+        WebChromeClient.FileChooserParams params =
+            new WebChromeClient.FileChooserParams(selectMultiple ? WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+                                                                 : WebChromeClient.FileChooserParams.MODE_OPEN,
+                                                  mimeTypes);
+        FileChooserResult result = new FileChooserResult(requestPtr);
+        boolean taken = false;
+        try {
+            taken = chromeClient.onShowFileChooser(this, params, result);
+        } finally {
+            // A request that is not taken is cancelled, so the callback, if the app keeps it, has nothing to answer.
+            if (!taken)
+                result.answered = true;
+        }
+        return taken;
+    }
+
+    private class FileChooserResult implements WPECallback<String[]> {
+        private final long requestPtr;
+        // Once answered, the request is gone, and its pointer may be used by another one.
+        boolean answered;
+
+        FileChooserResult(long requestPtr) { this.requestPtr = requestPtr; }
+
+        @Override
+        public void onResult(@Nullable String[] paths) {
+            // WebKit would take a relative path from the directory of its own process. The request is cancelled, so
+            // that the field does not wait for another answer.
+            if (paths != null) {
+                for (String path : paths) {
+                    if (path == null || !path.startsWith("/")) {
+                        onResult(null);
+                        throw new IllegalArgumentException("Not the absolute path of a file: " + path);
+                    }
+                }
+            }
+            // WebKit is answered on the main thread, where its main loop runs.
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                getContext().getMainExecutor().execute(() -> onResult(paths));
+                return;
+            }
+            // webKitWebView is null once the view has been destroyed, which cancelled the request.
+            if (answered || webKitWebView == null)
+                return;
+            answered = true;
+            if (paths == null || paths.length == 0)
+                webKitWebView.fileChooserCancel(requestPtr);
+            else
+                webKitWebView.fileChooserSelect(requestPtr, paths);
         }
     }
 
