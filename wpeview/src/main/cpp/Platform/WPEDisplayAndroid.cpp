@@ -191,11 +191,6 @@ static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
 static void wpe_display_android_init(WPEDisplayAndroid* display)
 {
     display->screens = g_ptr_array_new_with_free_func(g_object_unref);
-
-    // TODO: Support WPE_AVAILABLE_INPUT_DEVICE_MOUSE when one is connected.
-    auto inputDevices = static_cast<WPEAvailableInputDevices>(
-        WPE_AVAILABLE_INPUT_DEVICE_TOUCHSCREEN | WPE_AVAILABLE_INPUT_DEVICE_KEYBOARD);
-    wpe_display_set_available_input_devices(WPE_DISPLAY(display), inputDevices);
 }
 
 WPEDisplay* wpe_display_android_new(void)
