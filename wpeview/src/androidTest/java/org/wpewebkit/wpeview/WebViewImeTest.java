@@ -42,71 +42,21 @@ public class WebViewImeTest {
         WebViewTestActivity.withoutInputMethod(InstrumentationRegistry.getInstrumentation().getTargetContext()));
 
     /**
-     * Verifies that focusing an editable element in the page makes the WebView an active text
-     * editor and produces a valid {@link InputConnection} through the WPE input-method bridge
-     * (WebKit input-method-context focus-in -> WPEInputMethodContext.Listener ->
-     * WebView.onImeFieldFocused). This is the part of IME handling this widget owns; whether the
-     * soft keyboard is actually rendered additionally depends on the window holding focus, which is
-     * not guaranteed under ActivityScenario instrumentation.
+     * Focusing an editable element in the page makes the WebView a text editor with an {@link InputConnection} for
+     * text, through the input method context of WPE (its focus-in reaches WebView.onImeFieldFocused). This needs the
+     * focus of the view, not that of the window, which only decides whether the keyboard shows.
      */
     @Test
     public void testEditableFocusEngagesInputConnection() throws Throwable {
-        CountDownLatch focusScriptDone = new CountDownLatch(1);
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
-        scenario
-            .onActivity(activity -> {
-                activity.getWebView().setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
-                        // hasFocus() is true once the view has focus; otherwise focus the editor as
-                        // soon as the document gains focus.
-                        String focusScript = "(function() {\n"
-                                             +
-                                             "  function focusEditor() { document.getElementById('editor').focus(); }\n"
-                                             + "  if (document.hasFocus()) { focusEditor(); }\n"
-                                             + "  else { window.addEventListener('focus', focusEditor); }\n"
-                                             + "})();";
-                        view.evaluateJavascript(focusScript, value -> focusScriptDone.countDown());
-                    }
-                });
+        // A user focuses the view by tapping it, and the test focuses the editable from a script.
+        scenario.onActivity(activity -> activity.getWebView().requestFocus());
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(),
+                                                   "<html><body contenteditable id='editor'></body></html>");
+        scenario.moveToState(Lifecycle.State.RESUMED);
 
-                // A real user focuses the view by tapping it; the test focuses the editable via JS,
-                // so it must give the WebView focus first for the IME to engage.
-                activity.getWebView().requestFocus();
-
-                String htmlDocument = "<html><body contenteditable id='editor'></body></html>";
-                activity.getWebView().loadHtml(htmlDocument, null);
-            })
-            .moveToState(Lifecycle.State.RESUMED);
-
-        assertTrue("Focus script never ran", focusScriptDone.await(30, TimeUnit.SECONDS));
-
-        // The editable focus travels WebKit -> WPEInputMethodContext -> WebView asynchronously; poll
-        // until the WebView reports itself as a text editor.
-        AtomicBoolean isTextEditor = new AtomicBoolean(false);
-        for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
-            CountDownLatch pollLatch = new CountDownLatch(1);
-            scenario.onActivity(activity -> {
-                isTextEditor.set(activity.getWebView().onCheckIsTextEditor());
-                pollLatch.countDown();
-            });
-            assertTrue(pollLatch.await(5, TimeUnit.SECONDS));
-            if (!isTextEditor.get())
-                Thread.sleep(250);
-        }
-        assertTrue("WebView did not become a text editor after the editable was focused", isTextEditor.get());
-
-        // A valid InputConnection with a web-text input type proves the IME bridge is wired up.
-        AtomicReference<InputConnection> connection = new AtomicReference<>();
         EditorInfo editorInfo = new EditorInfo();
-        CountDownLatch icLatch = new CountDownLatch(1);
-        scenario.onActivity(activity -> {
-            connection.set(activity.getWebView().onCreateInputConnection(editorInfo));
-            icLatch.countDown();
-        });
-        assertTrue(icLatch.await(5, TimeUnit.SECONDS));
-
-        assertNotNull("Focused editable did not yield an InputConnection", connection.get());
+        focusEditor(scenario, "editor", editorInfo);
         assertTrue("InputConnection is not configured for text input",
                    (editorInfo.inputType & EditorInfo.TYPE_CLASS_TEXT) == EditorInfo.TYPE_CLASS_TEXT);
     }
@@ -202,6 +152,12 @@ public class WebViewImeTest {
     // Focuses the element with the given id and returns the WebView's connection to it.
     private static InputConnection focusEditor(ActivityScenario<WebViewTestActivity> scenario, String id)
         throws Throwable {
+        return focusEditor(scenario, id, new EditorInfo());
+    }
+
+    // Like focusEditor(scenario, id), and fills editorInfo for the connection.
+    private static InputConnection focusEditor(ActivityScenario<WebViewTestActivity> scenario, String id,
+                                               EditorInfo editorInfo) throws Throwable {
         AtomicBoolean isTextEditor = new AtomicBoolean(false);
         for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
             scenario.onActivity(activity -> {
@@ -213,8 +169,7 @@ public class WebViewImeTest {
         }
         assertTrue("The WebView did not become a text editor", isTextEditor.get());
         AtomicReference<InputConnection> connection = new AtomicReference<>();
-        scenario.onActivity(
-            activity -> connection.set(activity.getWebView().onCreateInputConnection(new EditorInfo())));
+        scenario.onActivity(activity -> connection.set(activity.getWebView().onCreateInputConnection(editorInfo)));
         assertNotNull("The focused editable did not yield an InputConnection", connection.get());
         return connection.get();
     }
