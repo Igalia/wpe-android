@@ -28,6 +28,7 @@
 #include <pthread.h>
 #include <string>
 #include <sys/resource.h>
+#include <unordered_map>
 #include <vector>
 #include <wpe/webkit.h>
 #include <wpe/wpe-platform.h>
@@ -91,6 +92,12 @@ struct WebKitWebViewBridge {
         for (gulong id : m_signalIds)
             g_signal_handler_disconnect(m_webView, id);
         m_signalIds.clear();
+        // The loads of the view end with it, and WebKit cancels the requests that are left.
+        for (auto& [id, request] : m_authenticationRequests) {
+            g_signal_handlers_disconnect_by_data(request, this);
+            g_object_unref(request);
+        }
+        m_authenticationRequests.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         g_object_unref(m_webView);
@@ -119,6 +126,10 @@ struct WebKitWebViewBridge {
     // The address of the current main frame load once it failed. WebKit keeps the web view's URI at the previous page,
     // but the end of the load is reported with the address that failed, as with android.webkit.WebView.
     std::string m_failedLoadUri;
+    // The authentication requests that the app was asked about and has not answered, by the id it was given. WebKit
+    // cancels a request when its load ends or another one starts, and a later answer for it is dropped.
+    std::unordered_map<jlong, WebKitAuthenticationRequest*> m_authenticationRequests;
+    jlong m_lastAuthenticationRequestId {0};
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -198,6 +209,9 @@ public:
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
+        , m_onAuthenticate(
+              getMethod<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)>("onAuthenticate"))
+        , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
@@ -217,7 +231,9 @@ public:
             JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
-            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose));
+            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose),
+            JNI::NativeMethod<void(jlong, jlong, jstring, jstring)>("nativeAuthenticate", nativeAuthenticate),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeAuthenticationCancel", nativeAuthenticationCancel));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -230,6 +246,8 @@ public:
     const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
+    const JNI::Method<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)> m_onAuthenticate;
+    const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -247,6 +265,9 @@ private:
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
+    static gboolean onAuthenticate(WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
+    static void onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
+    static void answerAuthentication(WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -270,6 +291,9 @@ private:
         JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
+    static void nativeAuthenticate(
+        JNIEnv*, jobject, jlong nativePtr, jlong requestId, jstring username, jstring password);
+    static void nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -568,6 +592,80 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     return TRUE;
 }
 
+// A server or a proxy asks for a user name and password. The load waits until the app answers.
+gboolean JNIWebKitWebViewCache::onAuthenticate(
+    WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
+{
+    switch (webkit_authentication_request_get_scheme(request)) {
+    case WEBKIT_AUTHENTICATION_SCHEME_CLIENT_CERTIFICATE_REQUESTED:
+    case WEBKIT_AUTHENTICATION_SCHEME_CLIENT_CERTIFICATE_PIN_REQUESTED:
+    case WEBKIT_AUTHENTICATION_SCHEME_SERVER_TRUST_EVALUATION_REQUESTED:
+        // Not a user name and password. WPEView has no client certificates to offer, so the connection goes on
+        // without one, and the server decides whether that is enough.
+        webkit_authentication_request_authenticate(request, nullptr);
+        return TRUE;
+    default:
+        break;
+    }
+
+    jlong requestId = ++bridge->m_lastAuthenticationRequestId;
+    bridge->m_authenticationRequests.emplace(requestId, WEBKIT_AUTHENTICATION_REQUEST(g_object_ref(request)));
+    g_signal_connect(request, "cancelled", G_CALLBACK(onAuthenticationCancelled), bridge);
+
+    // The scheme of the connection that the credentials would go over, also for a proxy.
+    WebKitSecurityOrigin* origin = webkit_authentication_request_get_security_origin(request);
+    const char* scheme = origin ? webkit_security_origin_get_protocol(origin) : nullptr;
+    auto jScheme = JNI::String(scheme ? scheme : "");
+    if (origin)
+        webkit_security_origin_unref(origin);
+    const char* host = webkit_authentication_request_get_host(request);
+    const char* realm = webkit_authentication_request_get_realm(request);
+    auto jHost = JNI::String(host ? host : "");
+    auto jRealm = JNI::String(realm ? realm : "");
+    if (!getJNIWebKitWebViewCache().m_onAuthenticate.invoke(bridge->m_javaRef.get(), requestId,
+            static_cast<jstring>(jHost), static_cast<jint>(webkit_authentication_request_get_port(request)),
+            static_cast<jstring>(jScheme), static_cast<jstring>(jRealm),
+            static_cast<jboolean>(webkit_authentication_request_is_for_proxy(request)),
+            static_cast<jboolean>(webkit_authentication_request_is_retry(request)))) {
+        Logging::logError("cannot deliver WebKitWebView onAuthenticate callback");
+        answerAuthentication(bridge, requestId, nullptr);
+    }
+
+    return TRUE;
+}
+
+// WebKit cancels a request when its load ends or another one starts, so that the app can close its dialog. It keeps
+// its own reference to the request meanwhile.
+void JNIWebKitWebViewCache::onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
+{
+    auto& requests = bridge->m_authenticationRequests;
+    auto it = std::find_if(
+        requests.begin(), requests.end(), [request](const auto& entry) { return entry.second == request; });
+    if (it == requests.end())
+        return;
+    jlong requestId = it->first;
+    requests.erase(it);
+    g_signal_handlers_disconnect_by_data(request, bridge);
+    g_object_unref(request);
+    if (!getJNIWebKitWebViewCache().m_onAuthenticationCancelled.invoke(bridge->m_javaRef.get(), requestId))
+        Logging::logError("cannot deliver WebKitWebView onAuthenticationCancelled callback");
+}
+
+// Answers a request the app was asked about, unless WebKit cancelled it meanwhile. Without a credential the load goes
+// on without one, and shows what the server sent with its request for one, such as its 401 page.
+void JNIWebKitWebViewCache::answerAuthentication(
+    WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential)
+{
+    auto it = bridge->m_authenticationRequests.find(requestId);
+    if (it == bridge->m_authenticationRequests.end())
+        return;
+    WebKitAuthenticationRequest* request = it->second;
+    bridge->m_authenticationRequests.erase(it);
+    g_signal_handlers_disconnect_by_data(request, bridge);
+    webkit_authentication_request_authenticate(request, credential);
+    g_object_unref(request);
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -627,6 +725,7 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
         g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), bridge),
         g_signal_connect(webView, "notify::is-loading", G_CALLBACK(onIsLoadingChanged), bridge),
         g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
+        g_signal_connect(webView, "authenticate", G_CALLBACK(onAuthenticate), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -940,6 +1039,21 @@ void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dial
 {
     // Releases the reference taken in onScriptDialog; the dialog is closed once its refcount reaches zero.
     webkit_script_dialog_unref(reinterpret_cast<WebKitScriptDialog*>(dialogPtr)); // NOLINT(performance-no-int-to-ptr)
+}
+
+// The credentials are kept for the session, in memory only, as WebKit sends them again for the other pages of the
+// same realm.
+void JNIWebKitWebViewCache::nativeAuthenticate(
+    JNIEnv*, jobject, jlong nativePtr, jlong requestId, jstring username, jstring password)
+{
+    g_autoptr(WebKitCredential) credential = webkit_credential_new(JNI::String(username).getContent().get(),
+        JNI::String(password).getContent().get(), WEBKIT_CREDENTIAL_PERSISTENCE_FOR_SESSION);
+    answerAuthentication(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), requestId, credential);
+}
+
+void JNIWebKitWebViewCache::nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId)
+{
+    answerAuthentication(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), requestId, nullptr);
 }
 
 void configureWebKitWebViewJNIMappings()

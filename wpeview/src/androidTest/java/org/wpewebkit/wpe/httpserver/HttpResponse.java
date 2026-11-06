@@ -50,6 +50,9 @@ public class HttpResponse {
 
         final SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US);
         writer.println("Date: " + dateFormat.format(new Date()));
+        // The server closes each connection after its response, so the client must not send another request on it,
+        // such as the same request again with credentials.
+        writer.println("Connection: close");
 
         String body = this.body;
         if (body == null && bodyText != null)
