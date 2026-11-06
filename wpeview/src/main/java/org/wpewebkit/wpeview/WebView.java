@@ -92,6 +92,8 @@ public class WebView extends FrameLayout {
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
+    // The input type that the input method was last restarted for.
+    private int imeInputType;
     private PageSurfaceView surfaceView;
     private WebKitSettings webKitSettings;
     private WebSettings webSettings;
@@ -211,8 +213,8 @@ public class WebView extends FrameLayout {
                 onImePreeditReset();
             }
             @Override
-            public void onInputPurposeChanged() {
-                onImeInputPurposeChanged();
+            public void onContentTypeChanged() {
+                onImeContentTypeChanged();
             }
         });
         this.webSettings = new WebSettings(webKitSettings);
@@ -1028,6 +1030,7 @@ public class WebView extends FrameLayout {
             return;
         if (focused) {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
+            updateImeInputType();
             inputMethodManager.restartInput(this);
             showSoftInput();
         } else if (getWindowToken() != null) {
@@ -1049,13 +1052,23 @@ public class WebView extends FrameLayout {
         inputMethodManager.restartInput(this);
     }
 
-    // The focused field changed its purpose without losing focus, as a password field does when a "show password"
-    // button turns it into a text field, or the focus moved to a field with another purpose: WebKit tells no focus
-    // out or focus in for that. Restart the input method so that it asks for the new input type.
-    void onImeInputPurposeChanged() {
+    // The focused field changed its purpose or hints without losing focus, as a password field does when a "show
+    // password" button turns it into a text field, or the focus moved to another field: WebKit tells no focus out or
+    // focus in for that. Restart the input method if the field now needs another input type.
+    void onImeContentTypeChanged() {
         if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
             return;
-        inputMethodManager.restartInput(this);
+        if (updateImeInputType())
+            inputMethodManager.restartInput(this);
+    }
+
+    // Takes the input type of the focused field, and returns whether it changed.
+    private boolean updateImeInputType() {
+        int inputType = inputTypeForPurpose(imContext.getInputPurpose(), imContext.getInputHints());
+        if (inputType == imeInputType)
+            return false;
+        imeInputType = inputType;
+        return true;
     }
 
     // A field that has been a password field has the private hint, also when a "show password" button turns it into
