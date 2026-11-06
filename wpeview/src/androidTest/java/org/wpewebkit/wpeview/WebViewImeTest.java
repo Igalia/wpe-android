@@ -551,7 +551,20 @@ public class WebViewImeTest {
                      Integer.toHexString(inputType.get()));
     }
 
-    /** Each kind of field gets the keyboard for it: password fields a password keyboard, and so on. */
+    private static boolean inputMethodMayLearn(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
+        AtomicBoolean mayLearn = new AtomicBoolean();
+        scenario.onActivity(activity -> {
+            EditorInfo editorInfo = new EditorInfo();
+            activity.getWebView().onCreateInputConnection(editorInfo);
+            mayLearn.set((editorInfo.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0);
+        });
+        return mayLearn.get();
+    }
+
+    /**
+     * Each kind of field gets the keyboard for it: password fields a password keyboard, and so on. The input method
+     * may not learn what is typed in a password field, also when it shows its text.
+     */
     @Test
     public void testFieldsGetTheirInputType() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
@@ -560,7 +573,9 @@ public class WebViewImeTest {
         scenario.moveToState(Lifecycle.State.RESUMED);
 
         assertInputType(scenario, "text", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT);
+        assertTrue("The input method may not learn from #text", inputMethodMayLearn(scenario));
         assertInputType(scenario, "password", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
+        assertFalse("The input method may learn from #password", inputMethodMayLearn(scenario));
         assertInputType(scenario, "email",
                         EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS);
         assertInputType(scenario, "tel", EditorInfo.TYPE_CLASS_PHONE);
@@ -571,8 +586,10 @@ public class WebViewImeTest {
         assertInputType(scenario, "numeric", EditorInfo.TYPE_CLASS_NUMBER);
         assertInputType(scenario, "revealed",
                         EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        assertFalse("The input method may learn from #revealed", inputMethodMayLearn(scenario));
         assertInputType(scenario, "revealed-pin",
                         EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD);
+        assertFalse("The input method may learn from #revealed-pin", inputMethodMayLearn(scenario));
     }
 
     // Records the input type of each connection that Android asks the WebView for, as the input method gets it.
