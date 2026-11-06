@@ -63,9 +63,8 @@ static guint64 wpeProcessManagerAndroidLaunch(WPEProcessManager*, WPEProcessLaun
     return processId;
 }
 
-// FIXME: when Android decides to kill a Service on its own (observed Java-side in
-// WPERuntime's onServiceDisconnected), WebKit is not notified and will not respawn
-// the auxiliary process until it needs it again.
+// When Android ends the process of a service on its own, WebKit sees its connection to the process close, and starts
+// a new process when it needs one.
 static void wpeProcessManagerAndroidTerminate(WPEProcessManager*, guint64 pid)
 {
     Logging::logDebug("WPEProcessManagerAndroid::terminate(%" G_GUINT64_FORMAT ") [tid %d]", pid, gettid());

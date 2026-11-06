@@ -42,6 +42,11 @@ public final class WebKitWebView {
     public static final int SNAPSHOT_REGION_VISIBLE = 0;
     public static final int SNAPSHOT_REGION_FULL_DOCUMENT = 1;
 
+    // Mirrors WebKitWebProcessTerminationReason.
+    public static final int WEB_PROCESS_CRASHED = 0;
+    public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
+    public static final int WEB_PROCESS_TERMINATED_BY_API = 2;
+
     private long mNativePtr = 0;
     private final WPEView wpeView;
     private final WPEInputMethodContext inputMethodContext;
@@ -107,6 +112,12 @@ public final class WebKitWebView {
         }
     }
 
+    public void terminateWebProcess() {
+        if (mNativePtr != 0) {
+            nativeTerminateWebProcess(mNativePtr);
+        }
+    }
+
     public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
 
     public void setBackgroundColor(@ColorInt int color) {
@@ -168,6 +179,7 @@ public final class WebKitWebView {
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
+        void onWebProcessTerminated(int reason);
     }
 
     private @Nullable Listener listener;
@@ -246,6 +258,13 @@ public final class WebKitWebView {
             nativeScriptDialogClose(dialogPtr);
     }
 
+    @Keep
+    private void onWebProcessTerminated(int reason) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onWebProcessTerminated(reason));
+    }
+
     /**
      * Answers a script dialog reported via {@link Listener#onScriptDialog}. Must be paired with
      *  {@link #scriptDialogClose}. For prompts, {@code text} carries the user's input.
@@ -311,4 +330,5 @@ public final class WebKitWebView {
                                                  @Nullable EvalCallbackHolder callbackHolder);
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
     private native void nativeScriptDialogClose(long dialogPtr);
+    private native void nativeTerminateWebProcess(long nativePtr);
 }
