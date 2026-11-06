@@ -50,7 +50,9 @@ import androidx.annotation.UiThread;
 import org.wpewebkit.R;
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEEventType;
+import org.wpewebkit.wpe.WPEInputHints;
 import org.wpewebkit.wpe.WPEInputMethodContext;
+import org.wpewebkit.wpe.WPEInputPurpose;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitSettings;
@@ -81,6 +83,9 @@ public class WebView extends FrameLayout {
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
+    // The input type and options that the input method was last restarted for.
+    private int imeInputType;
+    private int imeOptions;
     private PageSurfaceView surfaceView;
     private WebKitSettings webKitSettings;
     private WebSettings webSettings;
@@ -161,6 +166,10 @@ public class WebView extends FrameLayout {
             @Override
             public void onPreeditReset() {
                 onImePreeditReset();
+            }
+            @Override
+            public void onContentTypeChanged() {
+                onImeContentTypeChanged();
             }
         });
         this.webSettings = new WebSettings(webKitSettings);
@@ -806,6 +815,7 @@ public class WebView extends FrameLayout {
             return;
         if (focused) {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
+            updateImeContentType();
             inputMethodManager.restartInput(this);
             inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
         } else if (getWindowToken() != null) {
@@ -819,6 +829,76 @@ public class WebView extends FrameLayout {
         if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
             return;
         inputMethodManager.restartInput(this);
+    }
+
+    // The focused field changed its purpose or hints without losing focus, as a password field does when a "show
+    // password" button turns it into a text field, or the focus moved to another field: WebKit tells no focus out or
+    // focus in for that. Restart the input method if the field now needs another input type or options.
+    void onImeContentTypeChanged() {
+        if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
+            return;
+        if (updateImeContentType())
+            inputMethodManager.restartInput(this);
+    }
+
+    // Takes the input type and options of the focused field, and returns whether they changed.
+    private boolean updateImeContentType() {
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        int inputType = inputTypeForPurpose(purpose, hints);
+        int options = imeOptionsForPurpose(purpose, hints);
+        if (inputType == imeInputType && options == imeOptions)
+            return false;
+        imeInputType = inputType;
+        imeOptions = options;
+        return true;
+    }
+
+    // A field that has been a password field has the private hint, also when a "show password" button turns it into
+    // a text field. It gets a visible password keyboard, which neither suggests nor learns what is typed.
+    private static int inputTypeForPurpose(int purpose, int hints) {
+        boolean isPrivate = (hints & WPEInputHints.PRIVATE) != 0;
+        switch (purpose) {
+        case WPEInputPurpose.DIGITS:
+            return EditorInfo.TYPE_CLASS_NUMBER | (isPrivate ? EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD : 0);
+        case WPEInputPurpose.NUMBER:
+            return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_FLAG_SIGNED |
+                EditorInfo.TYPE_NUMBER_FLAG_DECIMAL;
+        case WPEInputPurpose.PHONE:
+            return EditorInfo.TYPE_CLASS_PHONE;
+        case WPEInputPurpose.URL:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_URI;
+        case WPEInputPurpose.EMAIL:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS;
+        case WPEInputPurpose.PASSWORD:
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+        case WPEInputPurpose.PIN:
+            return EditorInfo.TYPE_CLASS_NUMBER | EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD;
+        default:
+            if (isPrivate)
+                return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+            return EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+                capitalizationFlags(hints);
+        }
+    }
+
+    private static int capitalizationFlags(int hints) {
+        if ((hints & WPEInputHints.UPPERCASE_CHARS) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_CHARACTERS;
+        if ((hints & WPEInputHints.UPPERCASE_WORDS) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS;
+        if ((hints & WPEInputHints.UPPERCASE_SENTENCES) != 0)
+            return EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES;
+        return 0;
+    }
+
+    // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard.
+    private static int imeOptionsForPurpose(int purpose, int hints) {
+        int options = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        if (purpose == WPEInputPurpose.PASSWORD || purpose == WPEInputPurpose.PIN ||
+            (hints & WPEInputHints.PRIVATE) != 0)
+            options |= EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+        return options;
     }
 
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
@@ -836,8 +916,10 @@ public class WebView extends FrameLayout {
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
             return null;
-        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
-        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        outAttrs.inputType = inputTypeForPurpose(purpose, hints);
+        outAttrs.imeOptions = imeOptionsForPurpose(purpose, hints);
         outAttrs.actionLabel = null;
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
     }

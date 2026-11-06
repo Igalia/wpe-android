@@ -33,6 +33,8 @@ public final class WPEInputMethodContext {
         void onFocusOut();
         /** WebKit ended the composition itself, for example because the page was tapped. */
         void onPreeditReset();
+        /** The input purpose or the input hints changed. */
+        default void onContentTypeChanged() {}
     }
 
     private long mNativePtr = 0;
@@ -66,6 +68,14 @@ public final class WPEInputMethodContext {
             nativeFinishPreedit(mNativePtr);
     }
 
+    /** One of the {@link WPEInputPurpose} values, for the focused field. */
+    public int getInputPurpose() {
+        return mNativePtr != 0 ? nativeGetInputPurpose(mNativePtr) : WPEInputPurpose.FREE_FORM;
+    }
+
+    /** A combination of {@link WPEInputHints} flags, for the focused field. */
+    public int getInputHints() { return mNativePtr != 0 ? nativeGetInputHints(mNativePtr) : WPEInputHints.NONE; }
+
     public void setListener(@Nullable Listener listener) {
         nativeSetListener(mNativePtr, listener != null ? new ListenerHolder(listener) : null);
     }
@@ -93,6 +103,12 @@ public final class WPEInputMethodContext {
         public void onPreeditReset() {
             MainLooperDispatcher.post(delegate::onPreeditReset);
         }
+
+        // WebKit sets the purpose and the hints one after the other. Run the delegate after both are set.
+        @Keep
+        public void onContentTypeChanged() {
+            MainLooperDispatcher.postLater(delegate::onContentTypeChanged);
+        }
     }
 
     private native void nativeCommitText(long nativePtr, String text);
@@ -100,5 +116,7 @@ public final class WPEInputMethodContext {
     private native void nativeSetPreedit(long nativePtr, String text, int cursorOffset);
     private native void nativeFinishPreedit(long nativePtr);
     private native void nativeSetListener(long nativePtr, @Nullable ListenerHolder listener);
+    private native int nativeGetInputPurpose(long nativePtr);
+    private native int nativeGetInputHints(long nativePtr);
     private static native long nativeGetForView(long viewPtr);
 }
