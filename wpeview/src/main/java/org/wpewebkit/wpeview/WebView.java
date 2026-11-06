@@ -83,8 +83,9 @@ public class WebView extends FrameLayout {
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
-    // The input type that the input method was last restarted for.
+    // The input type and options that the input method was last restarted for.
     private int imeInputType;
+    private int imeOptions;
     private PageSurfaceView surfaceView;
     private WebKitSettings webKitSettings;
     private WebSettings webSettings;
@@ -814,7 +815,7 @@ public class WebView extends FrameLayout {
             return;
         if (focused) {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
-            updateImeInputType();
+            updateImeContentType();
             inputMethodManager.restartInput(this);
             inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
         } else if (getWindowToken() != null) {
@@ -832,20 +833,24 @@ public class WebView extends FrameLayout {
 
     // The focused field changed its purpose or hints without losing focus, as a password field does when a "show
     // password" button turns it into a text field, or the focus moved to another field: WebKit tells no focus out or
-    // focus in for that. Restart the input method if the field now needs another input type.
+    // focus in for that. Restart the input method if the field now needs another input type or options.
     void onImeContentTypeChanged() {
         if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
             return;
-        if (updateImeInputType())
+        if (updateImeContentType())
             inputMethodManager.restartInput(this);
     }
 
-    // Takes the input type of the focused field, and returns whether it changed.
-    private boolean updateImeInputType() {
-        int inputType = inputTypeForPurpose(imContext.getInputPurpose(), imContext.getInputHints());
-        if (inputType == imeInputType)
+    // Takes the input type and options of the focused field, and returns whether they changed.
+    private boolean updateImeContentType() {
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        int inputType = inputTypeForPurpose(purpose, hints);
+        int options = imeOptionsForPurpose(purpose, hints);
+        if (inputType == imeInputType && options == imeOptions)
             return false;
         imeInputType = inputType;
+        imeOptions = options;
         return true;
     }
 
@@ -875,6 +880,15 @@ public class WebView extends FrameLayout {
         }
     }
 
+    // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard.
+    private static int imeOptionsForPurpose(int purpose, int hints) {
+        int options = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        if (purpose == WPEInputPurpose.PASSWORD || purpose == WPEInputPurpose.PIN ||
+            (hints & WPEInputHints.PRIVATE) != 0)
+            options |= EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+        return options;
+    }
+
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
     // connection, which no longer exists.
     private void releaseInputMethod() {
@@ -890,8 +904,10 @@ public class WebView extends FrameLayout {
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
             return null;
-        outAttrs.inputType = inputTypeForPurpose(imContext.getInputPurpose(), imContext.getInputHints());
-        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        outAttrs.inputType = inputTypeForPurpose(purpose, hints);
+        outAttrs.imeOptions = imeOptionsForPurpose(purpose, hints);
         outAttrs.actionLabel = null;
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
     }
