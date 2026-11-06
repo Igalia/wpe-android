@@ -34,7 +34,8 @@ struct _WPEDisplayAndroid {
     WPEDisplay parent;
     EGLDisplay eglDisplay;
     WPEKeymap* keymap;
-    WPEScreen* screen;
+    // A screen for each Android display, the default display first: WebKit takes the first screen as the primary.
+    GPtrArray* screens;
 };
 
 G_DEFINE_FINAL_TYPE(WPEDisplayAndroid, wpe_display_android, WPE_TYPE_DISPLAY)
@@ -44,7 +45,7 @@ static void wpeDisplayAndroidDispose(GObject* object)
     auto* display = WPE_DISPLAY_ANDROID(object);
 
     g_clear_object(&display->keymap);
-    g_clear_object(&display->screen);
+    g_clear_pointer(&display->screens, g_ptr_array_unref);
 
     G_OBJECT_CLASS(wpe_display_android_parent_class)->dispose(object);
 }
@@ -86,7 +87,6 @@ static gboolean wpeDisplayAndroidConnect(WPEDisplay* display, GError** error)
     Logging::logDebug("WPEDisplayAndroid: EGL initialized: version %d.%d", major, minor);
     displayAndroid->eglDisplay = eglDisplay;
     displayAndroid->keymap = wpe_keymap_android_new();
-    displayAndroid->screen = wpe_screen_android_new();
 
     if (!wpe_process_manager_get_default()) {
         WPEProcessManager* processManager = wpe_process_manager_android_new();
@@ -155,13 +155,16 @@ static WPEKeymap* wpeDisplayAndroidGetKeymap(WPEDisplay* display)
 
 static guint wpeDisplayAndroidGetNScreens(WPEDisplay* display)
 {
-    return WPE_DISPLAY_ANDROID(display)->screen ? 1 : 0;
+    auto* displayAndroid = WPE_DISPLAY_ANDROID(display);
+    return displayAndroid->screens ? displayAndroid->screens->len : 0;
 }
 
 static WPEScreen* wpeDisplayAndroidGetScreen(WPEDisplay* display, guint index)
 {
     auto* displayAndroid = WPE_DISPLAY_ANDROID(display);
-    return index == 0 ? displayAndroid->screen : nullptr;
+    if (!displayAndroid->screens || index >= displayAndroid->screens->len)
+        return nullptr;
+    return WPE_SCREEN(g_ptr_array_index(displayAndroid->screens, index));
 }
 
 static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
@@ -187,6 +190,8 @@ static void wpe_display_android_class_init(WPEDisplayAndroidClass* klass)
 
 static void wpe_display_android_init(WPEDisplayAndroid* display)
 {
+    display->screens = g_ptr_array_new_with_free_func(g_object_unref);
+
     // TODO: Support WPE_AVAILABLE_INPUT_DEVICE_MOUSE when one is connected.
     auto inputDevices = static_cast<WPEAvailableInputDevices>(
         WPE_AVAILABLE_INPUT_DEVICE_TOUCHSCREEN | WPE_AVAILABLE_INPUT_DEVICE_KEYBOARD);
@@ -196,4 +201,30 @@ static void wpe_display_android_init(WPEDisplayAndroid* display)
 WPEDisplay* wpe_display_android_new(void)
 {
     return WPE_DISPLAY(g_object_new(WPE_TYPE_DISPLAY_ANDROID, nullptr));
+}
+
+// WebKit reads the size, scale and refresh rate of a screen when it is added, so they are set before.
+void wpe_display_android_add_screen(WPEDisplayAndroid* display, WPEScreen* screen)
+{
+    g_return_if_fail(WPE_IS_DISPLAY_ANDROID(display));
+    g_return_if_fail(WPE_IS_SCREEN(screen));
+    g_return_if_fail(!g_ptr_array_find(display->screens, screen, nullptr));
+
+    g_ptr_array_add(display->screens, g_object_ref(screen));
+    wpe_display_screen_added(WPE_DISPLAY(display), screen);
+}
+
+void wpe_display_android_remove_screen(WPEDisplayAndroid* display, WPEScreen* screen)
+{
+    g_return_if_fail(WPE_IS_DISPLAY_ANDROID(display));
+    g_return_if_fail(WPE_IS_SCREEN(screen));
+
+    guint index = 0;
+    if (!g_ptr_array_find(display->screens, screen, &index))
+        return;
+
+    // The screen leaves the list before the signal, so that WebKit finds the new primary screen.
+    auto* removedScreen = static_cast<WPEScreen*>(g_ptr_array_steal_index(display->screens, index));
+    wpe_display_screen_removed(WPE_DISPLAY(display), removedScreen);
+    g_object_unref(removedScreen);
 }

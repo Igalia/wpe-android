@@ -27,6 +27,7 @@ struct _WPEToplevelAndroid {
     ANativeWindow* window;
     ASurfaceControl* surfaceControl;
     ASurfaceControl* rootSurfaceControl;
+    WPEScreen* screen;
     gboolean windowFocused;
     int physicalWidth;
     int physicalHeight;
@@ -45,8 +46,7 @@ static gboolean wpeToplevelAndroidResize(WPEToplevel* toplevel, int width, int h
 
 static WPEScreen* wpeToplevelAndroidGetScreen(WPEToplevel* toplevel)
 {
-    WPEDisplay* display = wpe_toplevel_get_display(toplevel);
-    return display ? wpe_display_get_screen(display, 0) : nullptr;
+    return WPE_TOPLEVEL_ANDROID(toplevel)->screen;
 }
 
 static float wpeToplevelAndroidGetScreenScale(WPEToplevelAndroid* toplevel)
@@ -120,6 +120,40 @@ static void wpeToplevelAndroidScreenScaleChanged(WPEToplevelAndroid* toplevel, G
         size);
 }
 
+// The screen is the one of the Android display the window shows on. A new screen can bring a new scale, and pages
+// get its size and the rest of its properties.
+void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* screen)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+    g_return_if_fail(!screen || WPE_IS_SCREEN(screen));
+
+    if (toplevel->screen == screen)
+        return;
+
+    if (toplevel->screen) {
+        g_signal_handlers_disconnect_by_data(toplevel->screen, toplevel);
+        g_object_unref(toplevel->screen);
+    }
+    toplevel->screen = screen ? WPE_SCREEN(g_object_ref(screen)) : nullptr;
+    if (!screen)
+        return;
+
+    g_signal_connect_swapped(screen, "notify::scale", G_CALLBACK(wpeToplevelAndroidScreenScaleChanged), toplevel);
+    wpeToplevelAndroidScreenScaleChanged(toplevel, nullptr, screen);
+    wpe_toplevel_screen_changed(WPE_TOPLEVEL(toplevel));
+}
+
+static void wpeToplevelAndroidDispose(GObject* object)
+{
+    auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
+    if (toplevel->screen) {
+        g_signal_handlers_disconnect_by_data(toplevel->screen, toplevel);
+        g_clear_object(&toplevel->screen);
+    }
+
+    G_OBJECT_CLASS(wpe_toplevel_android_parent_class)->dispose(object);
+}
+
 static void wpeToplevelAndroidFinalize(GObject* object)
 {
     auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
@@ -135,6 +169,7 @@ static void wpeToplevelAndroidFinalize(GObject* object)
 static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* klass)
 {
     GObjectClass* objectClass = G_OBJECT_CLASS(klass);
+    objectClass->dispose = wpeToplevelAndroidDispose;
     objectClass->finalize = wpeToplevelAndroidFinalize;
 
     WPEToplevelClass* toplevelClass = WPE_TOPLEVEL_CLASS(klass);
@@ -153,10 +188,8 @@ WPEToplevel* wpe_toplevel_android_new(WPEDisplay* display, ANativeWindow* window
 {
     g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
     auto* toplevel = WPE_TOPLEVEL_ANDROID(g_object_new(WPE_TYPE_TOPLEVEL_ANDROID, "display", display, nullptr));
-    if (auto* screen = wpeToplevelAndroidGetScreen(WPE_TOPLEVEL(toplevel))) {
-        g_signal_connect_object(
-            screen, "notify::scale", G_CALLBACK(wpeToplevelAndroidScreenScaleChanged), toplevel, G_CONNECT_SWAPPED);
-    }
+    // The toplevel starts on the primary screen, and WebView moves it to the screen of the display it shows on.
+    wpe_toplevel_android_set_screen(toplevel, wpe_display_get_screen(display, 0));
     wpeToplevelAndroidSyncScaleAndSize(toplevel, 0, 0);
     if (window)
         wpe_toplevel_android_set_window(toplevel, window);
