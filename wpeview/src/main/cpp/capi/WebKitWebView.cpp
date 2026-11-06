@@ -222,7 +222,11 @@ public:
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
             JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose),
-            JNI::NativeMethod<void(jlong)>("nativeTerminateWebProcess", nativeTerminateWebProcess));
+            JNI::NativeMethod<void(jlong)>("nativeTerminateWebProcess", nativeTerminateWebProcess),
+            JNI::NativeMethod<jbyteArray(jlong)>("nativeSaveState", nativeSaveState),
+            JNI::NativeMethod<jboolean(jlong, jbyteArray)>("nativeRestoreState", nativeRestoreState),
+            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoBack", nativeCanGoBack),
+            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoForward", nativeCanGoForward));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -279,6 +283,10 @@ private:
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
     static void nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr);
+    static jbyteArray nativeSaveState(JNIEnv* env, jobject, jlong nativePtr);
+    static jboolean nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data);
+    static jboolean nativeCanGoBack(JNIEnv*, jobject, jlong nativePtr);
+    static jboolean nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -976,6 +984,64 @@ void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dial
 void JNIWebKitWebViewCache::nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr)
 {
     webkit_web_view_terminate_web_process(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+}
+
+// WebKit's session state of the view, which holds its Back/Forward list, serialized. Returns null, with Java's
+// OutOfMemoryError pending, if the array cannot be allocated.
+jbyteArray JNIWebKitWebViewCache::nativeSaveState(JNIEnv* env, jobject, jlong nativePtr)
+{
+    g_autoptr(WebKitWebViewSessionState) state
+        = webkit_web_view_get_session_state(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+    g_autoptr(GBytes) bytes = webkit_web_view_session_state_serialize(state);
+    gsize size = 0;
+    const auto* data = static_cast<const jbyte*>(g_bytes_get_data(bytes, &size));
+    jbyteArray array = env->NewByteArray(static_cast<jsize>(size));
+    if (array)
+        env->SetByteArrayRegion(array, 0, static_cast<jsize>(size), data);
+    return array;
+}
+
+// Restores a state from nativeSaveState, which replaces the Back/Forward list, and loads its current page: WebKit
+// restores the list without loading anything. WebKit restores nothing from a state it cannot read, or that has no
+// page.
+jboolean JNIWebKitWebViewCache::nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data)
+{
+    auto* webView = JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView;
+    const jsize size = env->GetArrayLength(data);
+    auto* copy = static_cast<jbyte*>(g_malloc(size));
+    env->GetByteArrayRegion(data, 0, size, copy);
+    g_autoptr(GBytes) bytes = g_bytes_new_take(copy, size);
+    g_autoptr(WebKitWebViewSessionState) state = webkit_web_view_session_state_new(bytes);
+    if (!state)
+        return JNI_FALSE;
+
+    // WebKit ignores a state without pages, and keeps the list of a view that has one. The current item is held, so
+    // that a restored item cannot take its place in memory.
+    auto* list = webkit_web_view_get_back_forward_list(webView);
+    auto* previousItem = webkit_back_forward_list_get_current_item(list);
+    if (previousItem)
+        g_object_ref(previousItem);
+    webkit_web_view_restore_session_state(webView, state);
+    auto* item = webkit_back_forward_list_get_current_item(list);
+    const bool restored = item && item != previousItem;
+    if (previousItem)
+        g_object_unref(previousItem);
+    if (!restored)
+        return JNI_FALSE;
+    webkit_web_view_go_to_back_forward_list_item(webView, item);
+    return JNI_TRUE;
+}
+
+jboolean JNIWebKitWebViewCache::nativeCanGoBack(JNIEnv*, jobject, jlong nativePtr)
+{
+    return webkit_web_view_can_go_back(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
+                                                                                                   : JNI_FALSE;
+}
+
+jboolean JNIWebKitWebViewCache::nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr)
+{
+    return webkit_web_view_can_go_forward(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
+                                                                                                      : JNI_FALSE;
 }
 
 void configureWebKitWebViewJNIMappings()

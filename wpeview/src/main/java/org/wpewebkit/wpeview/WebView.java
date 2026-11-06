@@ -497,6 +497,35 @@ public class WebView extends FrameLayout {
         if (webKitWebView != null)
             webKitWebView.terminateWebProcess();
     }
+
+    /**
+     * Saves the history of the view, for {@link #restoreState} to give it to a new WebView later, for example after
+     * Android ended the app: the Back/Forward list with its current page, and for each page its address, its title, and
+     * the scroll position and form contents that WebKit kept for it. Cookies, storage and the state of scripts are not
+     * in it. Returns null once the view is destroyed.
+     * <p>
+     * The state grows with the history and the form contents, which may be private, so keep it in the app's own
+     * storage, such as a file. In the Bundle of {@link android.app.Activity#onSaveInstanceState} a large state makes
+     * Android fail with a {@link android.os.TransactionTooLargeException}. Save the address of the current page with
+     * the state, to load the page if {@link #restoreState} cannot read it.
+     */
+    public @Nullable byte[] saveState() { return webKitWebView != null ? webKitWebView.saveState() : null; }
+
+    /**
+     * Gives a new WebView, before it loads anything, the history that {@link #saveState} saved, and loads its current
+     * page again. {@link #canGoBack} and {@link #canGoForward} follow the restored Back/Forward list at once, while the
+     * page loads. Returns false, and loads nothing, if the state has no page, or if this version of WPE WebKit cannot
+     * read it, as one saved by a newer version: the app can load the address that it saved with the state instead.
+     */
+    public boolean restoreState(@NonNull byte[] state) {
+        Objects.requireNonNull(state, "state");
+        if (webKitWebView == null || !webKitWebView.restoreState(state))
+            return false;
+        canGoBack = webKitWebView.canGoBack();
+        canGoForward = webKitWebView.canGoForward();
+        return true;
+    }
+
     /**
      * Returns the settings of this WebView. Every WebView has its own, starting from the defaults of its
      * {@link WebContext}, so changing them does not affect other WebViews. After {@link #destroy()} they keep
