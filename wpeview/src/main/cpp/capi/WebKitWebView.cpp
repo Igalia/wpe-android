@@ -31,6 +31,7 @@
 #include <string>
 #include <string_view>
 #include <sys/resource.h>
+#include <unordered_map>
 #include <vector>
 #include <wpe/webkit.h>
 #include <wpe/wpe-platform.h>
@@ -104,6 +105,12 @@ struct WebKitWebViewBridge {
         for (gulong id : m_signalIds)
             g_signal_handler_disconnect(m_webView, id);
         m_signalIds.clear();
+        // The loads of the view end with it, and WebKit cancels the requests that are left.
+        for (auto& [id, request] : m_authenticationRequests) {
+            g_signal_handlers_disconnect_by_data(request, this);
+            g_object_unref(request);
+        }
+        m_authenticationRequests.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         if (m_downloadStartedId)
@@ -141,6 +148,10 @@ struct WebKitWebViewBridge {
     // The address of the last load the app asked for, as WebKit keeps it, until WebKit decides on the next main frame
     // navigation, which is that load if it has this address. The app is not asked about its own loads.
     std::string m_appLoadUri;
+    // The authentication requests that the app was asked about and has not answered, by the id it was given. WebKit
+    // cancels a request when its load ends or another one starts, and a later answer for it is dropped.
+    std::unordered_map<jlong, WebKitAuthenticationRequest*> m_authenticationRequests;
+    jlong m_lastAuthenticationRequestId {0};
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -228,6 +239,9 @@ public:
         , m_onRunFileChooser(getMethod<void(jlong, jstringArray, jboolean)>("onRunFileChooser"))
         , m_onRunColorChooser(getMethod<void(jlong, jint, jboolean)>("onRunColorChooser"))
         , m_onColorChooserFinished(getMethod<void(jlong)>("onColorChooserFinished"))
+        , m_onAuthenticate(
+              getMethod<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)>("onAuthenticate"))
+        , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -259,7 +273,9 @@ public:
             JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat, jfloat)>(
                 "nativeColorChooserSetColor", nativeColorChooserSetColor),
             JNI::NativeMethod<void(jlong)>("nativeColorChooserFinish", nativeColorChooserFinish),
-            JNI::NativeMethod<void(jlong)>("nativeColorChooserCancel", nativeColorChooserCancel));
+            JNI::NativeMethod<void(jlong)>("nativeColorChooserCancel", nativeColorChooserCancel),
+            JNI::NativeMethod<void(jlong, jlong, jstring, jstring)>("nativeAuthenticate", nativeAuthenticate),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeAuthenticationCancel", nativeAuthenticationCancel));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -279,6 +295,8 @@ public:
     const JNI::Method<void(jlong, jstringArray, jboolean)> m_onRunFileChooser;
     const JNI::Method<void(jlong, jint, jboolean)> m_onRunColorChooser;
     const JNI::Method<void(jlong)> m_onColorChooserFinished;
+    const JNI::Method<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)> m_onAuthenticate;
+    const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -306,6 +324,9 @@ private:
     static gboolean onRunFileChooser(WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge);
     static gboolean onRunColorChooser(WebKitWebView*, WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
     static void onColorChooserFinished(WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
+    static gboolean onAuthenticate(WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
+    static void onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
+    static void answerAuthentication(WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -342,6 +363,9 @@ private:
         JNIEnv*, jobject, jlong requestPtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
     static void nativeColorChooserFinish(JNIEnv*, jobject, jlong requestPtr);
     static void nativeColorChooserCancel(JNIEnv*, jobject, jlong requestPtr);
+    static void nativeAuthenticate(
+        JNIEnv*, jobject, jlong nativePtr, jlong requestId, jstring username, jstring password);
+    static void nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -718,6 +742,19 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     bridge->m_loadStarting = false;
     bridge->m_navigationPending = false;
     bridge->m_failedLoadUri.clear();
+
+    // WebKit ends every load of the view with it, also one in another web process that would have replaced the page,
+    // but cancels a request for credentials only when a load starts or ends. So the requests are cancelled here, which
+    // tells the app, as when the page goes elsewhere, to close its dialog.
+    std::vector<WebKitAuthenticationRequest*> requests;
+    requests.reserve(bridge->m_authenticationRequests.size());
+    for (const auto& entry : bridge->m_authenticationRequests)
+        requests.push_back(WEBKIT_AUTHENTICATION_REQUEST(g_object_ref(entry.second)));
+    for (auto* request : requests) {
+        webkit_authentication_request_cancel(request);
+        g_object_unref(request);
+    }
+
     if (!getJNIWebKitWebViewCache().m_onWebProcessTerminated.invoke(bridge->m_javaRef.get(), static_cast<jint>(reason)))
         Logging::logError("cannot deliver WebKitWebView onWebProcessTerminated callback");
 }
@@ -855,6 +892,83 @@ void JNIWebKitWebViewCache::onColorChooserFinished(WebKitColorChooserRequest* re
     g_object_unref(request);
 }
 
+// A server or a proxy asks for a user name and password. The load waits until the app answers.
+gboolean JNIWebKitWebViewCache::onAuthenticate(
+    WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
+{
+    switch (webkit_authentication_request_get_scheme(request)) {
+    case WEBKIT_AUTHENTICATION_SCHEME_CLIENT_CERTIFICATE_REQUESTED:
+    case WEBKIT_AUTHENTICATION_SCHEME_CLIENT_CERTIFICATE_PIN_REQUESTED:
+    case WEBKIT_AUTHENTICATION_SCHEME_SERVER_TRUST_EVALUATION_REQUESTED:
+        // Not a user name and password. WPEView has no client certificates to offer, so the connection goes on
+        // without one, and the server decides whether that is enough. WebKit does not ask to evaluate the trust of a
+        // server with libsoup, which reports a certificate it cannot trust as a load failure, but such a request would
+        // not be one for a user name and password either.
+        webkit_authentication_request_authenticate(request, nullptr);
+        return TRUE;
+    default:
+        break;
+    }
+
+    jlong requestId = ++bridge->m_lastAuthenticationRequestId;
+    bridge->m_authenticationRequests.emplace(requestId, WEBKIT_AUTHENTICATION_REQUEST(g_object_ref(request)));
+    g_signal_connect(request, "cancelled", G_CALLBACK(onAuthenticationCancelled), bridge);
+
+    // The scheme of the address that is loaded. WebKit gives it also when a proxy asks, as it does not tell how the
+    // proxy is reached.
+    WebKitSecurityOrigin* origin = webkit_authentication_request_get_security_origin(request);
+    const char* scheme = origin ? webkit_security_origin_get_protocol(origin) : nullptr;
+    auto jScheme = JNI::String(scheme ? scheme : "");
+    if (origin)
+        webkit_security_origin_unref(origin);
+    const char* host = webkit_authentication_request_get_host(request);
+    const char* realm = webkit_authentication_request_get_realm(request);
+    auto jHost = JNI::String(host ? host : "");
+    auto jRealm = JNI::String(realm ? realm : "");
+    if (!getJNIWebKitWebViewCache().m_onAuthenticate.invoke(bridge->m_javaRef.get(), requestId,
+            static_cast<jstring>(jHost), static_cast<jint>(webkit_authentication_request_get_port(request)),
+            static_cast<jstring>(jScheme), static_cast<jstring>(jRealm),
+            static_cast<jboolean>(webkit_authentication_request_is_for_proxy(request)),
+            static_cast<jboolean>(webkit_authentication_request_is_retry(request)))) {
+        Logging::logError("cannot deliver WebKitWebView onAuthenticate callback");
+        answerAuthentication(bridge, requestId, nullptr);
+    }
+
+    return TRUE;
+}
+
+// WebKit cancels a request when its load ends or another one starts, so that the app can close its dialog. It keeps
+// its own reference to the request meanwhile.
+void JNIWebKitWebViewCache::onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
+{
+    auto& requests = bridge->m_authenticationRequests;
+    auto it = std::find_if(
+        requests.begin(), requests.end(), [request](const auto& entry) { return entry.second == request; });
+    if (it == requests.end())
+        return;
+    jlong requestId = it->first;
+    requests.erase(it);
+    g_signal_handlers_disconnect_by_data(request, bridge);
+    g_object_unref(request);
+    if (!getJNIWebKitWebViewCache().m_onAuthenticationCancelled.invoke(bridge->m_javaRef.get(), requestId))
+        Logging::logError("cannot deliver WebKitWebView onAuthenticationCancelled callback");
+}
+
+// Answers a request the app was asked about, unless WebKit cancelled it meanwhile. Without a credential the load goes
+// on without one, and shows what the server sent with its request for one, such as its 401 page.
+void JNIWebKitWebViewCache::answerAuthentication(
+    WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential)
+{
+    auto it = bridge->m_authenticationRequests.find(requestId);
+    if (it == bridge->m_authenticationRequests.end())
+        return;
+    WebKitAuthenticationRequest* request = it->second;
+    bridge->m_authenticationRequests.erase(it);
+    g_signal_handlers_disconnect_by_data(request, bridge);
+    webkit_authentication_request_authenticate(request, credential);
+    g_object_unref(request);
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -939,6 +1053,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), bridge),
         g_signal_connect(webView, "run-file-chooser", G_CALLBACK(onRunFileChooser), bridge),
         g_signal_connect(webView, "run-color-chooser", G_CALLBACK(onRunColorChooser), bridge),
+        g_signal_connect(webView, "authenticate", G_CALLBACK(onAuthenticate), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1380,6 +1495,21 @@ void JNIWebKitWebViewCache::nativeColorChooserCancel(JNIEnv*, jobject, jlong req
 {
     // Gives the field back the color it had when it asked.
     webkit_color_chooser_request_cancel(JNI::from_jlong<WebKitColorChooserRequest>(requestPtr));
+}
+
+// The credentials are kept for the session, in memory only, as WebKit sends them again for the other pages of the
+// same realm.
+void JNIWebKitWebViewCache::nativeAuthenticate(
+    JNIEnv*, jobject, jlong nativePtr, jlong requestId, jstring username, jstring password)
+{
+    g_autoptr(WebKitCredential) credential = webkit_credential_new(JNI::String(username).getContent().get(),
+        JNI::String(password).getContent().get(), WEBKIT_CREDENTIAL_PERSISTENCE_FOR_SESSION);
+    answerAuthentication(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), requestId, credential);
+}
+
+void JNIWebKitWebViewCache::nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId)
+{
+    answerAuthentication(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), requestId, nullptr);
 }
 
 void configureWebKitWebViewJNIMappings()

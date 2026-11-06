@@ -249,6 +249,11 @@ public final class WebKitWebView {
         boolean onRunColorChooser(long requestPtr, @ColorInt int color, boolean supportsAlpha);
         /** The page ended a color chooser request that was taken, for example because the field went away. */
         void onColorChooserFinished(long requestPtr);
+
+        // The scheme is the one of the address that is loaded, also when a proxy asks.
+        void onHttpAuthRequest(long requestId, @NonNull String host, int port, @NonNull String scheme,
+                               @NonNull String realm, boolean isProxy, boolean isRetry);
+        void onHttpAuthRequestCancelled(long requestId);
     }
 
     private @Nullable Listener listener;
@@ -455,6 +460,42 @@ public final class WebKitWebView {
             nativeColorChooserCancel(requestPtr);
     }
 
+    @Keep
+    private void onAuthenticate(long requestId, String host, int port, String scheme, String realm, boolean isProxy,
+                                boolean isRetry) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(
+                () -> currentListener.onHttpAuthRequest(requestId, host, port, scheme, realm, isProxy, isRetry));
+        else
+            nativeAuthenticationCancel(mNativePtr, requestId);
+    }
+
+    @Keep
+    private void onAuthenticationCancelled(long requestId) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onHttpAuthRequestCancelled(requestId));
+    }
+
+    /**
+     * Answers a request reported via {@link Listener#onHttpAuthRequest} with these credentials. Only the first answer
+     * counts, and none counts once WebKit cancelled the request, because its load ended or another one started.
+     */
+    public void authenticate(long requestId, @NonNull String username, @NonNull String password) {
+        if (mNativePtr != 0)
+            nativeAuthenticate(mNativePtr, requestId, username, password);
+    }
+
+    /**
+     * Answers a request reported via {@link Listener#onHttpAuthRequest} without credentials, so that the load goes on
+     * and shows what the server sent with its request for them, such as its 401 page.
+     */
+    public void cancelAuthentication(long requestId) {
+        if (mNativePtr != 0)
+            nativeAuthenticationCancel(mNativePtr, requestId);
+    }
+
     private static class SnapshotCallbackHolder {
         private final SnapshotCallback callback;
 
@@ -520,4 +561,6 @@ public final class WebKitWebView {
     private native void nativeColorChooserSetColor(long requestPtr, float red, float green, float blue, float alpha);
     private native void nativeColorChooserFinish(long requestPtr);
     private native void nativeColorChooserCancel(long requestPtr);
+    private native void nativeAuthenticate(long nativePtr, long requestId, String username, String password);
+    private native void nativeAuthenticationCancel(long nativePtr, long requestId);
 }
