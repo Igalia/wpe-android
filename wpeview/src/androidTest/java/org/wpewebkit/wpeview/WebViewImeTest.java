@@ -13,6 +13,7 @@ import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,11 +31,15 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * These tests act as the input method: they get the WebView's InputConnection and send text through it. So their
+ * activity keeps Android's input method away from its window, see {@link WebViewTestActivity#withoutInputMethod}.
+ */
 @RunWith(AndroidJUnit4.class)
 public class WebViewImeTest {
     @Rule
-    public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
-        new ActivityScenarioRule<>(WebViewTestActivity.class);
+    public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule = new ActivityScenarioRule<>(
+        WebViewTestActivity.withoutInputMethod(InstrumentationRegistry.getInstrumentation().getTargetContext()));
 
     /**
      * Verifies that focusing an editable element in the page makes the WebView an active text
@@ -304,8 +309,8 @@ public class WebViewImeTest {
         scenario.moveToState(Lifecycle.State.RESUMED);
         InputConnection connection = focusEditor(scenario);
 
-        // Stands in for Android closing the old connection when the input method restarts, which an input method
-        // under instrumentation may not do.
+        // Stands in for Android closing the old connection when the input method restarts, since no input method
+        // connects to this window.
         CountDownLatch reset = new CountDownLatch(1);
         scenario.onActivity(activity -> {
             WebView view = activity.getWebView();
