@@ -19,11 +19,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wpewebkit.wpe.WPEInputMethodContext;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -324,6 +327,10 @@ public class WebViewImeTest {
                     connection.finishComposingText();
                     view.onImePreeditReset();
                 }
+                @Override
+                public void onContentTypeChanged() {
+                    view.onImeContentTypeChanged();
+                }
             });
             connection.setComposingText("wor", 1);
         });
@@ -367,6 +374,155 @@ public class WebViewImeTest {
         scenario.onActivity(activity -> connection.commitText("cd\uDE00", 1));
         assertComposition(scenario, "Committed text with an unpaired surrogate was dropped",
                           "document.getElementById('editor').value === 'cd\\uFFFD'");
+    }
+
+    private static final String FIELD_TYPES_PAGE =
+        "<html><body><input id='text'><input id='password' type='password'><input id='number' type='number'>"
+        + "<input id='numeric' inputmode='numeric'><input id='tel' type='tel'><input id='email' type='email'>"
+        + "<input id='url' type='url'></body></html>";
+
+    private static final int CLASS_AND_VARIATION = EditorInfo.TYPE_MASK_CLASS | EditorInfo.TYPE_MASK_VARIATION;
+
+    // Focuses the field with the given id and waits until the connection to it has the expected class and variation:
+    // when the focus moves from a field to another, the WebView is a text editor all along, and the new type comes a
+    // moment later. So the field focused before must have another class or variation. Returns the EditorInfo of that
+    // connection.
+    private static EditorInfo focusField(ActivityScenario<WebViewTestActivity> scenario, String id, int expected)
+        throws Throwable {
+        AtomicReference<EditorInfo> editorInfo = new AtomicReference<>();
+        for (int i = 0; i < 60; i++) {
+            scenario.onActivity(activity -> {
+                WebView view = activity.getWebView();
+                view.evaluateJavascript("document.getElementById('" + id + "').focus()", null);
+                EditorInfo info = new EditorInfo();
+                editorInfo.set(view.onCreateInputConnection(info) != null ? info : null);
+            });
+            if (editorInfo.get() != null && (editorInfo.get().inputType & CLASS_AND_VARIATION) == expected)
+                break;
+            Thread.sleep(250);
+        }
+        assertNotNull("#" + id + " did not yield an InputConnection", editorInfo.get());
+        assertEquals("Wrong input type for #" + id, Integer.toHexString(expected),
+                     Integer.toHexString(editorInfo.get().inputType & CLASS_AND_VARIATION));
+        return editorInfo.get();
+    }
+
+    /**
+     * Each kind of field asks the input method for the keyboard it needs, and the input method does not learn or
+     * suggest what is typed in a password field.
+     */
+    @Test
+    public void testFieldsGiveTheInputMethodTheirType() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.onActivity(activity -> activity.getWebView().requestFocus());
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(), FIELD_TYPES_PAGE);
+        scenario.moveToState(Lifecycle.State.RESUMED);
+
+        EditorInfo text =
+            focusField(scenario, "text", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT);
+        assertEquals("A text field is kept from learning", 0,
+                     text.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+
+        EditorInfo password =
+            focusField(scenario, "password", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
+        assertTrue("A password field gets suggestions",
+                   (password.inputType & EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0);
+        assertTrue("A password field is learned",
+                   (password.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0);
+
+        EditorInfo number = focusField(scenario, "number", EditorInfo.TYPE_CLASS_NUMBER);
+        int numberFlags = EditorInfo.TYPE_NUMBER_FLAG_DECIMAL | EditorInfo.TYPE_NUMBER_FLAG_SIGNED;
+        assertEquals("A number field does not take fractions and negative numbers", numberFlags,
+                     number.inputType & numberFlags);
+
+        focusField(scenario, "tel", EditorInfo.TYPE_CLASS_PHONE);
+
+        EditorInfo numeric = focusField(scenario, "numeric", EditorInfo.TYPE_CLASS_NUMBER);
+        assertEquals("A numeric field takes fractions or negative numbers", 0, numeric.inputType & numberFlags);
+
+        focusField(scenario, "email", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS);
+        focusField(scenario, "url", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_URI);
+    }
+
+    /**
+     * When the focus moves from a field to another that takes another kind of text, the WebView restarts the input
+     * method, which asks for a connection with the type of the new field. This needs the window of the test to have the
+     * focus, as the input method connects only to a view of the focused window.
+     */
+    @Test
+    public void testInputMethodRestartsForAFieldOfAnotherType() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        // The types of the connections the input method asked for. Only used on the main thread.
+        List<Integer> types = new ArrayList<>();
+        AtomicReference<WebView> webView = new AtomicReference<>();
+        CountDownLatch loaded = new CountDownLatch(1);
+        try {
+            scenario.onActivity(activity -> {
+                webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)) {
+                    @Override
+                    public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
+                        InputConnection connection = super.onCreateInputConnection(outAttrs);
+                        if (connection != null)
+                            types.add(outAttrs.inputType & CLASS_AND_VARIATION);
+                        return connection;
+                    }
+                });
+                webView.get().setWebViewClient(new WebViewClient() {
+                    @Override
+                    public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                        loaded.countDown();
+                    }
+                });
+                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
+                webView.get().requestFocus();
+                webView.get().loadHtml(FIELD_TYPES_PAGE, null);
+            });
+            assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+
+            // The input method only connects to a view of the focused window.
+            AtomicBoolean windowFocused = new AtomicBoolean(false);
+            for (int i = 0; i < 60 && !windowFocused.get(); i++) {
+                scenario.onActivity(activity -> windowFocused.set(webView.get().hasWindowFocus()));
+                if (!windowFocused.get())
+                    Thread.sleep(250);
+            }
+            assertTrue("The window of the test never got the focus", windowFocused.get());
+
+            int passwordType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+            assertEquals("The input method did not connect to the password field", Integer.toHexString(passwordType),
+                         focusAndWaitForInputType(scenario, webView.get(), types, "password", passwordType));
+            int numberType = EditorInfo.TYPE_CLASS_NUMBER;
+            assertEquals("The input method was not restarted for the number field", Integer.toHexString(numberType),
+                         focusAndWaitForInputType(scenario, webView.get(), types, "number", numberType));
+        } finally {
+            scenario.onActivity(activity -> {
+                WebView view = webView.get();
+                if (view != null) {
+                    if (view.getParent() != null)
+                        ((ViewGroup)view.getParent()).removeView(view);
+                    view.destroy();
+                }
+            });
+        }
+    }
+
+    // Focuses the field with the given id in the WebView and waits for the input method to ask for a connection of
+    // the expected type. Returns the type of the last connection it asked for, in hexadecimal.
+    private static String focusAndWaitForInputType(ActivityScenario<WebViewTestActivity> scenario, WebView webView,
+                                                   List<Integer> types, String id, int expected) throws Throwable {
+        AtomicReference<Integer> last = new AtomicReference<>();
+        for (int i = 0; i < 60; i++) {
+            scenario.onActivity(activity -> {
+                webView.evaluateJavascript("document.getElementById('" + id + "').focus()", null);
+                last.set(types.isEmpty() ? null : types.get(types.size() - 1));
+            });
+            if (last.get() != null && last.get() == expected)
+                break;
+            Thread.sleep(250);
+        }
+        return last.get() != null ? Integer.toHexString(last.get()) : "none";
     }
 
     // Waits for the condition to hold in the page and reports the editor's value and events if it never does.

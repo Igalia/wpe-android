@@ -29,6 +29,7 @@ G_DECLARE_FINAL_TYPE(WPEInputMethodContextAndroid, wpe_input_method_context_andr
 
 using WPEInputMethodContextAndroidFocusCallback = void (*)(gpointer userData);
 using WPEInputMethodContextAndroidResetCallback = void (*)(gpointer userData);
+using WPEInputMethodContextAndroidContentTypeCallback = void (*)(gpointer userData);
 
 WPEInputMethodContext* wpe_input_method_context_android_new(WPEView* view);
 
@@ -41,6 +42,11 @@ void wpe_input_method_context_android_set_focus_callbacks(WPEInputMethodContextA
 // Called when WebKit ends the composition itself, for example when the page is tapped.
 void wpe_input_method_context_android_set_reset_callback(
     WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidResetCallback callback, gpointer userData);
+
+// Called when the input purpose or the input hints change. WebKit sets them for a field before it tells about the
+// focus in, and changes them with no focus change at all when the focus moves from a field to another.
+void wpe_input_method_context_android_set_content_type_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidContentTypeCallback callback, gpointer userData);
 
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text);
 

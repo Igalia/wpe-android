@@ -27,6 +27,8 @@ struct _WPEInputMethodContextAndroid {
     gpointer focusCallbackUserData;
     WPEInputMethodContextAndroidResetCallback resetCallback;
     gpointer resetCallbackUserData;
+    WPEInputMethodContextAndroidContentTypeCallback contentTypeCallback;
+    gpointer contentTypeCallbackUserData;
     // Non-null while a preedit is shown, even when it is empty.
     gchar* preeditText;
     guint preeditCursorOffset;
@@ -56,6 +58,19 @@ static void wpeInputMethodContextAndroidFinalize(GObject* object)
     g_free(WPE_INPUT_METHOD_CONTEXT_ANDROID(object)->preeditText);
 
     G_OBJECT_CLASS(wpe_input_method_context_android_parent_class)->finalize(object);
+}
+
+static void wpeInputMethodContextAndroidNotify(GObject* object, GParamSpec* pspec)
+{
+    auto* parentNotify = G_OBJECT_CLASS(wpe_input_method_context_android_parent_class)->notify;
+    if (parentNotify)
+        parentNotify(object, pspec);
+
+    // The base class notifies these properties only when their values change.
+    auto* self = WPE_INPUT_METHOD_CONTEXT_ANDROID(object);
+    const char* name = g_param_spec_get_name(pspec);
+    if (self->contentTypeCallback && (!g_strcmp0(name, "input-purpose") || !g_strcmp0(name, "input-hints")))
+        self->contentTypeCallback(self->contentTypeCallbackUserData);
 }
 
 static void wpeInputMethodContextAndroidGetPreeditString(
@@ -114,6 +129,7 @@ static void wpe_input_method_context_android_class_init(WPEInputMethodContextAnd
     GObjectClass* objectClass = G_OBJECT_CLASS(klass);
     objectClass->dispose = wpeInputMethodContextAndroidDispose;
     objectClass->finalize = wpeInputMethodContextAndroidFinalize;
+    objectClass->notify = wpeInputMethodContextAndroidNotify;
 
     WPEInputMethodContextClass* imContextClass = WPE_INPUT_METHOD_CONTEXT_CLASS(klass);
     imContextClass->get_preedit_string = wpeInputMethodContextAndroidGetPreeditString;
@@ -161,6 +177,14 @@ void wpe_input_method_context_android_set_reset_callback(
     g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
     context->resetCallback = callback;
     context->resetCallbackUserData = userData;
+}
+
+void wpe_input_method_context_android_set_content_type_callback(
+    WPEInputMethodContextAndroid* context, WPEInputMethodContextAndroidContentTypeCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_INPUT_METHOD_CONTEXT_ANDROID(context));
+    context->contentTypeCallback = callback;
+    context->contentTypeCallbackUserData = userData;
 }
 
 void wpe_input_method_context_android_commit_text(WPEInputMethodContextAndroid* context, const char* text)

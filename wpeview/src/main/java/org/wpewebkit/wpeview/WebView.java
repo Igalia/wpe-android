@@ -26,6 +26,8 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -81,6 +83,11 @@ public class WebView extends FrameLayout {
     @Nullable
     InputMethodManager inputMethodManager;
     boolean inputFieldFocused;
+    // The input type and options of the field the input method was last started for.
+    private int fieldInputType;
+    private int fieldImeOptions;
+    private boolean contentTypeCheckPending;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private PageSurfaceView surfaceView;
     private WebKitSettings webKitSettings;
     private WebSettings webSettings;
@@ -161,6 +168,10 @@ public class WebView extends FrameLayout {
             @Override
             public void onPreeditReset() {
                 onImePreeditReset();
+            }
+            @Override
+            public void onContentTypeChanged() {
+                onImeContentTypeChanged();
             }
         });
         this.webSettings = new WebSettings(webKitSettings);
@@ -806,6 +817,7 @@ public class WebView extends FrameLayout {
             return;
         if (focused) {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
+            updateFieldType();
             inputMethodManager.restartInput(this);
             inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
         } else if (getWindowToken() != null) {
@@ -819,6 +831,36 @@ public class WebView extends FrameLayout {
         if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
             return;
         inputMethodManager.restartInput(this);
+    }
+
+    // When the focus moves from a field to another, WebKit gives the purpose and the hints of the new field with no
+    // focus out and in, and it sets them one after the other. Once both are set, restart the input method if the new
+    // field takes another kind of text.
+    void onImeContentTypeChanged() {
+        if (webKitWebView == null || !inputFieldFocused || contentTypeCheckPending)
+            return;
+        contentTypeCheckPending = true;
+        // Not View.post(), which holds the check back while the WebView is not attached.
+        mainHandler.post(() -> {
+            contentTypeCheckPending = false;
+            if (webKitWebView == null || !inputFieldFocused || inputMethodManager == null)
+                return;
+            if (updateFieldType())
+                inputMethodManager.restartInput(this);
+        });
+    }
+
+    // Takes the input type and options of the focused field, and returns whether they changed.
+    private boolean updateFieldType() {
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        int inputType = FieldInputType.inputType(purpose, hints);
+        int imeOptions = FieldInputType.imeOptions(purpose, hints);
+        if (inputType == fieldInputType && imeOptions == fieldImeOptions)
+            return false;
+        fieldInputType = inputType;
+        fieldImeOptions = imeOptions;
+        return true;
     }
 
     // Makes an input method connected to the destroyed page let go of it: restarting the input asks for a new
@@ -836,8 +878,10 @@ public class WebView extends FrameLayout {
     public InputConnection onCreateInputConnection(@NonNull EditorInfo outAttrs) {
         if (!inputFieldFocused || imContext == null)
             return null;
-        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
-        outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        int purpose = imContext.getInputPurpose();
+        int hints = imContext.getInputHints();
+        outAttrs.inputType = FieldInputType.inputType(purpose, hints);
+        outAttrs.imeOptions = FieldInputType.imeOptions(purpose, hints);
         outAttrs.actionLabel = null;
         return new WPEInputConnection(this, /* fullEditor */ true, imContext);
     }
