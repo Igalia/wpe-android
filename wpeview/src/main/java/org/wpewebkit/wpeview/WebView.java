@@ -259,8 +259,9 @@ public class WebView extends FrameLayout {
             }
 
             @Override
-            public void onReceivedHttpError(String uri, String method, String mimeType, int statusCode) {
-                WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method);
+            public void onReceivedHttpError(String uri, String method, String mimeType, int statusCode,
+                                            boolean isMainFrame) {
+                WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method, isMainFrame, false, false);
                 WPEResourceResponse response = new WPEResourceResponse(mimeType, statusCode, Collections.emptyMap());
                 viewClient.onReceivedHttpError(WebView.this, request, response);
             }
@@ -277,7 +278,7 @@ public class WebView extends FrameLayout {
                                           errorCode == WebViewClient.ERROR_UNKNOWN;
                 boolean blocked =
                     endedConnection && host != null && LocalNetworkAccess.getInstance().isBlocked(getContext(), host);
-                WPEResourceRequest request = new HttpResourceRequest(parsedUri, method);
+                WPEResourceRequest request = new HttpResourceRequest(parsedUri, method, true, false, false);
                 // WebKit's description would say that the server ended the connection.
                 WPEResourceError error =
                     blocked ? new WPEResourceError(WebViewClient.ERROR_LOCAL_NETWORK_ACCESS_DENIED,
@@ -303,6 +304,13 @@ public class WebView extends FrameLayout {
             @Override
             public @Nullable WebKitWebView onCreateWindow(boolean isUserGesture) {
                 return createWindow(isUserGesture);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(String uri, String method, boolean isMainFrame, boolean hasGesture,
+                                                    boolean isRedirect) {
+                return viewClient.shouldOverrideUrlLoading(
+                    WebView.this, new HttpResourceRequest(Uri.parse(uri), method, isMainFrame, hasGesture, isRedirect));
             }
         });
 
@@ -835,9 +843,15 @@ public class WebView extends FrameLayout {
     private static class HttpResourceRequest implements WPEResourceRequest {
         private final Uri uri;
         private final String method;
-        HttpResourceRequest(Uri uri, String method) {
+        private final boolean isForMainFrame;
+        private final boolean hasGesture;
+        private final boolean isRedirect;
+        HttpResourceRequest(Uri uri, String method, boolean isForMainFrame, boolean hasGesture, boolean isRedirect) {
             this.uri = uri;
             this.method = method;
+            this.isForMainFrame = isForMainFrame;
+            this.hasGesture = hasGesture;
+            this.isRedirect = isRedirect;
         }
         @Override
         public @NonNull Uri getUrl() {
@@ -850,6 +864,18 @@ public class WebView extends FrameLayout {
         @Override
         public @NonNull Map<String, String> getRequestHeaders() {
             return Collections.emptyMap();
+        }
+        @Override
+        public boolean isForMainFrame() {
+            return isForMainFrame;
+        }
+        @Override
+        public boolean hasGesture() {
+            return hasGesture;
+        }
+        @Override
+        public boolean isRedirect() {
+            return isRedirect;
         }
     }
 
