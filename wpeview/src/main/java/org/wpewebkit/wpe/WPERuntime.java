@@ -23,16 +23,11 @@
 
 package org.wpewebkit.wpe;
 
-import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
-import android.content.res.Configuration;
-import android.hardware.display.DisplayManager;
 import android.os.ParcelFileDescriptor;
-import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.Display;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
@@ -70,8 +65,7 @@ public final class WPERuntime {
 
     public @Nullable Context getApplicationContext() { return applicationContext; }
 
-    // Package-private: read by the ComponentCallbacks inner class (avoids a synthetic accessor).
-    WPEDisplay display = null;
+    private WPEDisplay display = null;
 
     /**
      * Returns the WPEDisplay of the process, creating it on first use. Like WebKit's own
@@ -83,34 +77,14 @@ public final class WPERuntime {
         if (applicationContext == null)
             throw new IllegalStateException("WPERuntime.initialize() must be called before getDisplay()");
         if (display == null) {
-            WPEDisplay newDisplay = new WPEDisplay();
-            if (newDisplay.getNativePtr() == 0)
+            WPEDisplay newDisplay = new WPEDisplay(applicationContext);
+            if (newDisplay.getNativePtr() == 0) {
+                newDisplay.destroy();
                 throw new IllegalStateException("The WPEDisplay could not connect to EGL");
+            }
             display = newDisplay;
-            configureScreen(display.getScreen());
-            // Reads the screen again on configuration changes, such as a new display size setting.
-            applicationContext.registerComponentCallbacks(new ComponentCallbacks() {
-                @Override
-                public void onConfigurationChanged(@NonNull Configuration newConfig) {
-                    configureScreen(display.getScreen());
-                }
-
-                @Override
-                public void onLowMemory() {}
-            });
         }
         return display;
-    }
-
-    // Package-private: called from the ComponentCallbacks inner class (avoids a synthetic accessor).
-    void configureScreen(@NonNull WPEScreen screen) {
-        DisplayMetrics displayMetrics = applicationContext.getResources().getDisplayMetrics();
-        screen.setScale(displayMetrics.density);
-
-        DisplayManager displayManager = applicationContext.getSystemService(DisplayManager.class);
-        Display androidDisplay = displayManager != null ? displayManager.getDisplay(Display.DEFAULT_DISPLAY) : null;
-        if (androidDisplay != null)
-            screen.setRefreshRateHz(androidDisplay.getRefreshRate());
     }
 
     public static void enableRemoteInspector(int inspectorPort, boolean useHttpInspector) {

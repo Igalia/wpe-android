@@ -34,7 +34,8 @@ public:
     {
         registerNativeMethods(JNI::NativeMethod<jlong()>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
-            JNI::NativeMethod<jlong(jlong)>("nativeGetScreen", nativeGetScreen));
+            JNI::NativeMethod<void(jlong, jlong)>("nativeAddScreen", nativeAddScreen),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeRemoveScreen", nativeRemoveScreen));
     }
 
 private:
@@ -57,9 +58,16 @@ private:
         g_object_unref(JNI::from_jlong<WPEDisplay>(displayPtr));
     }
 
-    static jlong nativeGetScreen(JNIEnv*, jobject, jlong displayPtr)
+    static void nativeAddScreen(JNIEnv*, jobject, jlong displayPtr, jlong screenPtr)
     {
-        return reinterpret_cast<jlong>(wpe_display_get_screen(JNI::from_jlong<WPEDisplay>(displayPtr), 0));
+        wpe_display_android_add_screen(
+            WPE_DISPLAY_ANDROID(JNI::from_jlong<WPEDisplay>(displayPtr)), JNI::from_jlong<WPEScreen>(screenPtr));
+    }
+
+    static void nativeRemoveScreen(JNIEnv*, jobject, jlong displayPtr, jlong screenPtr)
+    {
+        wpe_display_android_remove_screen(
+            WPE_DISPLAY_ANDROID(JNI::from_jlong<WPEDisplay>(displayPtr)), JNI::from_jlong<WPEScreen>(screenPtr));
     }
 };
 

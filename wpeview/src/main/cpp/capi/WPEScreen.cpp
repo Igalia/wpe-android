@@ -18,6 +18,7 @@
 
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
+#include "WPEScreenAndroid.h"
 #include <algorithm>
 #include <cmath>
 #include <wpe/wpe-platform.h>
@@ -31,13 +32,49 @@ public:
     JNIWPEScreenCache()
         : JNI::TypedClass<JNIWPEScreen>(true)
     {
-        registerNativeMethods(JNI::NativeMethod<jfloat(jlong)>("nativeGetScale", nativeGetScale),
+        registerNativeMethods(JNI::NativeMethod<jlong(jint)>("nativeInit", nativeInit),
+            JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
+            JNI::NativeMethod<jint(jlong)>("nativeGetWidth", nativeGetWidth),
+            JNI::NativeMethod<jint(jlong)>("nativeGetHeight", nativeGetHeight),
+            JNI::NativeMethod<void(jlong, jint, jint)>("nativeSetSize", nativeSetSize),
+            JNI::NativeMethod<void(jlong, jint, jint)>("nativeSetPhysicalSize", nativeSetPhysicalSize),
+            JNI::NativeMethod<jfloat(jlong)>("nativeGetScale", nativeGetScale),
             JNI::NativeMethod<void(jlong, jfloat)>("nativeSetScale", nativeSetScale),
             JNI::NativeMethod<jfloat(jlong)>("nativeGetRefreshRateHz", nativeGetRefreshRateHz),
             JNI::NativeMethod<void(jlong, jfloat)>("nativeSetRefreshRateHz", nativeSetRefreshRateHz));
     }
 
 private:
+    static jlong nativeInit(JNIEnv*, jobject, jint id)
+    {
+        return reinterpret_cast<jlong>(wpe_screen_android_new(static_cast<guint32>(id)));
+    }
+
+    static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr)
+    {
+        g_object_unref(JNI::from_jlong<WPEScreen>(nativePtr));
+    }
+
+    static jint nativeGetWidth(JNIEnv*, jobject, jlong nativePtr)
+    {
+        return wpe_screen_get_width(JNI::from_jlong<WPEScreen>(nativePtr));
+    }
+
+    static jint nativeGetHeight(JNIEnv*, jobject, jlong nativePtr)
+    {
+        return wpe_screen_get_height(JNI::from_jlong<WPEScreen>(nativePtr));
+    }
+
+    static void nativeSetSize(JNIEnv*, jobject, jlong nativePtr, jint width, jint height)
+    {
+        wpe_screen_set_size(JNI::from_jlong<WPEScreen>(nativePtr), width, height);
+    }
+
+    static void nativeSetPhysicalSize(JNIEnv*, jobject, jlong nativePtr, jint width, jint height)
+    {
+        wpe_screen_set_physical_size(JNI::from_jlong<WPEScreen>(nativePtr), width, height);
+    }
+
     static jfloat nativeGetScale(JNIEnv*, jobject, jlong nativePtr)
     {
         return static_cast<jfloat>(wpe_screen_get_scale(JNI::from_jlong<WPEScreen>(nativePtr)));

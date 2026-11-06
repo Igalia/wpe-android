@@ -22,11 +22,13 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.util.AttributeSet;
+import android.view.Display;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -51,6 +53,7 @@ import org.wpewebkit.R;
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputMethodContext;
+import org.wpewebkit.wpe.WPEScreen;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitSettings;
@@ -75,7 +78,8 @@ public class WebView extends FrameLayout {
     private boolean headless;
     // Package-private: read by the ScriptDialogResult inner class (avoids a synthetic accessor).
     WebKitWebView webKitWebView;
-    private WPEToplevel wpeToplevel;
+    // Package-private: read by the touch handler of the surface inner class (avoids a synthetic accessor).
+    WPEToplevel wpeToplevel;
     WPEView platformView;
     private WPEInputMethodContext imContext;
     @Nullable
@@ -345,6 +349,7 @@ public class WebView extends FrameLayout {
         if (attachedSurface == surface)
             return;
         attachedSurface = surface;
+        updateScreen();
         joinToplevel();
         wpeToplevel.onSurfaceCreated(surface);
 
@@ -362,6 +367,17 @@ public class WebView extends FrameLayout {
             attachedSurface = null;
             wpeToplevel.onSurfaceDestroyed();
         }
+    }
+
+    // The page gets the screen of the display the WebView shows on, which changes when its window moves to another
+    // display.
+    private void updateScreen() {
+        Display display = getDisplay();
+        if (wpeContext == null || wpeToplevel == null || display == null)
+            return;
+        WPEScreen screen = wpeContext.getWPEDisplay().getScreen(display);
+        if (screen != null)
+            wpeToplevel.setScreen(screen);
     }
 
     // The view is in its toplevel, and so the page in a window, while the WebView has a surface. Android takes
@@ -743,11 +759,12 @@ public class WebView extends FrameLayout {
         @Override
         @SuppressLint("ClickableViewAccessibility")
         public boolean onTouchEvent(MotionEvent event) {
-            if (platformView == null)
+            if (platformView == null || wpeToplevel == null)
                 return false;
 
-            // MotionEvent coords are in physical pixels; WPE expects logical pixels.
-            float density = getContext().getResources().getDisplayMetrics().density;
+            // MotionEvent coords are in physical pixels; WPE expects logical pixels, at the scale of the screen the
+            // page is on.
+            float density = wpeToplevel.getScale();
 
             int action = event.getActionMasked();
             int type;
@@ -853,6 +870,12 @@ public class WebView extends FrameLayout {
         // Hiding the WebView or one of its ancestors keeps its surface; WPE unmaps a view that is not visible.
         if (webKitWebView != null && !headless)
             platformView.setVisible(isVisible);
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        updateScreen();
     }
 
     @Override
