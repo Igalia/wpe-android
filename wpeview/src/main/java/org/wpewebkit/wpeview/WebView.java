@@ -27,6 +27,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.util.AttributeSet;
+import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -735,9 +736,23 @@ public class WebView extends FrameLayout {
      * Internal SurfaceView that handles the drawing surface.
      */
     class PageSurfaceView extends SurfaceView {
+        // A tap brings back the keyboard of the focused field, which Back may have hidden: one finger that stays
+        // within the touch slop and is lifted before a long press. A scroll, a pinch or a long press does not.
+        private final GestureDetector tapDetector;
+
         public PageSurfaceView(android.content.Context context) {
             super(context);
             setBackgroundColor(Color.TRANSPARENT);
+            tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+                @Override
+                public boolean onSingleTapUp(@NonNull MotionEvent event) {
+                    if (inputFieldFocused)
+                        showSoftInput();
+                    return true;
+                }
+            });
+            // The second tap of a double tap is a tap too.
+            tapDetector.setOnDoubleTapListener(null);
         }
 
         @Override
@@ -745,6 +760,7 @@ public class WebView extends FrameLayout {
         public boolean onTouchEvent(MotionEvent event) {
             if (platformView == null)
                 return false;
+            tapDetector.onTouchEvent(event);
 
             // MotionEvent coords are in physical pixels; WPE expects logical pixels.
             float density = getContext().getResources().getDisplayMetrics().density;
@@ -769,8 +785,6 @@ public class WebView extends FrameLayout {
                 platformView.dispatchTouchEvent(
                     event.getEventTime(), type, 1, new int[] {event.getPointerId(actionIndex)},
                     new float[] {event.getX(actionIndex) / density}, new float[] {event.getY(actionIndex) / density});
-                if (action == MotionEvent.ACTION_UP && inputFieldFocused && inputMethodManager != null)
-                    inputMethodManager.showSoftInput(WebView.this, InputMethodManager.SHOW_IMPLICIT);
                 return true;
             case MotionEvent.ACTION_MOVE:
                 type = WPEEventType.TOUCH_MOVE;
@@ -807,10 +821,16 @@ public class WebView extends FrameLayout {
         if (focused) {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
             inputMethodManager.restartInput(this);
-            inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+            showSoftInput();
         } else if (getWindowToken() != null) {
             inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
         }
+    }
+
+    // Asks the input method to show its keyboard for the focused field.
+    void showSoftInput() {
+        if (inputMethodManager != null)
+            inputMethodManager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
     }
 
     // WebKit ended the composition (a tap in the page, for instance) and kept its text. The input method still
