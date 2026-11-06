@@ -35,7 +35,8 @@ public:
         registerNativeMethods(JNI::NativeMethod<jlong()>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jlong)>("nativeAddScreen", nativeAddScreen),
-            JNI::NativeMethod<void(jlong, jlong)>("nativeRemoveScreen", nativeRemoveScreen));
+            JNI::NativeMethod<void(jlong, jlong)>("nativeRemoveScreen", nativeRemoveScreen),
+            JNI::NativeMethod<void(jlong, jint)>("nativeSetAvailableInputDevices", nativeSetAvailableInputDevices));
     }
 
 private:
@@ -68,6 +69,12 @@ private:
     {
         wpe_display_android_remove_screen(
             WPE_DISPLAY_ANDROID(JNI::from_jlong<WPEDisplay>(displayPtr)), JNI::from_jlong<WPEScreen>(screenPtr));
+    }
+
+    static void nativeSetAvailableInputDevices(JNIEnv*, jobject, jlong displayPtr, jint devices)
+    {
+        wpe_display_set_available_input_devices(
+            JNI::from_jlong<WPEDisplay>(displayPtr), static_cast<WPEAvailableInputDevices>(devices));
     }
 };
 

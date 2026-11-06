@@ -21,11 +21,13 @@ package org.wpewebkit.wpe;
 import android.content.Context;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
+import android.hardware.input.InputManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.SparseArray;
 import android.view.Display;
+import android.view.InputDevice;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -34,11 +36,17 @@ import androidx.annotation.UiThread;
 /**
  * WPEDisplay is an owning JNI proxy for a native WPEDisplay object.
  * <p>It has a screen for each Android display, kept up to date as displays come, change and go: when the device
- * turns or folds, or the display size setting changes.</p>
+ * turns or folds, or the display size setting changes. It also tells WebKit which kinds of input devices are
+ * connected.</p>
  */
 @UiThread
 public final class WPEDisplay {
     private static final float MILLIMETERS_PER_INCH = 25.4F;
+
+    // The kinds of input devices, as WPEAvailableInputDevices has them.
+    private static final int INPUT_DEVICE_MOUSE = 1 << 0;
+    private static final int INPUT_DEVICE_KEYBOARD = 1 << 1;
+    private static final int INPUT_DEVICE_TOUCHSCREEN = 1 << 2;
 
     private long mNativePtr = 0;
     public long getNativePtr() { return mNativePtr; }
@@ -62,10 +70,28 @@ public final class WPEDisplay {
             removeScreen(displayId);
         }
     };
+    private final InputManager inputManager;
+    private final InputManager.InputDeviceListener inputDeviceListener = new InputManager.InputDeviceListener() {
+        @Override
+        public void onInputDeviceAdded(int deviceId) {
+            updateInputDevices();
+        }
+
+        @Override
+        public void onInputDeviceChanged(int deviceId) {
+            updateInputDevices();
+        }
+
+        @Override
+        public void onInputDeviceRemoved(int deviceId) {
+            updateInputDevices();
+        }
+    };
 
     public WPEDisplay(@NonNull Context context) {
         this.context = context.getApplicationContext();
         displayManager = this.context.getSystemService(DisplayManager.class);
+        inputManager = this.context.getSystemService(InputManager.class);
         mNativePtr = nativeInit();
         if (mNativePtr == 0)
             return;
@@ -77,6 +103,9 @@ public final class WPEDisplay {
         for (Display display : displayManager.getDisplays())
             getScreen(display);
         displayManager.registerDisplayListener(displayListener, new Handler(Looper.getMainLooper()));
+
+        updateInputDevices();
+        inputManager.registerInputDeviceListener(inputDeviceListener, new Handler(Looper.getMainLooper()));
     }
 
     /**
@@ -137,7 +166,28 @@ public final class WPEDisplay {
         screen.setRefreshRateHz(display.getRefreshRate());
     }
 
+    // Pages learn from the kinds of input devices whether the primary pointer is coarse or fine and whether it can
+    // hover: a touchscreen is coarse and cannot hover, while a mouse or a touchpad is fine and can, and is the primary
+    // pointer while it is connected. A stylus goes with its touchscreen. There is always a keyboard, on the screen if
+    // there is no other. Package-private: called from the InputDeviceListener inner class (avoids a synthetic
+    // accessor).
+    void updateInputDevices() {
+        int devices = INPUT_DEVICE_KEYBOARD;
+        for (int deviceId : inputManager.getInputDeviceIds()) {
+            InputDevice device = inputManager.getInputDevice(deviceId);
+            if (device == null || !device.isEnabled())
+                continue;
+            if (device.supportsSource(InputDevice.SOURCE_TOUCHSCREEN))
+                devices |= INPUT_DEVICE_TOUCHSCREEN;
+            if (device.supportsSource(InputDevice.SOURCE_MOUSE))
+                devices |= INPUT_DEVICE_MOUSE;
+        }
+        if (mNativePtr != 0)
+            nativeSetAvailableInputDevices(mNativePtr, devices);
+    }
+
     public void destroy() {
+        inputManager.unregisterInputDeviceListener(inputDeviceListener);
         displayManager.unregisterDisplayListener(displayListener);
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
@@ -152,4 +202,5 @@ public final class WPEDisplay {
     private native void nativeDestroy(long nativePtr);
     private native void nativeAddScreen(long nativePtr, long screenPtr);
     private native void nativeRemoveScreen(long nativePtr, long screenPtr);
+    private native void nativeSetAvailableInputDevices(long nativePtr, int devices);
 }
