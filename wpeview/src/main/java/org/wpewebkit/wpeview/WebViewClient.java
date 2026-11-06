@@ -22,6 +22,8 @@ import android.net.http.SslError;
 
 import androidx.annotation.NonNull;
 
+import org.wpewebkit.wpe.WebKitWebView;
+
 /**
  * WebViewClient provides the high-level navigation and resource callbacks for {@link WebView}.
  */
@@ -53,6 +55,18 @@ public class WebViewClient {
      * the page again once it is granted. Only pages report it: a blocked subresource just fails to load.
      */
     public static final int ERROR_LOCAL_NETWORK_ACCESS_DENIED = -100;
+
+    // The reasons of onWebProcessTerminated.
+
+    /**
+     * The web process crashed, or Android ended it, as it does to free memory, for example while the app is in the
+     * background.
+     */
+    public static final int WEB_PROCESS_CRASHED = WebKitWebView.WEB_PROCESS_CRASHED;
+    /** WebKit ended the web process, because it used more memory than WebKit allows. */
+    public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = WebKitWebView.WEB_PROCESS_EXCEEDED_MEMORY_LIMIT;
+    /** The app ended the web process with {@link WebView#terminateWebProcess()}. */
+    public static final int WEB_PROCESS_TERMINATED_BY_API = WebKitWebView.WEB_PROCESS_TERMINATED_BY_API;
 
     /**
      * Notify the host application that a page has started loading.
@@ -108,6 +122,20 @@ public class WebViewClient {
      */
     public void onReceivedError(@NonNull WebView view, @NonNull WPEResourceRequest request,
                                 @NonNull WPEResourceError error) {}
+
+    /**
+     * Notify the host application that the web process that ran the page ended. The page is gone: the view keeps
+     * showing its last picture, which no longer changes, and a load in progress ends without {@link #onPageFinished}.
+     * The view keeps the address, the title and the Back/Forward list of the page, and stays usable:
+     * {@link WebView#reload()} loads the page again in a new web process, as any other load or navigation does. The app
+     * may show a message with a way to reload, or reload a page that the user did not see stop. Unlike
+     * {@code android.webkit.WebViewClient.onRenderProcessGone}, nothing needs to be returned, and the view does not
+     * need to be destroyed.
+     * @param view The WebView that is initiating the callback.
+     * @param reason Why the web process ended: {@link #WEB_PROCESS_CRASHED},
+     *     {@link #WEB_PROCESS_EXCEEDED_MEMORY_LIMIT} or {@link #WEB_PROCESS_TERMINATED_BY_API}.
+     */
+    public void onWebProcessTerminated(@NonNull WebView view, int reason) {}
 
     /**
      * The interface used to accept or reject an invalid SSL certificate.

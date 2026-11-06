@@ -119,6 +119,9 @@ struct WebKitWebViewBridge {
     // The address of the current main frame load once it failed. WebKit keeps the web view's URI at the previous page,
     // but the end of the load is reported with the address that failed, as with android.webkit.WebView.
     std::string m_failedLoadUri;
+    // Whether the web process of the page ended, until the next page commits. WebKit then empties the address and the
+    // title, but the page stays in the Back/Forward list, where a reload finds it, so the view keeps both meanwhile.
+    bool m_webProcessTerminated {false};
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -198,6 +201,7 @@ public:
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
+        , m_onWebProcessTerminated(getMethod<void(jint)>("onWebProcessTerminated"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
@@ -217,7 +221,12 @@ public:
             JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
-            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose));
+            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose),
+            JNI::NativeMethod<void(jlong)>("nativeTerminateWebProcess", nativeTerminateWebProcess),
+            JNI::NativeMethod<jbyteArray(jlong)>("nativeSaveState", nativeSaveState),
+            JNI::NativeMethod<jboolean(jlong, jbyteArray)>("nativeRestoreState", nativeRestoreState),
+            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoBack", nativeCanGoBack),
+            JNI::NativeMethod<jboolean(jlong)>("nativeCanGoForward", nativeCanGoForward));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -230,6 +239,7 @@ public:
     const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
+    const JNI::Method<void(jint)> m_onWebProcessTerminated;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -247,6 +257,8 @@ private:
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
+    static void onWebProcessTerminated(
+        WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -270,6 +282,11 @@ private:
         JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
     static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
+    static void nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr);
+    static jbyteArray nativeSaveState(JNIEnv* env, jobject, jlong nativePtr);
+    static jboolean nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data);
+    static jboolean nativeCanGoBack(JNIEnv*, jobject, jlong nativePtr);
+    static jboolean nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -303,16 +320,21 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
         bridge->m_loadStarting = false;
-        if (bridge->m_titlePending)
+        // The first page after the end of the web process has its title reported, also when WebKit's stays empty.
+        if (bridge->m_titlePending || bridge->m_webProcessTerminated)
             reportTitle(bridge);
+        bridge->m_webProcessTerminated = false;
         reportHistory(bridge, true);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
-        // Also the end of a load that failed or stopped before it committed.
+        // Also the end of a load that failed or stopped before it committed. After the end of the web process, the view
+        // keeps the title and the address of its page until a new one commits.
         bridge->m_loadStarting = false;
-        if (bridge->m_titlePending)
+        if (bridge->m_titlePending && !bridge->m_webProcessTerminated)
             reportTitle(bridge);
-        auto jUri = JNI::String(
-            bridge->m_failedLoadUri.empty() ? webkit_web_view_get_uri(webView) : bridge->m_failedLoadUri.c_str());
+        const char* uri = webkit_web_view_get_uri(webView);
+        if (bridge->m_webProcessTerminated && (!uri || !*uri))
+            uri = bridge->m_historyUri.c_str();
+        auto jUri = JNI::String(bridge->m_failedLoadUri.empty() ? uri : bridge->m_failedLoadUri.c_str());
         bridge->m_failedLoadUri.clear();
         if (!getJNIWebKitWebViewCache().m_onLoadFinished.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadFinished callback");
@@ -324,8 +346,9 @@ void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebVie
     // A navigation within the page is decided on, but it does not start a load. The address also changes back when a
     // load is stopped, maybe for a navigation that is decided on and has not started yet.
     const char* uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(obj));
-    // The Java side always has an address, and WebKit has none until its first one.
-    if (!uri)
+    // The Java side always has an address, and WebKit has none until its first one. It empties it when the web
+    // process ends, and the view keeps the address of its page then.
+    if (!uri || !*uri)
         return;
     if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)) && bridge->m_navigationUri == uri)
         bridge->m_navigationPending = false;
@@ -367,8 +390,9 @@ void JNIWebKitWebViewCache::reportHistory(WebKitWebViewBridge* bridge, bool comm
     const char* uri = webkit_web_view_get_uri(bridge->m_webView);
     bool canGoBack = webkit_web_view_can_go_back(bridge->m_webView);
     bool canGoForward = webkit_web_view_can_go_forward(bridge->m_webView);
-    // A page that commits is always a navigation, also a reload or a load of the same address.
-    if (!uri
+    // A page that commits is always a navigation, also a reload or a load of the same address. Emptying the address
+    // when the web process ends is none.
+    if (!uri || !*uri
         || (!committed && bridge->m_historyUri == uri && bridge->m_historyCanGoBack == canGoBack
             && bridge->m_historyCanGoForward == canGoForward))
         return;
@@ -390,10 +414,11 @@ void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, W
 }
 
 // WebKit empties the title when a new page commits, which can be before it tells the address of that page. A page
-// without a title has its address as its title, so a title that changes while a load starts waits for the commit.
+// without a title has its address as its title, so a title that changes while a load starts waits for the commit. It
+// also empties the title when the web process ends, and the view keeps the title of its page until the next commit.
 void JNIWebKitWebViewCache::onTitleChanged(GObject*, GParamSpec*, WebKitWebViewBridge* bridge)
 {
-    if (bridge->m_loadStarting)
+    if (bridge->m_loadStarting || bridge->m_webProcessTerminated)
         bridge->m_titlePending = true;
     else
         reportTitle(bridge);
@@ -568,6 +593,19 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     return TRUE;
 }
 
+// The web process of the page ended: it crashed, Android ended it, as it does to free memory, WebKit ended it for using
+// too much memory, or the app asked for it. A load in progress ends with it, and is not reported as finished.
+void JNIWebKitWebViewCache::onWebProcessTerminated(
+    WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge)
+{
+    bridge->m_webProcessTerminated = true;
+    bridge->m_loadStarting = false;
+    bridge->m_navigationPending = false;
+    bridge->m_failedLoadUri.clear();
+    if (!getJNIWebKitWebViewCache().m_onWebProcessTerminated.invoke(bridge->m_javaRef.get(), static_cast<jint>(reason)))
+        Logging::logError("cannot deliver WebKitWebView onWebProcessTerminated callback");
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -627,6 +665,7 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
         g_signal_connect(webView, "notify::uri", G_CALLBACK(onUriChanged), bridge),
         g_signal_connect(webView, "notify::is-loading", G_CALLBACK(onIsLoadingChanged), bridge),
         g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
+        g_signal_connect(webView, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -940,6 +979,69 @@ void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dial
 {
     // Releases the reference taken in onScriptDialog; the dialog is closed once its refcount reaches zero.
     webkit_script_dialog_unref(reinterpret_cast<WebKitScriptDialog*>(dialogPtr)); // NOLINT(performance-no-int-to-ptr)
+}
+
+void JNIWebKitWebViewCache::nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr)
+{
+    webkit_web_view_terminate_web_process(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+}
+
+// WebKit's session state of the view, which holds its Back/Forward list, serialized. Returns null, with Java's
+// OutOfMemoryError pending, if the array cannot be allocated.
+jbyteArray JNIWebKitWebViewCache::nativeSaveState(JNIEnv* env, jobject, jlong nativePtr)
+{
+    g_autoptr(WebKitWebViewSessionState) state
+        = webkit_web_view_get_session_state(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+    g_autoptr(GBytes) bytes = webkit_web_view_session_state_serialize(state);
+    gsize size = 0;
+    const auto* data = static_cast<const jbyte*>(g_bytes_get_data(bytes, &size));
+    jbyteArray array = env->NewByteArray(static_cast<jsize>(size));
+    if (array)
+        env->SetByteArrayRegion(array, 0, static_cast<jsize>(size), data);
+    return array;
+}
+
+// Restores a state from nativeSaveState, which replaces the Back/Forward list, and loads its current page: WebKit
+// restores the list without loading anything. WebKit restores nothing from a state it cannot read, or that has no
+// page.
+jboolean JNIWebKitWebViewCache::nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data)
+{
+    auto* webView = JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView;
+    const jsize size = env->GetArrayLength(data);
+    auto* copy = static_cast<jbyte*>(g_malloc(size));
+    env->GetByteArrayRegion(data, 0, size, copy);
+    g_autoptr(GBytes) bytes = g_bytes_new_take(copy, size);
+    g_autoptr(WebKitWebViewSessionState) state = webkit_web_view_session_state_new(bytes);
+    if (!state)
+        return JNI_FALSE;
+
+    // WebKit ignores a state without pages, and keeps the list of a view that has one. The current item is held, so
+    // that a restored item cannot take its place in memory.
+    auto* list = webkit_web_view_get_back_forward_list(webView);
+    auto* previousItem = webkit_back_forward_list_get_current_item(list);
+    if (previousItem)
+        g_object_ref(previousItem);
+    webkit_web_view_restore_session_state(webView, state);
+    auto* item = webkit_back_forward_list_get_current_item(list);
+    const bool restored = item && item != previousItem;
+    if (previousItem)
+        g_object_unref(previousItem);
+    if (!restored)
+        return JNI_FALSE;
+    webkit_web_view_go_to_back_forward_list_item(webView, item);
+    return JNI_TRUE;
+}
+
+jboolean JNIWebKitWebViewCache::nativeCanGoBack(JNIEnv*, jobject, jlong nativePtr)
+{
+    return webkit_web_view_can_go_back(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
+                                                                                                   : JNI_FALSE;
+}
+
+jboolean JNIWebKitWebViewCache::nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr)
+{
+    return webkit_web_view_can_go_forward(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
+                                                                                                      : JNI_FALSE;
 }
 
 void configureWebKitWebViewJNIMappings()
