@@ -19,6 +19,7 @@
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
 #include "Logging.h"
+#include "WebKitDownloadBridge.h"
 
 #include <algorithm>
 #include <android/bitmap.h>
@@ -80,7 +81,7 @@ struct SnapshotRequest {
 namespace WebKit {
 
 // The bridge of a web view, which callbacks that call the app find it by again: the app may destroy the WebView
-// meanwhile.
+// meanwhile. Downloads find it by too: a download outlives its web view, which may outlive its bridge.
 static GQuark webViewBridgeQuark()
 {
     static GQuark quark = g_quark_from_static_string("wpe-android-web-view-bridge");
@@ -103,6 +104,8 @@ struct WebKitWebViewBridge {
         m_signalIds.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
+        if (m_downloadStartedId)
+            g_signal_handler_disconnect(webkit_web_view_get_network_session(m_webView), m_downloadStartedId);
         g_object_unref(m_webView);
     }
 
@@ -110,6 +113,7 @@ struct WebKitWebViewBridge {
     JNI::GlobalRef<JNIWebKitWebView> m_javaRef;
     std::vector<gulong> m_signalIds;
     gulong m_backForwardListChangedId {0};
+    gulong m_downloadStartedId {0};
     // The address and the Back/Forward state last reported, none at first.
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
@@ -218,6 +222,7 @@ public:
         , m_onCreateWindow(getMethod<jlong(jboolean)>("onCreateWindow"))
         , m_shouldOverrideUrlLoading(
               getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
+        , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong)>("onDownloadStarted"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -259,6 +264,7 @@ public:
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
     const JNI::Method<jlong(jboolean)> m_onCreateWindow;
     const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
+    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong)> m_onDownloadStarted;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -281,6 +287,8 @@ private:
     static void onWebProcessTerminated(
         WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge);
     static WebKitWebView* onCreate(WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge);
+    static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
+    static gboolean onDecideDownloadDestination(WebKitDownload* download, const char* suggestedFilename, gpointer);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -507,8 +515,18 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
     auto* responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
     auto* uriResponse = webkit_response_policy_decision_get_response(responseDecision);
     guint statusCode = webkit_uri_response_get_status_code(uriResponse);
-    if (statusCode < 400)
+    if (statusCode < 400) {
+        // WebKit saves a response sent as an attachment, but does nothing with a page of a type it cannot show, such
+        // as an archive: save that too, unless it is an error, which WebKit does not save, or No Content, which leaves
+        // the page as it is. Responses that are not HTTP, such as those of data: addresses, have no status.
+        if (webkit_response_policy_decision_is_main_frame_main_resource(responseDecision)
+            && !webkit_response_policy_decision_is_mime_type_supported(responseDecision) && statusCode != 204
+            && statusCode != 205) {
+            webkit_policy_decision_download(decision);
+            return TRUE;
+        }
         return FALSE;
+    }
 
     auto* uriRequest = webkit_response_policy_decision_get_request(responseDecision);
     const char* method = webkit_uri_request_get_http_method(uriRequest);
@@ -699,6 +717,50 @@ WebKitWebView* JNIWebKitWebViewCache::onCreate(
     return JNI::from_jlong<WebKitWebView>(webViewPtr);
 }
 
+// Every web view of the network session hears of every download, and follows those of its own pages.
+void JNIWebKitWebViewCache::onDownloadStarted(
+    WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge)
+{
+    if (webkit_download_get_web_view(download) == bridge->m_webView)
+        g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDownloadDestination), nullptr);
+}
+
+// Once the response is known, the app is asked where to save the download, which waits for the answer. A download
+// whose web view went meanwhile, or that the app could not be told of, is cancelled.
+gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
+    WebKitDownload* download, const char* suggestedFilename, gpointer)
+{
+    auto* webView = webkit_download_get_web_view(download);
+    auto* bridge = webView
+        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
+        : nullptr;
+    if (!bridge) {
+        webkit_download_cancel(download);
+        return TRUE;
+    }
+
+    // The address after the redirects of the server.
+    auto* response = webkit_download_get_response(download);
+    const char* uri = response ? webkit_uri_response_get_uri(response) : nullptr;
+    if (!uri)
+        uri = webkit_uri_request_get_uri(webkit_download_get_request(download));
+    const char* mimeType = response ? webkit_uri_response_get_mime_type(response) : nullptr;
+    guint64 length = response ? webkit_uri_response_get_content_length(response) : 0;
+
+    jlong downloadPtr = createWebKitDownloadBridge(download);
+    auto jUri = JNI::String(uri ? uri : "");
+    auto jSuggestedFilename = JNI::String(suggestedFilename ? suggestedFilename : "");
+    auto jMimeType = JNI::String(mimeType ? mimeType : "");
+    if (!getJNIWebKitWebViewCache().m_onDownloadStarted.invoke(bridge->m_javaRef.get(), downloadPtr,
+            static_cast<jstring>(jUri), static_cast<jstring>(jSuggestedFilename), static_cast<jstring>(jMimeType),
+            length ? static_cast<jlong>(length) : -1)
+        || !isWebKitDownloadBridgeAttached(downloadPtr)) {
+        Logging::logError("cannot deliver WebKitWebView onDownloadStarted callback");
+        webkit_download_cancel(download);
+    }
+    return TRUE;
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -784,6 +846,8 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
+    bridge->m_downloadStartedId = g_signal_connect(
+        webkit_web_view_get_network_session(webView), "download-started", G_CALLBACK(onDownloadStarted), bridge);
 
     return bridge;
 }

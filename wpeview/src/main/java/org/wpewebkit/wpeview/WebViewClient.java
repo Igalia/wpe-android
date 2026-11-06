@@ -91,6 +91,21 @@ public class WebViewClient {
     }
 
     /**
+     * Notify the host application that a response is to be saved to a file instead of shown: a response sent as an
+     * attachment, with a {@code Content-Disposition: attachment} header, one for a link with a {@code download}
+     * attribute, or a page of a type the WebView cannot show, such as an archive. The page that was shown stays: the
+     * load ends with {@link #onPageFinished} for its address.
+     *
+     * <p>The app chooses where to save the download with {@link WPEDownload#start}, now or later, or cancels it with
+     * {@link WPEDownload#cancel}, and must do one of the two. The download waits until then, or until the WebView is
+     * destroyed, which cancels it. By default it is cancelled.
+     *
+     * @param view The WebView that is initiating the callback.
+     * @param download The download, with the name the server suggests for the file, its type and its size.
+     */
+    public void onDownloadStart(@NonNull WebView view, @NonNull WPEDownload download) { download.cancel(); }
+
+    /**
      * Notify the host application that a page has started loading.
      * @param view The WebView that is initiating the callback.
      * @param url The url to be loaded.
