@@ -128,4 +128,63 @@ public class WebViewClient {
      */
     // FIXME: wire webkit_web_view tls-errors signal to invoke this callback.
     public void onReceivedSslError(@NonNull WebView view, @NonNull SslErrorHandler handler, @NonNull SslError error) {}
+
+    /**
+     * The interface used to answer a request for HTTP authentication. Only the first answer counts. None counts once
+     * the request is gone: when its load ended or another one started, as when the page goes elsewhere, or when the
+     * view was destroyed.
+     */
+    public interface HttpAuthHandler {
+        /**
+         * Sends the credentials. A server that does not accept them asks again, with {@link #isRetry()}.
+         * @param username The user name.
+         * @param password The password.
+         */
+        void proceed(@NonNull String username, @NonNull String password);
+
+        /**
+         * Goes on without credentials, so that the page shows what the server sent with its request for them, such as
+         * its 401 page.
+         */
+        void cancel();
+
+        /** Whether a proxy asks for the credentials, rather than the site. The host is then the proxy's. */
+        boolean isProxy();
+
+        /** Whether the server did not accept the credentials it was given for this load, and asks again. */
+        boolean isRetry();
+
+        /**
+         * The scheme of the connection that the credentials would go over: "https" when it is encrypted, "http" when it
+         * is not.
+         */
+        @NonNull
+        String getScheme();
+
+        /** The port of the server that asks. */
+        int getPort();
+    }
+
+    /**
+     * Notify the host application that a server or a proxy asks for a user name and password with HTTP authentication,
+     * such as Basic or Digest. The load waits until the handler is answered. The default answers with
+     * {@link HttpAuthHandler#cancel()}, so that the page shows what the server sent, such as its 401 page.
+     * @param view The WebView that is initiating the callback.
+     * @param handler The host application must call either proceed() or cancel().
+     * @param host The host of the server that asks.
+     * @param realm The realm that the server gives, which tells what the credentials are for. It may be empty.
+     */
+    public void onReceivedHttpAuthRequest(@NonNull WebView view, @NonNull HttpAuthHandler handler, @NonNull String host,
+                                          @NonNull String realm) {
+        handler.cancel();
+    }
+
+    /**
+     * Notify the host application that a request for HTTP authentication is gone before it was answered, because its
+     * load ended or another one started, as when the page goes elsewhere. Any dialog for it should be closed: an answer
+     * does nothing now. Not called for the requests of a view that is destroyed.
+     * @param view The WebView that is initiating the callback.
+     * @param handler The handler that {@link #onReceivedHttpAuthRequest} was given.
+     */
+    public void onHttpAuthRequestCanceled(@NonNull WebView view, @NonNull HttpAuthHandler handler) {}
 }

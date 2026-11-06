@@ -168,6 +168,10 @@ public final class WebKitWebView {
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
+        // The scheme is the one of the connection that the credentials would go over, also for a proxy.
+        void onHttpAuthRequest(long requestId, @NonNull String host, int port, @NonNull String scheme,
+                               @NonNull String realm, boolean isProxy, boolean isRetry);
+        void onHttpAuthRequestCancelled(long requestId);
     }
 
     private @Nullable Listener listener;
@@ -257,6 +261,42 @@ public final class WebKitWebView {
     /** Releases the native script dialog reported via {@link Listener#onScriptDialog}. */
     public void scriptDialogClose(long dialogPtr) { nativeScriptDialogClose(dialogPtr); }
 
+    @Keep
+    private void onAuthenticate(long requestId, String host, int port, String scheme, String realm, boolean isProxy,
+                                boolean isRetry) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(
+                () -> currentListener.onHttpAuthRequest(requestId, host, port, scheme, realm, isProxy, isRetry));
+        else
+            nativeAuthenticationCancel(mNativePtr, requestId);
+    }
+
+    @Keep
+    private void onAuthenticationCancelled(long requestId) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onHttpAuthRequestCancelled(requestId));
+    }
+
+    /**
+     * Answers a request reported via {@link Listener#onHttpAuthRequest} with these credentials. Only the first answer
+     * counts, and none counts once WebKit cancelled the request, because its load ended or another one started.
+     */
+    public void authenticate(long requestId, @NonNull String username, @NonNull String password) {
+        if (mNativePtr != 0)
+            nativeAuthenticate(mNativePtr, requestId, username, password);
+    }
+
+    /**
+     * Answers a request reported via {@link Listener#onHttpAuthRequest} without credentials, so that the load goes on
+     * and shows what the server sent with its request for them, such as its 401 page.
+     */
+    public void cancelAuthentication(long requestId) {
+        if (mNativePtr != 0)
+            nativeAuthenticationCancel(mNativePtr, requestId);
+    }
+
     private static class SnapshotCallbackHolder {
         private final SnapshotCallback callback;
 
@@ -311,4 +351,6 @@ public final class WebKitWebView {
                                                  @Nullable EvalCallbackHolder callbackHolder);
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
     private native void nativeScriptDialogClose(long dialogPtr);
+    private native void nativeAuthenticate(long nativePtr, long requestId, String username, String password);
+    private native void nativeAuthenticationCancel(long nativePtr, long requestId);
 }
