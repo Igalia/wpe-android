@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <android/bitmap.h>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -225,6 +226,8 @@ public:
               getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
         , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong)>("onDownloadStarted"))
         , m_onRunFileChooser(getMethod<void(jlong, jstringArray, jboolean)>("onRunFileChooser"))
+        , m_onRunColorChooser(getMethod<void(jlong, jint, jboolean)>("onRunColorChooser"))
+        , m_onColorChooserFinished(getMethod<void(jlong)>("onColorChooserFinished"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -252,7 +255,11 @@ public:
             JNI::NativeMethod<jboolean(jlong)>("nativeCanGoBack", nativeCanGoBack),
             JNI::NativeMethod<jboolean(jlong)>("nativeCanGoForward", nativeCanGoForward),
             JNI::NativeMethod<void(jlong, jstringArray)>("nativeFileChooserSelect", nativeFileChooserSelect),
-            JNI::NativeMethod<void(jlong)>("nativeFileChooserCancel", nativeFileChooserCancel));
+            JNI::NativeMethod<void(jlong)>("nativeFileChooserCancel", nativeFileChooserCancel),
+            JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat, jfloat)>(
+                "nativeColorChooserSetColor", nativeColorChooserSetColor),
+            JNI::NativeMethod<void(jlong)>("nativeColorChooserFinish", nativeColorChooserFinish),
+            JNI::NativeMethod<void(jlong)>("nativeColorChooserCancel", nativeColorChooserCancel));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -270,6 +277,8 @@ public:
     const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
     const JNI::Method<void(jlong, jstring, jstring, jstring, jlong)> m_onDownloadStarted;
     const JNI::Method<void(jlong, jstringArray, jboolean)> m_onRunFileChooser;
+    const JNI::Method<void(jlong, jint, jboolean)> m_onRunColorChooser;
+    const JNI::Method<void(jlong)> m_onColorChooserFinished;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -295,6 +304,8 @@ private:
     static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
     static gboolean onDecideDownloadDestination(WebKitDownload* download, const char* suggestedFilename, gpointer);
     static gboolean onRunFileChooser(WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge);
+    static gboolean onRunColorChooser(WebKitWebView*, WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
+    static void onColorChooserFinished(WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -327,6 +338,10 @@ private:
     static jboolean nativeCanGoForward(JNIEnv*, jobject, jlong nativePtr);
     static void nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray);
     static void nativeFileChooserCancel(JNIEnv*, jobject, jlong requestPtr);
+    static void nativeColorChooserSetColor(
+        JNIEnv*, jobject, jlong requestPtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
+    static void nativeColorChooserFinish(JNIEnv*, jobject, jlong requestPtr);
+    static void nativeColorChooserCancel(JNIEnv*, jobject, jlong requestPtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -807,6 +822,39 @@ gboolean JNIWebKitWebViewCache::onRunFileChooser(
     return TRUE;
 }
 
+// A color field of the page asks for a color. Java takes the request, and ends it with nativeColorChooserFinish or
+// nativeColorChooserCancel. The page may also end it, when the field goes away or the page is left. WebKit tells each
+// ending, which releases the request.
+gboolean JNIWebKitWebViewCache::onRunColorChooser(
+    WebKitWebView*, WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge)
+{
+    WebKitColor color;
+    webkit_color_chooser_request_get_color(request, &color);
+    auto channel = [](double value) { return static_cast<uint32_t>(std::lround(std::clamp(value, 0.0, 1.0) * 255)); };
+    const uint32_t argb
+        = (channel(color.alpha) << 24) | (channel(color.red) << 16) | (channel(color.green) << 8) | channel(color.blue);
+
+    g_object_ref(request);
+    g_signal_connect(request, "finished", G_CALLBACK(onColorChooserFinished), bridge);
+    if (!getJNIWebKitWebViewCache().m_onRunColorChooser.invoke(bridge->m_javaRef.get(),
+            reinterpret_cast<jlong>(request), static_cast<jint>(argb),
+            static_cast<jboolean>(webkit_color_chooser_request_get_supports_alpha(request)))) {
+        Logging::logError("cannot deliver WebKitWebView onRunColorChooser callback");
+        // Nothing else would end it. Once ended, it cannot be ended again.
+        webkit_color_chooser_request_cancel(request);
+    }
+    return TRUE;
+}
+
+void JNIWebKitWebViewCache::onColorChooserFinished(WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge)
+{
+    g_signal_handlers_disconnect_by_func(request, reinterpret_cast<gpointer>(onColorChooserFinished), bridge);
+    if (!getJNIWebKitWebViewCache().m_onColorChooserFinished.invoke(
+            bridge->m_javaRef.get(), reinterpret_cast<jlong>(request)))
+        Logging::logError("cannot deliver WebKitWebView onColorChooserFinished callback");
+    g_object_unref(request);
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -890,6 +938,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "script-dialog", G_CALLBACK(onScriptDialog), bridge),
         g_signal_connect(webView, "web-process-terminated", G_CALLBACK(onWebProcessTerminated), bridge),
         g_signal_connect(webView, "run-file-chooser", G_CALLBACK(onRunFileChooser), bridge),
+        g_signal_connect(webView, "run-color-chooser", G_CALLBACK(onRunColorChooser), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1311,6 +1360,26 @@ void JNIWebKitWebViewCache::nativeFileChooserCancel(JNIEnv*, jobject, jlong requ
     auto* request = JNI::from_jlong<WebKitFileChooserRequest>(requestPtr);
     webkit_file_chooser_request_cancel(request);
     releaseAnsweredFileChooser(request);
+}
+
+void JNIWebKitWebViewCache::nativeColorChooserSetColor(
+    JNIEnv*, jobject, jlong requestPtr, jfloat red, jfloat green, jfloat blue, jfloat alpha)
+{
+    // The field takes the color, and the page gets an input and a change event.
+    const WebKitColor color = {red, green, blue, alpha};
+    webkit_color_chooser_request_set_color(JNI::from_jlong<WebKitColorChooserRequest>(requestPtr), &color);
+}
+
+void JNIWebKitWebViewCache::nativeColorChooserFinish(JNIEnv*, jobject, jlong requestPtr)
+{
+    // Keeps the color set last.
+    webkit_color_chooser_request_finish(JNI::from_jlong<WebKitColorChooserRequest>(requestPtr));
+}
+
+void JNIWebKitWebViewCache::nativeColorChooserCancel(JNIEnv*, jobject, jlong requestPtr)
+{
+    // Gives the field back the color it had when it asked.
+    webkit_color_chooser_request_cancel(JNI::from_jlong<WebKitColorChooserRequest>(requestPtr));
 }
 
 void configureWebKitWebViewJNIMappings()

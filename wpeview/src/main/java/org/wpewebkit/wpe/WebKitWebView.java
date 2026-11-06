@@ -60,6 +60,8 @@ public final class WebKitWebView {
     private final Set<WebKitDownload> undecidedDownloads = new HashSet<>();
     // The file chooser requests taken from WebKit and not answered yet.
     private final Set<Long> fileChoosers = new HashSet<>();
+    // The color chooser requests taken from WebKit and not ended yet.
+    private final Set<Long> colorChoosers = new HashSet<>();
 
     public long getNativePtr() { return mNativePtr; }
 
@@ -190,6 +192,8 @@ public final class WebKitWebView {
         inputMethodContext.setListener(null);
         for (long requestPtr : new ArrayList<>(fileChoosers))
             fileChooserCancel(requestPtr);
+        for (long requestPtr : new ArrayList<>(colorChoosers))
+            colorChooserCancel(requestPtr);
         if (mNativePtr != 0) {
             nativeDestroy(mNativePtr);
             mNativePtr = 0;
@@ -238,6 +242,13 @@ public final class WebKitWebView {
          * answered later with {@link #fileChooserSelect} or {@link #fileChooserCancel}; one that is not is cancelled.
          */
         boolean onRunFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple);
+        /**
+         * A color field of the page asks for a color, on the main thread. Returns whether the request is taken, to be
+         * ended later with {@link #colorChooserFinish} or {@link #colorChooserCancel}; one that is not is cancelled.
+         */
+        boolean onRunColorChooser(long requestPtr, @ColorInt int color, boolean supportsAlpha);
+        /** The page ended a color chooser request that was taken, for example because the field went away. */
+        void onColorChooserFinished(long requestPtr);
     }
 
     private @Nullable Listener listener;
@@ -399,6 +410,51 @@ public final class WebKitWebView {
             nativeFileChooserCancel(requestPtr);
     }
 
+    // Called by WebKit on the main thread, where its main loop runs. The request is taken first, so that it is
+    // cancelled if anything fails.
+    @Keep
+    private void onRunColorChooser(long requestPtr, int color, boolean supportsAlpha) {
+        colorChoosers.add(requestPtr);
+        boolean taken = false;
+        try {
+            Listener currentListener = listener;
+            taken = currentListener != null && currentListener.onRunColorChooser(requestPtr, color, supportsAlpha);
+        } finally {
+            if (!taken)
+                colorChooserCancel(requestPtr);
+        }
+    }
+
+    // WebKit tells the end of every request, also of the ones ended here, which are not reported again.
+    @Keep
+    private void onColorChooserFinished(long requestPtr) {
+        if (!colorChoosers.remove(requestPtr))
+            return;
+        Listener currentListener = listener;
+        if (currentListener != null)
+            currentListener.onColorChooserFinished(requestPtr);
+    }
+
+    /** Gives the field of a color chooser request that is not ended a color, which the page gets at once. */
+    public void colorChooserSetColor(long requestPtr, @ColorInt int color) {
+        if (colorChoosers.contains(requestPtr)) {
+            Color rgba = Color.valueOf(color);
+            nativeColorChooserSetColor(requestPtr, rgba.red(), rgba.green(), rgba.blue(), rgba.alpha());
+        }
+    }
+
+    /** Ends a color chooser request with the color set last, if it is not ended yet. */
+    public void colorChooserFinish(long requestPtr) {
+        if (colorChoosers.remove(requestPtr))
+            nativeColorChooserFinish(requestPtr);
+    }
+
+    /** Ends a color chooser request with the color its field had, if it is not ended yet. */
+    public void colorChooserCancel(long requestPtr) {
+        if (colorChoosers.remove(requestPtr))
+            nativeColorChooserCancel(requestPtr);
+    }
+
     private static class SnapshotCallbackHolder {
         private final SnapshotCallback callback;
 
@@ -461,4 +517,7 @@ public final class WebKitWebView {
     private native boolean nativeCanGoForward(long nativePtr);
     private native void nativeFileChooserSelect(long requestPtr, @NonNull String[] paths);
     private native void nativeFileChooserCancel(long requestPtr);
+    private native void nativeColorChooserSetColor(long requestPtr, float red, float green, float blue, float alpha);
+    private native void nativeColorChooserFinish(long requestPtr);
+    private native void nativeColorChooserCancel(long requestPtr);
 }
