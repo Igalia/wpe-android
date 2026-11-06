@@ -23,6 +23,7 @@ import org.wpewebkit.wpe.WPEInputMethodContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -538,8 +539,10 @@ public class WebViewImeTest {
     }
 
     /**
-     * The focus moves from a text field to a password field and back. WebKit tells no focus out or focus in for
-     * that, only the new purpose, and the WebView restarts the input method with the input type of each field.
+     * The focus moves from a text field to a password field, back, and then to a password field shown as text.
+     * WebKit tells no focus out or focus in for that, only the new purpose and hints, and the WebView restarts the
+     * input method with the input type of each field. The text field and the password shown as text have the same
+     * purpose: only the private hint tells them apart.
      */
     @Test
     public void testFocusingAFieldOfAnotherTypeRestartsTheInputMethod() throws Throwable {
@@ -547,17 +550,21 @@ public class WebViewImeTest {
         scenario.moveToState(Lifecycle.State.RESUMED);
         int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
+        int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
+        Map<String, Integer> inputTypes = Map.of("text", text, "password", password, "revealed", revealed);
         AtomicReference<InputTypeRecordingWebView> webView = new AtomicReference<>();
         try {
             loadInRecordingWebView(scenario, webView,
-                                   "<html><body><input id='text'><input id='password' type='password'></body></html>");
+                                   "<html><body><input id='text'><input id='password' type='password'>"
+                                       + "<input id='revealed' type='password'><script>"
+                                       + "document.getElementById('revealed').type = 'text'</script></body></html>");
             assumeTrue("No input method connected to the WebView", waitForRestart(scenario, webView, 0, text, "text"));
 
-            for (String id : new String[] {"password", "text"}) {
+            for (String id : new String[] {"password", "text", "revealed", "text"}) {
                 AtomicInteger from = new AtomicInteger();
                 scenario.onActivity(activity -> from.set(webView.get().inputTypes.size()));
                 assertTrue("The input method was not restarted with the input type of #" + id,
-                           waitForRestart(scenario, webView, from.get(), id.equals("text") ? text : password, id));
+                           waitForRestart(scenario, webView, from.get(), inputTypes.get(id), id));
             }
         } finally {
             destroyRecordingWebView(scenario, webView);
