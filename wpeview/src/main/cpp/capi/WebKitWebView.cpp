@@ -202,8 +202,10 @@ public:
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
         , m_onWebProcessTerminated(getMethod<void(jint)>("onWebProcessTerminated"))
+        , m_onCreateWindow(getMethod<jlong(jboolean)>("onCreateWindow"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
+            JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", nativeLoadUrl),
             JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", nativeLoadHtml),
@@ -240,6 +242,7 @@ public:
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
+    const JNI::Method<jlong(jboolean)> m_onCreateWindow;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -259,11 +262,14 @@ private:
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
     static void onWebProcessTerminated(
         WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge);
+    static WebKitWebView* onCreate(WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
+    static WebKitWebViewBridge* createBridge(JNIEnv* env, jobject jniWebView, WebKitWebView* webView);
     static jlong nativeInit(JNIEnv* env, jobject jniWebView, jlong displayPtr, jlong contextPtr, jlong toplevelPtr,
         jlong networkSessionPtr, jlong settingsPtr);
+    static jlong nativeInitRelated(JNIEnv* env, jobject jniWebView, jlong relatedPtr, jlong settingsPtr);
     static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr);
     static void nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url);
     static void nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri);
@@ -606,6 +612,24 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
         Logging::logError("cannot deliver WebKitWebView onWebProcessTerminated callback");
 }
 
+// WebKit asks for the view of a new window while it makes the page of that window, which needs the view before this
+// returns, so the app makes it right away. It must be related to this view: WebKit then puts its page in the same web
+// process, with this page as its opener unless the page asked for none, as rel=noopener does. The bridge of the new
+// view keeps the view, as WebKit takes no reference of its own.
+WebKitWebView* JNIWebKitWebViewCache::onCreate(
+    WebKitWebView* webView, WebKitNavigationAction* action, WebKitWebViewBridge* bridge)
+{
+    // The app may destroy this view while it is asked, which deletes the bridge and drops its reference on the view.
+    // WebKit still uses the view once the signal returns, so keep a reference until the main loop runs again.
+    g_idle_add_full(
+        G_PRIORITY_DEFAULT, +[](gpointer) -> gboolean { return G_SOURCE_REMOVE; }, g_object_ref(webView),
+        g_object_unref);
+
+    auto isUserGesture = static_cast<jboolean>(webkit_navigation_action_is_user_gesture(action));
+    jlong webViewPtr = getJNIWebKitWebViewCache().m_onCreateWindow.invoke(bridge->m_javaRef.get(), isUserGesture);
+    return JNI::from_jlong<WebKitWebView>(webViewPtr);
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -654,9 +678,31 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
     if (toplevel)
         wpe_view_set_toplevel(wpeView, toplevel);
 
+    return reinterpret_cast<jlong>(createBridge(env, jniWebView, webView));
+}
+
+// The view of a new window, made while the related view emits create. It takes the display, the web context, the
+// network session and whether it is controlled by automation from the related view, which must not be given again.
+jlong JNIWebKitWebViewCache::nativeInitRelated(JNIEnv* env, jobject jniWebView, jlong relatedPtr, jlong settingsPtr)
+{
+    auto* related = JNI::from_jlong<WebKitWebViewBridge>(relatedPtr);
+    auto* settings = JNI::from_jlong<WebKitSettings>(settingsPtr);
+
+    g_assert(related);
+    if (!related)
+        return 0;
+
+    auto* webView = WEBKIT_WEB_VIEW(
+        g_object_new(WEBKIT_TYPE_WEB_VIEW, "related-view", related->m_webView, "settings", settings, nullptr));
+    return reinterpret_cast<jlong>(createBridge(env, jniWebView, webView));
+}
+
+WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jniWebView, WebKitWebView* webView)
+{
     auto* bridge = new WebKitWebViewBridge(webView, env, jniWebView);
     bridge->m_signalIds = {
         g_signal_connect(webView, "close", G_CALLBACK(onClose), bridge),
+        g_signal_connect(webView, "create", G_CALLBACK(onCreate), bridge),
         g_signal_connect(webView, "decide-policy", G_CALLBACK(onDecidePolicy), bridge),
         g_signal_connect(webView, "load-changed", G_CALLBACK(onLoadChanged), bridge),
         g_signal_connect(webView, "load-failed", G_CALLBACK(onLoadFailed), bridge),
@@ -670,7 +716,7 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
 
-    return reinterpret_cast<jlong>(bridge);
+    return bridge;
 }
 
 void JNIWebKitWebViewCache::nativeDestroy(JNIEnv*, jobject, jlong nativePtr)

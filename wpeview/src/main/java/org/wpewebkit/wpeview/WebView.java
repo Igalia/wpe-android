@@ -27,6 +27,7 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -71,8 +72,10 @@ import java.util.Objects;
  */
 @UiThread
 public class WebView extends FrameLayout {
+    private static final String LOGTAG = "WPEWebView";
+
     private WebContext wpeContext;
-    private boolean ownsContext;
+    private @Nullable OwnedContext ownedContext;
     private boolean headless;
     // Package-private: read by the ScriptDialogResult inner class (avoids a synthetic accessor).
     WebKitWebView webKitWebView;
@@ -100,6 +103,9 @@ public class WebView extends FrameLayout {
     int currentProgress = 0;
     boolean canGoBack = false;
     boolean canGoForward = false;
+    // While the chrome client is asked for a new window of the page, and the WebView made for it then, if any.
+    private boolean creatingWindow;
+    private @Nullable WebView createdWindow;
 
     public WebView(@NonNull android.content.Context context) { this(context, (AttributeSet)null); }
 
@@ -107,12 +113,22 @@ public class WebView extends FrameLayout {
         super(context, attrs);
         // Validate XML before allocating the owned context or any native view objects.
         int backgroundColor = initialBackgroundColor();
-        init(new WebContext(context), true, false, backgroundColor);
+        WebContext ownContext = new WebContext(context);
+        init(ownContext, new OwnedContext(ownContext), false, backgroundColor, null);
+    }
+
+    // A WebContext that a WebView made for itself, which the windows its pages open share. The last of them to be
+    // destroyed destroys it.
+    private static final class OwnedContext {
+        final WebContext context;
+        int users = 1;
+
+        OwnedContext(@NonNull WebContext context) { this.context = context; }
     }
 
     public WebView(@NonNull WebContext context) {
         super(context.getApplicationContext());
-        init(context, false, false, initialBackgroundColor());
+        init(context, null, false, initialBackgroundColor(), null);
     }
 
     /**
@@ -123,7 +139,28 @@ public class WebView extends FrameLayout {
      */
     public WebView(@NonNull android.content.Context uiContext, @NonNull WebContext context) {
         super(uiContext);
-        init(context, false, false, initialBackgroundColor());
+        init(context, null, false, initialBackgroundColor(), null);
+    }
+
+    /**
+     * Constructs the {@link WebView} of a new window that the page in {@code opener} asks for, which
+     * {@link WebChromeClient#onCreateWindow} returns. It can only be made there, once in each call. It shares the
+     * {@link WebContext} of {@code opener}, and one that {@code opener} made for itself stays until both are destroyed.
+     * Like any new WebView, it has settings of its own. Pass an Activity context, as for
+     * {@link #WebView(android.content.Context, WebContext)}.
+     *
+     * @throws IllegalStateException if {@code opener} is not asking for a window in
+     *     {@link WebChromeClient#onCreateWindow}, or a WebView was already made for it there.
+     */
+    public WebView(@NonNull android.content.Context uiContext, @NonNull WebView opener) {
+        super(uiContext);
+        if (!opener.creatingWindow || opener.createdWindow != null || opener.webKitWebView == null)
+            throw new IllegalStateException(
+                "The WebView of a new window can only be made once in WebChromeClient.onCreateWindow");
+        if (opener.ownedContext != null)
+            opener.ownedContext.users++;
+        init(opener.wpeContext, opener.ownedContext, false, initialBackgroundColor(), opener.webKitWebView);
+        opener.createdWindow = this;
     }
 
     /**
@@ -133,19 +170,22 @@ public class WebView extends FrameLayout {
      */
     public WebView(@NonNull WebContext context, boolean headless) {
         super(context.getApplicationContext());
-        init(context, false, headless, initialBackgroundColor());
+        init(context, null, headless, initialBackgroundColor(), null);
     }
 
-    private void init(@NonNull WebContext context, boolean ownsContext, boolean headless,
-                      @ColorInt int backgroundColor) {
+    // The view of a new window is related to the view of its opener, whose page asks for it.
+    private void init(@NonNull WebContext context, @Nullable OwnedContext ownedContext, boolean headless,
+                      @ColorInt int backgroundColor, @Nullable WebKitWebView openerView) {
         this.wpeContext = context;
-        this.ownsContext = ownsContext;
+        this.ownedContext = ownedContext;
         this.headless = headless;
 
         this.webKitSettings = new WebKitSettings();
         webKitSettings.setUserAgentString(wpeContext.getDefaultUserAgent());
-        this.webKitWebView = new WebKitWebView(wpeContext.getWPEDisplay(), wpeContext.getWebKitWebContext(), null,
-                                               wpeContext.getWebKitNetworkSession(), webKitSettings);
+        this.webKitWebView = openerView != null
+                                 ? new WebKitWebView(openerView, webKitSettings)
+                                 : new WebKitWebView(wpeContext.getWPEDisplay(), wpeContext.getWebKitWebContext(), null,
+                                                     wpeContext.getWebKitNetworkSession(), webKitSettings);
 
         this.platformView = webKitWebView.getWPEView();
         this.imContext = webKitWebView.getInputMethodContext();
@@ -259,6 +299,11 @@ public class WebView extends FrameLayout {
                     releaseInputMethod();
                 viewClient.onWebProcessTerminated(WebView.this, reason);
             }
+
+            @Override
+            public @Nullable WebKitWebView onCreateWindow(boolean isUserGesture) {
+                return createWindow(isUserGesture);
+            }
         });
 
         if (!headless) {
@@ -342,8 +387,10 @@ public class WebView extends FrameLayout {
             webKitSettings.destroy();
             webKitSettings = null;
         }
-        if (ownsContext && wpeContext != null) {
-            wpeContext.destroy();
+        if (ownedContext != null) {
+            if (--ownedContext.users == 0)
+                ownedContext.context.destroy();
+            ownedContext = null;
             wpeContext = null;
         }
     }
@@ -635,6 +682,32 @@ public class WebView extends FrameLayout {
     }
 
     public void setTLSErrorsPolicy(int policy) { wpeContext.getWebKitNetworkSession().setTLSErrorsPolicy(policy); }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor). WebKit can
+    // only put the page of the new window in a view made for it, in this call.
+    @Nullable
+    WebKitWebView createWindow(boolean isUserGesture) {
+        WebView window;
+        WebView created;
+        creatingWindow = true;
+        try {
+            window = chromeClient.onCreateWindow(this, isUserGesture);
+        } finally {
+            created = createdWindow;
+            creatingWindow = false;
+            createdWindow = null;
+        }
+        if (window == null)
+            return null;
+        // WebKit is waiting for the window, so a wrong one opens none instead of throwing into it.
+        if (window != created) {
+            Log.e(LOGTAG, "WebChromeClient.onCreateWindow must return the WebView it made for the window with "
+                              + "WebView(Context, WebView), or null: no window opens");
+            return null;
+        }
+        // Null if the window was destroyed meanwhile.
+        return window.webKitWebView;
+    }
 
     // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
     void showScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
