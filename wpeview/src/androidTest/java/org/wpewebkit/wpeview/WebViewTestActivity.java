@@ -43,5 +43,13 @@ public class WebViewTestActivity extends Activity {
         setContentView(linearLayout);
     }
 
+    // Ends the page with the activity, and with it the web process and any media still playing, so that it
+    // does not outlive its test.
+    @Override
+    public void onDestroy() {
+        webView.destroy();
+        super.onDestroy();
+    }
+
     public WebView getWebView() { return webView; }
 }
