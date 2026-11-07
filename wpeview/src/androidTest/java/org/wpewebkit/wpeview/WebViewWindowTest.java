@@ -52,9 +52,11 @@ public class WebViewWindowTest {
                                              + "}</script></body></html>";
 
     // audio plays silence in a loop. WebKit counts it as audible, like music: it has an audio track and it is
-    // neither muted nor at volume 0.
+    // neither muted nor at volume 0. started becomes true when the promise of play() resolves.
     private static final String AUDIO_PAGE = "<html><body><script>var audio = new Audio('" + silentWavUrl() + "');\n"
                                              + "audio.loop = true;\n"
+                                             + "var started = false;\n"
+                                             + "function play() { audio.play().then(() => started = true); }\n"
                                              + "function state() { return audio.paused ? 'paused' : 'playing'; }\n"
                                              + "</script></body></html>";
 
@@ -214,7 +216,15 @@ public class WebViewWindowTest {
         assertEquals(requirePageVisibility, required.get());
         TestWebViewClient webViewClient = new TestWebViewClient();
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, AUDIO_PAGE);
-        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "audio.play(); 0");
+        // WebKit admits a playback some time after play(), and hiding the page before then changes what it does: it
+        // takes media that has not started playing for silent and suspends it until the page is shown again, and a
+        // playback it admits after the page was hidden resumes the media despite the setting. The promise of play()
+        // tells when the playback was admitted, but only for media that could already play: for media still loading,
+        // the data that arrives resolves it.
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                 scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true"));
+        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "play(); 0");
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "started", "true"));
         assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
         return scenario;
     }
