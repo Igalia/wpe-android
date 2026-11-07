@@ -22,8 +22,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * How the window of a WebView reaches its page: the page is hidden while its WebView is out of the
@@ -52,9 +55,11 @@ public class WebViewWindowTest {
                                              + "}</script></body></html>";
 
     // audio plays silence in a loop. WebKit counts it as audible, like music: it has an audio track and it is
-    // neither muted nor at volume 0.
+    // neither muted nor at volume 0. started becomes true when the promise of play() resolves.
     private static final String AUDIO_PAGE = "<html><body><script>var audio = new Audio('" + silentWavUrl() + "');\n"
                                              + "audio.loop = true;\n"
+                                             + "var started = false;\n"
+                                             + "function play() { audio.play().then(() => started = true); }\n"
                                              + "function state() { return audio.paused ? 'paused' : 'playing'; }\n"
                                              + "</script></body></html>";
 
@@ -214,7 +219,15 @@ public class WebViewWindowTest {
         assertEquals(requirePageVisibility, required.get());
         TestWebViewClient webViewClient = new TestWebViewClient();
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, AUDIO_PAGE);
-        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "audio.play(); 0");
+        // WebKit admits a playback some time after play(), and hiding the page before then changes what it does: it
+        // takes media that has not started playing for silent and suspends it until the page is shown again, and a
+        // playback it admits after the page was hidden resumes the media despite the setting. The promise of play()
+        // tells when the playback was admitted, but only for media that could already play: for media still loading,
+        // the data that arrives resolves it.
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                 scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true"));
+        WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "play(); 0");
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "started", "true"));
         assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
         return scenario;
     }
@@ -257,10 +270,28 @@ public class WebViewWindowTest {
         scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
     }
 
+    // Android gives the focus to the window of a new activity a moment after it is shown, and not at all while a window
+    // over it has the focus, such as the notification shade.
+    private static void waitForWindowFocus(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
+        AtomicBoolean focused = new AtomicBoolean();
+        for (int i = 0; i < 100 && !focused.get(); i++) {
+            scenario.onActivity(activity -> focused.set(activity.hasWindowFocus()));
+            if (!focused.get())
+                Thread.sleep(100);
+        }
+        if (focused.get())
+            return;
+        String windows = WebViewActivityScenarioHelper.shell("dumpsys window displays");
+        Matcher focusedWindow = Pattern.compile("mCurrentFocus=.*").matcher(windows);
+        fail("The window of the activity never got the focus, " +
+             (focusedWindow.find() ? focusedWindow.group() : "no window has it"));
+    }
+
     @Test
     public void testDialogTakesTheFocusFromThePage() throws Throwable {
         TestWebViewClient webViewClient = new TestWebViewClient();
         ActivityScenario<WebViewTestActivity> scenario = loadPage(webViewClient);
+        waitForWindowFocus(scenario);
 
         scenario.onActivity(activity -> activity.getWebView().requestFocus());
         assertEquals("true",
