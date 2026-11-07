@@ -26,6 +26,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -99,6 +100,9 @@ public class WebView extends FrameLayout {
     int currentProgress = 0;
     boolean canGoBack = false;
     boolean canGoForward = false;
+    // The request of the color field that the page has open, if any. WebKit has one at most.
+    @Nullable
+    ColorChooserResult colorChooser;
 
     public WebView(@NonNull android.content.Context context) { this(context, (AttributeSet)null); }
 
@@ -249,6 +253,21 @@ public class WebView extends FrameLayout {
             @Override
             public void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
                 showScriptDialog(dialogPtr, type, url, message, defaultText);
+            }
+
+            @Override
+            public boolean onRunFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+                return showFileChooser(requestPtr, mimeTypes, selectMultiple);
+            }
+
+            @Override
+            public boolean onRunColorChooser(long requestPtr, int color, boolean supportsAlpha) {
+                return showColorChooser(requestPtr, color, supportsAlpha);
+            }
+
+            @Override
+            public void onColorChooserFinished(long requestPtr) {
+                hideColorChooser(requestPtr);
             }
         });
 
@@ -708,6 +727,114 @@ public class WebView extends FrameLayout {
                 result.confirm();
             }
         }
+    }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    boolean showFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
+        WebChromeClient.FileChooserParams params =
+            new WebChromeClient.FileChooserParams(selectMultiple ? WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+                                                                 : WebChromeClient.FileChooserParams.MODE_OPEN,
+                                                  mimeTypes);
+        return chromeClient.onShowFileChooser(this, params, new FileChooserResult(requestPtr));
+    }
+
+    private class FileChooserResult implements WPECallback<String[]> {
+        private final long requestPtr;
+        // Once answered, the request is gone, and its pointer may be used by another one.
+        private boolean answered;
+
+        FileChooserResult(long requestPtr) { this.requestPtr = requestPtr; }
+
+        @Override
+        public void onResult(@Nullable String[] paths) {
+            // WebKit would take a relative path from the directory of its own process.
+            if (paths != null) {
+                for (String path : paths) {
+                    if (path == null || !path.startsWith("/"))
+                        throw new IllegalArgumentException("Not the absolute path of a file: " + path);
+                }
+            }
+            if (runOnMainThread(() -> onResult(paths)))
+                return;
+            // webKitWebView is null once the view has been destroyed, which cancelled the request.
+            if (answered || webKitWebView == null)
+                return;
+            answered = true;
+            if (paths == null || paths.length == 0)
+                webKitWebView.fileChooserCancel(requestPtr);
+            else
+                webKitWebView.fileChooserSelect(requestPtr, paths);
+        }
+    }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    boolean showColorChooser(long requestPtr, @ColorInt int color, boolean supportsAlpha) {
+        ColorChooserResult result = new ColorChooserResult(requestPtr, supportsAlpha);
+        colorChooser = result;
+        boolean taken = false;
+        try {
+            taken = chromeClient.onShowColorChooser(this, new WebChromeClient.ColorChooserParams(color, supportsAlpha),
+                                                    result);
+        } finally {
+            if (!taken)
+                result.end();
+        }
+        return taken;
+    }
+
+    // Package-private: called from the WebKitWebView.Listener inner class (avoids a synthetic accessor).
+    void hideColorChooser(long requestPtr) {
+        ColorChooserResult result = colorChooser;
+        if (result == null || result.requestPtr != requestPtr)
+            return;
+        result.end();
+        chromeClient.onHideColorChooser(this);
+    }
+
+    private class ColorChooserResult implements WebChromeClient.ColorChooserCallback {
+        final long requestPtr;
+        private final boolean supportsAlpha;
+        // Once ended, by the app or by the page, the request is gone, and its pointer may be used by another one.
+        private boolean ended;
+
+        ColorChooserResult(long requestPtr, boolean supportsAlpha) {
+            this.requestPtr = requestPtr;
+            this.supportsAlpha = supportsAlpha;
+        }
+
+        void end() {
+            ended = true;
+            if (colorChooser == this)
+                colorChooser = null;
+        }
+
+        // WebKit gives the page a change event for each color it is given, not only for the last one, so the field
+        // gets only the chosen one.
+        @Override
+        public void confirm(@ColorInt int color) {
+            if (runOnMainThread(() -> confirm(color)) || ended || webKitWebView == null)
+                return;
+            end();
+            // A field without an alpha takes only opaque colors.
+            webKitWebView.colorChooserSetColor(requestPtr, supportsAlpha ? color : color | 0xff000000);
+            webKitWebView.colorChooserFinish(requestPtr);
+        }
+
+        @Override
+        public void cancel() {
+            if (runOnMainThread(this::cancel) || ended || webKitWebView == null)
+                return;
+            end();
+            webKitWebView.colorChooserCancel(requestPtr);
+        }
+    }
+
+    // WebKit is answered on the main thread, where its main loop runs. Returns whether the task was sent there.
+    boolean runOnMainThread(@NonNull Runnable task) {
+        if (Looper.myLooper() == Looper.getMainLooper())
+            return false;
+        getContext().getMainExecutor().execute(task);
+        return true;
     }
 
     private static class HttpResourceRequest implements WPEResourceRequest {
