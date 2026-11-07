@@ -28,6 +28,9 @@ struct _WPEToplevelAndroid {
     ASurfaceControl* surfaceControl;
     ASurfaceControl* rootSurfaceControl;
     gboolean windowFocused;
+    gboolean fullscreen;
+    WPEToplevelAndroidFullscreenCallback fullscreenCallback;
+    gpointer fullscreenCallbackUserData;
     int physicalWidth;
     int physicalHeight;
     float backgroundRed;
@@ -90,7 +93,25 @@ static void wpeToplevelAndroidUpdateState(WPEToplevelAndroid* toplevel)
         state |= WPE_TOPLEVEL_STATE_MAXIMIZED;
     if (toplevel->windowFocused)
         state |= WPE_TOPLEVEL_STATE_ACTIVE;
+    if (toplevel->fullscreen)
+        state |= WPE_TOPLEVEL_STATE_FULLSCREEN;
     wpe_toplevel_state_changed(WPE_TOPLEVEL(toplevel), static_cast<WPEToplevelState>(state));
+}
+
+// WebKit asks for fullscreen when an element of the page goes fullscreen, and to leave it when the page leaves
+// fullscreen. The view always fills its toplevel, so the toplevel takes the state at once, and the callback tells the
+// app, which gives the toplevel the whole screen or takes it back. The state comes first, so that the callback can
+// leave fullscreen again.
+static gboolean wpeToplevelAndroidSetFullscreen(WPEToplevel* baseToplevel, gboolean fullscreen)
+{
+    auto* toplevel = WPE_TOPLEVEL_ANDROID(baseToplevel);
+    if (toplevel->fullscreen == !!fullscreen)
+        return TRUE;
+
+    wpe_toplevel_android_set_fullscreen(toplevel, fullscreen);
+    if (toplevel->fullscreenCallback)
+        toplevel->fullscreenCallback(fullscreen, toplevel->fullscreenCallbackUserData);
+    return TRUE;
 }
 
 void wpe_toplevel_android_set_physical_size(WPEToplevelAndroid* toplevel, int width, int height)
@@ -140,6 +161,7 @@ static void wpe_toplevel_android_class_init(WPEToplevelAndroidClass* klass)
     WPEToplevelClass* toplevelClass = WPE_TOPLEVEL_CLASS(klass);
     toplevelClass->resize = wpeToplevelAndroidResize;
     toplevelClass->get_screen = wpeToplevelAndroidGetScreen;
+    toplevelClass->set_fullscreen = wpeToplevelAndroidSetFullscreen;
 }
 
 static void wpe_toplevel_android_init(WPEToplevelAndroid* toplevel)
@@ -269,6 +291,25 @@ void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gbool
 
     toplevel->windowFocused = focused;
     wpeToplevelAndroidUpdateState(toplevel);
+}
+
+// Sets the state without the callback. When the toplevel leaves fullscreen this way, WebKit takes the page out of
+// fullscreen.
+void wpe_toplevel_android_set_fullscreen(WPEToplevelAndroid* toplevel, gboolean fullscreen)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+
+    toplevel->fullscreen = !!fullscreen;
+    wpeToplevelAndroidUpdateState(toplevel);
+}
+
+void wpe_toplevel_android_set_fullscreen_callback(
+    WPEToplevelAndroid* toplevel, WPEToplevelAndroidFullscreenCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+
+    toplevel->fullscreenCallback = callback;
+    toplevel->fullscreenCallbackUserData = userData;
 }
 
 ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel)
