@@ -55,6 +55,42 @@ public class WebViewClient {
     public static final int ERROR_LOCAL_NETWORK_ACCESS_DENIED = -100;
 
     /**
+     * Give the host application a chance to take over a navigation before it starts, mirroring
+     * {@code android.webkit.WebViewClient.shouldOverrideUrlLoading}. Called for the navigations of the page and of its
+     * frames, such as a link, a form or a script that changes the address, also when they follow a redirect from the
+     * server, and for a link or a script that opens a new window, before the window is created. Not called for the
+     * navigations the app starts itself, with {@link WebView#loadUrl}, {@link WebView#loadHtml},
+     * {@link WebView#reload}, {@link WebView#goBack} or {@link WebView#goForward}, nor for POST requests.
+     *
+     * <p>The WebView loads http, https, file, data, blob and about addresses. Others, such as {@code mailto:} or
+     * {@code intent:}, fail to load with {@link #ERROR_UNSUPPORTED_SCHEME} unless the app takes them, for example to
+     * open them with another app. {@link WPEResourceRequest#hasGesture()} tells whether the user asked for the
+     * navigation, or whether the page started it by itself.
+     *
+     * @param view The WebView that is initiating the callback.
+     * @param request The request of the navigation.
+     * @return {@code true} to cancel the navigation, which the app then takes care of, or {@code false} to let the
+     *     WebView go on with it.
+     */
+    public boolean shouldOverrideUrlLoading(@NonNull WebView view, @NonNull WPEResourceRequest request) {
+        return false;
+    }
+
+    /**
+     * Notify the host application that a response is to be saved to a file instead of shown: a response sent as an
+     * attachment, with a {@code Content-Disposition: attachment} header, one for a link with a {@code download}
+     * attribute, or a page of a type the WebView cannot show, such as an archive. The page that was shown stays: the
+     * load ends with {@link #onPageFinished} for its address.
+     *
+     * <p>The app chooses where to save the download with {@link WPEDownload#start}, now or later, or cancels it with
+     * {@link WPEDownload#cancel}. The download waits until then. By default it is cancelled.
+     *
+     * @param view The WebView that is initiating the callback.
+     * @param download The download, with the name the server suggests for the file, its type and its size.
+     */
+    public void onDownloadStart(@NonNull WebView view, @NonNull WPEDownload download) { download.cancel(); }
+
+    /**
      * Notify the host application that a page has started loading.
      * @param view The WebView that is initiating the callback.
      * @param url The url to be loaded.

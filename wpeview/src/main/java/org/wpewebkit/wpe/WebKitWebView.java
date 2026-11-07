@@ -164,10 +164,14 @@ public final class WebKitWebView {
         void onLoadProgress(double progress);
         void onTitleChanged(@NonNull String title);
         void onHistoryChanged(@NonNull String uri, boolean canGoBack, boolean canGoForward);
-        void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode);
+        void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode,
+                                 boolean isMainFrame);
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
         void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
+        boolean shouldOverrideUrlLoading(@NonNull String uri, @NonNull String method, boolean isMainFrame,
+                                         boolean hasGesture, boolean isRedirect);
+        void onDownloadStarted(@NonNull WebKitDownload download);
     }
 
     private @Nullable Listener listener;
@@ -224,10 +228,11 @@ public final class WebKitWebView {
     }
 
     @Keep
-    private void onReceivedHttpError(String uri, String method, String mimeType, int statusCode) {
+    private void onReceivedHttpError(String uri, String method, String mimeType, int statusCode, boolean isMainFrame) {
         Listener currentListener = listener;
         if (currentListener != null)
-            MainLooperDispatcher.post(() -> currentListener.onReceivedHttpError(uri, method, mimeType, statusCode));
+            MainLooperDispatcher.post(
+                () -> currentListener.onReceivedHttpError(uri, method, mimeType, statusCode, isMainFrame));
     }
 
     @Keep
@@ -244,6 +249,27 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onScriptDialog(dialogPtr, type, url, message, defaultText));
         else
             nativeScriptDialogClose(dialogPtr);
+    }
+
+    // WebKit waits for the answer, so it is given right away, on the main thread, where WebKit runs.
+    @Keep
+    private boolean shouldOverrideUrlLoading(String uri, String method, boolean isMainFrame, boolean hasGesture,
+                                             boolean isRedirect) {
+        Listener currentListener = listener;
+        return currentListener != null &&
+            currentListener.shouldOverrideUrlLoading(uri, method, isMainFrame, hasGesture, isRedirect);
+    }
+
+    // The download waits until the listener sets its destination or cancels it, maybe later.
+    @Keep
+    private void onDownloadStarted(long downloadPtr, String uri, String suggestedFilename, String mimeType,
+                                   long contentLength) {
+        WebKitDownload download = new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength);
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onDownloadStarted(download));
+        else
+            download.cancel();
     }
 
     /**

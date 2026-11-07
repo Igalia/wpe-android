@@ -19,6 +19,7 @@
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
 #include "Logging.h"
+#include "WebKitDownloadBridge.h"
 
 #include <algorithm>
 #include <android/bitmap.h>
@@ -79,20 +80,32 @@ struct SnapshotRequest {
 
 namespace WebKit {
 
+// The bridge of a web view, which callbacks that call the app find it by again: the app may destroy the WebView
+// meanwhile. Downloads find it by too: a download outlives its web view, which may outlive its bridge.
+static GQuark webViewBridgeQuark()
+{
+    static GQuark quark = g_quark_from_static_string("wpe-android-web-view-bridge");
+    return quark;
+}
+
 struct WebKitWebViewBridge {
     WebKitWebViewBridge(WebKitWebView* webView, JNIEnv* env, jobject javaWebView)
         : m_webView(webView)
         , m_javaRef(env, javaWebView)
     {
+        g_object_set_qdata(G_OBJECT(m_webView), webViewBridgeQuark(), this);
     }
 
     ~WebKitWebViewBridge()
     {
+        g_object_set_qdata(G_OBJECT(m_webView), webViewBridgeQuark(), nullptr);
         for (gulong id : m_signalIds)
             g_signal_handler_disconnect(m_webView, id);
         m_signalIds.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
+        if (m_downloadStartedId)
+            g_signal_handler_disconnect(webkit_web_view_get_network_session(m_webView), m_downloadStartedId);
         g_object_unref(m_webView);
     }
 
@@ -100,6 +113,7 @@ struct WebKitWebViewBridge {
     JNI::GlobalRef<JNIWebKitWebView> m_javaRef;
     std::vector<gulong> m_signalIds;
     gulong m_backForwardListChangedId {0};
+    gulong m_downloadStartedId {0};
     // The address and the Back/Forward state last reported, none at first.
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
@@ -119,6 +133,9 @@ struct WebKitWebViewBridge {
     // The address of the current main frame load once it failed. WebKit keeps the web view's URI at the previous page,
     // but the end of the load is reported with the address that failed, as with android.webkit.WebView.
     std::string m_failedLoadUri;
+    // The address of the last load the app asked for, as WebKit keeps it, until WebKit decides on the next main frame
+    // navigation, which is that load if it has this address. The app is not asked about its own loads.
+    std::string m_appLoadUri;
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -195,9 +212,12 @@ public:
         , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
         , m_onTitleChanged(getMethod<void(jstring)>("onTitleChanged"))
         , m_onHistoryChanged(getMethod<void(jstring, jboolean, jboolean)>("onHistoryChanged"))
-        , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint)>("onReceivedHttpError"))
+        , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint, jboolean)>("onReceivedHttpError"))
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
+        , m_shouldOverrideUrlLoading(
+              getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
+        , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong)>("onDownloadStarted"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
@@ -227,9 +247,11 @@ public:
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onTitleChanged;
     const JNI::Method<void(jstring, jboolean, jboolean)> m_onHistoryChanged;
-    const JNI::Method<void(jstring, jstring, jstring, jint)> m_onReceivedHttpError;
+    const JNI::Method<void(jstring, jstring, jstring, jint, jboolean)> m_onReceivedHttpError;
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
+    const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
+    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong)> m_onDownloadStarted;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -244,9 +266,13 @@ private:
     static void reportHistory(WebKitWebViewBridge* bridge, bool committed = false);
     static gboolean onDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision,
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
+    static bool shouldOverrideUrlLoading(
+        WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isAppLoad);
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
+    static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
+    static gboolean onDecideDownloadDestination(WebKitDownload* download, const char* suggestedFilename, gpointer);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -296,6 +322,8 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_navigationPending = false;
         bridge->m_redirectCount = 0;
         bridge->m_failedLoadUri.clear();
+        // The load of the app was decided on by now.
+        bridge->m_appLoadUri.clear();
         bridge->m_loadStarting = true;
         if (!getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadStarted callback");
@@ -409,19 +437,39 @@ void JNIWebKitWebViewCache::reportTitle(WebKitWebViewBridge* bridge)
         Logging::logError("cannot deliver WebKitWebView onTitleChanged callback");
 }
 
-gboolean JNIWebKitWebViewCache::onDecidePolicy(
-    WebKitWebView*, WebKitPolicyDecision* decision, WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge)
+gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPolicyDecision* decision,
+    WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge)
 {
     if (!decision)
         return FALSE;
 
-    if (decisionType == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION) {
+    if (decisionType == WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION
+        || decisionType == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) {
         auto* action
             = webkit_navigation_policy_decision_get_navigation_action(WEBKIT_NAVIGATION_POLICY_DECISION(decision));
-        WebKitFrameInfo* frame = action ? webkit_navigation_action_get_target_frame_info(action) : nullptr;
-        if (frame && webkit_frame_info_is_main_frame(frame)) {
-            auto* request = webkit_navigation_action_get_request(action);
-            const char* uri = webkit_uri_request_get_uri(request);
+        if (!action)
+            return FALSE;
+        // A navigation that opens a new window has no target frame yet. It loads in the main frame of that window.
+        bool isNewWindow = decisionType == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION;
+        WebKitFrameInfo* frame = webkit_navigation_action_get_target_frame_info(action);
+        bool isMainFrame = isNewWindow || (frame && webkit_frame_info_is_main_frame(frame));
+        auto* request = webkit_navigation_action_get_request(action);
+        const char* uri = webkit_uri_request_get_uri(request);
+        // WebKit decides on the load the app asked for before any other navigation in the main frame, unless the page
+        // started one meanwhile.
+        bool isAppLoad = false;
+        if (isMainFrame && !isNewWindow) {
+            isAppLoad = !bridge->m_appLoadUri.empty() && uri && bridge->m_appLoadUri == uri;
+            bridge->m_appLoadUri.clear();
+        }
+        // The app may destroy the WebView while it is asked, which deletes the bridge.
+        g_autoptr(WebKitWebView) protectedWebView = WEBKIT_WEB_VIEW(g_object_ref(webView));
+        if (shouldOverrideUrlLoading(bridge, action, isMainFrame, isAppLoad)) {
+            webkit_policy_decision_ignore(decision);
+            return TRUE;
+        }
+        bridge = static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
+        if (bridge && isMainFrame && !isNewWindow) {
             const char* method = webkit_uri_request_get_http_method(request);
             bridge->m_navigationUri = uri ? uri : "";
             bridge->m_navigationMethod = method ? method : "GET";
@@ -436,19 +484,58 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(
     auto* responseDecision = WEBKIT_RESPONSE_POLICY_DECISION(decision);
     auto* uriResponse = webkit_response_policy_decision_get_response(responseDecision);
     guint statusCode = webkit_uri_response_get_status_code(uriResponse);
-    if (statusCode < 400)
+    if (statusCode < 400) {
+        // WebKit saves a response sent as an attachment, but does nothing with a page of a type it cannot show, such
+        // as an archive: save that too, unless it is an error, which WebKit does not save, or No Content, which leaves
+        // the page as it is. Responses that are not HTTP, such as those of data: addresses, have no status.
+        if (webkit_response_policy_decision_is_main_frame_main_resource(responseDecision)
+            && !webkit_response_policy_decision_is_mime_type_supported(responseDecision) && statusCode != 204
+            && statusCode != 205) {
+            webkit_policy_decision_download(decision);
+            return TRUE;
+        }
         return FALSE;
+    }
 
     auto* uriRequest = webkit_response_policy_decision_get_request(responseDecision);
     const char* method = webkit_uri_request_get_http_method(uriRequest);
     auto jUri = JNI::String(webkit_uri_request_get_uri(uriRequest));
     auto jMethod = JNI::String(method ? method : "GET");
     auto jMimeType = JNI::String(webkit_uri_response_get_mime_type(uriResponse));
+    bool isMainFrame = webkit_response_policy_decision_is_main_frame_main_resource(responseDecision);
     if (!getJNIWebKitWebViewCache().m_onReceivedHttpError.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
-            static_cast<jstring>(jMethod), static_cast<jstring>(jMimeType), static_cast<jint>(statusCode)))
+            static_cast<jstring>(jMethod), static_cast<jstring>(jMimeType), static_cast<jint>(statusCode),
+            static_cast<jboolean>(isMainFrame)))
         Logging::logError("cannot deliver WebKitWebView onReceivedHttpError callback");
 
     return FALSE;
+}
+
+// Asks the app about the navigations of the page, as android.webkit.WebView does: not about its own loads, nor about
+// going back, forward or reloading, nor about POST requests.
+bool JNIWebKitWebViewCache::shouldOverrideUrlLoading(
+    WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isAppLoad)
+{
+    switch (webkit_navigation_action_get_navigation_type(action)) {
+    case WEBKIT_NAVIGATION_TYPE_BACK_FORWARD:
+    case WEBKIT_NAVIGATION_TYPE_RELOAD:
+    case WEBKIT_NAVIGATION_TYPE_FORM_RESUBMITTED:
+        return false;
+    default:
+        break;
+    }
+    auto* request = webkit_navigation_action_get_request(action);
+    const char* uri = webkit_uri_request_get_uri(request);
+    const char* method = webkit_uri_request_get_http_method(request);
+    if (isAppLoad || !uri || (method && g_ascii_strcasecmp(method, "GET")))
+        return false;
+
+    auto jUri = JNI::String(uri);
+    auto jMethod = JNI::String(method ? method : "GET");
+    return getJNIWebKitWebViewCache().m_shouldOverrideUrlLoading.invoke(bridge->m_javaRef.get(),
+        static_cast<jstring>(jUri), static_cast<jstring>(jMethod), static_cast<jboolean>(isMainFrame),
+        static_cast<jboolean>(webkit_navigation_action_is_user_gesture(action)),
+        static_cast<jboolean>(webkit_navigation_action_is_redirect(action)));
 }
 
 // The error codes of android.webkit.WebViewClient, which WebViewClient's are.
@@ -568,6 +655,50 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     return TRUE;
 }
 
+// Every web view of the network session hears of every download, and follows those of its own pages.
+void JNIWebKitWebViewCache::onDownloadStarted(
+    WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge)
+{
+    if (webkit_download_get_web_view(download) == bridge->m_webView)
+        g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDownloadDestination), nullptr);
+}
+
+// Once the response is known, the app is asked where to save the download, which waits for the answer. A download
+// whose web view went meanwhile, or that the app could not be told of, is cancelled.
+gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
+    WebKitDownload* download, const char* suggestedFilename, gpointer)
+{
+    auto* webView = webkit_download_get_web_view(download);
+    auto* bridge = webView
+        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
+        : nullptr;
+    if (!bridge) {
+        webkit_download_cancel(download);
+        return TRUE;
+    }
+
+    // The address after the redirects of the server.
+    auto* response = webkit_download_get_response(download);
+    const char* uri = response ? webkit_uri_response_get_uri(response) : nullptr;
+    if (!uri)
+        uri = webkit_uri_request_get_uri(webkit_download_get_request(download));
+    const char* mimeType = response ? webkit_uri_response_get_mime_type(response) : nullptr;
+    guint64 length = response ? webkit_uri_response_get_content_length(response) : 0;
+
+    jlong downloadPtr = createWebKitDownloadBridge(download);
+    auto jUri = JNI::String(uri ? uri : "");
+    auto jSuggestedFilename = JNI::String(suggestedFilename ? suggestedFilename : "");
+    auto jMimeType = JNI::String(mimeType ? mimeType : "");
+    if (!getJNIWebKitWebViewCache().m_onDownloadStarted.invoke(bridge->m_javaRef.get(), downloadPtr,
+            static_cast<jstring>(jUri), static_cast<jstring>(jSuggestedFilename), static_cast<jstring>(jMimeType),
+            length ? static_cast<jlong>(length) : -1)
+        || !isWebKitDownloadBridgeAttached(downloadPtr)) {
+        Logging::logError("cannot deliver WebKitWebView onDownloadStarted callback");
+        webkit_download_cancel(download);
+    }
+    return TRUE;
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -630,6 +761,8 @@ jlong JNIWebKitWebViewCache::nativeInit(JNIEnv* env, jobject jniWebView, jlong d
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
+    bridge->m_downloadStartedId = g_signal_connect(
+        webkit_web_view_get_network_session(webView), "download-started", G_CALLBACK(onDownloadStarted), bridge);
 
     return reinterpret_cast<jlong>(bridge);
 }
@@ -639,16 +772,27 @@ void JNIWebKitWebViewCache::nativeDestroy(JNIEnv*, jobject, jlong nativePtr)
     delete JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
 }
 
+// WebKit takes the address of a load the app asks for as the web view's URI at once, as it will be in the request.
+// A javascript: address runs in the page, and is no navigation.
+static void rememberAppLoad(WebKitWebViewBridge* bridge)
+{
+    const char* uri = webkit_web_view_get_uri(bridge->m_webView);
+    bridge->m_appLoadUri = uri && g_ascii_strncasecmp(uri, "javascript:", 11) ? uri : "";
+}
+
 void JNIWebKitWebViewCache::nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url)
 {
-    webkit_web_view_load_uri(
-        JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView, JNI::String(url).getContent().get());
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    webkit_web_view_load_uri(bridge->m_webView, JNI::String(url).getContent().get());
+    rememberAppLoad(bridge);
 }
 
 void JNIWebKitWebViewCache::nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri)
 {
-    webkit_web_view_load_html(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView,
-        JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    webkit_web_view_load_html(
+        bridge->m_webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
+    rememberAppLoad(bridge);
 }
 
 void JNIWebKitWebViewCache::nativeStopLoading(JNIEnv*, jobject, jlong nativePtr)

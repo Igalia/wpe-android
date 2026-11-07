@@ -125,6 +125,7 @@ add_library(
     Runtime/WPERuntime.cpp
     capi/JNIMappings.cpp
     capi/WebKitCookieManager.cpp
+    capi/WebKitDownload.cpp
     capi/WebKitNetworkSession.cpp
     capi/WebKitSettings.cpp
     capi/WebKitWebContext.cpp
