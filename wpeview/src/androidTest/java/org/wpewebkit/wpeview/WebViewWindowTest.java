@@ -22,8 +22,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * How the window of a WebView reaches its page: the page is hidden while its WebView is out of the
@@ -267,10 +270,28 @@ public class WebViewWindowTest {
         scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
     }
 
+    // Android gives the focus to the window of a new activity a moment after it is shown, and not at all while a window
+    // over it has the focus, such as the notification shade.
+    private static void waitForWindowFocus(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
+        AtomicBoolean focused = new AtomicBoolean();
+        for (int i = 0; i < 100 && !focused.get(); i++) {
+            scenario.onActivity(activity -> focused.set(activity.hasWindowFocus()));
+            if (!focused.get())
+                Thread.sleep(100);
+        }
+        if (focused.get())
+            return;
+        String windows = WebViewActivityScenarioHelper.shell("dumpsys window displays");
+        Matcher focusedWindow = Pattern.compile("mCurrentFocus=.*").matcher(windows);
+        fail("The window of the activity never got the focus, " +
+             (focusedWindow.find() ? focusedWindow.group() : "no window has it"));
+    }
+
     @Test
     public void testDialogTakesTheFocusFromThePage() throws Throwable {
         TestWebViewClient webViewClient = new TestWebViewClient();
         ActivityScenario<WebViewTestActivity> scenario = loadPage(webViewClient);
+        waitForWindowFocus(scenario);
 
         scenario.onActivity(activity -> activity.getWebView().requestFocus());
         assertEquals("true",
