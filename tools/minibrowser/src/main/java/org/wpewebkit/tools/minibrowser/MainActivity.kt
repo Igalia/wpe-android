@@ -28,6 +28,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.fragment.NavHostFragment
 import org.wpewebkit.tools.minibrowser.databinding.ActivityMainBinding
@@ -41,6 +42,8 @@ class MainActivity : AppCompatActivity() {
         supportFragmentManager.findFragmentById(R.id.nav_host_view) as NavHostFragment
     }
 
+    private val browserViewModel by viewModels<BrowserViewModel>()
+
     private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,15 +54,22 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
     }
 
-    // Lets a URL be opened from the command line, also when the browser is already running:
-    // adb shell am start -n org.wpewebkit.tools.minibrowser/.MainActivity -d <url>
+    // Lets a URL be opened from another app or from the command line, also when the browser is
+    // already running:
+    // adb shell am start -a android.intent.action.VIEW -d <url> org.wpewebkit.tools.minibrowser
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val url = intent.dataString ?: return
+        val url = intent.addressToOpen() ?: return
         val currentFragment = navHost.childFragmentManager.fragments.firstOrNull()
-        if (currentFragment is BrowserFragment)
+        if (currentFragment is BrowserFragment) {
             currentFragment.loadUrl(url)
+            return
+        }
+        // Another screen, such as Settings, is shown. Go back to the browser, which loads the
+        // address once its view is created again.
+        browserViewModel.pendingAddress = url
+        navHost.navController.popBackStack(R.id.browserFragment, false)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
