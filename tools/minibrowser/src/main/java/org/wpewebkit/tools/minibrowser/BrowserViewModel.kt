@@ -42,6 +42,9 @@ class BrowserViewModel : ViewModel() {
         }
     }
 
+    // An address another app asked to open while the browser was not shown.
+    var pendingAddress: String? = null
+
     fun findTab(id: String) : Tab {
         return browserState.value.tabs.first{ tab -> tab.id == id }
     }
