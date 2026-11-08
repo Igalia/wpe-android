@@ -19,12 +19,15 @@
 
 package org.wpewebkit.wpe;
 
+import android.content.ServiceConnection;
+
 import androidx.annotation.NonNull;
 
 import org.wpewebkit.wpe.services.WPEServiceConnection;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 final class AuxiliaryProcessesContainer {
     private static final int MAX_AUX_PROCESSES = org.wpewebkit.wpe.services.WPEServices.MAX_AUX_PROCESSES;
@@ -33,6 +36,11 @@ final class AuxiliaryProcessesContainer {
         new AuxiliaryProcess[WPEProcessType.values().length][MAX_AUX_PROCESSES];
     private final Map<Long, AuxiliaryProcess> pidToProcessMap = new HashMap<>();
     private final int[] firstAvailableSlot = new int[WPEProcessType.values().length];
+    private final Consumer<ServiceConnection> unbindService;
+
+    AuxiliaryProcessesContainer(@NonNull Consumer<ServiceConnection> unbindService) {
+        this.unbindService = unbindService;
+    }
 
     public int getFirstAvailableSlot(@NonNull WPEProcessType processType) {
         return firstAvailableSlot[processType.getValue()];
@@ -55,13 +63,34 @@ final class AuxiliaryProcessesContainer {
         }
     }
 
+    // Unbinds the service of a process. Its slot stays taken until the process of the service has ended (see
+    // onProcessGone()), as binding the same service before would reach the process that is ending, and Android would
+    // only start a new one when it restarts the service.
     public void unregister(long pid) {
         AuxiliaryProcess process = pidToProcessMap.remove(pid);
         if (process == null)
             return;
 
-        process.terminate();
+        WPEServiceConnection connection = process.getServiceConnection();
+        connection.dispose();
+        unbindService.accept(connection);
+        if (!connection.mayHaveProcess())
+            releaseSlot(process);
+    }
 
+    public void onProcessGone(@NonNull WPEServiceConnection connection) {
+        int typeIdx = connection.getProcessType().getValue();
+        for (AuxiliaryProcess process : processes[typeIdx]) {
+            // A process still registered is unregistered when its service disconnects, which releases its slot.
+            if (process != null && process.getServiceConnection() == connection &&
+                pidToProcessMap.get(connection.getPid()) != process) {
+                releaseSlot(process);
+                return;
+            }
+        }
+    }
+
+    private void releaseSlot(@NonNull AuxiliaryProcess process) {
         int typeIdx = process.getProcessType().getValue();
         processes[typeIdx][process.getProcessSlot()] = null;
         firstAvailableSlot[typeIdx] = Math.min(process.getProcessSlot(), firstAvailableSlot[typeIdx]);
@@ -78,11 +107,8 @@ final class AuxiliaryProcessesContainer {
 
         public int getProcessSlot() { return processSlot; }
 
-        public WPEProcessType getProcessType() { return serviceConnection.getProcessType(); }
+        public @NonNull WPEServiceConnection getServiceConnection() { return serviceConnection; }
 
-        public void terminate() {
-            serviceConnection.dispose();
-            WPERuntime.getInstance().getApplicationContext().unbindService(serviceConnection);
-        }
+        public WPEProcessType getProcessType() { return serviceConnection.getProcessType(); }
     }
 }

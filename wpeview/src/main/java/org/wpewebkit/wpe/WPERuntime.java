@@ -130,7 +130,8 @@ public final class WPERuntime {
         }
     }
 
-    protected final AuxiliaryProcessesContainer auxiliaryProcesses = new AuxiliaryProcessesContainer();
+    protected final AuxiliaryProcessesContainer auxiliaryProcesses =
+        new AuxiliaryProcessesContainer(connection -> getApplicationContext().unbindService(connection));
 
     private final WPEServiceConnectionListener serviceConnectionDelegate = new WPEServiceConnectionListener() {
         public void onCleanExit(@NonNull WPEServiceConnection connection) {
@@ -143,6 +144,10 @@ public final class WPERuntime {
             // Unbind the service to prevent restarting on crash,
             // wpewebkit will restart the auxiliary process if needed
             auxiliaryProcesses.unregister(connection.getPid());
+        }
+
+        public void onProcessGone(@NonNull WPEServiceConnection connection) {
+            auxiliaryProcesses.onProcessGone(connection);
         }
     };
 

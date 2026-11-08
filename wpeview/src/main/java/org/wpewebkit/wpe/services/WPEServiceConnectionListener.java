@@ -25,4 +25,10 @@ public interface WPEServiceConnectionListener {
     void onCleanExit(@NonNull WPEServiceConnection connection);
 
     void onServiceDisconnected(@NonNull WPEServiceConnection connection);
+
+    /**
+     * The process of a service that connected has ended, also when the service was unbound before. Does nothing by
+     * default, for listeners that keep nothing for the process once it is unbound.
+     */
+    default void onProcessGone(@NonNull WPEServiceConnection connection) {}
 }
