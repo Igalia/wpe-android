@@ -100,6 +100,22 @@ public final class WPEDownload {
     public long getContentLength() { return download.getContentLength(); }
 
     /**
+     * Whether something the user did in the page started the download, such as tapping a link, rather than the page
+     * by itself, such as a script that runs as the page loads, or a frame. Loads that the app asks for, with
+     * {@link WebView#loadUrl}, and scripts that it runs with {@link WebView#evaluateJavascript} count as user gestures,
+     * as do the redirects of the server that follow them. An app may ask the user before it saves a download that the
+     * page started by itself.
+     *
+     * <p>True is only given when a user gesture surely started the download, so that an app may save it without
+     * asking. A download that the user started may count as the page's: when the page itself also went to its address,
+     * in a frame for example, and that navigation could still become a download, or when the page went to a great many
+     * addresses.
+     *
+     * @return whether a user gesture surely started the download.
+     */
+    public boolean hasGesture() { return download.hasGesture(); }
+
+    /**
      * Starts writing the download to the file, which is replaced if it exists. The WebView's own processes write it,
      * so it must be a path they can write: a file in the app's own storage, such as
      * {@link android.content.Context#getCacheDir()}. While the download goes on, WebKit also writes the file with

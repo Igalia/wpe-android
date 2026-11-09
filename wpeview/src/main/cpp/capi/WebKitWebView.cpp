@@ -152,6 +152,22 @@ struct WebKitWebViewBridge {
     // cancels a request when its load ends or another one starts, and a later answer for it is dropped.
     std::unordered_map<jlong, WebKitAuthenticationRequest*> m_authenticationRequests;
     jlong m_lastAuthenticationRequestId {0};
+    // The navigations of the page and its frames since the page committed, with and without a user gesture, by the key
+    // of their address (navigationKey). WebKit does not tell whether a user gesture started a download, so a download
+    // takes it from the navigations to its address.
+    struct NavigationCount {
+        uint32_t withGesture {0};
+        uint32_t withoutGesture {0};
+    };
+    std::unordered_map<size_t, NavigationCount> m_navigationCounts;
+    // Whether the page went to more addresses than are counted, so that no download has a gesture until the next page.
+    bool m_navigationCountsFull {false};
+    // Whether a user gesture started the current main frame navigation, which its server redirects keep.
+    bool m_mainFrameGesture {false};
+    // The address of the page that the window of this view opens with, and whether a user gesture opened the window,
+    // until WebKit decides on the first main frame navigation of the view. It does so without that gesture.
+    std::string m_windowLoadUri;
+    bool m_windowLoadGesture {false};
 };
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
@@ -235,7 +251,7 @@ public:
         , m_onCreateWindow(getMethod<jlong(jboolean)>("onCreateWindow"))
         , m_shouldOverrideUrlLoading(
               getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
-        , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong)>("onDownloadStarted"))
+        , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong, jboolean)>("onDownloadStarted"))
         , m_onRunFileChooser(getMethod<void(jlong, jstringArray, jboolean)>("onRunFileChooser"))
         , m_onRunColorChooser(getMethod<void(jlong, jint, jboolean)>("onRunColorChooser"))
         , m_onColorChooserFinished(getMethod<void(jlong)>("onColorChooserFinished"))
@@ -291,7 +307,7 @@ public:
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
     const JNI::Method<jlong(jboolean)> m_onCreateWindow;
     const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
-    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong)> m_onDownloadStarted;
+    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong, jboolean)> m_onDownloadStarted;
     const JNI::Method<void(jlong, jstringArray, jboolean)> m_onRunFileChooser;
     const JNI::Method<void(jlong, jint, jboolean)> m_onRunColorChooser;
     const JNI::Method<void(jlong)> m_onColorChooserFinished;
@@ -313,6 +329,9 @@ private:
         WebKitPolicyDecisionType decisionType, WebKitWebViewBridge* bridge);
     static bool shouldOverrideUrlLoading(
         WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isAppLoad);
+    static void countNavigation(
+        WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isUserLoad);
+    static bool takeNavigationGesture(WebKitWebViewBridge* bridge, const char* uri);
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
@@ -320,7 +339,8 @@ private:
         WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge);
     static WebKitWebView* onCreate(WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge);
     static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
-    static gboolean onDecideDownloadDestination(WebKitDownload* download, const char* suggestedFilename, gpointer);
+    static gboolean onDecideDownloadDestination(
+        WebKitDownload* download, const char* suggestedFilename, gpointer hasGesture);
     static gboolean onRunFileChooser(WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge);
     static gboolean onRunColorChooser(WebKitWebView*, WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
     static void onColorChooserFinished(WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
@@ -401,6 +421,11 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
         bridge->m_loadStarting = false;
+        // The new page ends the frames of the old one and their loads, so their navigations no longer count. The
+        // downloads of the old page have taken their counts by then: WebKit tells of a download right after it is
+        // decided on, not once the server answers.
+        bridge->m_navigationCounts.clear();
+        bridge->m_navigationCountsFull = false;
         // The first page after the end of the web process has its title reported, also when WebKit's stays empty.
         if (bridge->m_titlePending || bridge->m_webProcessTerminated)
             reportTitle(bridge);
@@ -536,9 +561,14 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
         // WebKit decides on the load the app asked for before any other navigation in the main frame, unless the page
         // started one meanwhile.
         bool isAppLoad = false;
+        // The page of a window that a user gesture opened.
+        bool isOpenedByUser = false;
         if (isMainFrame && !isNewWindow) {
             isAppLoad = !bridge->m_appLoadUri.empty() && uri && bridge->m_appLoadUri == uri;
             bridge->m_appLoadUri.clear();
+            isOpenedByUser = bridge->m_windowLoadGesture && uri && bridge->m_windowLoadUri == uri;
+            bridge->m_windowLoadUri.clear();
+            bridge->m_windowLoadGesture = false;
         }
         // The app may destroy the WebView while it is asked, which deletes the bridge.
         g_autoptr(WebKitWebView) protectedWebView = WEBKIT_WEB_VIEW(g_object_ref(webView));
@@ -547,12 +577,16 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
             return TRUE;
         }
         bridge = static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
-        if (bridge && isMainFrame && !isNewWindow) {
+        // A new window loads its page in a web view of its own, which decides on it again (onCreate).
+        if (!bridge || isNewWindow)
+            return FALSE;
+        if (isMainFrame) {
             const char* method = webkit_uri_request_get_http_method(request);
             bridge->m_navigationUri = uri ? uri : "";
             bridge->m_navigationMethod = method ? method : "GET";
             bridge->m_navigationPending = true;
         }
+        countNavigation(bridge, action, isMainFrame, isAppLoad || isOpenedByUser);
         return FALSE;
     }
 
@@ -614,6 +648,82 @@ bool JNIWebKitWebViewCache::shouldOverrideUrlLoading(
         static_cast<jstring>(jUri), static_cast<jstring>(jMethod), static_cast<jboolean>(isMainFrame),
         static_cast<jboolean>(webkit_navigation_action_is_user_gesture(action)),
         static_cast<jboolean>(webkit_navigation_action_is_redirect(action)));
+}
+
+// The most addresses whose navigations a page counts. A page that goes to more has no download with a gesture.
+static constexpr size_t maxNavigationAddresses = 1024;
+
+// The key of the navigations to an address and of its downloads. A download has the address of its network request,
+// which may have lost the fragment of the navigation's, or gone from http to https, so those do not count. Addresses
+// with the same key share their counts, which only ever takes gestures away.
+static size_t navigationKey(std::string_view uri)
+{
+    uri = uri.substr(0, uri.find('#'));
+    for (std::string_view scheme : {"http://", "https://"}) {
+        if (uri.substr(0, scheme.size()) == scheme) {
+            uri.remove_prefix(scheme.size());
+            break;
+        }
+    }
+    return std::hash<std::string_view> {}(uri);
+}
+
+// Counts a navigation of the page or a frame, with or without a user gesture, for the download it may become. The loads
+// that the user asked for count as gestures: those of the app, and the pages of the windows that a user gesture opened.
+// So do the server redirects of a main frame navigation that has a gesture.
+void JNIWebKitWebViewCache::countNavigation(
+    WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isUserLoad)
+{
+    const char* uri = webkit_uri_request_get_uri(webkit_navigation_action_get_request(action));
+    if (!uri)
+        return;
+    bool hasGesture = webkit_navigation_action_is_user_gesture(action) || isUserLoad;
+    if (isMainFrame) {
+        if (webkit_navigation_action_is_redirect(action))
+            hasGesture = hasGesture || bridge->m_mainFrameGesture;
+        else
+            bridge->m_mainFrameGesture = hasGesture;
+    }
+    if (bridge->m_navigationCountsFull)
+        return;
+    auto& counts = bridge->m_navigationCounts;
+    size_t key = navigationKey(uri);
+    auto it = counts.find(key);
+    if (it == counts.end()) {
+        if (counts.size() == maxNavigationAddresses) {
+            counts.clear();
+            bridge->m_navigationCountsFull = true;
+            return;
+        }
+        it = counts.emplace(key, WebKitWebViewBridge::NavigationCount {}).first;
+    }
+    if (hasGesture)
+        it->second.withGesture++;
+    else
+        it->second.withoutGesture++;
+}
+
+// Whether a user gesture started the download of an address. It comes from one of the counted navigations to that
+// address: a link with a download attribute, or the navigation that got the response, after the redirects of the
+// server, and takes it off the counts. While a navigation without a gesture to the address is counted, the download
+// may be the page's own, also when the user tapped a link to the same address in another frame, so it has no gesture.
+// It then takes off a navigation with a gesture if there is one, as it may be that one's, so that a later download of
+// the address, which may be the page's, still finds the page's navigation counted.
+bool JNIWebKitWebViewCache::takeNavigationGesture(WebKitWebViewBridge* bridge, const char* uri)
+{
+    auto& counts = bridge->m_navigationCounts;
+    auto it = uri ? counts.find(navigationKey(uri)) : counts.end();
+    if (it == counts.end())
+        return false;
+    auto& count = it->second;
+    bool hasGesture = !count.withoutGesture;
+    if (count.withGesture)
+        count.withGesture--;
+    else
+        count.withoutGesture--;
+    if (!count.withGesture && !count.withoutGesture)
+        counts.erase(it);
+    return hasGesture;
 }
 
 // The error codes of android.webkit.WebViewClient, which WebViewClient's are.
@@ -772,23 +882,39 @@ WebKitWebView* JNIWebKitWebViewCache::onCreate(
         G_PRIORITY_DEFAULT, +[](gpointer) -> gboolean { return G_SOURCE_REMOVE; }, g_object_ref(webView),
         g_object_unref);
 
-    auto isUserGesture = static_cast<jboolean>(webkit_navigation_action_is_user_gesture(action));
-    jlong webViewPtr = getJNIWebKitWebViewCache().m_onCreateWindow.invoke(bridge->m_javaRef.get(), isUserGesture);
-    return JNI::from_jlong<WebKitWebView>(webViewPtr);
+    bool isUserGesture = webkit_navigation_action_is_user_gesture(action);
+    jlong webViewPtr = getJNIWebKitWebViewCache().m_onCreateWindow.invoke(
+        bridge->m_javaRef.get(), static_cast<jboolean>(isUserGesture));
+    auto* newWebView = JNI::from_jlong<WebKitWebView>(webViewPtr);
+    // WebKit decides on the navigation of the window's page again, in the new view, but without the gesture of the link
+    // or the script that opened the window. The new view keeps it for the download that the page may become.
+    auto* newBridge = newWebView
+        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(newWebView), webViewBridgeQuark()))
+        : nullptr;
+    if (newBridge) {
+        const char* uri = webkit_uri_request_get_uri(webkit_navigation_action_get_request(action));
+        newBridge->m_windowLoadUri = uri ? uri : "";
+        newBridge->m_windowLoadGesture = isUserGesture;
+    }
+    return newWebView;
 }
 
 // Every web view of the network session hears of every download, and follows those of its own pages.
 void JNIWebKitWebViewCache::onDownloadStarted(
     WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge)
 {
-    if (webkit_download_get_web_view(download) == bridge->m_webView)
-        g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDownloadDestination), nullptr);
+    if (webkit_download_get_web_view(download) != bridge->m_webView)
+        return;
+    auto* request = webkit_download_get_request(download);
+    bool hasGesture = takeNavigationGesture(bridge, request ? webkit_uri_request_get_uri(request) : nullptr);
+    g_signal_connect(
+        download, "decide-destination", G_CALLBACK(onDecideDownloadDestination), GINT_TO_POINTER(hasGesture));
 }
 
 // Once the response is known, the app is asked where to save the download, which waits for the answer. A download
 // whose web view went meanwhile, or that the app could not be told of, is cancelled.
 gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
-    WebKitDownload* download, const char* suggestedFilename, gpointer)
+    WebKitDownload* download, const char* suggestedFilename, gpointer hasGesture)
 {
     auto* webView = webkit_download_get_web_view(download);
     auto* bridge = webView
@@ -813,7 +939,7 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
     auto jMimeType = JNI::String(mimeType ? mimeType : "");
     if (!getJNIWebKitWebViewCache().m_onDownloadStarted.invoke(bridge->m_javaRef.get(), downloadPtr,
             static_cast<jstring>(jUri), static_cast<jstring>(jSuggestedFilename), static_cast<jstring>(jMimeType),
-            length ? static_cast<jlong>(length) : -1)
+            length ? static_cast<jlong>(length) : -1, static_cast<jboolean>(GPOINTER_TO_INT(hasGesture)))
         || !isWebKitDownloadBridgeAttached(downloadPtr)) {
         Logging::logError("cannot deliver WebKitWebView onDownloadStarted callback");
         webkit_download_cancel(download);

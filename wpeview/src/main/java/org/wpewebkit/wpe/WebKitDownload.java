@@ -48,6 +48,7 @@ public final class WebKitDownload {
     private final String suggestedFilename;
     private final String mimeType;
     private final long contentLength;
+    private final boolean hasGesture;
     private @Nullable Listener listener;
     // Hears once that the download no longer waits for a destination: it has one, it was cancelled, or it ended.
     private @Nullable Runnable decidedCallback;
@@ -58,12 +59,13 @@ public final class WebKitDownload {
     private @Nullable String errorDescription;
 
     WebKitDownload(long nativePtr, @NonNull String uri, @NonNull String suggestedFilename, @NonNull String mimeType,
-                   long contentLength) {
+                   long contentLength, boolean hasGesture) {
         mNativePtr = nativePtr;
         this.uri = uri;
         this.suggestedFilename = suggestedFilename;
         this.mimeType = mimeType;
         this.contentLength = contentLength;
+        this.hasGesture = hasGesture;
         // The native download tells this object how it goes from now on.
         nativeAttach(nativePtr);
     }
@@ -76,6 +78,9 @@ public final class WebKitDownload {
 
     /** The size the server announced, or -1 if it did not. */
     public long getContentLength() { return contentLength; }
+
+    /** Whether a user gesture, or a load of the app, started the navigation that became the download. */
+    public boolean hasGesture() { return hasGesture; }
 
     /**
      * Sets the listener, which hears of the end of a download that ended before, as soon as the caller returns: the

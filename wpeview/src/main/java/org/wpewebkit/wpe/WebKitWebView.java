@@ -362,8 +362,9 @@ public final class WebKitWebView {
     // destroyed.
     @Keep
     private void onDownloadStarted(long downloadPtr, String uri, String suggestedFilename, String mimeType,
-                                   long contentLength) {
-        WebKitDownload download = new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength);
+                                   long contentLength, boolean hasGesture) {
+        WebKitDownload download =
+            new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength, hasGesture);
         Listener currentListener = listener;
         if (currentListener == null) {
             download.cancel();

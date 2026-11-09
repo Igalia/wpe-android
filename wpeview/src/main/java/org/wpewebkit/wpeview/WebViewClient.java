@@ -98,7 +98,8 @@ public class WebViewClient {
      *
      * <p>The app chooses where to save the download with {@link WPEDownload#start}, now or later, or cancels it with
      * {@link WPEDownload#cancel}, and must do one of the two. The download waits until then, or until the WebView is
-     * destroyed, which cancels it. By default it is cancelled.
+     * destroyed, which cancels it, so the app may ask the user first. {@link WPEDownload#hasGesture()} tells whether
+     * the user started the download, or whether the page started it by itself. By default it is cancelled.
      *
      * @param view The WebView that is initiating the callback.
      * @param download The download, with the name the server suggests for the file, its type and its size.
