@@ -11,9 +11,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class WebViewActivityScenarioHelper {
     private static WebContext sharedWebContext;
@@ -40,6 +44,33 @@ public class WebViewActivityScenarioHelper {
                 bytes.write(buffer, 0, read);
             return bytes.toString(StandardCharsets.UTF_8.name());
         }
+    }
+
+    /**
+     * How many times Android started each running service of the app again after its process ended while the service
+     * was bound, which it does only after a delay. The activity manager counts these restarts in the record of each
+     * service.
+     */
+    public static Map<String, Integer> serviceRestarts() throws IOException {
+        String packageName = InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName();
+        Pattern serviceRecord = Pattern.compile("\\* ServiceRecord\\{\\S+ \\S+ ([^\\s}]+)");
+        Pattern restartCount = Pattern.compile("\\brestartCount=(\\d+)");
+        Map<String, Integer> restarts = new HashMap<>();
+        String service = null;
+        for (String line : shell("dumpsys activity services " + packageName).split("\n")) {
+            Matcher matcher = serviceRecord.matcher(line);
+            if (matcher.find()) {
+                service = matcher.group(1);
+                restarts.put(service, 0);
+                continue;
+            }
+            matcher = restartCount.matcher(line);
+            if (service != null && matcher.find())
+                restarts.put(service, Integer.parseInt(matcher.group(1)));
+        }
+        // Called while services of the app run, so finding none means that the output was not understood.
+        Assert.assertFalse("No service of " + packageName + " in the output of dumpsys", restarts.isEmpty());
+        return restarts;
     }
 
     public static void loadHtmlSync(ActivityScenario<WebViewTestActivity> scenario, TestWebViewClient webViewClient,

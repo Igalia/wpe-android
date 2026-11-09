@@ -35,6 +35,10 @@ import org.junit.runner.RunWith;
 import org.wpewebkit.wpe.httpserver.HttpResponse;
 import org.wpewebkit.wpe.httpserver.HttpServer;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -242,5 +246,31 @@ public class WebViewWebProcessTest {
         waitForTitle(WebView.titleFromUrl(untitled));
         assertEquals(WebView.titleFromUrl(untitled), fromWebView(WebView::getTitle));
         assertEquals(untitled, fromWebView(WebView::getUrl));
+    }
+
+    /**
+     * The page loads right away in a new web process while the one just ended is still ending. Binding the service of
+     * that process again would start the new one in the process that is ending, and once that ends, Android would
+     * start the service again only after a delay.
+     */
+    @Test
+    public void testLoadRightAfterTermination() throws Exception {
+        String first = setTitledPage("/first.html", "First");
+        String second = setTitledPage("/second.html", "Second");
+
+        loadAndWait(first);
+        // Services that Android started again in earlier tests may still run.
+        Map<String, Integer> restartsBefore = WebViewActivityScenarioHelper.serviceRestarts();
+        onWebView(view -> {
+            view.terminateWebProcess();
+            view.loadUrl(second);
+        });
+        waitForPageFinished(second);
+        List<String> restarted = new ArrayList<>();
+        WebViewActivityScenarioHelper.serviceRestarts().forEach((service, count) -> {
+            if (count > restartsBefore.getOrDefault(service, 0))
+                restarted.add(service);
+        });
+        assertEquals("Android started services of the app again", Collections.emptyList(), restarted);
     }
 }
