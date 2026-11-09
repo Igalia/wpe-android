@@ -73,15 +73,16 @@ public final class WPEServiceConnection implements ServiceConnection {
      */
     public boolean mayHaveProcess() { return connected && !processGone; }
 
+    /** Whether the service connected, from when the end of its process is followed. */
+    public boolean isConnected() { return connected; }
+
     @Override
     public void onServiceConnected(@NonNull ComponentName name, IBinder service) {
-        if (parcelFd == null) {
+        if (connected) {
             Log.w(LOGTAG, "onServiceConnected() for " + name + " called more than once");
             return;
         }
 
-        Log.d(LOGTAG, "onServiceConnected() for " + name + " (pid: " + pid + ", fd: " + parcelFd.getFd() + ")");
-        IWPEService wpeService = IWPEService.Stub.asInterface(service);
         connected = true;
         try {
             // Called on a binder thread.
@@ -92,6 +93,14 @@ public final class WPEServiceConnection implements ServiceConnection {
             processGone = true;
         }
 
+        if (parcelFd == null) {
+            Log.d(LOGTAG, "onServiceConnected() for " + name + " (pid: " + pid + ") after dispose()");
+            listener.onDisposedServiceConnected(this);
+            return;
+        }
+
+        Log.d(LOGTAG, "onServiceConnected() for " + name + " (pid: " + pid + ", fd: " + parcelFd.getFd() + ")");
+        IWPEService wpeService = IWPEService.Stub.asInterface(service);
         ParcelFileDescriptor fd = parcelFd;
         Bundle bundle = new Bundle();
         bundle.putLong("pid", pid);
@@ -134,7 +143,10 @@ public final class WPEServiceConnection implements ServiceConnection {
         listener.onProcessGone(this);
     }
 
-    /** Lets go of the socket of a service that is no longer needed before it connected. */
+    /**
+     * Lets go of the socket of a service that is no longer needed before it connected. If it connects later, the
+     * listener is told so with onDisposedServiceConnected(), and the service gets no socket.
+     */
     public void dispose() {
         if (parcelFd != null) {
             closeSocket(parcelFd);

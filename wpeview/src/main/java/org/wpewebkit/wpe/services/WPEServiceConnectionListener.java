@@ -27,6 +27,12 @@ public interface WPEServiceConnectionListener {
     void onServiceDisconnected(@NonNull WPEServiceConnection connection);
 
     /**
+     * A service disposed of before it connected (see WPEServiceConnection.dispose()) has connected, so the end of its
+     * process is followed from now on. Does nothing by default, for listeners that unbind a service right away.
+     */
+    default void onDisposedServiceConnected(@NonNull WPEServiceConnection connection) {}
+
+    /**
      * The process of a service that connected has ended, also when the service was unbound before. Does nothing by
      * default, for listeners that keep nothing for the process once it is unbound.
      */
