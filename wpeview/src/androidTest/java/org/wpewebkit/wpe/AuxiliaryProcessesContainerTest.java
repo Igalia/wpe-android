@@ -51,9 +51,11 @@ public class AuxiliaryProcessesContainerTest {
     // A service in the process of the test, which tells that its process ended when the test says.
     private static final class FakeService extends IWPEService.Stub {
         private IBinder.DeathRecipient deathRecipient;
+        int connections = 0;
 
         @Override
         public int connect(Bundle args, IWPEServiceHost serviceHost) {
+            connections++;
             return 0;
         }
 
@@ -80,6 +82,11 @@ public class AuxiliaryProcessesContainerTest {
         @Override
         public void onServiceDisconnected(@NonNull WPEServiceConnection connection) {
             container.unregister(connection.getPid());
+        }
+
+        @Override
+        public void onDisposedServiceConnected(@NonNull WPEServiceConnection connection) {
+            container.onDisposedServiceConnected(connection);
         }
 
         @Override
@@ -150,11 +157,24 @@ public class AuxiliaryProcessesContainerTest {
         assertEquals(0, firstAvailableSlot());
     }
 
+    /**
+     * Android may have made the service of a process already when WebKit ends the process, before the service
+     * connected. Unbinding the service then would end its process, with no way to know when it ended.
+     */
     @Test
-    public void testSlotOfAServiceThatNeverConnectedIsGivenAgainAtOnce() throws IOException {
-        launchProcess(1);
+    public void testSlotOfAServiceUnregisteredBeforeItConnectedIsGivenAgainOnceItsProcessEnded() throws IOException {
+        FakeService service = new FakeService();
+        WPEServiceConnection connection = launchProcess(1);
         onMainThread(() -> container.unregister(1));
-        assertEquals(1, unboundServices.size());
+        assertEquals("The service was unbound before it connected", List.of(), unboundServices);
+        assertEquals(1, firstAvailableSlot());
+
+        connect(connection, service);
+        assertEquals(List.of(connection), unboundServices);
+        assertEquals("The service was told to connect after it was unregistered", 0, service.connections);
+        assertEquals("The process of slot 0 still runs", 1, firstAvailableSlot());
+
+        service.endProcess();
         assertEquals(0, firstAvailableSlot());
     }
 

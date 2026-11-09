@@ -22,6 +22,7 @@ package org.wpewebkit.wpe;
 import android.content.ServiceConnection;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.services.WPEServiceConnection;
 
@@ -65,29 +66,47 @@ final class AuxiliaryProcessesContainer {
 
     // Unbinds the service of a process. Its slot stays taken until the process of the service has ended (see
     // onProcessGone()), as binding the same service before would reach the process that is ending, and Android would
-    // only start a new one when it restarts the service.
+    // only start a new one when it restarts the service. A service that has not connected yet stays bound until it
+    // connects (see onDisposedServiceConnected()): Android may have made it already, and unbinding it would end its
+    // process, whose end can only be followed once the service connected.
     public void unregister(long pid) {
         AuxiliaryProcess process = pidToProcessMap.remove(pid);
         if (process == null)
             return;
 
+        process.getServiceConnection().dispose();
+        if (process.getServiceConnection().isConnected())
+            unbind(process);
+    }
+
+    public void onDisposedServiceConnected(@NonNull WPEServiceConnection connection) {
+        AuxiliaryProcess process = findUnregisteredProcess(connection);
+        if (process != null)
+            unbind(process);
+    }
+
+    public void onProcessGone(@NonNull WPEServiceConnection connection) {
+        // A process still registered is unregistered when its service disconnects, which releases its slot.
+        AuxiliaryProcess process = findUnregisteredProcess(connection);
+        if (process != null)
+            releaseSlot(process);
+    }
+
+    private void unbind(@NonNull AuxiliaryProcess process) {
         WPEServiceConnection connection = process.getServiceConnection();
-        connection.dispose();
         unbindService.accept(connection);
         if (!connection.mayHaveProcess())
             releaseSlot(process);
     }
 
-    public void onProcessGone(@NonNull WPEServiceConnection connection) {
-        int typeIdx = connection.getProcessType().getValue();
-        for (AuxiliaryProcess process : processes[typeIdx]) {
-            // A process still registered is unregistered when its service disconnects, which releases its slot.
+    // The process of a connection that was unregistered and still holds its slot.
+    private @Nullable AuxiliaryProcess findUnregisteredProcess(@NonNull WPEServiceConnection connection) {
+        for (AuxiliaryProcess process : processes[connection.getProcessType().getValue()]) {
             if (process != null && process.getServiceConnection() == connection &&
-                pidToProcessMap.get(connection.getPid()) != process) {
-                releaseSlot(process);
-                return;
-            }
+                pidToProcessMap.get(connection.getPid()) != process)
+                return process;
         }
+        return null;
     }
 
     private void releaseSlot(@NonNull AuxiliaryProcess process) {

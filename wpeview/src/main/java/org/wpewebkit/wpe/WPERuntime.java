@@ -146,6 +146,10 @@ public final class WPERuntime {
             auxiliaryProcesses.unregister(connection.getPid());
         }
 
+        public void onDisposedServiceConnected(@NonNull WPEServiceConnection connection) {
+            auxiliaryProcesses.onDisposedServiceConnected(connection);
+        }
+
         public void onProcessGone(@NonNull WPEServiceConnection connection) {
             auxiliaryProcesses.onProcessGone(connection);
         }
@@ -191,8 +195,15 @@ public final class WPERuntime {
 
             WPEServiceConnection serviceConnection =
                 new WPEServiceConnection(pid, processType, parcelFd, serviceConnectionDelegate);
-            applicationContext.bindService(intent, serviceConnection,
-                                           Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT);
+            if (!applicationContext.bindService(intent, serviceConnection,
+                                                Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT)) {
+                // The service never connects, so it is not registered, as it would keep its slot, and no service takes
+                // the socket.
+                Log.e(LOGTAG, "Cannot bind " + serviceClass.getSimpleName());
+                serviceConnection.dispose();
+                applicationContext.unbindService(serviceConnection);
+                return;
+            }
             auxiliaryProcesses.register(pid, serviceConnection);
         } catch (Exception e) {
             Log.e(LOGTAG, "Cannot launch auxiliary process", e);
