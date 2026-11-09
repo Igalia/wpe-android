@@ -536,7 +536,7 @@ public class WebViewImeTest {
         + "<input id='revealed-pin' type='password' inputmode='numeric'><input id='characters' "
         + "autocapitalize='characters'><input id='words' autocapitalize='words'><input id='sentences' "
         + "autocapitalize='sentences'><input id='none' autocapitalize='none'><form autocapitalize='words'>"
-        + "<input id='form-password' type='password'></form><script>"
+        + "<input id='form-password' type='password'></form><input id='search' type='search'><script>"
         + "document.getElementById('revealed').type = document.getElementById('revealed-pin').type = 'text'"
         + "</script></body></html>";
 
@@ -563,6 +563,16 @@ public class WebViewImeTest {
             mayLearn.set((editorInfo.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0);
         });
         return mayLearn.get();
+    }
+
+    private static int imeActionOf(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
+        AtomicInteger action = new AtomicInteger();
+        scenario.onActivity(activity -> {
+            EditorInfo editorInfo = new EditorInfo();
+            activity.getWebView().onCreateInputConnection(editorInfo);
+            action.set(editorInfo.imeOptions & EditorInfo.IME_MASK_ACTION);
+        });
+        return action.get();
     }
 
     /**
@@ -603,6 +613,27 @@ public class WebViewImeTest {
         assertInputType(scenario, "none", text);
         assertInputType(scenario, "form-password",
                         EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
+        assertEquals("Wrong action for #form-password", EditorInfo.IME_ACTION_NONE, imeActionOf(scenario));
+        assertInputType(scenario, "search", text);
+        assertEquals("Wrong action for #search", EditorInfo.IME_ACTION_SEARCH, imeActionOf(scenario));
+    }
+
+    /** The search key of the keyboard sends Enter to the search field, as the Enter key would. */
+    @Test
+    public void testTheSearchKeySendsEnter() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.onActivity(activity -> activity.getWebView().requestFocus());
+        WebViewActivityScenarioHelper.loadHtmlSync(
+            scenario, new TestWebViewClient(),
+            "<html><body><input id='search' type='search'><script>window.keys = []; document.getElementById('search')"
+                + ".addEventListener('keydown', event => window.keys.push(event.key))</script></body></html>");
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        InputConnection connection = focusEditor(scenario, "search");
+
+        scenario.onActivity(activity -> connection.performEditorAction(EditorInfo.IME_ACTION_SEARCH));
+        String keys =
+            WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "window.keys.join(' ')", "\"Enter\"");
+        assertEquals("Keys the field got", "\"Enter\"", keys);
     }
 
     // Records the input type of each connection that Android asks the WebView for, as the input method gets it.

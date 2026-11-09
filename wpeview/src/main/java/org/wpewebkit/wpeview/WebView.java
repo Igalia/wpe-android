@@ -1334,7 +1334,8 @@ public class WebView extends FrameLayout {
 
     // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard.
     private static int imeOptionsForPurpose(int purpose, int hints) {
-        int options = EditorInfo.IME_ACTION_NONE | EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        int action = purpose == WPEInputPurpose.SEARCH ? EditorInfo.IME_ACTION_SEARCH : EditorInfo.IME_ACTION_NONE;
+        int options = action | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         if (purpose == WPEInputPurpose.PASSWORD || purpose == WPEInputPurpose.PIN ||
             (hints & WPEInputHints.PRIVATE) != 0)
             options |= EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
