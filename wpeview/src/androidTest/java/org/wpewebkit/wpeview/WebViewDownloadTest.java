@@ -296,6 +296,58 @@ public class WebViewDownloadTest {
         assertEquals("data", new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
     }
 
+    /** A frame of a type that the WebView cannot show is saved. One that loads with the page has no gesture. */
+    @Test
+    public void testFrameOfUnknownTypeIsDownloaded() throws Exception {
+        String file = serve("/archive.wpetest", "application/x-wpe-test", "data");
+        String page = serve("/page.html", "text/html", "<p>Page<iframe src='" + file + "'></iframe>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        WPEDownload download = nextDownload();
+        assertEquals(file, download.getUrl().toString());
+        assertEquals("archive.wpetest", download.getSuggestedFileName());
+        assertFalse(download.hasGesture());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
+        assertEquals("data", new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+        scenario.onActivity(activity -> assertEquals(page, activity.getWebView().getUrl()));
+    }
+
+    /** A frame shows the pages that the WebView can show, and saves the responses sent as attachments. */
+    @Test
+    public void testFrameShowsPagesAndSavesAttachments() throws Exception {
+        String inner = serve("/inner.html", "text/html", "<p>Inner");
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html",
+                            "<iframe id=shown src='" + inner + "'></iframe><iframe src='" + file + "'></iframe>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertEquals("\"Inner\"", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                      scenario, "shown.contentDocument.body.textContent", "\"Inner\""));
+        assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
+    }
+
+    /** A sandboxed frame saves nothing, unless its sandbox allows downloads. */
+    @Test
+    public void testSandboxedFrameSavesOnlyWhenAllowed() throws Exception {
+        String archive = serve("/archive.wpetest", "application/x-wpe-test", "data");
+        String attachment = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String allowed = serve("/allowed.wpetest", "application/x-wpe-test", "allowed");
+        String page = serve("/page.html", "text/html",
+                            "<iframe sandbox src='" + archive + "'></iframe><iframe sandbox src='" + attachment +
+                                "'></iframe><iframe sandbox=allow-downloads src='" + allowed + "'></iframe>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(allowed, download.getUrl().toString());
+        assertNull(client.downloads.poll(3, TimeUnit.SECONDS));
+    }
+
     @Test
     public void testLinkWithDownloadAttributeIsDownloaded() throws Exception {
         String file = serve("/shown.txt", "text/plain", "text");
