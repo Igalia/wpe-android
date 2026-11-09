@@ -65,7 +65,8 @@ public class WebChromeClient {
      * element with {@code element.requestFullscreen()}. The element now fills the {@link WebView}, which draws the page
      * itself, so there is no other view to show: the app gives the WebView the whole screen where it is, for example
      * by hiding the controls around it and the system bars, until {@link #onExitFullscreen}. Fullscreen ends when the
-     * WebView is hidden or leaves its window, as when it is moved to another parent or its activity stops.
+     * WebView is hidden or leaves its window, as when it is moved to another parent or its activity stops, and when
+     * the web process of the page ends.
      *
      * <p>The app takes the page out of fullscreen with {@link WebView#exitFullscreen()}, for example on Back or when
      * it shows another page. An app that does not show pages fullscreen can call it from here. If the app does
@@ -76,7 +77,8 @@ public class WebChromeClient {
     /**
      * Tells the app that the page left fullscreen, by itself, as with {@code document.exitFullscreen()} or the
      * controls of a video, or because of {@link WebView#exitFullscreen()}. The app brings back what it changed in
-     * {@link #onEnterFullscreen}.
+     * {@link #onEnterFullscreen}. When the web process of the page ends, this comes before
+     * {@link WebViewClient#onWebProcessTerminated}.
      */
     public void onExitFullscreen(@NonNull WebView view) {}
 

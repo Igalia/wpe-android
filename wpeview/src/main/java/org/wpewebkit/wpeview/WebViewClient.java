@@ -163,11 +163,14 @@ public class WebViewClient {
     /**
      * Notify the host application that the web process that ran the page ended. The page is gone: the view keeps
      * showing its last picture, which no longer changes, and a load in progress ends without {@link #onPageFinished}.
+     * A page that was fullscreen has left it, with {@link WebChromeClient#onExitFullscreen} just before this call.
      * The view keeps the address, the title and the Back/Forward list of the page, and stays usable:
      * {@link WebView#reload()} loads the page again in a new web process, as any other load or navigation does. The app
      * may show a message with a way to reload, or reload a page that the user did not see stop. Unlike
      * {@code android.webkit.WebViewClient.onRenderProcessGone}, nothing needs to be returned, and the view does not
-     * need to be destroyed.
+     * need to be destroyed. Until a WebKit bug is fixed, though, pages in this view cannot go fullscreen again: WebKit
+     * still counts the view as fullscreen, and refuses their requests. An app that needs fullscreen can replace the
+     * view with a new one.
      * @param view The WebView that is initiating the callback.
      * @param reason Why the web process ended: {@link #WEB_PROCESS_CRASHED},
      *     {@link #WEB_PROCESS_EXCEEDED_MEMORY_LIMIT} or {@link #WEB_PROCESS_TERMINATED_BY_API}.

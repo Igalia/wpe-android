@@ -369,7 +369,10 @@ A hidden page, or one out of its window, cannot stay fullscreen. So the
 `WebView` leaves fullscreen when it is hidden, as a tab hidden in place is, and
 before its view leaves the toplevel, as when the `WebView` is moved to another
 parent or its activity stops: WebKit sees the state of the `WPEToplevel` only
-while the view is in it. `destroy()` leaves fullscreen too.
+while the view is in it. `destroy()` leaves fullscreen too, and so does the end
+of the web process of the page: the `WebView` calls
+`WebChromeClient.onExitFullscreen()` before
+`WebViewClient.onWebProcessTerminated()`.
 
 ## Ownership and Lifetime
 
