@@ -317,9 +317,11 @@ public class WebView extends FrameLayout {
 
             @Override
             public void onWebProcessTerminated(int reason) {
-                // The focused field went with the page, so the input method lets go of it.
+                // The focused field went with the page, so the input method lets go of it. So did the fullscreen
+                // element, and the app gets its screen back before it hears that the page is gone.
                 if (inputFieldFocused)
                     releaseInputMethod();
+                exitFullscreen();
                 viewClient.onWebProcessTerminated(WebView.this, reason);
             }
 

@@ -52,13 +52,14 @@ import static org.junit.Assert.assertTrue;
 /**
  * How a page goes fullscreen and leaves it. The element fills the WebView, and the app hears of it through
  * onEnterFullscreen and onExitFullscreen, once for each change, whichever side leaves fullscreen: the page, the app,
- * or Android when the WebView leaves its window.
+ * Android when the WebView leaves its window, or the end of the web process.
  */
 @RunWith(AndroidJUnit4.class)
 public class WebViewFullscreenTest {
     private static final long TIMEOUT_SECONDS = 30;
     private static final String ENTER = "enter";
     private static final String EXIT = "exit";
+    private static final String TERMINATED = "terminated";
 
     // changes counts the fullscreenchange events, and request() keeps how a request ended in settled.
     // A video needs a source to go fullscreen; sound is enough.
@@ -351,6 +352,27 @@ public class WebViewFullscreenTest {
 
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(), PAGE);
         assertNextEvent(EXIT);
+        assertFalse(isFullscreen());
+        assertNoMoreEvents();
+    }
+
+    // The page is gone with its web process, and the app gets its screen back before it hears so. A page loaded again
+    // in the view cannot go fullscreen yet, as WebKit still counts the view as fullscreen. Once WebKit is fixed, this
+    // test should load the page again and go fullscreen.
+    @Test
+    public void testEndedWebProcessLeavesFullscreen() throws Exception {
+        TestWebViewClient client = new TestWebViewClient() {
+            @Override
+            public void onWebProcessTerminated(@NonNull WebView view, int reason) {
+                events.add(TERMINATED);
+            }
+        };
+        scenario.onActivity(activity -> activity.getWebView().setWebViewClient(client));
+        enterFullscreen();
+
+        scenario.onActivity(activity -> activity.getWebView().terminateWebProcess());
+        assertNextEvent(EXIT);
+        assertNextEvent(TERMINATED);
         assertFalse(isFullscreen());
         assertNoMoreEvents();
     }
