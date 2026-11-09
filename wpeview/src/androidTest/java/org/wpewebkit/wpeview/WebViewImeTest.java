@@ -619,23 +619,38 @@ public class WebViewImeTest {
         }
     }
 
+    // Waits for the input types of the connections that Android asked the WebView for to meet the condition.
+    private static boolean waitForInputTypes(ActivityScenario<WebViewTestActivity> scenario,
+                                             AtomicReference<InputTypeRecordingWebView> webView,
+                                             Predicate<List<Integer>> condition, @Nullable String focusId)
+        throws Throwable {
+        AtomicBoolean holds = new AtomicBoolean(false);
+        for (int i = 0; i < 40 && !holds.get(); i++) {
+            scenario.onActivity(activity -> {
+                holds.set(condition.test(webView.get().inputTypes));
+                if (!holds.get() && focusId != null)
+                    webView.get().evaluateJavascript("document.getElementById('" + focusId + "').focus()", null);
+            });
+            if (!holds.get())
+                Thread.sleep(250);
+        }
+        return holds.get();
+    }
+
     // Waits for Android to ask the WebView for a connection with the input type, after the first `from` ones.
     private static boolean waitForRestart(ActivityScenario<WebViewTestActivity> scenario,
                                           AtomicReference<InputTypeRecordingWebView> webView, int from, int inputType,
                                           @Nullable String focusId) throws Throwable {
-        AtomicBoolean restarted = new AtomicBoolean(false);
-        for (int i = 0; i < 40 && !restarted.get(); i++) {
-            scenario.onActivity(activity -> {
-                List<Integer> inputTypes = webView.get().inputTypes;
-                restarted.set(inputTypes.size() > from &&
-                              inputTypes.subList(from, inputTypes.size()).contains(inputType));
-                if (!restarted.get() && focusId != null)
-                    webView.get().evaluateJavascript("document.getElementById('" + focusId + "').focus()", null);
-            });
-            if (!restarted.get())
-                Thread.sleep(250);
-        }
-        return restarted.get();
+        Predicate<List<Integer>> restarted =
+            inputTypes -> inputTypes.size() > from && inputTypes.subList(from, inputTypes.size()).contains(inputType);
+        return waitForInputTypes(scenario, webView, restarted, focusId);
+    }
+
+    // Focuses the field and waits for the input method to ask the WebView for a connection of any input type.
+    private static boolean waitForInputMethod(ActivityScenario<WebViewTestActivity> scenario,
+                                              AtomicReference<InputTypeRecordingWebView> webView, String focusId)
+        throws Throwable {
+        return waitForInputTypes(scenario, webView, inputTypes -> !inputTypes.isEmpty(), focusId);
     }
 
     // Shows the page in a new InputTypeRecordingWebView that has the focus, and waits for it to load.
@@ -687,7 +702,8 @@ public class WebViewImeTest {
         try {
             loadInRecordingWebView(scenario, webView,
                                    "<html><body><input id='password' type='password'></body></html>");
-            assumeTrue("No input method connected to the WebView",
+            assumeTrue("No input method connected to the WebView", waitForInputMethod(scenario, webView, "password"));
+            assertTrue("The input method did not get the input type of #password",
                        waitForRestart(scenario, webView, 0, password, "password"));
 
             for (String type : new String[] {"text", "password"}) {
@@ -726,7 +742,9 @@ public class WebViewImeTest {
                                    "<html><body><input id='text'><input id='password' type='password'>"
                                        + "<input id='revealed' type='password'><script>"
                                        + "document.getElementById('revealed').type = 'text'</script></body></html>");
-            assumeTrue("No input method connected to the WebView", waitForRestart(scenario, webView, 0, text, "text"));
+            assumeTrue("No input method connected to the WebView", waitForInputMethod(scenario, webView, "text"));
+            assertTrue("The input method did not get the input type of #text",
+                       waitForRestart(scenario, webView, 0, text, "text"));
 
             for (String id : new String[] {"password", "text", "revealed", "text"}) {
                 AtomicInteger from = new AtomicInteger();
