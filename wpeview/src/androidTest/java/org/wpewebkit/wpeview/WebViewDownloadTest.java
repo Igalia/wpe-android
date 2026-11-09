@@ -18,7 +18,12 @@
 
 package org.wpewebkit.wpeview;
 
+import android.os.SystemClock;
+import android.view.MotionEvent;
+import android.view.ViewGroup;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -34,12 +39,18 @@ import org.wpewebkit.wpe.httpserver.HttpResponse;
 import org.wpewebkit.wpe.httpserver.HttpServer;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -60,10 +71,20 @@ public class WebViewDownloadTest {
     private HttpServer httpServer;
     private final Client client = new Client();
     private File destination;
+    // The WebViews of the windows that pages opened.
+    private final List<WebView> windows = new ArrayList<>();
 
     private static class Client extends TestWebViewClient {
         final BlockingQueue<WPEDownload> downloads = new LinkedBlockingQueue<>();
         final BlockingQueue<String> finishedPages = new LinkedBlockingQueue<>();
+        final AtomicInteger frameNavigations = new AtomicInteger();
+
+        @Override
+        public boolean shouldOverrideUrlLoading(@NonNull WebView view, @NonNull WPEResourceRequest request) {
+            if (!request.isForMainFrame())
+                frameNavigations.incrementAndGet();
+            return false;
+        }
 
         @Override
         public void onDownloadStart(@NonNull WebView view, @NonNull WPEDownload download) {
@@ -74,6 +95,38 @@ public class WebViewDownloadTest {
         public void onPageFinished(@NonNull WebView view, @NonNull String url) {
             finishedPages.add(url);
             super.onPageFinished(view, url);
+        }
+    }
+
+    /** A file sent as an attachment once the test lets each request have it, in the order they came. */
+    private static class HeldFile extends HttpResponse {
+        final BlockingQueue<CountDownLatch> requests = new LinkedBlockingQueue<>();
+
+        HeldFile() {
+            setStatusCode(200);
+            setStatusMessage("OK");
+            addHeader("Content-Type", "text/plain");
+            addHeader("Content-Disposition", "attachment");
+            addHeader("Cache-Control", "no-store");
+            setBody("text");
+        }
+
+        @Override
+        public void send(OutputStream outputStream) throws IOException {
+            CountDownLatch answer = new CountDownLatch(1);
+            requests.add(answer);
+            try {
+                answer.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            super.send(outputStream);
+        }
+
+        CountDownLatch nextRequest() throws InterruptedException {
+            CountDownLatch answer = requests.poll(30, TimeUnit.SECONDS);
+            assertNotNull("The server got no request for the file", answer);
+            return answer;
         }
     }
 
@@ -110,6 +163,10 @@ public class WebViewDownloadTest {
     @After
     public void tearDown() {
         webViewActivityTestRule.getScenario().onActivity(activity -> {
+            for (WebView window : windows) {
+                ((ViewGroup)window.getParent()).removeView(window);
+                window.destroy();
+            }
             if (activity.getWebView().getInternalWebKitWebView() != null)
                 activity.getWebView().destroy();
         });
@@ -139,8 +196,42 @@ public class WebViewDownloadTest {
         return scenario;
     }
 
+    private String redirect(String path, String location) {
+        HttpResponse response = new HttpResponse();
+        response.setStatusCode(302);
+        response.setStatusMessage("Found");
+        response.addHeader("Location", location);
+        response.setBody("");
+        return httpServer.setResponse(path, response);
+    }
+
+    // A script that the app runs counts as a user gesture.
     private void run(ActivityScenario<WebViewTestActivity> scenario, String script) throws Exception {
         WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, client, script + "; true");
+    }
+
+    // A page with a link that covers it, so that a tap in the middle of the view follows it.
+    private static String pageWithLink(String href, String attributes) {
+        return "<meta name=viewport content='width=device-width'><body style='margin:0'><a id=link href='" + href +
+            "' " + attributes + " style='display:block;height:100vh'>Link</a><script>var rendered = false;"
+            + "requestAnimationFrame(() => requestAnimationFrame(() => rendered = true));</script>";
+    }
+
+    private void tapTheMiddle(ActivityScenario<WebViewTestActivity> scenario) throws Exception {
+        assertEquals("The page was not rendered", "true",
+                     WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "rendered", "true"));
+        scenario.onActivity(activity -> {
+            WebView view = activity.getWebView();
+            float x = view.getWidth() / 2f;
+            float y = view.getHeight() / 2f;
+            long downTime = SystemClock.uptimeMillis();
+            for (int action : new int[] {MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP}) {
+                long eventTime = action == MotionEvent.ACTION_DOWN ? downTime : downTime + 50;
+                MotionEvent event = MotionEvent.obtain(downTime, eventTime, action, x, y, 0);
+                view.dispatchTouchEvent(event);
+                event.recycle();
+            }
+        });
     }
 
     private WPEDownload nextDownload() throws InterruptedException {
@@ -167,6 +258,7 @@ public class WebViewDownloadTest {
         run(scenario, "location.href = '" + file + "'");
         WPEDownload download = nextDownload();
         assertEquals(file, download.getUrl().toString());
+        assertTrue(download.hasGesture());
         assertEquals("test-file.txt", download.getSuggestedFileName());
         assertEquals("text/plain", download.getMimeType());
         assertEquals(content.length(), download.getContentLength());
@@ -213,10 +305,235 @@ public class WebViewDownloadTest {
         run(scenario, "link.click()");
         WPEDownload download = nextDownload();
         assertEquals("saved.txt", download.getSuggestedFileName());
+        assertTrue(download.hasGesture());
         Listener listener = new Listener();
         scenario.onActivity(activity -> download.start(destination, listener));
         assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
         assertEquals("text", new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+    }
+
+    /** A tap on a link starts its download with a user gesture. */
+    @Test
+    public void testTapStartsADownloadWithAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html", pageWithLink(file, ""));
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        tapTheMiddle(scenario);
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertTrue(download.hasGesture());
+    }
+
+    /** Downloads that a page starts by itself as it loads have no gesture, as many as it starts. */
+    @Test
+    public void testDownloadsThatThePageStartsByItselfHaveNoGesture() throws Exception {
+        StringBuilder links = new StringBuilder();
+        for (int i = 0; i < 3; i++) {
+            String file = serve("/file" + i + ".txt", "text/plain", "text " + i);
+            links.append("<a href='").append(file).append("' download>File ").append(i).append("</a>");
+        }
+        String page = serve("/page.html", "text/html",
+                            links + "<script>addEventListener('load', () => "
+                                + "document.querySelectorAll('a').forEach(link => link.click()));</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        for (int i = 0; i < 3; i++) {
+            WPEDownload download = nextDownload();
+            scenario.onActivity(activity -> download.cancel());
+            assertFalse(download.getUrl().toString(), download.hasGesture());
+        }
+    }
+
+    /** A page that goes to a file by itself, as it loads, starts its download without a gesture. */
+    @Test
+    public void testPageThatGoesToAFileByItselfStartsADownloadWithoutAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html",
+                            "<script>addEventListener('load', () => location.href = '" + file + "');</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertFalse(download.hasGesture());
+    }
+
+    /** The redirects of the server keep the gesture of the navigation they follow, or the lack of one. */
+    @Test
+    public void testRedirectsKeepTheGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String redirect = redirect("/redirect", file);
+        String page = serve("/page.html", "text/html", "<p>Page");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        run(scenario, "location.href = '" + redirect + "'");
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertTrue(download.hasGesture());
+
+        String byItself = serve("/by-itself.html", "text/html",
+                                "<script>addEventListener('load', () => location.href = '" + redirect + "');</script>");
+        run(scenario, "location.href = '" + byItself + "'");
+        WPEDownload withoutGesture = nextDownload();
+        scenario.onActivity(activity -> withoutGesture.cancel());
+        assertEquals(file, withoutGesture.getUrl().toString());
+        assertFalse(withoutGesture.hasGesture());
+    }
+
+    /** A link in a frame keeps its gesture through the redirects of the server. */
+    @Test
+    public void testRedirectsInAFrameKeepTheGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String redirect = redirect("/redirect", file);
+        String inner = serve("/inner.html", "text/html", "<a id=link href='" + redirect + "'>File</a>");
+        String page = serve("/page.html", "text/html", "<iframe id=frame src='" + inner + "'></iframe>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                 scenario, "!!frame.contentDocument.getElementById('link')", "true"));
+
+        run(scenario, "frame.contentDocument.getElementById('link').click()");
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertTrue(download.hasGesture());
+    }
+
+    // A frame of the page goes to a file by itself, and then the user taps a link to the same file in another frame.
+    // The server answers the frame that it names first, and then the other one.
+    private void checkFramesThatGoToTheSameFile(boolean pageAnsweredFirst) throws Exception {
+        HeldFile heldFile = new HeldFile();
+        String file = httpServer.setResponse("/file.txt", heldFile);
+        String inner = serve("/inner.html", "text/html", "<a id=link href='" + file + "'>File</a>");
+        String page = serve("/page.html", "text/html",
+                            "<iframe id=frame src='" + inner + "'></iframe><iframe id=hidden></iframe><script>"
+                                + "addEventListener('load', () => setTimeout(() => hidden.src = '" + file + "'));"
+                                + "</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        CountDownLatch pageRequest = heldFile.nextRequest();
+        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
+                                 scenario, "!!frame.contentDocument.getElementById('link')", "true"));
+        run(scenario, "frame.contentDocument.getElementById('link').click()");
+        CountDownLatch tapRequest = heldFile.nextRequest();
+
+        for (CountDownLatch request :
+             pageAnsweredFirst ? List.of(pageRequest, tapRequest) : List.of(tapRequest, pageRequest)) {
+            request.countDown();
+            WPEDownload download = nextDownload();
+            scenario.onActivity(activity -> download.cancel());
+            assertEquals(file, download.getUrl().toString());
+            assertFalse(request == pageRequest ? "The page's download" : "The tap's download", download.hasGesture());
+        }
+    }
+
+    /**
+     * A page cannot pass its own download off as one that the user started, by going to the address of a link that the
+     * user taps: neither download has a gesture, whichever the server answers first.
+     */
+    @Test
+    public void testPageThatGoesToTheAddressOfATapFirstHasNoGesture() throws Exception {
+        checkFramesThatGoToTheSameFile(true);
+    }
+
+    @Test
+    public void testTapToTheAddressThatThePageGoesToHasNoGesture() throws Exception {
+        checkFramesThatGoToTheSameFile(false);
+    }
+
+    /** Once the page's own download of an address came, a tap on a link to it starts a download with a gesture. */
+    @Test
+    public void testTapAfterThePageDownloadedTheSameFileHasAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html",
+                            "<a id=link href='" + file + "' download>File</a><script>"
+                                + "addEventListener('load', () => link.click());</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        WPEDownload byPage = nextDownload();
+        scenario.onActivity(activity -> byPage.cancel());
+        assertFalse(byPage.hasGesture());
+
+        run(scenario, "link.click()");
+        WPEDownload byUser = nextDownload();
+        scenario.onActivity(activity -> byUser.cancel());
+        assertTrue(byUser.hasGesture());
+    }
+
+    /** A page that goes to more addresses than are counted gives no download a gesture, until the next page. */
+    @Test
+    public void testPageThatGoesToManyAddressesHasNoGestureUntilTheNextPage() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        // With a download attribute, so that the download ends no load of the page.
+        String link = "<a id=link href='" + file + "' download>File</a>";
+        // A page has 1000 frames at most, so a hundred frames go to eleven addresses each, one after the other.
+        String page = serve("/page.html", "text/html",
+                            link + "<script>for (let i = 0; i < 100; i++) {"
+                                + "const frame = document.createElement('iframe'); let n = 0;"
+                                + "frame.onload = () => { if (++n < 11) frame.src = `data:text/html,${i}-${n}`; };"
+                                + "frame.src = `data:text/html,${i}-0`; document.body.append(frame); }</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        long end = SystemClock.uptimeMillis() + 30000;
+        while (client.frameNavigations.get() < 1100 && SystemClock.uptimeMillis() < end)
+            Thread.sleep(50);
+        assertEquals(1100, client.frameNavigations.get());
+        run(scenario, "link.click()");
+        WPEDownload onThatPage = nextDownload();
+        scenario.onActivity(activity -> onThatPage.cancel());
+        assertFalse(onThatPage.hasGesture());
+
+        scenario = load(serve("/next.html", "text/html", link));
+        run(scenario, "link.click()");
+        WPEDownload onTheNextPage = nextDownload();
+        scenario.onActivity(activity -> onTheNextPage.cancel());
+        assertTrue(onTheNextPage.hasGesture());
+    }
+
+    /** The loads that the app asks for count as user gestures, also through the redirects of the server. */
+    @Test
+    public void testLoadsOfTheAppStartDownloadsWithAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String redirect = redirect("/redirect", file);
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+
+        for (String url : new String[] {file, redirect}) {
+            scenario.onActivity(activity -> {
+                activity.getWebView().setWebViewClient(client);
+                activity.getWebView().loadUrl(url);
+            });
+            WPEDownload download = nextDownload();
+            scenario.onActivity(activity -> download.cancel());
+            assertEquals(file, download.getUrl().toString());
+            assertTrue(url, download.hasGesture());
+        }
+    }
+
+    /** A link to a new window, or a script that opens one, gives the download of the window its gesture. */
+    @Test
+    public void testNewWindowStartsADownloadWithAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html", "<a id=link href='" + file + "' target=_blank>File</a>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        scenario.onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+            @Override
+            public @Nullable WebView onCreateWindow(@NonNull WebView view, boolean isUserGesture) {
+                WebView window = new WebView(activity, view);
+                windows.add(window);
+                window.setWebViewClient(client);
+                activity.addContentView(window, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                           ViewGroup.LayoutParams.MATCH_PARENT));
+                return window;
+            }
+        }));
+
+        for (String script : new String[] {"link.click()", "window.open('" + file + "')"}) {
+            run(scenario, script);
+            WPEDownload download = nextDownload();
+            scenario.onActivity(activity -> download.cancel());
+            assertEquals(file, download.getUrl().toString());
+            assertTrue(script, download.hasGesture());
+        }
+        scenario.onActivity(activity -> assertEquals(2, windows.size()));
     }
 
     @Test
