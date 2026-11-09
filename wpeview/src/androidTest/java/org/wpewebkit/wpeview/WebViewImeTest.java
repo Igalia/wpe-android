@@ -535,8 +535,8 @@ public class WebViewImeTest {
         + "<input id='numeric' inputmode='numeric'><input id='revealed' type='password'>"
         + "<input id='revealed-pin' type='password' inputmode='numeric'><input id='characters' "
         + "autocapitalize='characters'><input id='words' autocapitalize='words'><input id='sentences' "
-        + "autocapitalize='sentences'><form autocapitalize='words'><input id='form-password' type='password'>"
-        + "</form><script>"
+        + "autocapitalize='sentences'><input id='none' autocapitalize='none'><form autocapitalize='words'>"
+        + "<input id='form-password' type='password'></form><script>"
         + "document.getElementById('revealed').type = document.getElementById('revealed-pin').type = 'text'"
         + "</script></body></html>";
 
@@ -576,7 +576,9 @@ public class WebViewImeTest {
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(), PURPOSE_PAGE);
         scenario.moveToState(Lifecycle.State.RESUMED);
 
-        assertInputType(scenario, "text", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT);
+        assertInputType(scenario, "text",
+                        EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+                            EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES);
         assertTrue("The input method may not learn from #text", inputMethodMayLearn(scenario));
         assertInputType(scenario, "password", EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
         assertFalse("The input method may learn from #password", inputMethodMayLearn(scenario));
@@ -598,6 +600,7 @@ public class WebViewImeTest {
         assertInputType(scenario, "characters", text | EditorInfo.TYPE_TEXT_FLAG_CAP_CHARACTERS);
         assertInputType(scenario, "words", text | EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS);
         assertInputType(scenario, "sentences", text | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        assertInputType(scenario, "none", text);
         assertInputType(scenario, "form-password",
                         EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD);
     }
@@ -732,7 +735,8 @@ public class WebViewImeTest {
     @Test
     public void testFocusingAFieldOfAnotherTypeRestartsTheInputMethod() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = ActivityScenario.launch(WebViewTestActivity.class);
-        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT |
+                   EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES;
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
         int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
         Map<String, Integer> inputTypes = Map.of("text", text, "password", password, "revealed", revealed);
