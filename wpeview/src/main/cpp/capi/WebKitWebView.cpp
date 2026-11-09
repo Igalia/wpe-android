@@ -598,10 +598,10 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
     guint statusCode = webkit_uri_response_get_status_code(uriResponse);
     if (statusCode < 400) {
         // WebKit saves a response sent as an attachment, but does nothing with a page of a type it cannot show, such
-        // as an archive: save that too, unless it is an error, which WebKit does not save, or No Content, which leaves
-        // the page as it is. Responses that are not HTTP, such as those of data: addresses, have no status.
-        if (webkit_response_policy_decision_is_main_frame_main_resource(responseDecision)
-            && !webkit_response_policy_decision_is_mime_type_supported(responseDecision) && statusCode != 204
+        // as an archive, in the main frame or in a frame: save that too, unless it is an error, which WebKit does not
+        // save, or No Content, which leaves the page as it is. Responses that are not HTTP, such as those of data:
+        // addresses, have no status.
+        if (!webkit_response_policy_decision_is_mime_type_supported(responseDecision) && statusCode != 204
             && statusCode != 205) {
             webkit_policy_decision_download(decision);
             return TRUE;

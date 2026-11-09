@@ -93,8 +93,8 @@ public class WebViewClient {
     /**
      * Notify the host application that a response is to be saved to a file instead of shown: a response sent as an
      * attachment, with a {@code Content-Disposition: attachment} header, one for a link with a {@code download}
-     * attribute, or a page of a type the WebView cannot show, such as an archive. The page that was shown stays: the
-     * load ends with {@link #onPageFinished} for its address.
+     * attribute, or a page of a type the WebView cannot show, such as an archive, in the page or in one of its frames.
+     * The page that was shown stays: the load ends with {@link #onPageFinished} for its address.
      *
      * <p>The app chooses where to save the download with {@link WPEDownload#start}, now or later, or cancels it with
      * {@link WPEDownload#cancel}, and must do one of the two. The download waits until then, or until the WebView is
