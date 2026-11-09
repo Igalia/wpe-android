@@ -46,6 +46,7 @@ import static org.junit.Assume.assumeTrue;
 /**
  * These tests act as the input method: they get the WebView's InputConnection and send text through it. So their
  * activity keeps Android's input method away from its window, see {@link WebViewTestActivity#withoutInputMethod}.
+ * The tests of input method restarts need Android's input method, so they start an activity of their own.
  */
 @RunWith(AndroidJUnit4.class)
 public class WebViewImeTest {
@@ -679,8 +680,7 @@ public class WebViewImeTest {
      */
     @Test
     public void testChangingTheTypeOfTheFocusedFieldRestartsTheInputMethod() throws Throwable {
-        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
-        scenario.moveToState(Lifecycle.State.RESUMED);
+        ActivityScenario<WebViewTestActivity> scenario = ActivityScenario.launch(WebViewTestActivity.class);
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
         int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
         AtomicReference<InputTypeRecordingWebView> webView = new AtomicReference<>();
@@ -703,6 +703,7 @@ public class WebViewImeTest {
             }
         } finally {
             destroyRecordingWebView(scenario, webView);
+            scenario.close();
         }
     }
 
@@ -714,8 +715,7 @@ public class WebViewImeTest {
      */
     @Test
     public void testFocusingAFieldOfAnotherTypeRestartsTheInputMethod() throws Throwable {
-        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
-        scenario.moveToState(Lifecycle.State.RESUMED);
+        ActivityScenario<WebViewTestActivity> scenario = ActivityScenario.launch(WebViewTestActivity.class);
         int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
         int password = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD;
         int revealed = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD;
@@ -736,6 +736,7 @@ public class WebViewImeTest {
             }
         } finally {
             destroyRecordingWebView(scenario, webView);
+            scenario.close();
         }
     }
 
