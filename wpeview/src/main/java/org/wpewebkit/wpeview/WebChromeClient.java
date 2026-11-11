@@ -61,6 +61,12 @@ public class WebChromeClient {
     public void onReceivedTitle(@NonNull WebView view, @NonNull String title) {}
 
     /**
+     * Tells the app that the page started or stopped playing sound, as {@link WebView#isPlayingAudio()} returns it, for
+     * example to show which tab plays and offer to mute it.
+     */
+    public void onPlayingAudioChanged(@NonNull WebView view, boolean isPlayingAudio) {}
+
+    /**
      * Tells the app that an element of the page went fullscreen, as a video does with its fullscreen button, or any
      * element with {@code element.requestFullscreen()}. The element now fills the {@link WebView}, which draws the page
      * itself, so there is no other view to show: the app gives the WebView the whole screen where it is, for example

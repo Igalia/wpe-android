@@ -155,6 +155,13 @@ public final class WebKitWebView {
 
     public boolean canGoForward() { return mNativePtr != 0 && nativeCanGoForward(mNativePtr); }
 
+    public void setMuted(boolean muted) {
+        if (mNativePtr != 0)
+            nativeSetIsMuted(mNativePtr, muted);
+    }
+
+    public boolean isMuted() { return mNativePtr != 0 && nativeIsMuted(mNativePtr); }
+
     public void setZoomLevel(double zoomLevel) { nativeSetZoomLevel(mNativePtr, zoomLevel); }
 
     public void setBackgroundColor(@ColorInt int color) {
@@ -254,6 +261,8 @@ public final class WebKitWebView {
         void onHttpAuthRequest(long requestId, @NonNull String host, int port, @NonNull String scheme,
                                @NonNull String realm, boolean isProxy, boolean isRetry);
         void onHttpAuthRequestCancelled(long requestId);
+
+        void onPlayingAudioChanged(boolean isPlayingAudio);
     }
 
     private @Nullable Listener listener;
@@ -479,6 +488,13 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onHttpAuthRequestCancelled(requestId));
     }
 
+    @Keep
+    private void onIsPlayingAudioChanged(boolean isPlayingAudio) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onPlayingAudioChanged(isPlayingAudio));
+    }
+
     /**
      * Answers a request reported via {@link Listener#onHttpAuthRequest} with these credentials. Only the first answer
      * counts, and none counts once WebKit cancelled the request, because its load ended or another one started.
@@ -564,4 +580,6 @@ public final class WebKitWebView {
     private native void nativeColorChooserCancel(long requestPtr);
     private native void nativeAuthenticate(long nativePtr, long requestId, String username, String password);
     private native void nativeAuthenticationCancel(long nativePtr, long requestId);
+    private native void nativeSetIsMuted(long nativePtr, boolean muted);
+    private native boolean nativeIsMuted(long nativePtr);
 }
