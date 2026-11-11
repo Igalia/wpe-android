@@ -319,7 +319,11 @@ The usual cases follow from the table:
   the container and hiding the inactive ones with `setVisibility()`. Either way
   the hidden pages are unmapped and report `document.visibilityState` as
   `"hidden"`. Taken out of the container they lose their surface and leave the
-  window; hidden in place they keep both.
+  window; hidden in place they keep both. Their media keeps playing unless
+  `WebSettings.setAudiblePlaybackRequiresPageVisibility()` is set, and Web Audio
+  always does: `WebView.isPlayingAudio()` and
+  `WebChromeClient.onPlayingAudioChanged()` tell which tabs play sound, and
+  `WebView.setAudioMuted()` mutes one.
 - **Activity in the background.** When the activity stops, Android destroys the
   surfaces, and the pages leave their window until the activity starts again.
 - **Headless.** A headless `WebView` (`new WebView(context, true)`) has no

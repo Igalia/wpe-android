@@ -115,6 +115,10 @@ public class WebView extends FrameLayout {
     int currentProgress = 0;
     boolean canGoBack = false;
     boolean canGoForward = false;
+    // Whether the page plays audio, as last given to the chrome client.
+    boolean playingAudio = false;
+    // Whether the view was muted when it was destroyed.
+    private boolean audioMutedWhenDestroyed = false;
     // While the chrome client is asked for a new window of the page, and the WebView made for it then, if any.
     private boolean creatingWindow;
     private @Nullable WebView createdWindow;
@@ -373,6 +377,15 @@ public class WebView extends FrameLayout {
                 httpAuthRequests.remove(requestId);
                 viewClient.onHttpAuthRequestCanceled(WebView.this, handler);
             }
+
+            @Override
+            public void onPlayingAudioChanged(boolean isPlayingAudio) {
+                // The page of a destroyed view plays nothing.
+                if (webKitWebView == null || playingAudio == isPlayingAudio)
+                    return;
+                playingAudio = isPlayingAudio;
+                chromeClient.onPlayingAudioChanged(WebView.this, isPlayingAudio);
+            }
         });
 
         if (!headless) {
@@ -444,9 +457,11 @@ public class WebView extends FrameLayout {
             wpeToplevel = null;
         }
         if (webKitWebView != null) {
+            audioMutedWhenDestroyed = webKitWebView.isMuted();
             webKitWebView.destroy();
             webKitWebView = null;
             httpAuthRequests.clear();
+            playingAudio = false;
             // The view and input method proxies are borrowed from the WebKitWebView, and die with it.
             platformView = null;
             imContext = null;
@@ -577,6 +592,30 @@ public class WebView extends FrameLayout {
     public int getProgress() { return currentProgress; }
     public boolean canGoBack() { return canGoBack; }
     public boolean canGoForward() { return canGoForward; }
+
+    /**
+     * Whether the page plays sound, from audio and video elements or from Web Audio, also while the view is muted
+     * ({@link #setAudioMuted}), so that the app can show which page plays and whether it is heard. Media that the page
+     * muted counts too, as WebKit counts it on this platform, but media at volume 0 does not. Neither does media that
+     * is paused, nor media that pauses while the page is hidden, with
+     * {@link WebSettings#setAudiblePlaybackRequiresPageVisibility}. It is false once the web process of the page ends,
+     * and after {@link #destroy()}. {@link WebChromeClient#onPlayingAudioChanged} tells when it changes.
+     */
+    public boolean isPlayingAudio() { return playingAudio; }
+
+    /**
+     * Mutes or unmutes the sound of the page, for example for a tab that the user mutes. The page plays on, and its
+     * media elements keep their own muted and volume values. The view stays muted for the pages it loads later, also
+     * after its web process ends, until it is unmuted. Every view starts unmuted, also one that a muted view opens for
+     * a new window. After {@link #destroy()} this does nothing.
+     */
+    public void setAudioMuted(boolean muted) {
+        if (webKitWebView != null)
+            webKitWebView.setMuted(muted);
+    }
+
+    /** Whether the view is muted ({@link #setAudioMuted}). After {@link #destroy()}, whether it was then. */
+    public boolean isAudioMuted() { return webKitWebView != null ? webKitWebView.isMuted() : audioMutedWhenDestroyed; }
 
     /**
      * Shows the address of a page without a title as android.webkit.WebView does: without "http://", "https://",

@@ -258,6 +258,7 @@ public:
         , m_onAuthenticate(
               getMethod<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)>("onAuthenticate"))
         , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
+        , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -291,7 +292,9 @@ public:
             JNI::NativeMethod<void(jlong)>("nativeColorChooserFinish", nativeColorChooserFinish),
             JNI::NativeMethod<void(jlong)>("nativeColorChooserCancel", nativeColorChooserCancel),
             JNI::NativeMethod<void(jlong, jlong, jstring, jstring)>("nativeAuthenticate", nativeAuthenticate),
-            JNI::NativeMethod<void(jlong, jlong)>("nativeAuthenticationCancel", nativeAuthenticationCancel));
+            JNI::NativeMethod<void(jlong, jlong)>("nativeAuthenticationCancel", nativeAuthenticationCancel),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetIsMuted", nativeSetIsMuted),
+            JNI::NativeMethod<jboolean(jlong)>("nativeIsMuted", nativeIsMuted));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -313,6 +316,7 @@ public:
     const JNI::Method<void(jlong)> m_onColorChooserFinished;
     const JNI::Method<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)> m_onAuthenticate;
     const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
+    const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -347,6 +351,7 @@ private:
     static gboolean onAuthenticate(WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
     static void onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
     static void answerAuthentication(WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential);
+    static void onIsPlayingAudioChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -386,6 +391,8 @@ private:
     static void nativeAuthenticate(
         JNIEnv*, jobject, jlong nativePtr, jlong requestId, jstring username, jstring password);
     static void nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId);
+    static void nativeSetIsMuted(JNIEnv*, jobject, jlong nativePtr, jboolean muted);
+    static jboolean nativeIsMuted(JNIEnv*, jobject, jlong nativePtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -510,6 +517,16 @@ void JNIWebKitWebViewCache::reportHistory(WebKitWebViewBridge* bridge, bool comm
     if (!getJNIWebKitWebViewCache().m_onHistoryChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
             static_cast<jboolean>(canGoBack), static_cast<jboolean>(canGoForward)))
         Logging::logError("cannot deliver WebKitWebView onHistoryChanged callback");
+}
+
+// Whether the page plays media with sound or Web Audio, also while the view or the media is muted. Media at volume 0,
+// paused, or paused while the page is hidden does not count, and neither does a page whose web process ended.
+void JNIWebKitWebViewCache::onIsPlayingAudioChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
+{
+    bool isPlayingAudio = webkit_web_view_is_playing_audio(WEBKIT_WEB_VIEW(obj));
+    if (!getJNIWebKitWebViewCache().m_onIsPlayingAudioChanged.invoke(
+            bridge->m_javaRef.get(), static_cast<jboolean>(isPlayingAudio)))
+        Logging::logError("cannot deliver WebKitWebView onIsPlayingAudioChanged callback");
 }
 
 void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
@@ -1180,6 +1197,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "run-file-chooser", G_CALLBACK(onRunFileChooser), bridge),
         g_signal_connect(webView, "run-color-chooser", G_CALLBACK(onRunColorChooser), bridge),
         g_signal_connect(webView, "authenticate", G_CALLBACK(onAuthenticate), bridge),
+        g_signal_connect(webView, "notify::is-playing-audio", G_CALLBACK(onIsPlayingAudioChanged), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1569,6 +1587,19 @@ jboolean JNIWebKitWebViewCache::nativeCanGoForward(JNIEnv*, jobject, jlong nativ
 {
     return webkit_web_view_can_go_forward(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
                                                                                                       : JNI_FALSE;
+}
+
+// The page keeps playing while it is muted, but the user hears nothing. WebKit keeps the state for the view, also for
+// the pages it loads later and in a new web process.
+void JNIWebKitWebViewCache::nativeSetIsMuted(JNIEnv*, jobject, jlong nativePtr, jboolean muted)
+{
+    webkit_web_view_set_is_muted(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView, muted);
+}
+
+jboolean JNIWebKitWebViewCache::nativeIsMuted(JNIEnv*, jobject, jlong nativePtr)
+{
+    return webkit_web_view_get_is_muted(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
+                                                                                                    : JNI_FALSE;
 }
 
 void JNIWebKitWebViewCache::nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray)

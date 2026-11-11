@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -238,6 +239,20 @@ public class WebViewNewWindowTest {
         run(scenario, "opened.close(); 0");
         assertSame(window, closedWindows.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "opened.closed", "true"));
+    }
+
+    /** The window of a muted view starts unmuted. */
+    @Test
+    public void testWindowOfAMutedViewStartsUnmuted() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = loadOpener(new WindowOpener());
+        scenario.onActivity(activity -> activity.getWebView().setAudioMuted(true));
+
+        assertEquals("true", run(scenario, "opened = window.open('/window.html'); opened !== null"));
+        WebView window = waitForWindow(windowUrl);
+        scenario.onActivity(activity -> {
+            assertFalse(window.isAudioMuted());
+            assertTrue(activity.getWebView().isAudioMuted());
+        });
     }
 
     /** A tap on a link with target=_blank opens its page in a window, without an opener. */
