@@ -193,16 +193,16 @@ public class WebViewTitleTest {
 
     @Test
     public void testTitleFromUrl() {
-        assertEquals("localhost:8080/a.html", WebView.titleFromUrl("http://localhost:8080/a.html"));
-        assertEquals("google.com/robots.txt", WebView.titleFromUrl("https://www.google.com/robots.txt"));
-        assertEquals("example.com/?q=www.", WebView.titleFromUrl("https://example.com/?q=www."));
-        assertEquals("example.com/a", WebView.titleFromUrl("https://user:secret@www.example.com/a"));
-        assertEquals("example.com", WebView.titleFromUrl("http://user@example.com/"));
-        assertEquals("example.com/?to=a@b", WebView.titleFromUrl("https://example.com/?to=a@b"));
-        assertEquals("localhost:8080", WebView.titleFromUrl("http://localhost:8080/"));
-        assertEquals("example.com/a/", WebView.titleFromUrl("https://example.com/a/"));
-        assertEquals("localhost:8080/a b.html", WebView.titleFromUrl("http://localhost:8080/a%20b.html"));
-        assertEquals("about:blank", WebView.titleFromUrl("about:blank"));
-        assertEquals("data:text/html,www.", WebView.titleFromUrl("data:text/html,www."));
+        assertEquals("localhost:8080/a.html", WebPage.titleFromUrl("http://localhost:8080/a.html"));
+        assertEquals("google.com/robots.txt", WebPage.titleFromUrl("https://www.google.com/robots.txt"));
+        assertEquals("example.com/?q=www.", WebPage.titleFromUrl("https://example.com/?q=www."));
+        assertEquals("example.com/a", WebPage.titleFromUrl("https://user:secret@www.example.com/a"));
+        assertEquals("example.com", WebPage.titleFromUrl("http://user@example.com/"));
+        assertEquals("example.com/?to=a@b", WebPage.titleFromUrl("https://example.com/?to=a@b"));
+        assertEquals("localhost:8080", WebPage.titleFromUrl("http://localhost:8080/"));
+        assertEquals("example.com/a/", WebPage.titleFromUrl("https://example.com/a/"));
+        assertEquals("localhost:8080/a b.html", WebPage.titleFromUrl("http://localhost:8080/a%20b.html"));
+        assertEquals("about:blank", WebPage.titleFromUrl("about:blank"));
+        assertEquals("data:text/html,www.", WebPage.titleFromUrl("data:text/html,www."));
     }
 }

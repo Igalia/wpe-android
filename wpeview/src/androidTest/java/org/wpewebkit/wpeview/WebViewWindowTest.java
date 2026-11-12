@@ -277,6 +277,33 @@ public class WebViewWindowTest {
              (focusedWindow.find() ? focusedWindow.group() : "no window has it"));
     }
 
+    /** A headless WebView, as automation uses, never gets a surface: its page is hidden, and still loads and runs. */
+    @Test
+    public void testHeadlessWebView() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<WebView> headless = new AtomicReference<>();
+        Function<WebViewTestActivity, WebView> inHeadless = activity -> headless.get();
+        try {
+            scenario.onActivity(activity -> {
+                headless.set(new WebView(WebViewActivityScenarioHelper.sharedWebContext(activity), true));
+                headless.get().setWebViewClient(webViewClient);
+                headless.get().loadHtml("<html><body><script>var ready = 'yes';</script></body></html>", null);
+            });
+            webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
+            assertEquals("\"yes\"", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, inHeadless, "ready",
+                                                                                          "\"yes\""));
+            assertEquals(HIDDEN, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, inHeadless,
+                                                                                       VISIBILITY_STATE, HIDDEN));
+        } finally {
+            scenario.onActivity(activity -> {
+                if (headless.get() != null)
+                    headless.get().destroy();
+            });
+        }
+    }
+
     /** A destroyed WebView that stays in the window ignores input, focus and size changes, and its surface. */
     @Test
     public void testDestroyedWebViewInTheWindow() throws Throwable {

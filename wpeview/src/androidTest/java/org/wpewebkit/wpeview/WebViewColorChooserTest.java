@@ -186,6 +186,24 @@ public class WebViewColorChooserTest {
     }
 
     @Test
+    public void testAnswerAfterDestroyIsDropped() throws Throwable {
+        ColorChooserClient client = new ColorChooserClient();
+        ActivityScenario<WebViewTestActivity> scenario = loadPage(client);
+        click(scenario, "color");
+        waitFor(client.requests, 1, "The field did not ask for a color");
+        // Destroying the view cancels the request, and the answers that come later have nothing to answer.
+        scenario.onActivity(activity -> {
+            activity.getWebView().destroy();
+            client.callback.get().confirm(Color.BLUE);
+            client.callback.get().cancel();
+        });
+        Thread thread = new Thread(() -> client.callback.get().confirm(Color.GREEN));
+        thread.start();
+        thread.join();
+        Thread.sleep(500);
+    }
+
+    @Test
     public void testFieldWithoutClientKeepsItsColor() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = loadPage(new WebChromeClient());
         click(scenario, "color");

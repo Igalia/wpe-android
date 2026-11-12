@@ -36,9 +36,12 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -219,6 +222,42 @@ public class WebViewClientPageLoadTest {
         assertEquals(error.getDescription(), WebViewClient.ERROR_CONNECT, error.getErrorCode());
         assertEquals(action, errorUrls.get(0));
         assertEquals("POST", errorMethods.get(0));
+    }
+
+    /** The original address is the one given to loadUrl, also after a redirect, and getUrl is where it led. */
+    @Test
+    public void testOriginalUrlAfterRedirect() throws Exception {
+        String target = setPage("/target.html", "Target");
+        HttpResponse redirect = new HttpResponse();
+        redirect.setStatusCode(302);
+        redirect.setStatusMessage("Found");
+        redirect.addHeader("Location", "/target.html");
+        String start = httpServer.setResponse("/start.html", redirect);
+        loadUrl(start);
+        waitForPageFinished(target);
+        webViewActivityTestRule.getScenario().onActivity(activity -> {
+            assertEquals(start, activity.getWebView().getOriginalUrl());
+            assertEquals(target, activity.getWebView().getUrl());
+        });
+    }
+
+    /** A destroyed WebView loads nothing, runs no script and keeps the address of its last page. */
+    @Test
+    public void testDestroyedWebViewLoadsNothing() throws Exception {
+        String url = setPage("/a.html", "A");
+        String other = setPage("/b.html", "B");
+        loadAndWait(url);
+        AtomicBoolean scriptAnswered = new AtomicBoolean();
+        webViewActivityTestRule.getScenario().onActivity(activity -> {
+            WebView webView = activity.getWebView();
+            webView.destroy();
+            webView.loadUrl(other);
+            webView.reload();
+            webView.evaluateJavascript("1", result -> scriptAnswered.set(true));
+            assertEquals(url, webView.getUrl());
+        });
+        assertNull("A destroyed WebView started a load", startedUrls.poll(1, TimeUnit.SECONDS));
+        assertFalse("A destroyed WebView ran a script", scriptAnswered.get());
     }
 
     @Test
