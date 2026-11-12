@@ -243,8 +243,8 @@ public class WebViewWebProcessTest {
         onWebView(WebView::terminateWebProcess);
         waitForTermination(WebViewClient.WEB_PROCESS_TERMINATED_BY_API);
         loadAndWait(untitled);
-        waitForTitle(WebView.titleFromUrl(untitled));
-        assertEquals(WebView.titleFromUrl(untitled), fromWebView(WebView::getTitle));
+        waitForTitle(WebPage.titleFromUrl(untitled));
+        assertEquals(WebPage.titleFromUrl(untitled), fromWebView(WebView::getTitle));
         assertEquals(untitled, fromWebView(WebView::getUrl));
     }
 
