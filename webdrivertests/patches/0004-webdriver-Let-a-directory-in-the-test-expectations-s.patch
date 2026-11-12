@@ -1,4 +1,4 @@
-From a5389b72b5ebec5242908c248edb28d8539768f9 Mon Sep 17 00:00:00 2001
+From efa91f2a872bae7ce2745fb08aac6c9310513a3b Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:10:35 +0200
 Subject: [PATCH 4/5] webdriver: Let a directory in the test expectations skip
@@ -13,12 +13,12 @@ available, needed one entry per file.
  3 files changed, 15 insertions(+), 5 deletions(-)
 
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
-index 41f7b819..d18cb11d 100644
+index d2612872..ed8c1262 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
-@@ -64,7 +64,7 @@ class WebDriverTestRunner(object):
-             expectations_files = [os.path.join(self._tests_dir, 'TestExpectations.json')] + (options.expectations or [])
-         self._expectations = TestExpectations('wpe', expectations_files, 'Release')
+@@ -89,7 +89,7 @@ class WebDriverTestRunner(object):
+         # The names WebDriverTestExpectations looks up for the WPE port.
+         self._expectations = TestExpectations(['wpe', PORT_GROUPS['wpe']], expectations_files, 'Release')
          for test in self._expectations._expectations.keys():
 -            if not os.path.isfile(os.path.join(self._tests_dir, test)):
 +            if not os.path.exists(os.path.join(self._tests_dir, test)):
@@ -53,10 +53,10 @@ index 823e1095..16ccaabc 100644
          if self._driver.selenium_name() is None:
              return
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
-index a7a9e8da..1fd9ad85 100644
+index 3c7c2d4a..9e69407c 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
-@@ -60,7 +60,7 @@ class WebDriverTestRunnerW3C(object):
+@@ -61,7 +61,7 @@ class WebDriverTestRunnerW3C(object):
              test_path = os.path.join(self._tests_dir, test)
              if os.path.isdir(test_path):
                  w3c_tests.extend(self._scan_directory(test_path, skipped))
@@ -65,7 +65,7 @@ index a7a9e8da..1fd9ad85 100644
                  if subtest is not None:
                      w3c_tests.append(test_path + '::' + subtest)
                  else:
-@@ -81,10 +81,15 @@ class WebDriverTestRunnerW3C(object):
+@@ -83,10 +83,15 @@ class WebDriverTestRunnerW3C(object):
      def _scan_directory(self, directory, skipped):
          tests = []
          for path in self._filesystem.files_under(directory):

@@ -1,4 +1,4 @@
-From a5ebf283d84a348d45627fc9b57c57ad2bb1446f Mon Sep 17 00:00:00 2001
+From 0f4a7ec6f40a0d44e12096382cf41cd70e2224be Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:05:40 +0200
 Subject: [PATCH 3/5] webdriver: W3C client changes for wpe-android
@@ -8,7 +8,7 @@ ones fail at once instead of waiting again. Cookies are cleared between
 tests.
 ---
  .../w3c/tools/webdriver/webdriver/transport.py  | 17 +++++++++++++++--
- .../w3c/webdriver/tests/support/helpers.py      |  7 +++++++
+ .../webdriver/tests/support/classic/helpers.py  |  7 +++++++
  2 files changed, 22 insertions(+), 2 deletions(-)
 
 diff --git a/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py b/WebDriverTests/imported/w3c/tools/webdriver/webdriver/transport.py
@@ -60,11 +60,11 @@ index 6b953934..18e37f09 100644
          return Response.from_http(response, decoder=decoder, **codec_kwargs)
  
      def _request(self, method, uri, payload, headers=None, timeout=None):
-diff --git a/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py b/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
-index c4dec8de..323b6c54 100644
---- a/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
-+++ b/WebDriverTests/imported/w3c/webdriver/tests/support/helpers.py
-@@ -89,6 +89,13 @@ def cleanup_session(session):
+diff --git a/WebDriverTests/imported/w3c/webdriver/tests/support/classic/helpers.py b/WebDriverTests/imported/w3c/webdriver/tests/support/classic/helpers.py
+index 460e6388..f6d12f2e 100644
+--- a/WebDriverTests/imported/w3c/webdriver/tests/support/classic/helpers.py
++++ b/WebDriverTests/imported/w3c/webdriver/tests/support/classic/helpers.py
+@@ -86,6 +86,13 @@ def cleanup_session(session):
      _restore_windows(session)
      _restore_window_state(session)
      _switch_to_top_level_browsing_context(session)

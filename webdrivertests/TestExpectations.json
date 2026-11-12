@@ -22,8 +22,6 @@
     },
     "imported/selenium/py/test/selenium/webdriver/common/correct_event_firing_tests.py": {
         "subtests": {
-            "test_sending_keys_to_an_element_should_cause_the_focus_event_to_fire": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_sending_keys_to_another_element_should_cause_the_blur_event_to_fire": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_should_fire_click_event_when_clicking": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
             "test_should_issue_click_events": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
@@ -128,26 +126,8 @@
     },
     "imported/w3c/webdriver/tests/classic/element_clear/clear.py": {
         "subtests": {
-            "test_contenteditable": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[color-#ff0000-#000000]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[date-2017-12-26-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[datetime-2017-12-26T19:48-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[datetime-local-2017-12-26T19:48-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[email-foo@example.com-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[month-2017-11-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[number-42-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[password-password-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[range-42-50]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[search-search-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[tel-999-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[text-text-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[time-19:48-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[url-https://example.com/-]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_input[week-2017-W52-]": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_input_file": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_input_file_multiple": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_resettable_element_does_not_satisfy_validation_constraints[month-foo]": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_textarea": {"expected": {"wpe": {"status": ["PASS"]}}}
+            "test_input_file_multiple": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/element_clear/disabled.py": {
@@ -155,11 +135,32 @@
             "test_xml": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/element_clear/iframe.py": {
+        "subtests": {
+            "test_clear_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/element_click/iframe.py": {
+        "subtests": {
+            "test_click_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_nested_cross_origin_frame": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_scrolled_frame[both_scrolled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_scrolled_frame[scrolled_frame-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_scrolled_frame[scrolled_main_frame-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_scrolled_frame[unscrolled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_click_element_in_transformed_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/element_click/navigate.py": {
         "subtests": {
             "test_link_cross_origin": {"expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/218737"}}},
             "test_link_from_nested_context_with_target[_blank]": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_link_from_toplevel_context_with_target[_blank]": {"expected": {"wpe": {"status": ["FAIL"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/element_click/single_tick.py": {
+        "subtests": {
+            "test_element_click_dispatches_actions_in_a_single_tick": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/element_click/user_prompts.py": {
@@ -172,16 +173,9 @@
             "test_ignore[beforeunload]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
-    "imported/w3c/webdriver/tests/classic/element_send_keys/content_editable.py": {
-        "subtests": {
-            "test_no_move_caret_if_focused": {"expected": {"wpe": {"status": ["PASS"]}}}
-        }
-    },
     "imported/w3c/webdriver/tests/classic/element_send_keys/events.py": {
         "subtests": {
-            "test_file_upload": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_form_control_send_text[input]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_form_control_send_text[textarea]": {"expected": {"wpe": {"status": ["PASS"]}}}
+            "test_file_upload": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/element_send_keys/file_upload.py": {
@@ -217,9 +211,24 @@
             "test_opening_new_window_keeps_current_window_handle": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/execute_script/iframe.py": {
+        "subtests": {
+            "test_element_argument_and_return_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/find_element/iframe.py": {
+        "subtests": {
+            "test_find_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/find_element_from_element/find.py": {
         "subtests": {
             "test_no_top_browsing_context": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/find_element_from_element/iframe.py": {
+        "subtests": {
+            "test_find_element_from_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/find_element_from_shadow_root/find.py": {
@@ -228,9 +237,24 @@
             "test_no_top_browsing_context": {"expected": {"wpe": {"status": ["SKIP"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/find_element_from_shadow_root/iframe.py": {
+        "subtests": {
+            "test_find_element_from_shadow_root_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/find_elements/iframe.py": {
+        "subtests": {
+            "test_find_elements_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/find_elements_from_element/find.py": {
         "subtests": {
             "test_no_top_browsing_context": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/find_elements_from_element/iframe.py": {
+        "subtests": {
+            "test_find_elements_from_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/find_elements_from_shadow_root/find.py": {
@@ -239,15 +263,20 @@
             "test_no_top_browsing_context": {"expected": {"wpe": {"status": ["SKIP"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/find_elements_from_shadow_root/iframe.py": {
+        "subtests": {
+            "test_find_elements_from_shadow_root_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/forward/forward.py": {
         "subtests": {
             "test_seen_nodes[https coop]": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_seen_nodes[https]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
-    "imported/w3c/webdriver/tests/classic/get_active_element/get.py": {
+    "imported/w3c/webdriver/tests/classic/get_active_element/iframe.py": {
         "subtests": {
-            "test_no_such_element": {"expected": {"wpe": {"status": ["PASS"]}}}
+            "test_get_active_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/get_computed_label/get.py": {
@@ -255,9 +284,24 @@
             "test_no_browsing_context": {"expected": {"wpe": {"status": ["SKIP"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/get_computed_label/iframe.py": {
+        "subtests": {
+            "test_computed_label_in_frame[<button aria-label=foo>bar</button>-button-foo-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_computed_label_in_frame[<button aria-labelledby=\"one two\"></button><div id=one>ok</div><div id=two>go</div>-button-ok go-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_computed_label_in_frame[<button>ok</button>-button-ok-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_computed_label_in_frame[<label><input> foo</label>-input-foo-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/get_computed_role/get.py": {
         "subtests": {
             "test_no_browsing_context": {"expected": {"wpe": {"status": ["SKIP"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_computed_role/iframe.py": {
+        "subtests": {
+            "test_computed_role_in_frame[<article>foo</article>-article-article-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_computed_role_in_frame[<img role=button tabindex=0>-img-button-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_computed_role_in_frame[<input role=searchbox>-input-searchbox-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/get_current_url/iframe.py": {
@@ -265,9 +309,42 @@
             "test_origin[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/get_element_attribute/iframe.py": {
+        "subtests": {
+            "test_element_attribute_in_frame[disabled-true-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_element_attribute_in_frame[value-v-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_element_css_value/iframe.py": {
+        "subtests": {
+            "test_element_css_value_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_element_property/iframe.py": {
+        "subtests": {
+            "test_content_attribute_property_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_idl_attribute_property_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_element_rect/iframe.py": {
+        "subtests": {
+            "test_element_rect_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_element_rect_in_frame_with_scrolled_main_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/get_element_shadow_root/get.py": {
         "subtests": {
             "test_no_browsing_context": {"expected": {"wpe": {"status": ["SKIP"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_element_shadow_root/iframe.py": {
+        "subtests": {
+            "test_get_element_shadow_root_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_element_tag_name/iframe.py": {
+        "subtests": {
+            "test_element_tag_name_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/get_element_text/get.py": {
@@ -275,9 +352,20 @@
             "test_pretty_print_xml": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/get_element_text/iframe.py": {
+        "subtests": {
+            "test_element_text_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/get_title/iframe.py": {
         "subtests": {
             "test_origin[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/get_window_handles/iframe.py": {
+        "subtests": {
+            "test_window_with_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_window_with_frame[same_origin]": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/get_window_rect/user_prompts.py": {
@@ -288,6 +376,18 @@
     "imported/w3c/webdriver/tests/classic/is_element_enabled/enabled.py": {
         "subtests": {
             "test_xml": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/is_element_enabled/iframe.py": {
+        "subtests": {
+            "test_element_enabled_in_frame[disabled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_element_enabled_in_frame[enabled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/is_element_selected/iframe.py": {
+        "subtests": {
+            "test_element_selected_in_frame[checked-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_element_selected_in_frame[unchecked-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/navigate_to/file.py": {
@@ -302,10 +402,30 @@
             "test_seen_nodes[https]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
+    "imported/w3c/webdriver/tests/classic/new_session/unhandled_prompt_behavior.py": {
+        "subtests": {
+            "test_beforeunload_prompts_always_automatically_accepted[accept and notify]": {"expected": {"wpe": {"status": ["FAIL"]}}},
+            "test_beforeunload_prompts_always_automatically_accepted[accept]": {"expected": {"wpe": {"status": ["FAIL"]}}},
+            "test_beforeunload_prompts_always_automatically_accepted[dismiss and notify]": {"expected": {"wpe": {"status": ["FAIL"]}}},
+            "test_beforeunload_prompts_always_automatically_accepted[dismiss]": {"expected": {"wpe": {"status": ["FAIL"]}}},
+            "test_beforeunload_prompts_always_automatically_accepted[ignore]": {"expected": {"wpe": {"status": ["FAIL"]}}}
+        }
+    },
     "imported/w3c/webdriver/tests/classic/new_session/websocket_url.py": {
         "subtests": {
             "test_bidi_upgrade": {"expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/230615"}}},
             "test_no_bidi_upgrade[False]": {"expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/230615"}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/perform_actions/iframe.py": {
+        "subtests": {
+            "test_perform_actions_on_element_in_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_nested_cross_origin_frame": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_scrolled_frame[both_scrolled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_scrolled_frame[scrolled_frame-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_scrolled_frame[scrolled_main_frame-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_scrolled_frame[unscrolled-cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
+            "test_perform_actions_on_element_in_transformed_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/perform_actions/key_events.py": {
@@ -336,11 +456,13 @@
     },
     "imported/w3c/webdriver/tests/classic/take_element_screenshot/iframe.py": {
         "subtests": {
+            "test_frame_element[same_origin]": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_source_origin[same_origin]": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/take_element_screenshot/screenshot.py": {
         "subtests": {
+            "test_clip_huge_element_to_viewport": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_format_and_dimensions": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_no_browsing_context": {"expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}}
         }
@@ -364,6 +486,7 @@
     "imported/w3c/webdriver/tests/classic/take_screenshot/screenshot.py": {
         "subtests": {
             "test_format_and_dimensions": {"expected": {"wpe": {"status": ["FAIL"]}}},
+            "test_huge_document_clips_to_viewport": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_no_browsing_context": {"expected": {"wpe": {"status": ["FAIL"], "bug": "webkit.org/b/212950"}}}
         }
     },

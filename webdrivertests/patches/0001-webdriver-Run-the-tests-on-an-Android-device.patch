@@ -1,4 +1,4 @@
-From f2a35afbf3257d003a43da27f852296105567688 Mon Sep 17 00:00:00 2001
+From 3759639de76ba0c4430278ce97ac4d12e4c67d18 Mon Sep 17 00:00:00 2001
 From: "Alejandro G. Castro" <alex@igalia.com>
 Date: Sun, 18 Oct 2026 20:05:39 +0200
 Subject: [PATCH 1/5] webdriver: Run the tests on an Android device
@@ -8,31 +8,34 @@ wpe-android starts it and forwards its port), so there is no WebKit port,
 build directory or display server. The packages come from the Python
 environment instead of being autoinstalled. The expectations and the
 driver script are passed on the command line. BiDi is off by default, as
-the device's BiDi endpoint is not forwarded yet.
+the device's BiDi endpoint is not forwarded yet. Without a port to
+describe them, the results are not uploaded to results.webkit.org.
 ---
- Tools/Scripts/run-webdriver-tests             | 48 ++++++-----------
- .../webdriver_tests/webdriver_driver.py       | 19 ++++---
- .../webdriver_tests/webdriver_driver_wpe.py   | 41 +++++++++------
- .../webdriver_selenium_executor.py            | 46 +++++++++++++---
- .../webdriver_tests/webdriver_test_runner.py  | 52 ++++---------------
- .../webdriver_test_runner_selenium.py         | 17 +++---
- .../webdriver_test_runner_w3c.py              | 14 ++---
- .../webdriver_tests/webdriver_w3c_executor.py | 41 ++++++++++++---
- .../webdriver_w3c_web_server.py               | 46 ++++++++--------
- 9 files changed, 174 insertions(+), 150 deletions(-)
+ Tools/Scripts/run-webdriver-tests             | 65 +++-----------
+ .../webdriver_tests/webdriver_driver.py       | 19 ++--
+ .../webdriver_tests/webdriver_driver_wpe.py   | 41 +++++----
+ .../webdriver_selenium_executor.py            | 46 ++++++++--
+ .../webdriver_tests/webdriver_test_runner.py  | 90 ++++---------------
+ .../webdriver_test_runner_selenium.py         | 17 ++--
+ .../webdriver_test_runner_w3c.py              | 17 ++--
+ .../webdriver_tests/webdriver_w3c_executor.py | 41 +++++++--
+ .../webdriver_w3c_web_server.py               | 48 +++++-----
+ 9 files changed, 178 insertions(+), 206 deletions(-)
 
 diff --git a/Tools/Scripts/run-webdriver-tests b/Tools/Scripts/run-webdriver-tests
-index 7d8d2255..1943ec8d 100755
+index bb47d0c0..5303c855 100755
 --- a/Tools/Scripts/run-webdriver-tests
 +++ b/Tools/Scripts/run-webdriver-tests
-@@ -26,44 +26,30 @@ import logging
- import optparse
+@@ -27,52 +27,30 @@ import optparse
+ import signal
  import sys
  
 -from webkitpy.port.linux_container_sdk_utils import maybe_enter_webkit_container_sdk, maybe_use_container_sdk_root_dir
 -maybe_enter_webkit_container_sdk()
 -
 -from webkitpy.common.host import Host
+-from webkitpy.port.factory import configuration_options
+-from webkitpy.results.options import upload_options
  from webkitpy.webdriver_tests.webdriver_test_runner import WebDriverTestRunner
  from webkitpy.common.system.logutils import configure_logging
 -maybe_use_container_sdk_root_dir()
@@ -48,10 +51,6 @@ index 7d8d2255..1943ec8d 100755
 -                         help='Alias for --platform=gtk')
 -option_parser.add_option('--wpe', action='store_const', dest='platform', const='wpe',
 -                         help='Alias for --platform=wpe')
--option_parser.add_option('--release', action='store_const', const='Release', dest="configuration",
--                         help='Set the configuration to Release')
--option_parser.add_option('--debug', action='store_const', const='Debug', dest="configuration",
--                         help='Set the configuration to Debug')
  option_parser.add_option('--timeout', action='store', type='int', dest='timeout', default=10,
                           help='Time in seconds until a test times out (use 0 to disable)')
  option_parser.add_option('--json-output', action='store', metavar="FILE",
@@ -69,8 +68,18 @@ index 7d8d2255..1943ec8d 100755
 +                         help='Run Selenium tests with BiDi enabled')
  option_parser.add_option('--force', action='store_true',
                           help='Ignore the expectations file, running all given tests and assuming they should PASS')
+-option_parser.add_option('--site-isolation', action='store_true',
+-                         help='Run the tests with Site Isolation, and use its expectations (Mac only)')
  option_parser.add_option("--test-list", action="append",
                           help="Read list of tests to run from file", metavar="FILE")
+-
+-configuration_group = optparse.OptionGroup(option_parser, 'Configuration options')
+-configuration_group.add_options(configuration_options())
+-option_parser.add_option_group(configuration_group)
+-
+-upload_group = optparse.OptionGroup(option_parser, 'Upload options')
+-upload_group.add_options(upload_options())
+-option_parser.add_option_group(upload_group)
 +option_parser.add_option('--expectations', action='append', metavar='FILE',
 +                         help='Expectations to apply on top of WebDriverTests/TestExpectations.json (can be repeated)')
 +option_parser.add_option('--driver-binary', action='store', metavar='FILE',
@@ -78,35 +87,50 @@ index 7d8d2255..1943ec8d 100755
  
  options, args = option_parser.parse_args()
  
-@@ -81,19 +67,15 @@ if options.test_list:
+@@ -90,23 +68,7 @@ if options.test_list:
              _log.error(f'Failed to read test list "{test_list_file}": "{e}". Aborting')
              sys.exit(1)
  
-+runner = WebDriverTestRunner(options)
- try:
+-try:
 -    port = Host().port_factory.get(options.platform, options)
 -except NotImplementedError as e:
 -    _log.error(str(e))
 -    sys.exit(-1)
 -
+-if options.site_isolation and port.port_name != 'mac':
+-    _log.error('--site-isolation is only supported on Mac')
+-    sys.exit(-1)
+-
+-if options.site_isolation:
+-    if options.result_report_flavor:
+-        _log.error('--site-isolation sets the result flavor, so it can\'t be combined with --result-report-flavor')
+-        sys.exit(-1)
+-    options.result_report_flavor = 'site-isolation'
+-
 -runner = WebDriverTestRunner(port)
--runner.run(args)
--runner.teardown()
--retval = runner.process_results()
-+    runner.run(args)
-+finally:
-+    runner.teardown()
-+    retval = runner.process_results()
++runner = WebDriverTestRunner(options)
  
+ # By default, SIGTERM ends this process without running the finally blocks that stop the driver and the WPT
+ # server. The driver has a process group of its own, so it and its browser would be left running.
+@@ -116,13 +78,10 @@ try:
+     runner.run(args)
+ finally:
+     runner.teardown()
+-retval = runner.process_results()
+-
 -if options.json_output is not None:
 -    runner.dump_results_to_json_file(options.json_output)
++    retval = runner.process_results()
+ 
+-if options.report_urls and not runner.upload_results(options):
+-    retval = retval or 1
 +    if options.json_output is not None:
 +        runner.dump_results_to_json_file(options.json_output)
  
  sys.exit(retval)
  
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py
-index 554ec7a5..d0b7c64d 100644
+index 5f1dbeba..d0b7c64d 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver.py
 @@ -22,8 +22,9 @@
@@ -139,13 +163,13 @@ index 554ec7a5..d0b7c64d 100644
  
  
 -def create_driver(port):
--    if port.name() not in _drivers:
--        __import__('webkitpy.webdriver_tests.webdriver_driver_%s' % port.name())
+-    if port.port_name not in _drivers:
+-        __import__('webkitpy.webdriver_tests.webdriver_driver_%s' % port.port_name)
 +def create_driver(port_name, filesystem, binary_path=None):
 +    if port_name not in _drivers:
 +        __import__('webkitpy.webdriver_tests.webdriver_driver_%s' % port_name)
  
--    return _drivers[port.name()](port)
+-    return _drivers[port.port_name](port)
 +    return _drivers[port_name](port_name, filesystem, binary_path)
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver_wpe.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_driver_wpe.py
 index b42ca8f3..f217ea0c 100644
@@ -213,7 +237,7 @@ index b42ca8f3..f217ea0c 100644
      def selenium_name(self):
          return 'wpewebkit'
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_selenium_executor.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_selenium_executor.py
-index 910971bc..be26ab69 100644
+index ab66d584..4ad87c84 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_selenium_executor.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_selenium_executor.py
 @@ -21,10 +21,13 @@
@@ -299,62 +323,60 @@ index 910971bc..be26ab69 100644
 +                       'tcp:%d' % SELENIUM_WEB_SERVER_PORT])
 +
      def collect(self, directory):
-         return pytest_runner.collect(directory, self._args, self._driver_name)
+         return pytest_runner.collect([directory], self._args, self._driver_name)
  
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
-index e9845a42..41f7b819 100644
+index 5798ec9a..d2612872 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner.py
-@@ -1,25 +1,3 @@
--# Copyright (C) 2017 Igalia S.L.
--#
--# Redistribution and use in source and binary forms, with or without
--# modification, are permitted provided that the following conditions
--# are met:
--# 1.  Redistributions of source code must retain the above copyright
--#     notice, this list of conditions and the following disclaimer.
--# 2.  Redistributions in binary form must reproduce the above copyright
--#     notice, this list of conditions and the following disclaimer in the
--#     documentation and/or other materials provided with the distribution.
--#
--# THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS'' AND ANY
--# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
--# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
--# DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS BE LIABLE FOR ANY
--# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
--# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
--# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
--# ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
--# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
--# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
--
- import json
- import logging
- import importlib.abc
-@@ -56,6 +34,7 @@ class WebDriverSeleniumFinder(importlib.abc.MetaPathFinder):
+@@ -57,10 +57,11 @@ class WebDriverSeleniumFinder(importlib.abc.MetaPathFinder):
  
  sys.meta_path.insert(0, WebDriverSeleniumFinder())
  
 +from webkitpy.common.system import filesystem
  from webkitpy.common.webkit_finder import WebKitFinder
- from webkitpy.common.test_expectations import TestExpectations
+-from webkitpy.results.upload import Upload  # noqa: E402
++from webkitpy.common.test_expectations import TestExpectations
  from webkitpy.webdriver_tests.webdriver_driver import create_driver
-@@ -69,38 +48,29 @@ class WebDriverTestRunner(object):
+-from webkitpy.webdriver_tests.webdriver_test_expectations import WebDriverTestExpectations  # noqa: E402
++from webkitpy.webdriver_tests.webdriver_test_expectations import PORT_GROUPS  # noqa: E402
+ from webkitpy.webdriver_tests.webdriver_test_runner_selenium import WebDriverTestRunnerSelenium
+ from webkitpy.webdriver_tests.webdriver_test_runner_w3c import WebDriverTestRunnerW3C
+ 
+@@ -71,55 +72,30 @@ class WebDriverTestRunner(object):
  
      RUNNER_CLASSES = (WebDriverTestRunnerSelenium, WebDriverTestRunnerW3C)
  
+-    # The expected and actual results to upload for each subtest status, which already reflects the test expectations.
+-    UPLOAD_RESULTS = {
+-        'PASS': (None, None),
+-        'FAIL': (None, Upload.Expectations.FAIL),
+-        'ERROR': (None, Upload.Expectations.ERROR),
+-        'TIMEOUT': (None, Upload.Expectations.TIMEOUT),
+-        'XFAIL': (Upload.Expectations.FAIL, Upload.Expectations.FAIL),
+-        'XPASS': (Upload.Expectations.FAIL, None),
+-        'XPASS_TIMEOUT': (Upload.Expectations.TIMEOUT, None),
+-    }
+-    UPLOAD_HARNESS_RESULTS = {
+-        'CRASH': Upload.Expectations.CRASH,
+-        'TIMEOUT': Upload.Expectations.TIMEOUT,
+-    }
+-
 -    def __init__(self, port):
 -        self._port = port
 -        _log.info('Using port %s' % self._port.name())
 -        _log.info('Test configuration: %s' % self._port.test_configuration())
+-        if self._port.get_option('site_isolation'):
+-            _log.info('Site Isolation enabled')
 -
 -        self._display_driver = self._port._driver_class()(self._port, worker_number=0, pixel_tests=False, no_timeout=True)
 -        if not self._display_driver.check_driver(self._port):
 -            raise RuntimeError("Failed to check driver %s" % self._display_driver.__class__.__name__)
 -        _log.info('Using display server %s' % (self._display_driver.__class__.__name__))
-+    def __init__(self, options):
- 
+-
 -        driver = create_driver(self._port)
++    def __init__(self, options):
++
 +        self._filesystem = filesystem.FileSystem()
 +        driver = create_driver("wpe", self._filesystem, options.driver_binary)
          _log.info('Using driver at %s' % (driver.binary_path()))
@@ -370,10 +392,11 @@ index e9845a42..41f7b819 100644
 +            expectations_files = []
          else:
 -            expectations_file = os.path.join(self._tests_dir, 'TestExpectations.json')
--        build_type = 'Debug' if self._port.get_option('debug') else 'Release'
--        self._expectations = TestExpectations(self._port.name(), expectations_file, build_type, self._port.architecture())
+-        build_type = 'Debug' if self._port.get_option('configuration') == 'Debug' else 'Release'
+-        self._expectations = WebDriverTestExpectations(self._port, expectations_file, build_type, self._port.architecture())
 +            expectations_files = [os.path.join(self._tests_dir, 'TestExpectations.json')] + (options.expectations or [])
-+        self._expectations = TestExpectations('wpe', expectations_files, 'Release')
++        # The names WebDriverTestExpectations looks up for the WPE port.
++        self._expectations = TestExpectations(['wpe', PORT_GROUPS['wpe']], expectations_files, 'Release')
          for test in self._expectations._expectations.keys():
              if not os.path.isfile(os.path.join(self._tests_dir, test)):
                  _log.warning('Test %s does not exist' % test)
@@ -387,7 +410,50 @@ index e9845a42..41f7b819 100644
 +        pass
  
      def run(self, tests=[]):
-         runner_tests = [runner.collect_tests(tests) for runner in self._runners]
+         self._start_time = time.time()
+@@ -199,42 +175,6 @@ class WebDriverTestRunner(object):
+ 
+         return retval
+ 
+-    @classmethod
+-    def results_for_upload(cls, test_results):
+-        results = {}
+-        for result in test_results:
+-            if result.status != 'OK':
+-                results[result.test] = Upload.create_test_result(actual=cls.UPLOAD_HARNESS_RESULTS.get(result.status, Upload.Expectations.ERROR))
+-                continue
+-            for name, status, _, _ in result.subtest_results:
+-                if status in cls.UPLOAD_RESULTS:
+-                    expected, actual = cls.UPLOAD_RESULTS[status]
+-                    results['%s/%s' % (result.test, name.split('::', 1)[1])] = Upload.create_test_result(expected=expected, actual=actual)
+-        return results
+-
+-    def upload_results(self, options):
+-        test_results = [result for runner in self._runners for result in runner.results()]
+-        upload = Upload(
+-            suite=options.suite or 'webdriver-tests',
+-            configuration=self._port.configuration_for_upload(self._port.target_host(0)),
+-            details=Upload.create_details(options=options),
+-            commits=self._port.commits_for_upload(),
+-            run_stats=Upload.create_run_stats(
+-                start_time=self._start_time,
+-                end_time=self._end_time,
+-                tests_skipped=sum(1 for result in test_results for _, status, _, _ in result.subtest_results if status == 'SKIP'),
+-            ),
+-            results=self.results_for_upload(test_results),
+-        )
+-        succeeded = True
+-        for url in options.report_urls:
+-            _log.info('Uploading to %s ...' % url)
+-            if not upload.upload(url, log_line_func=_log.info):
+-                # The bots look for this message, keep it in sync with FAILED_RESULTS_UPLOAD_MESSAGE in Tools/CISupport/Shared/steps.py.
+-                _log.error('Failed to upload test results to %s' % url)
+-                succeeded = False
+-        return succeeded
+-
+     def dump_results_to_json_file(self, output_path):
+         json_results = {}
+         json_results['results'] = []
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py
 index 790a9aa1..823e1095 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_selenium.py
@@ -431,10 +497,10 @@ index 790a9aa1..823e1095 100644
              test_name = os.path.relpath(test.split('::')[0], self._tests_dir)
              harness_result, test_results = executor.run(test, timeout, self._expectations)
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
-index fc2fff7b..a7a9e8da 100644
+index 1086a798..3c7c2d4a 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_test_runner_w3c.py
-@@ -33,15 +33,15 @@ _log = logging.getLogger(__name__)
+@@ -34,15 +34,15 @@ _log = logging.getLogger(__name__)
  
  class WebDriverTestRunnerW3C(object):
  
@@ -455,7 +521,7 @@ index fc2fff7b..a7a9e8da 100644
  
      def collect_tests(self, tests):
          skipped = [os.path.join(self._tests_dir, test) for test in self._expectations.skipped_tests()]
-@@ -80,7 +80,7 @@ class WebDriverTestRunnerW3C(object):
+@@ -82,7 +82,7 @@ class WebDriverTestRunnerW3C(object):
  
      def _scan_directory(self, directory, skipped):
          tests = []
@@ -464,28 +530,31 @@ index fc2fff7b..a7a9e8da 100644
              if self._is_test(path) and path not in skipped:
                  tests.append(path)
          return tests
-@@ -92,7 +92,7 @@ class WebDriverTestRunnerW3C(object):
-     def run(self, tests=[]):
-         self._server.start()
+@@ -97,8 +97,9 @@ class WebDriverTestRunnerW3C(object):
+             self._server.start()
  
--        executor = WebDriverW3CExecutor(self._driver, self._server, self._env, self._port.get_option('timeout'), self._expectations)
-+        executor = WebDriverW3CExecutor(self._driver, self._server, self._options.timeout, self._expectations)
-         executor.setup()
-         need_restart = False
-         try:
+             # The tests compare the platformName capability with this. Like wptrunner, use the OS name as mozinfo has it
+-            # (mac, linux, win), which PytestExecutor maps to the WebDriver name.
+-            executor = WebDriverW3CExecutor(self._driver, self._server, self._env, self._port.get_option('timeout'), self._expectations, self._port.host.platform.os_name)
++            # (mac, linux, win), which PytestExecutor maps to the WebDriver name. The WebDriver of WPE says linux,
++            # also on Android, whatever the OS of the host that runs the tests.
++            executor = WebDriverW3CExecutor(self._driver, self._server, self._options.timeout, self._expectations, 'linux')
+             executor.collect(tests)
+             executor.setup()
+             executor.warm_up()
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
-index 3ac8ce72..bdec1d66 100644
+index a8e4109c..68b7b34b 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_executor.py
-@@ -23,6 +23,7 @@
+@@ -24,6 +24,7 @@ import http.client
  import logging
  import os
  import json
 +import subprocess
  import sys
+ import time
  
- from webkitpy.common.system.filesystem import FileSystem
-@@ -116,17 +117,38 @@ class WebKitDriverBrowser(WebDriverBrowser):
+@@ -118,19 +119,40 @@ class WebKitDriverBrowser(WebDriverBrowser):
  
      def __init__(self, logger, binary=None, webdriver_binary=None, webdriver_args=None, host="127.0.0.1", port=None, base_path="/", env=None, supports_pac=True, **kwargs):
          WebDriverBrowser.__init__(self, logger, binary, webdriver_binary, webdriver_args, host, port, base_path, self.test_env, supports_pac, manager_number=0)
@@ -518,26 +587,28 @@ index 3ac8ce72..bdec1d66 100644
 +            self._adb_run(['reverse', 'tcp:%d' % port, 'tcp:%d' % port])
 +
  
- class WebDriverW3CExecutor(WdspecExecutor):
+ class WebDriverW3CExecutor(PytestExecutor):
+     WARM_UP_TIMEOUT_SECONDS = 120
+     PYTEST_ARGS = ['--strict-markers', '-p', 'no:mozlog']
  
--    def __init__(self, driver, server, env, timeout, expectations):
+-    def __init__(self, driver, server, env, timeout, expectations, target_platform):
 -        WebKitDriverBrowser.test_env = env
 -        WebKitDriverBrowser.test_env.update(driver.browser_env())
 -        WebKitDriverBrowser.test_env['WEBKIT_TLS_CAFILE_PEM'] = server.cacert_pem_file()
-+    def __init__(self, driver, server, timeout, expectations):
++    def __init__(self, driver, server, timeout, expectations, target_platform):
          server_config = {'browser_host': server.host(),
                           'domains': {'': {'': server.host()},
                                       'alt':{ '': '127.0.0.1'}},
-@@ -134,7 +156,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
+@@ -138,7 +160,7 @@ class WebDriverW3CExecutor(PytestExecutor):
                                     'https': [server.https_port()]},
                           'doc_root': server.document_root()}
          self.runner = TestRunner()
 -        browser = WebKitDriverBrowser(self.runner.logger, webdriver_binary=driver.binary_path())
 +        browser = WebKitDriverBrowser(self.runner.logger, webdriver_binary=driver.binary_path(), host="127.0.0.1", port=8888)
-         WdspecExecutor.__init__(self, self.runner.logger, browser, server_config, driver.binary_path(), None, capabilities=driver.capabilities(), target_platform=None)
+         PytestExecutor.__init__(self, self.runner.logger, browser, server_config, driver.binary_path(), None, capabilities=driver.capabilities(), target_platform=target_platform)
  
          self._timeout = timeout
-@@ -143,6 +165,7 @@ class WebDriverW3CExecutor(WdspecExecutor):
+@@ -147,6 +169,7 @@ class WebDriverW3CExecutor(PytestExecutor):
  
      def setup(self):
          super(WebDriverW3CExecutor, self).setup(self.runner)
@@ -545,30 +616,30 @@ index 3ac8ce72..bdec1d66 100644
          self.browser.start(None)
          # When a subtest times out, the browser may be stuck too, for example showing a dialog.
          self._test_process = TestProcess(self._run_file, self._timeout, restart=self._restart_driver)
-@@ -152,8 +175,11 @@ class WebDriverW3CExecutor(WdspecExecutor):
+@@ -184,8 +207,11 @@ class WebDriverW3CExecutor(PytestExecutor):
          if self._test_process is not None:
              self._test_process.stop()
              self._test_process = None
--        self.protocol.teardown()
+-        super(WebDriverW3CExecutor, self).teardown()
 -        self.browser.stop(force=True)
 +        try:
-+            self.protocol.teardown()
++            super(WebDriverW3CExecutor, self).teardown()
 +            self.browser.stop(force=True)
 +        finally:
 +            self.browser.cleanup()
  
      def _restart_driver(self):
          # Stopping the driver also stops the browser it launched.
-@@ -180,7 +206,6 @@ class WebDriverW3CExecutor(WdspecExecutor):
+@@ -212,7 +238,6 @@ class WebDriverW3CExecutor(PytestExecutor):
              with open(config_path, 'w') as f:
                  json.dump(config, f)
  
 -            env.update(WebKitDriverBrowser.test_env)
-             args = ['--strict-markers', '-p', 'no:mozlog']
-             harness_result, _ = pytest_runner.run(test, args, self._timeout, env, self._expectations, report=report, deselected=deselected)
+             harness_result, _ = pytest_runner.run(test, self.PYTEST_ARGS, self._timeout, env, self._expectations, report=report, deselected=deselected)
              return harness_result
+ 
 diff --git a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py
-index 21d51446..5332dee3 100644
+index 303cabb1..5faf3feb 100644
 --- a/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py
 +++ b/Tools/Scripts/webkitpy/webdriver_tests/webdriver_w3c_web_server.py
 @@ -25,9 +25,11 @@ import json
@@ -666,7 +737,7 @@ index 21d51446..5332dee3 100644
  
          if not self._wait_for_server():
              _log.error('WPT Server process exited prematurely with status code %s' % self._process.returncode)
-@@ -121,15 +123,15 @@ class WebDriverW3CWebServer(object):
+@@ -121,16 +123,16 @@ class WebDriverW3CWebServer(object):
      def stop(self):
          _log.debug('Cleaning WebDriver WPT server config.json')
          temporary_config_file = os.path.join(self._layout_doc_root, 'config.json')
@@ -680,9 +751,11 @@ index 21d51446..5332dee3 100644
          if self._pid:
              # kill_process will not kill the subprocesses, interrupt does the job.
 -            self._port._executive.interrupt(self._pid)
--        self._port.host.filesystem.remove(self._pid_file)
+-        if self._port.host.filesystem.exists(self._pid_file):
+-            self._port.host.filesystem.remove(self._pid_file)
 +            self._executive.interrupt(self._pid)
-+        self._filesystem.remove(self._pid_file)
++        if self._filesystem.exists(self._pid_file):
++            self._filesystem.remove(self._pid_file)
          self._pid = None
  
      def host(self):
