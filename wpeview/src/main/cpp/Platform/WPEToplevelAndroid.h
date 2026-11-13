@@ -40,7 +40,12 @@ void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* sc
 void wpe_toplevel_android_set_fullscreen(WPEToplevelAndroid* toplevel, gboolean fullscreen);
 void wpe_toplevel_android_set_fullscreen_callback(
     WPEToplevelAndroid* toplevel, WPEToplevelAndroidFullscreenCallback callback, gpointer userData);
-ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel);
+ASurfaceControl* wpe_toplevel_android_get_root_surface_control(WPEToplevelAndroid* toplevel);
 ANativeWindow* wpe_toplevel_android_get_window(WPEToplevelAndroid* toplevel);
+
+// For WPEViewAndroid, whose layer stays on screen for a moment after the view leaves the toplevel.
+void wpe_toplevel_android_view_left(WPEToplevelAndroid* toplevel, WPEView* view, gboolean layerShown);
+void wpe_toplevel_android_forget_leaving_view(WPEToplevelAndroid* toplevel, WPEView* view);
+void wpe_toplevel_android_remove_leaving_layer(WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction);
 
 G_END_DECLS
