@@ -19,15 +19,24 @@
 #include "WPEToplevelAndroid.h"
 
 #include "Logging.h"
+#include "WPEViewAndroid.h"
 
 #include <cmath>
 #include <utility>
 
+// How long the layer of a view that left stays on screen, waiting for the view that takes its place to show something.
+static constexpr guint s_leavingLayerTimeoutMs = 100;
+
 struct _WPEToplevelAndroid {
     WPEToplevel parent;
     ANativeWindow* window;
-    ASurfaceControl* surfaceControl;
+    // The views put their layers under the root, which shows the background color where they show nothing.
     ASurfaceControl* rootSurfaceControl;
+    // The view that left last, while its layer still shows under the root. The toplevel holds the view, so a view
+    // can outlive its WebView by up to the timeout.
+    WPEView* leavingView;
+    guint leavingIdleID;
+    guint leavingTimeoutID;
     WPEScreen* screen;
     gboolean windowFocused;
     gboolean fullscreen;
@@ -165,15 +174,35 @@ void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* sc
     wpe_toplevel_screen_changed(WPE_TOPLEVEL(toplevel));
 }
 
+static void wpeToplevelAndroidForgetLeavingView(WPEToplevelAndroid* toplevel)
+{
+    g_clear_handle_id(&toplevel->leavingIdleID, g_source_remove);
+    g_clear_handle_id(&toplevel->leavingTimeoutID, g_source_remove);
+    g_clear_object(&toplevel->leavingView);
+}
+
+static void wpeToplevelAndroidHideLeavingLayer(WPEToplevelAndroid* toplevel)
+{
+    if (!toplevel->leavingView)
+        return;
+
+    ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+    wpe_toplevel_android_remove_leaving_layer(toplevel, transaction);
+    ASurfaceTransaction_apply(transaction);
+    ASurfaceTransaction_delete(transaction);
+}
+
 // A released layer stays on screen for as long as its parent does, so the root leaves the window before it is
 // released, and the layers under it go with it.
 static void wpeToplevelAndroidRemoveRoot(WPEToplevelAndroid* toplevel)
 {
-    if (!toplevel->rootSurfaceControl)
+    if (!toplevel->rootSurfaceControl && !toplevel->leavingView)
         return;
 
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
-    ASurfaceTransaction_reparent(transaction, toplevel->rootSurfaceControl, nullptr);
+    wpe_toplevel_android_remove_leaving_layer(toplevel, transaction);
+    if (toplevel->rootSurfaceControl)
+        ASurfaceTransaction_reparent(transaction, toplevel->rootSurfaceControl, nullptr);
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
     g_clear_pointer(&toplevel->rootSurfaceControl, ASurfaceControl_release);
@@ -183,6 +212,7 @@ static void wpeToplevelAndroidDispose(GObject* object)
 {
     auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
     wpeToplevelAndroidRemoveRoot(toplevel);
+    wpeToplevelAndroidForgetLeavingView(toplevel);
     if (toplevel->screen) {
         g_signal_handlers_disconnect_by_data(toplevel->screen, toplevel);
         g_clear_object(&toplevel->screen);
@@ -194,8 +224,6 @@ static void wpeToplevelAndroidDispose(GObject* object)
 static void wpeToplevelAndroidFinalize(GObject* object)
 {
     auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
-    if (toplevel->surfaceControl)
-        ASurfaceControl_release(toplevel->surfaceControl);
     g_clear_pointer(&toplevel->window, ANativeWindow_release);
 
     G_OBJECT_CLASS(wpe_toplevel_android_parent_class)->finalize(object);
@@ -272,33 +300,33 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
     wpeToplevelAndroidSyncScaleAndSize(toplevel, physicalWidth, physicalHeight);
 
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+
+    // The layer that a view left shows its page in the old window only.
+    wpe_toplevel_android_remove_leaving_layer(toplevel, transaction);
+
     ASurfaceControl* oldRoot = std::exchange(toplevel->rootSurfaceControl, nullptr);
     if (oldRoot)
         ASurfaceTransaction_reparent(transaction, oldRoot, nullptr);
 
-    if (window) {
-        ASurfaceControl* newRoot = ASurfaceControl_createFromWindow(window, "WPEToplevelRoot");
+    toplevel->rootSurfaceControl = window ? ASurfaceControl_createFromWindow(window, "WPEToplevelRoot") : nullptr;
+    if (toplevel->rootSurfaceControl) {
+        // Cover Android's black SurfaceView background where the views show nothing, in the same transaction that
+        // shows their layers.
+        ASurfaceTransaction_setColor(transaction, toplevel->rootSurfaceControl, toplevel->backgroundRed,
+            toplevel->backgroundGreen, toplevel->backgroundBlue, 1.0F, ADATASPACE_SRGB);
+    }
 
-        if (newRoot) {
-            // Cover Android's black SurfaceView background before the first web buffer arrives.
-            // Apply the color in the same transaction that attaches the web layer.
-            ASurfaceTransaction_setColor(transaction, newRoot, toplevel->backgroundRed, toplevel->backgroundGreen,
-                toplevel->backgroundBlue, 1.0F, ADATASPACE_SRGB);
-            if (!toplevel->surfaceControl)
-                toplevel->surfaceControl = ASurfaceControl_create(newRoot, "WPEWebLayer");
-            else
-                ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, newRoot);
-            if (toplevel->surfaceControl) {
-                ASurfaceTransaction_setVisibility(
-                    transaction, toplevel->surfaceControl, ASURFACE_TRANSACTION_VISIBILITY_SHOW);
-                ASurfaceTransaction_setZOrder(transaction, toplevel->surfaceControl, 1);
-                ASurfaceTransaction_setPosition(transaction, toplevel->surfaceControl, 0, 0);
+    // The views that stay in the toplevel show their last frames at once in the new window.
+    wpe_toplevel_foreach_view(
+        WPE_TOPLEVEL(toplevel),
+        [](WPEToplevel* toplevel, WPEView* view, gpointer transaction) {
+            if (WPE_IS_VIEW_ANDROID(view)) {
+                wpe_view_android_move_layer(
+                    view, WPE_TOPLEVEL_ANDROID(toplevel), static_cast<ASurfaceTransaction*>(transaction));
             }
-        }
-
-        toplevel->rootSurfaceControl = newRoot;
-    } else if (toplevel->surfaceControl)
-        ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, nullptr);
+            return FALSE;
+        },
+        transaction);
     wpeToplevelAndroidUpdateState(toplevel);
 
     // FIXME: This does not support multi webview layouts in the window.
@@ -356,14 +384,84 @@ void wpe_toplevel_android_set_fullscreen_callback(
     toplevel->fullscreenCallbackUserData = userData;
 }
 
-ASurfaceControl* wpe_toplevel_android_get_surface_control(WPEToplevelAndroid* toplevel)
+ASurfaceControl* wpe_toplevel_android_get_root_surface_control(WPEToplevelAndroid* toplevel)
 {
     g_return_val_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel), nullptr);
-    return toplevel->surfaceControl;
+    return toplevel->rootSurfaceControl;
 }
 
 ANativeWindow* wpe_toplevel_android_get_window(WPEToplevelAndroid* toplevel)
 {
     g_return_val_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel), nullptr);
     return toplevel->window;
+}
+
+// Hides the layer that a view left once the toplevel has no view, at the next iteration of the main loop, which leaves
+// time for a view to join right after the old one left.
+static void wpeToplevelAndroidScheduleLeavingIdle(WPEToplevelAndroid* toplevel)
+{
+    if (toplevel->leavingIdleID)
+        return;
+
+    toplevel->leavingIdleID = g_idle_add_full(
+        G_PRIORITY_DEFAULT,
+        +[](gpointer userData) -> gboolean {
+            auto* toplevel = WPE_TOPLEVEL_ANDROID(userData);
+            toplevel->leavingIdleID = 0;
+            if (!wpe_toplevel_get_n_views(WPE_TOPLEVEL(toplevel)))
+                wpeToplevelAndroidHideLeavingLayer(toplevel);
+            return G_SOURCE_REMOVE;
+        },
+        toplevel, nullptr);
+}
+
+// The layer of a view that leaves the toplevel stays on screen until the view that takes its place shows something,
+// either its last frame when it joins or its first frame, so that the toplevel shows neither its background nor the
+// old page in between. After the timeout the layer goes anyway, and the toplevel shows its background color. When no
+// view takes its place, or the one that did leaves without showing anything, the layer goes at the next iteration of
+// the main loop. A view whose layer is not under the root, because it never showed anything here, leaves nothing.
+void wpe_toplevel_android_view_left(WPEToplevelAndroid* toplevel, WPEView* view, gboolean layerShown)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+    g_return_if_fail(WPE_IS_VIEW(view));
+
+    if (!layerShown) {
+        if (toplevel->leavingView)
+            wpeToplevelAndroidScheduleLeavingIdle(toplevel);
+        return;
+    }
+
+    // Only the layer of the view that left last can still be on screen.
+    wpeToplevelAndroidHideLeavingLayer(toplevel);
+    toplevel->leavingView = WPE_VIEW(g_object_ref(view));
+    wpeToplevelAndroidScheduleLeavingIdle(toplevel);
+    toplevel->leavingTimeoutID = g_timeout_add_full(
+        G_PRIORITY_DEFAULT, s_leavingLayerTimeoutMs,
+        +[](gpointer userData) -> gboolean {
+            auto* toplevel = WPE_TOPLEVEL_ANDROID(userData);
+            toplevel->leavingTimeoutID = 0;
+            wpeToplevelAndroidHideLeavingLayer(toplevel);
+            return G_SOURCE_REMOVE;
+        },
+        toplevel, nullptr);
+}
+
+// The view took its layer back, or moved it to another toplevel.
+void wpe_toplevel_android_forget_leaving_view(WPEToplevelAndroid* toplevel, WPEView* view)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+    if (toplevel->leavingView == view)
+        wpeToplevelAndroidForgetLeavingView(toplevel);
+}
+
+// Takes the layer that a view left out of the window with the transaction, which shows what takes its place. Dropping
+// the reference can destroy the view, which then leaves its layer to the transaction.
+void wpe_toplevel_android_remove_leaving_layer(WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction)
+{
+    g_return_if_fail(WPE_IS_TOPLEVEL_ANDROID(toplevel));
+    if (!toplevel->leavingView)
+        return;
+
+    wpe_view_android_hide_layer(toplevel->leavingView, toplevel, transaction);
+    wpeToplevelAndroidForgetLeavingView(toplevel);
 }

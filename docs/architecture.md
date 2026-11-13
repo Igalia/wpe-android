@@ -161,6 +161,16 @@ extension; `WPEViewAndroid` owns rendering/buffer integration for a `WPEView`;
 `WPEToplevelAndroid` owns the Android native-window connection for a
 `WPEToplevel`.
 
+A `WPEToplevelAndroid` puts a root layer in its native window, which shows the
+background color. Each `WPEView` shows its buffers on a layer of its own under
+the root of its toplevel, made with its first frame, so each buffer goes back
+to WebKit from the layer that showed it. The layer keeps the last frame of the
+view. When a view leaves its toplevel, its layer stays on screen until the view
+that takes its place shows something, for 100 ms at most, and then leaves the
+window with its last frame. When no view takes its place, it leaves at the next
+iteration of the main loop. A view that joins a toplevel with a window shows
+its last frame again at once.
+
 ### Layer 4: WebKit/WPE engine
 
 This project links against imported WebKit and WPE headers and libraries. The

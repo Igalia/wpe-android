@@ -18,6 +18,9 @@
 
 #pragma once
 
+#include "WPEToplevelAndroid.h"
+
+#include <android/surface_control.h>
 #include <glib-object.h>
 #include <wpe/wpe-platform.h>
 
@@ -27,5 +30,9 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE(WPEViewAndroid, wpe_view_android, WPE, VIEW_ANDROID, WPEView)
 
 WPEView* wpe_view_android_new(WPEDisplay* display);
+
+// For WPEToplevelAndroid, which shows the layers of its views under its root.
+void wpe_view_android_move_layer(WPEView* view, WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction);
+void wpe_view_android_hide_layer(WPEView* view, WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction);
 
 G_END_DECLS
