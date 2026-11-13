@@ -103,7 +103,7 @@ public final class WPERuntime {
             ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "gio", true);
 
             ApplicationInfo appInfo = applicationContext.getApplicationInfo();
-            List<String> envStrings = new ArrayList<>(46);
+            List<String> envStrings = new ArrayList<>();
             envStrings.add("GIO_EXTRA_MODULES");
             envStrings.add(new File(context.getFilesDir(), "gio").getAbsolutePath());
             envStrings.add("WEBKIT_INJECTED_BUNDLE_PATH");

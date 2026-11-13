@@ -58,7 +58,7 @@ public class WebProcessService extends WPEService {
         ServiceUtils.installAssets(context, getAssets(), "gstreamer-1.0", true, gstreamerRegistry);
         ServiceUtils.installAssets(context, getAssets(), "fontconfig", false);
 
-        List<String> envStrings = new ArrayList<>(46);
+        List<String> envStrings = new ArrayList<>();
         envStrings.add("FONTCONFIG_PATH");
         envStrings.add(new File(context.getFilesDir(), "fontconfig").getAbsolutePath());
 
