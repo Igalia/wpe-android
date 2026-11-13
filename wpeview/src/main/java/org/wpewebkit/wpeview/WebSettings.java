@@ -18,18 +18,34 @@
 
 package org.wpewebkit.wpeview;
 
+import android.content.ComponentCallbacks;
+import android.content.Context;
+import android.content.res.Configuration;
+
+import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.wpewebkit.wpe.WebKitSettings;
+import org.wpewebkit.wpe.WebKitWebView;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * WebSettings provides control over the configuration of a {@link WebView}. Once the WebView is destroyed,
  * the settings keep the values they had; they can still be read and changed, but changes have no effect.
  */
 public class WebSettings {
+    // The settings whose text zoom follows the font size of the device: those whose app has not set one.
+    private static final Set<WebSettings> followingFontScale = Collections.newSetFromMap(new WeakHashMap<>());
+    private static boolean listeningToFontScale;
+
     // Null once the WebView is destroyed; the fields then hold the values.
     private @Nullable WebKitSettings settings;
+    private @Nullable WebKitWebView webView;
     private @NonNull String userAgent = "";
     private boolean mediaPlaybackRequiresUserGesture;
     private boolean allowUniversalAccessFromFileURLs;
@@ -37,8 +53,62 @@ public class WebSettings {
     private boolean developerExtrasEnabled;
     private boolean disableWebSecurity;
     private boolean audiblePlaybackRequiresPageVisibility;
+    // Kept here also while the WebView lives. It is the zoom level of the web view, whose settings have zoom text only
+    // on, and WebKit's is 100%.
+    private int textZoom = 100;
 
-    WebSettings(@NonNull WebKitSettings settings) { this.settings = settings; }
+    @MainThread
+    WebSettings(@NonNull WebKitSettings settings, @NonNull WebKitWebView webView, @NonNull Context applicationContext) {
+        this.settings = settings;
+        this.webView = webView;
+        followFontScale(applicationContext);
+    }
+
+    // The font size is the same for the whole app, so the application context tells all its changes, also to the
+    // pages of views that are out of their window.
+    @MainThread
+    private void followFontScale(@NonNull Context applicationContext) {
+        listenToFontScale(applicationContext);
+        followingFontScale.add(this);
+        applyTextZoom(textZoomOf(applicationContext.getResources().getConfiguration()));
+    }
+
+    // Static, so that the callbacks, which the application keeps for good, hold no settings.
+    @MainThread
+    private static void listenToFontScale(@NonNull Context applicationContext) {
+        if (listeningToFontScale)
+            return;
+        listeningToFontScale = true;
+        applicationContext.registerComponentCallbacks(new ComponentCallbacks() {
+            @Override
+            public void onConfigurationChanged(@NonNull Configuration newConfig) {
+                fontScaleChanged(newConfig);
+            }
+
+            @Override
+            public void onLowMemory() {}
+        });
+    }
+
+    // Package-private: called from the ComponentCallbacks inner class (avoids a synthetic accessor).
+    static void fontScaleChanged(@NonNull Configuration configuration) {
+        int textZoom = textZoomOf(configuration);
+        for (WebSettings settings : new ArrayList<>(followingFontScale))
+            settings.applyTextZoom(textZoom);
+    }
+
+    // A configuration may leave the font scale undefined, as 0.
+    private static int textZoomOf(@NonNull Configuration configuration) {
+        return configuration.fontScale > 0 ? Math.round(configuration.fontScale * 100) : 100;
+    }
+
+    private void applyTextZoom(int textZoom) {
+        if (textZoom == this.textZoom)
+            return;
+        this.textZoom = textZoom;
+        if (webView != null)
+            webView.setZoomLevel(textZoom / 100.0);
+    }
 
     // Called by WebView.destroy() before it destroys the WebKitSettings.
     void detach() {
@@ -52,6 +122,8 @@ public class WebSettings {
         disableWebSecurity = settings.getDisableWebSecurity();
         audiblePlaybackRequiresPageVisibility = settings.getAudiblePlaybackRequiresPageVisibility();
         settings = null;
+        webView = null;
+        followingFontScale.remove(this);
     }
 
     public @NonNull String getUserAgentString() { return settings != null ? settings.getUserAgentString() : userAgent; }
@@ -129,5 +201,34 @@ public class WebSettings {
             settings.setAudiblePlaybackRequiresPageVisibility(require);
         else
             audiblePlaybackRequiresPageVisibility = require;
+    }
+
+    /**
+     * The text zoom of the page in percent. Until the app sets one with {@link #setTextZoom}, it is the font size
+     * that the user chose in Android's settings, the {@link Configuration#fontScale} of the application times 100, and
+     * it changes with it. An activity that overrides its own font scale does not change it: the app sets the text zoom
+     * then. The settings of a destroyed WebView no longer follow the font size, and those of the WebView of a window
+     * that a page opens follow it from the start, until the app sets theirs, for example in
+     * {@link WebChromeClient#onCreateWindow}.
+     */
+    @MainThread
+    public int getTextZoom() {
+        return textZoom;
+    }
+    /**
+     * Sets the text zoom of the page in percent: 100 shows the text at the size the page gives it, 150 makes it half
+     * again as big. Only the text and what the page sizes after it change; the width of the page, its images and what
+     * it sizes in pixels stay, so the text wraps to the width of the view. The zoom applies at once, and to every page
+     * the WebView loads after. From then on the text zoom no longer follows the font size of the device, and there is
+     * no way back to it.
+     *
+     * @throws IllegalArgumentException if textZoom is 0 or less, which Android's WebSettings takes
+     */
+    @MainThread
+    public void setTextZoom(int textZoom) {
+        if (textZoom <= 0)
+            throw new IllegalArgumentException("The text zoom must be more than 0, not " + textZoom);
+        followingFontScale.remove(this);
+        applyTextZoom(textZoom);
     }
 }

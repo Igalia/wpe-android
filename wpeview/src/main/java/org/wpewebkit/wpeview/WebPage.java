@@ -118,10 +118,12 @@ final class WebPage {
         this.context = context;
         webKitSettings = new WebKitSettings();
         webKitSettings.setUserAgentString(context.getDefaultUserAgent());
+        // The zoom level of the web view is the text zoom of WebSettings.
+        webKitSettings.setZoomTextOnly(true);
         webKitWebView = openerView != null ? new WebKitWebView(openerView, webKitSettings)
                                            : new WebKitWebView(context.getWPEDisplay(), context.getWebKitWebContext(),
                                                                null, context.getWebKitNetworkSession(), webKitSettings);
-        settings = new WebSettings(webKitSettings);
+        settings = new WebSettings(webKitSettings, webKitWebView, context.getApplicationContext());
         webKitWebView.setListener(new PageListener());
     }
 
