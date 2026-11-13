@@ -274,7 +274,7 @@ public:
             JNI::NativeMethod<void(jlong, jdouble)>("nativeSetZoomLevel", nativeSetZoomLevel),
             JNI::NativeMethod<void(jlong, jfloat, jfloat, jfloat, jfloat)>(
                 "nativeSetBackgroundColor", nativeSetBackgroundColor),
-            JNI::NativeMethod<void(jlong, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
+            JNI::NativeMethod<void(jlong, jstring, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
             JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
@@ -371,8 +371,8 @@ private:
     static void nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr, jdouble zoomLevel);
     static void nativeSetBackgroundColor(
         JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
-    static void nativeEvaluateJavascript(
-        JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder);
+    static void nativeEvaluateJavascript(JNIEnv* env, jobject, jlong nativePtr, jstring script, jstring worldName,
+        JNIWebKitWebViewEvalCallbackHolder callbackHolder);
     static void nativeCaptureSnapshot(JNIEnv* env, jobject, jlong nativePtr, jint region, jint maxWidth, jint maxHeight,
         JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
@@ -1278,14 +1278,18 @@ void JNIWebKitWebViewCache::nativeSetZoomLevel(JNIEnv*, jobject, jlong nativePtr
     webkit_web_view_set_zoom_level(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView, zoomLevel);
 }
 
-void JNIWebKitWebViewCache::nativeEvaluateJavascript(
-    JNIEnv* env, jobject, jlong nativePtr, jstring script, JNIWebKitWebViewEvalCallbackHolder callbackHolder)
+// A script with a world name runs in that isolated world, apart from the scripts of the page.
+void JNIWebKitWebViewCache::nativeEvaluateJavascript(JNIEnv* env, jobject, jlong nativePtr, jstring script,
+    jstring worldName, JNIWebKitWebViewEvalCallbackHolder callbackHolder)
 {
     auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
     auto* holder
         = callbackHolder ? new JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>(env, callbackHolder) : nullptr;
-    webkit_web_view_evaluate_javascript(bridge->m_webView, JNI::String(script).getContent().get(), -1, nullptr, nullptr,
-        nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
+    // Each content is released while its string still holds the Java reference.
+    JNI::String worldString(worldName);
+    auto world = worldString.getContent();
+    webkit_web_view_evaluate_javascript(bridge->m_webView, JNI::String(script).getContent().get(), -1, world.get(),
+        nullptr, nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
 }
 
 // Check that WebKit's buffer holds height rows of width BGRA pixels at the given stride.

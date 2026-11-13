@@ -83,8 +83,14 @@ public class WebChromeClient {
     /**
      * Tells the app that the page left fullscreen, by itself, as with {@code document.exitFullscreen()} or the
      * controls of a video, or because of {@link WebView#exitFullscreen()}. The app brings back what it changed in
-     * {@link #onEnterFullscreen}. When the web process of the page ends, this comes before
-     * {@link WebViewClient#onWebProcessTerminated}.
+     * {@link #onEnterFullscreen}.
+     *
+     * <p>A page that is not shown cannot stay fullscreen. When the view is hidden, this comes at once. When the page
+     * leaves the window, as when the view is taken out of its parent or its activity stops, or leaves the view, with
+     * {@link WebView#setPage}, {@link WebView#releasePage()} or {@link WebPage#destroy()}, this comes once the view is
+     * done with the page, so that the app may show another page or destroy the view from here.
+     * {@link WebView#destroy()} calls it first, while the page is still in the view. When the web process of the page
+     * ends, this comes before {@link WebViewClient#onWebProcessTerminated}.
      */
     public void onExitFullscreen(@NonNull WebView view) {}
 
@@ -144,12 +150,14 @@ public class WebChromeClient {
     /** What a file field of the page asks for, given to {@link #onShowFileChooser}. */
     public static final class FileChooserParams {
         /** One file. */
-        public static final int MODE_OPEN = 0;
+        public static final int MODE_OPEN = WebPageChromeClient.FileChooserParams.MODE_OPEN;
         /** One file or more, for a field with the multiple attribute. */
-        public static final int MODE_OPEN_MULTIPLE = 1;
+        public static final int MODE_OPEN_MULTIPLE = WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
 
+        // The same values as WebPageChromeClient.FileChooserParams.Mode, so that a mode passes from one to the other.
         @Retention(RetentionPolicy.SOURCE)
-        @IntDef({MODE_OPEN, MODE_OPEN_MULTIPLE})
+        @IntDef(
+            {WebPageChromeClient.FileChooserParams.MODE_OPEN, WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE})
         public @interface Mode {}
 
         private final @Mode int mode;
@@ -182,18 +190,14 @@ public class WebChromeClient {
 
     /**
      * Tells the host that the page ended the color request it is showing, for example because the field went away or
-     * the page was left. Its callback does nothing any more.
+     * the page was left, or that the page that the view made left it, with {@link WebView#setPage},
+     * {@link WebView#releasePage()} or {@link WebPage#destroy()}. Its callback does nothing any more. Not called for
+     * the request of a view that is destroyed.
      */
     public void onHideColorChooser(@NonNull WebView view) {}
 
-    /** Answers the request of a color field, given to {@link #onShowColorChooser}, once. */
-    public interface ColorChooserCallback {
-        /** Ends with the color, which the page gets with an input and a change event if it is a new one. */
-        void confirm(@ColorInt int color);
-
-        /** Ends with the color the field had, as if it had not asked. */
-        void cancel();
-    }
+    /** A {@link WebPageChromeClient.ColorChooserCallback}, as {@link #onShowColorChooser} gets it. */
+    public interface ColorChooserCallback extends WebPageChromeClient.ColorChooserCallback {}
 
     /** What a color field of the page asks for, given to {@link #onShowColorChooser}. */
     public static final class ColorChooserParams {

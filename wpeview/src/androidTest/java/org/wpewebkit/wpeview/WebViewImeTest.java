@@ -804,6 +804,64 @@ public class WebViewImeTest {
         }
     }
 
+    /**
+     * A page that leaves its view during a composition: WebKit ends the composition, the view is no longer a text
+     * editor, and the connection that the input method still holds reaches neither the page that left nor the page
+     * that the view shows next, whose field gets a connection of its own.
+     */
+    @Test
+    public void testPageLeavesDuringAComposition() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        AtomicReference<WebContext> context = new AtomicReference<>();
+        scenario.onActivity(activity -> context.set(new WebContext(activity, false, true)));
+        WebPageTestHelper.RecordingClient client = new WebPageTestHelper.RecordingClient();
+        WebPage first = WebPageTestHelper.newPage(context.get(), client);
+        WebPage second = WebPageTestHelper.newPage(context.get(), client);
+        try {
+            WebPageTestHelper.loadHtml(first, client, COMPOSITION_PAGE);
+            WebPageTestHelper.loadHtml(second, client, COMPOSITION_PAGE);
+            scenario.onActivity(activity -> {
+                activity.getWebView().requestFocus();
+                activity.getWebView().setPage(first);
+            });
+            InputConnection connection = focusEditor(scenario);
+            scenario.onActivity(activity -> connection.setComposingText("hel", 1));
+            assertComposition(scenario, "The composing text is not a composition",
+                              "document.getElementById('editor').value === 'hel'");
+
+            AtomicBoolean isTextEditor = new AtomicBoolean(true);
+            AtomicBoolean committed = new AtomicBoolean(true);
+            scenario.onActivity(activity -> {
+                activity.getWebView().setPage(second);
+                isTextEditor.set(activity.getWebView().onCheckIsTextEditor());
+                committed.set(connection.commitText("stale", 1));
+            });
+            assertFalse("The view is a text editor for the page that left", isTextEditor.get());
+            assertFalse("The connection of the page that left took text", committed.get());
+            assertEquals("The composition of the page that left did not end", "true",
+                         WebPageTestHelper.waitForResult(
+                             first, "window.events.some(event => event.startsWith('compositionend'))", "true"));
+            assertEquals("\"\"", WebPageTestHelper.evaluate(second, "document.getElementById('editor').value"));
+
+            // The field of the page shown next gets a connection of its own, which the old one does not disturb.
+            InputConnection secondConnection = focusEditor(scenario);
+            scenario.onActivity(activity -> {
+                connection.commitText("stale", 1);
+                secondConnection.commitText("new", 1);
+            });
+            assertComposition(scenario, "The field of the page shown next did not get its own text",
+                              "document.getElementById('editor').value === 'new'");
+            assertFalse(WebPageTestHelper.evaluate(first, "document.getElementById('editor').value").contains("stale"));
+        } finally {
+            WebPageTestHelper.onMain(() -> {
+                first.destroy();
+                second.destroy();
+                context.get().destroy();
+            });
+        }
+    }
+
     // Waits for the condition to hold in the page and reports the editor's value and events if it never does.
     private static void assertComposition(ActivityScenario<WebViewTestActivity> scenario, String message,
                                           String condition) throws Throwable {

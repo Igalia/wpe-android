@@ -24,11 +24,12 @@ import androidx.annotation.Nullable;
 import org.wpewebkit.wpe.WebKitSettings;
 
 /**
- * WebSettings provides control over the configuration of a {@link WebView}. Once the WebView is destroyed,
- * the settings keep the values they had; they can still be read and changed, but changes have no effect.
+ * WebSettings provides control over the configuration of a {@link WebPage}, and of the page a {@link WebView} shows.
+ * Once the page is destroyed, the settings keep the values they had; they can still be read and changed, but changes
+ * have no effect.
  */
 public class WebSettings {
-    // Null once the WebView is destroyed; the fields then hold the values.
+    // Null once the page is destroyed; the fields then hold the values.
     private @Nullable WebKitSettings settings;
     private @NonNull String userAgent = "";
     private boolean mediaPlaybackRequiresUserGesture;
@@ -40,7 +41,7 @@ public class WebSettings {
 
     WebSettings(@NonNull WebKitSettings settings) { this.settings = settings; }
 
-    // Called by WebView.destroy() before it destroys the WebKitSettings.
+    // Called by WebPage.destroy() before it destroys the WebKitSettings.
     void detach() {
         if (settings == null)
             return;
