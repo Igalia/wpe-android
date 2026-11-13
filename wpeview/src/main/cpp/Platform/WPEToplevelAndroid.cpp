@@ -21,6 +21,7 @@
 #include "Logging.h"
 
 #include <cmath>
+#include <utility>
 
 struct _WPEToplevelAndroid {
     WPEToplevel parent;
@@ -164,9 +165,24 @@ void wpe_toplevel_android_set_screen(WPEToplevelAndroid* toplevel, WPEScreen* sc
     wpe_toplevel_screen_changed(WPE_TOPLEVEL(toplevel));
 }
 
+// A released layer stays on screen for as long as its parent does, so the root leaves the window before it is
+// released, and the layers under it go with it.
+static void wpeToplevelAndroidRemoveRoot(WPEToplevelAndroid* toplevel)
+{
+    if (!toplevel->rootSurfaceControl)
+        return;
+
+    ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+    ASurfaceTransaction_reparent(transaction, toplevel->rootSurfaceControl, nullptr);
+    ASurfaceTransaction_apply(transaction);
+    ASurfaceTransaction_delete(transaction);
+    g_clear_pointer(&toplevel->rootSurfaceControl, ASurfaceControl_release);
+}
+
 static void wpeToplevelAndroidDispose(GObject* object)
 {
     auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
+    wpeToplevelAndroidRemoveRoot(toplevel);
     if (toplevel->screen) {
         g_signal_handlers_disconnect_by_data(toplevel->screen, toplevel);
         g_clear_object(&toplevel->screen);
@@ -180,8 +196,6 @@ static void wpeToplevelAndroidFinalize(GObject* object)
     auto* toplevel = WPE_TOPLEVEL_ANDROID(object);
     if (toplevel->surfaceControl)
         ASurfaceControl_release(toplevel->surfaceControl);
-    if (toplevel->rootSurfaceControl)
-        ASurfaceControl_release(toplevel->rootSurfaceControl);
     g_clear_pointer(&toplevel->window, ANativeWindow_release);
 
     G_OBJECT_CLASS(wpe_toplevel_android_parent_class)->finalize(object);
@@ -258,6 +272,9 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
     wpeToplevelAndroidSyncScaleAndSize(toplevel, physicalWidth, physicalHeight);
 
     ASurfaceTransaction* transaction = ASurfaceTransaction_create();
+    ASurfaceControl* oldRoot = std::exchange(toplevel->rootSurfaceControl, nullptr);
+    if (oldRoot)
+        ASurfaceTransaction_reparent(transaction, oldRoot, nullptr);
 
     if (window) {
         ASurfaceControl* newRoot = ASurfaceControl_createFromWindow(window, "WPEToplevelRoot");
@@ -279,17 +296,9 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
             }
         }
 
-        if (toplevel->rootSurfaceControl)
-            ASurfaceControl_release(toplevel->rootSurfaceControl);
         toplevel->rootSurfaceControl = newRoot;
-    } else {
-        if (toplevel->surfaceControl)
-            ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, nullptr);
-        if (toplevel->rootSurfaceControl) {
-            ASurfaceControl_release(toplevel->rootSurfaceControl);
-            toplevel->rootSurfaceControl = nullptr;
-        }
-    }
+    } else if (toplevel->surfaceControl)
+        ASurfaceTransaction_reparent(transaction, toplevel->surfaceControl, nullptr);
     wpeToplevelAndroidUpdateState(toplevel);
 
     // FIXME: This does not support multi webview layouts in the window.
@@ -316,6 +325,8 @@ void wpe_toplevel_android_set_window(WPEToplevelAndroid* toplevel, ANativeWindow
 
     ASurfaceTransaction_apply(transaction);
     ASurfaceTransaction_delete(transaction);
+    if (oldRoot)
+        ASurfaceControl_release(oldRoot);
 }
 
 void wpe_toplevel_android_set_window_focused(WPEToplevelAndroid* toplevel, gboolean focused)
