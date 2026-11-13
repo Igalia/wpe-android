@@ -22,51 +22,41 @@ import android.net.http.SslError;
 
 import androidx.annotation.NonNull;
 
-import org.wpewebkit.wpe.WebKitWebView;
-
 /**
  * WebViewClient provides the high-level navigation and resource callbacks for {@link WebView}.
  */
 public class WebViewClient {
-    // The error codes of onReceivedError, those of android.webkit.WebViewClient.
+    // The error codes of onReceivedError, the same as those of WPEResourceError.
 
     /** Generic error. */
-    public static final int ERROR_UNKNOWN = android.webkit.WebViewClient.ERROR_UNKNOWN;
+    public static final int ERROR_UNKNOWN = WPEResourceError.ERROR_UNKNOWN;
     /** Server or proxy hostname lookup failed. */
-    public static final int ERROR_HOST_LOOKUP = android.webkit.WebViewClient.ERROR_HOST_LOOKUP;
+    public static final int ERROR_HOST_LOOKUP = WPEResourceError.ERROR_HOST_LOOKUP;
     /** Failed to connect to the server. */
-    public static final int ERROR_CONNECT = android.webkit.WebViewClient.ERROR_CONNECT;
+    public static final int ERROR_CONNECT = WPEResourceError.ERROR_CONNECT;
     /** Failed to read or write to the server. */
-    public static final int ERROR_IO = android.webkit.WebViewClient.ERROR_IO;
+    public static final int ERROR_IO = WPEResourceError.ERROR_IO;
     /** Connection timed out. */
-    public static final int ERROR_TIMEOUT = android.webkit.WebViewClient.ERROR_TIMEOUT;
+    public static final int ERROR_TIMEOUT = WPEResourceError.ERROR_TIMEOUT;
     /** Too many redirects. */
-    public static final int ERROR_REDIRECT_LOOP = android.webkit.WebViewClient.ERROR_REDIRECT_LOOP;
+    public static final int ERROR_REDIRECT_LOOP = WPEResourceError.ERROR_REDIRECT_LOOP;
     /** Unsupported URI scheme. */
-    public static final int ERROR_UNSUPPORTED_SCHEME = android.webkit.WebViewClient.ERROR_UNSUPPORTED_SCHEME;
+    public static final int ERROR_UNSUPPORTED_SCHEME = WPEResourceError.ERROR_UNSUPPORTED_SCHEME;
     /** Failed to perform SSL handshake. */
-    public static final int ERROR_FAILED_SSL_HANDSHAKE = android.webkit.WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
+    public static final int ERROR_FAILED_SSL_HANDSHAKE = WPEResourceError.ERROR_FAILED_SSL_HANDSHAKE;
     /** File not found. */
-    public static final int ERROR_FILE_NOT_FOUND = android.webkit.WebViewClient.ERROR_FILE_NOT_FOUND;
-    /**
-     * Android blocked the connection to the local network, because the app does not have the local network permission
-     * ({@code android.permission.ACCESS_LOCAL_NETWORK}, shown as "Nearby devices", Android 17 and later). Not in
-     * android.webkit.WebViewClient. The app can request the permission, which it must declare in its manifest, and load
-     * the page again once it is granted. Only pages report it: a blocked subresource just fails to load.
-     */
-    public static final int ERROR_LOCAL_NETWORK_ACCESS_DENIED = -100;
+    public static final int ERROR_FILE_NOT_FOUND = WPEResourceError.ERROR_FILE_NOT_FOUND;
+    /** See {@link WPEResourceError#ERROR_LOCAL_NETWORK_ACCESS_DENIED}. */
+    public static final int ERROR_LOCAL_NETWORK_ACCESS_DENIED = WPEResourceError.ERROR_LOCAL_NETWORK_ACCESS_DENIED;
 
-    // The reasons of onWebProcessTerminated.
+    // The reasons of onWebProcessTerminated, the same as those of WebPageClient.
 
-    /**
-     * The web process crashed, or Android ended it, as it does to free memory, for example while the app is in the
-     * background.
-     */
-    public static final int WEB_PROCESS_CRASHED = WebKitWebView.WEB_PROCESS_CRASHED;
-    /** WebKit ended the web process, because it used more memory than WebKit allows. */
-    public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = WebKitWebView.WEB_PROCESS_EXCEEDED_MEMORY_LIMIT;
-    /** The app ended the web process with {@link WebView#terminateWebProcess()}. */
-    public static final int WEB_PROCESS_TERMINATED_BY_API = WebKitWebView.WEB_PROCESS_TERMINATED_BY_API;
+    /** See {@link WebPageClient#WEB_PROCESS_CRASHED}. */
+    public static final int WEB_PROCESS_CRASHED = WebPageClient.WEB_PROCESS_CRASHED;
+    /** See {@link WebPageClient#WEB_PROCESS_EXCEEDED_MEMORY_LIMIT}. */
+    public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = WebPageClient.WEB_PROCESS_EXCEEDED_MEMORY_LIMIT;
+    /** See {@link WebPageClient#WEB_PROCESS_TERMINATED_BY_API}. */
+    public static final int WEB_PROCESS_TERMINATED_BY_API = WebPageClient.WEB_PROCESS_TERMINATED_BY_API;
 
     /**
      * Give the host application a chance to take over a navigation before it starts, mirroring
@@ -198,44 +188,8 @@ public class WebViewClient {
     // FIXME: wire webkit_web_view tls-errors signal to invoke this callback.
     public void onReceivedSslError(@NonNull WebView view, @NonNull SslErrorHandler handler, @NonNull SslError error) {}
 
-    /**
-     * The interface used to answer a request for HTTP authentication. Only the first answer counts. None counts once
-     * the request is gone: when its load ended or another one started, as when the page goes elsewhere, or when the
-     * view was destroyed. It can be answered from any thread, as after the app looked the credentials up: the answer
-     * reaches WebKit on the main thread.
-     */
-    public interface HttpAuthHandler {
-        /**
-         * Sends the credentials. A server that does not accept them asks again, with {@link #isRetry()}.
-         * @param username The user name.
-         * @param password The password.
-         */
-        void proceed(@NonNull String username, @NonNull String password);
-
-        /**
-         * Goes on without credentials, so that the page shows what the server sent with its request for them, such as
-         * its 401 page.
-         */
-        void cancel();
-
-        /** Whether a proxy asks for the credentials, rather than the site. The host is then the proxy's. */
-        boolean isProxy();
-
-        /** Whether the server did not accept the credentials it was given for this load, and asks again. */
-        boolean isRetry();
-
-        /**
-         * The scheme of the address that is loaded: "https" when the connection to the site is encrypted, "http" when
-         * it is not. When a proxy asks, it is still the scheme of that address, as WebKit does not tell how the proxy
-         * is reached. A proxy reached over HTTP gets the credentials over a connection that is not encrypted, also for
-         * an "https" address.
-         */
-        @NonNull
-        String getScheme();
-
-        /** The port of the server that asks. */
-        int getPort();
-    }
+    /** A {@link WebPageClient.HttpAuthHandler}, as {@link #onReceivedHttpAuthRequest} gets it. */
+    public interface HttpAuthHandler extends WebPageClient.HttpAuthHandler {}
 
     /**
      * Notify the host application that a server or a proxy asks for a user name and password with HTTP authentication,
@@ -253,8 +207,10 @@ public class WebViewClient {
 
     /**
      * Notify the host application that a request for HTTP authentication is gone before it was answered, because its
-     * load ended or another one started, as when the page goes elsewhere or its web process ends. Any dialog for it
-     * should be closed: an answer does nothing now. Not called for the requests of a view that is destroyed.
+     * load ended or another one started, as when the page goes elsewhere or its web process ends, or because the page
+     * that the view made left it, with {@link WebView#setPage}, {@link WebView#releasePage()} or
+     * {@link WebPage#destroy()}. Any dialog for it should be closed: an answer does nothing now. Not called for the
+     * requests of a view that is destroyed.
      * @param view The WebView that is initiating the callback.
      * @param handler The handler that {@link #onReceivedHttpAuthRequest} was given.
      */

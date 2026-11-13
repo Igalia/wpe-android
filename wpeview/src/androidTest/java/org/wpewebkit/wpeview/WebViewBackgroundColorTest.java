@@ -166,6 +166,38 @@ public class WebViewBackgroundColorTest {
         assertPageColor(Color.WHITE);
     }
 
+    // The color belongs to the page: a page of the app that has none follows the dark mode, and the view that shows it
+    // paints its window with the color of that page, not with the one it gave the page it made.
+    @Test
+    public void pageOfTheAppFollowsDarkModeInItsView() throws InterruptedException {
+        AtomicReference<WebContext> context = new AtomicReference<>();
+        AtomicReference<WebPage> page = new AtomicReference<>();
+        try {
+            activityRule.getScenario().onActivity(activity -> {
+                activity.getWebView().setBackgroundColor(Color.BLUE);
+                context.set(new WebContext(activity, false, true));
+                page.set(new WebPage(context.get()));
+                Assert.assertEquals(Color.WHITE, page.get().getBackgroundColor());
+                activity.getWebView().setPage(page.get());
+            });
+            assertViewColor(Color.WHITE);
+            WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+            assertViewColor(DARK_CANVAS);
+            activityRule.getScenario().onActivity(activity -> {
+                Assert.assertEquals(DARK_CANVAS, page.get().getBackgroundColor());
+                page.get().setBackgroundColor(Color.GREEN);
+            });
+            assertViewColor(Color.GREEN);
+        } finally {
+            activityRule.getScenario().onActivity(activity -> {
+                if (page.get() != null)
+                    page.get().destroy();
+                if (context.get() != null)
+                    context.get().destroy();
+            });
+        }
+    }
+
     // The color the view shows until the first frame of a page, which the native fill layer below the page has too.
     private void assertViewColor(int expected) throws InterruptedException {
         AtomicReference<Integer> actual = new AtomicReference<>();

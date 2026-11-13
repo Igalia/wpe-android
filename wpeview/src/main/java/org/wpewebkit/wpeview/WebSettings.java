@@ -35,15 +35,16 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * WebSettings provides control over the configuration of a {@link WebView}. Once the WebView is destroyed,
- * the settings keep the values they had; they can still be read and changed, but changes have no effect.
+ * WebSettings provides control over the configuration of a {@link WebPage}, and of the page a {@link WebView} shows.
+ * Once the page is destroyed, the settings keep the values they had; they can still be read and changed, but changes
+ * have no effect.
  */
 public class WebSettings {
     // The settings whose text zoom follows the font size of the device: those whose app has not set one.
     private static final Set<WebSettings> followingFontScale = Collections.newSetFromMap(new WeakHashMap<>());
     private static boolean listeningToFontScale;
 
-    // Null once the WebView is destroyed; the fields then hold the values.
+    // Null once the page is destroyed; the fields then hold the values.
     private @Nullable WebKitSettings settings;
     private @Nullable WebKitWebView webView;
     private @NonNull String userAgent = "";
@@ -55,7 +56,7 @@ public class WebSettings {
     private boolean audiblePlaybackRequiresPageVisibility;
     // Not a WebKit setting: the WebView reads it for the input method.
     private boolean personalizedLearningEnabled = true;
-    // Kept here also while the WebView lives. It is the zoom level of the web view, whose settings have zoom text only
+    // Kept here also while the page lives. It is the zoom level of the web view, whose settings have zoom text only
     // on, and WebKit's is 100%.
     private int textZoom = 100;
 
@@ -112,7 +113,7 @@ public class WebSettings {
             webView.setZoomLevel(textZoom / 100.0);
     }
 
-    // Called by WebView.destroy() before it destroys the WebKitSettings.
+    // Called by WebPage.destroy() before it destroys the WebKitSettings.
     void detach() {
         if (settings == null)
             return;
@@ -208,13 +209,13 @@ public class WebSettings {
     public boolean getPersonalizedLearningEnabled() { return personalizedLearningEnabled; }
     /**
      * Whether the input method may learn from what the user types in the page's fields, such as new words for its
-     * suggestions. When false, the WebView asks every input method not to, with
+     * suggestions. When false, the view that shows the page asks every input method not to, with
      * {@link android.view.inputmethod.EditorInfo#IME_FLAG_NO_PERSONALIZED_LEARNING}, as a private browsing mode
-     * needs: for the fields of the page, and for the answer to a {@code prompt()} dialog that the WebView shows
-     * itself. The input method reads it when it connects to a field, as when the field gets the focus, so set it
-     * before the page loads: a field that has the focus may keep what it had. Password fields never allow it.
-     * Unlike the other settings, it passes to the WebView of a window that the page opens, which starts with the
-     * value of its opener, so that the windows of a private page are private too. The default is true.
+     * needs: for the fields of the page, and for the answer to a {@code prompt()} dialog that the view shows itself.
+     * The input method reads it when it connects to a field, as when the field gets the focus, so set it before the
+     * page loads: a field that has the focus may keep what it had. Password fields never allow it. Unlike the other
+     * settings, it passes to the page of a window that the page opens, which starts with the value of its opener, so
+     * that the windows of a private page are private too. The default is true.
      */
     public void setPersonalizedLearningEnabled(boolean enabled) { personalizedLearningEnabled = enabled; }
 
@@ -222,9 +223,9 @@ public class WebSettings {
      * The text zoom of the page in percent. Until the app sets one with {@link #setTextZoom}, it is the font size
      * that the user chose in Android's settings, the {@link Configuration#fontScale} of the application times 100, and
      * it changes with it. An activity that overrides its own font scale does not change it: the app sets the text zoom
-     * then. The settings of a destroyed WebView no longer follow the font size, and those of the WebView of a window
-     * that a page opens follow it from the start, until the app sets theirs, for example in
-     * {@link WebChromeClient#onCreateWindow}.
+     * then. The settings of a destroyed page no longer follow the font size, and those of the page of a window that a
+     * page opens follow it from the start, until the app sets theirs, for example in
+     * {@link WebPageChromeClient#onCreateWindow} or {@link WebChromeClient#onCreateWindow}.
      */
     @MainThread
     public int getTextZoom() {
@@ -233,9 +234,9 @@ public class WebSettings {
     /**
      * Sets the text zoom of the page in percent: 100 shows the text at the size the page gives it, 150 makes it half
      * again as big. Only the text and what the page sizes after it change; the width of the page, its images and what
-     * it sizes in pixels stay, so the text wraps to the width of the view. The zoom applies at once, and to every page
-     * the WebView loads after. From then on the text zoom no longer follows the font size of the device, and there is
-     * no way back to it.
+     * it sizes in pixels stay, so the text wraps to the width of the view. The zoom applies at once, and to everything
+     * the page loads after. From then on the text zoom no longer follows the font size of the device, and there is no
+     * way back to it.
      *
      * @throws IllegalArgumentException if textZoom is 0 or less, which Android's WebSettings takes
      */

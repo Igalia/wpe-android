@@ -96,8 +96,8 @@ public final class org.wpewebkit.wpe.WebKitWebView {
     descriptor: (J)V
   private native void nativeLoadUrl(long, java.lang.String);
     descriptor: (JLjava/lang/String;)V
-  private native void nativeEvaluateJavascript(long, java.lang.String, org.wpewebkit.wpe.WebKitWebView$EvalCallbackHolder);
-    descriptor: (JLjava/lang/String;Lorg/wpewebkit/wpe/WebKitWebView$EvalCallbackHolder;)V
+  private native void nativeEvaluateJavascript(long, java.lang.String, java.lang.String, org.wpewebkit.wpe.WebKitWebView$EvalCallbackHolder);
+    descriptor: (JLjava/lang/String;Ljava/lang/String;Lorg/wpewebkit/wpe/WebKitWebView$EvalCallbackHolder;)V
 }
 ```
 

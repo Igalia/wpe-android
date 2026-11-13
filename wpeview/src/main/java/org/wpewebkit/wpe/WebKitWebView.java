@@ -28,6 +28,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -45,6 +47,9 @@ public final class WebKitWebView {
     // Values mapped to WebKitSnapshotRegion by nativeCaptureSnapshot. WebView checks the region.
     public static final int SNAPSHOT_REGION_VISIBLE = 0;
     public static final int SNAPSHOT_REGION_FULL_DOCUMENT = 1;
+
+    // The isolated world of the scripts that warnInConsole runs.
+    private static final String CONSOLE_WORLD = "WPEView";
 
     // Mirrors WebKitWebProcessTerminationReason.
     public static final int WEB_PROCESS_CRASHED = 0;
@@ -191,7 +196,17 @@ public final class WebKitWebView {
             }
             return;
         }
-        nativeEvaluateJavascript(mNativePtr, script, callback != null ? new EvalCallbackHolder(callback) : null);
+        nativeEvaluateJavascript(mNativePtr, script, null, callback != null ? new EvalCallbackHolder(callback) : null);
+    }
+
+    /**
+     * Shows a warning in the console of the page, as its developers see it in the Web Inspector. The script that logs
+     * it runs in a world of its own, so the scripts of the page neither see it nor change what it does.
+     */
+    public void warnInConsole(@NonNull String message) {
+        if (mNativePtr != 0)
+            nativeEvaluateJavascript(mNativePtr, "console.warn(" + JSONObject.quote(message) + ")", CONSOLE_WORLD,
+                                     null);
     }
 
     public void destroy() {
@@ -567,7 +582,7 @@ public final class WebKitWebView {
     private native void nativeSetBackgroundColor(long nativePtr, float red, float green, float blue, float alpha);
     private native void nativeCaptureSnapshot(long nativePtr, int region, int maxWidth, int maxHeight,
                                               @NonNull SnapshotCallbackHolder callbackHolder);
-    private native void nativeEvaluateJavascript(long nativePtr, String script,
+    private native void nativeEvaluateJavascript(long nativePtr, String script, @Nullable String worldName,
                                                  @Nullable EvalCallbackHolder callbackHolder);
     private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
     private native void nativeScriptDialogClose(long dialogPtr);
