@@ -72,6 +72,10 @@ public final class WebKitSettings {
         nativeSetAudiblePlaybackRequiresPageVisibility(mNativePtr, requires);
     }
 
+    // Whether the zoom level of the web view scales only the text of the page, and not the whole page.
+    public boolean getZoomTextOnly() { return nativeGetZoomTextOnly(mNativePtr); }
+    public void setZoomTextOnly(boolean zoomTextOnly) { nativeSetZoomTextOnly(mNativePtr, zoomTextOnly); }
+
     private native long nativeInit();
     private native void nativeDestroy(long nativePtr);
     private native String nativeGetUserAgentString(long nativePtr);
@@ -88,4 +92,6 @@ public final class WebKitSettings {
     private native void nativeSetDisableWebSecurity(long nativePtr, boolean disable);
     private native boolean nativeGetAudiblePlaybackRequiresPageVisibility(long nativePtr);
     private native void nativeSetAudiblePlaybackRequiresPageVisibility(long nativePtr, boolean requires);
+    private native boolean nativeGetZoomTextOnly(long nativePtr);
+    private native void nativeSetZoomTextOnly(long nativePtr, boolean zoomTextOnly);
 }
