@@ -29,6 +29,8 @@ import org.wpewebkit.wpe.WebKitWebContext;
 import org.wpewebkit.wpe.WebKitWebView;
 import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 
+import java.util.ArrayList;
+
 /**
  * WebContext represents the shared engine and session state used by high-level {@link WebView} instances.
  * It manages the lifecycle of the web context, network session and cookies, and holds the defaults each new
@@ -38,7 +40,8 @@ import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 public class WebContext {
     /**
      * Embedder hook for automation sessions. The WebDriver/automation path calls
-     * {@link #createWebViewForAutomation()} when a remote client asks for a new browsing context.
+     * {@link #createWebViewForAutomation()} when a remote client asks for a new browsing context. The browsing context
+     * is the page that the returned WebView shows: returning null, or a WebView that shows no page, opens none.
      */
     public interface Client {
         @Nullable
@@ -53,6 +56,12 @@ public class WebContext {
     private final String defaultUserAgent;
     private final android.content.Context appContext;
     private CookieManager cookieManager;
+    // The pages made with the context and not destroyed yet, which destroy() destroys first.
+    private final ArrayList<WebPage> pages = new ArrayList<>();
+    private boolean destroyed;
+    // Whether the context ends when the last page made with it is destroyed, as the one that a WebView makes for itself
+    // does, since the app did not make it, and its pages may outlive the view.
+    boolean endsWithItsPages;
 
     public WebContext(@NonNull android.content.Context context) { this(context, false); }
 
@@ -128,11 +137,34 @@ public class WebContext {
         });
     }
 
+    /**
+     * Destroys the context, after the pages made with it that are not destroyed yet, including those of the WebViews
+     * made with it. Does nothing if it is already destroyed.
+     */
     public void destroy() {
+        if (destroyed)
+            return;
+        // Its pages are destroyed before anything else, and those that the app made, on the main thread.
+        for (WebPage page : pages) {
+            if (!page.madeByView)
+                WebPage.checkMainThread();
+        }
+        destroyed = true;
+        while (!pages.isEmpty())
+            pages.get(pages.size() - 1).destroy();
         webKitCookieManager.destroy();
         networkSession.destroy();
         webContext.destroy();
     }
+
+    boolean isDestroyed() { return destroyed; }
+
+    // Called by each page when it is made, and when it is destroyed.
+    void addPage(@NonNull WebPage page) { pages.add(page); }
+
+    void removePage(@NonNull WebPage page) { pages.remove(page); }
+
+    boolean hasPages() { return !pages.isEmpty(); }
 
     @NonNull
     public android.content.Context getApplicationContext() {

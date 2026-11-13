@@ -75,6 +75,8 @@ dependencies {
     androidTestImplementation libs.androidx.test.runner
     androidTestImplementation libs.androidx.test.rules
     androidTestImplementation libs.androidx.test.junit
+    // For the tests of pages that move between the views of fragments.
+    androidTestImplementation libs.androidx.fragment
     androidTestRuntimeOnly libs.openxr.loader
 }
 

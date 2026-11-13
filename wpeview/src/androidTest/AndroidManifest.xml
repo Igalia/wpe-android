@@ -15,6 +15,10 @@
                 <category android:name="android.intent.category.FRAMEWORK_INSTRUMENTATION_TEST" />
             </intent-filter>
         </activity>
+        <activity android:name="org.wpewebkit.wpeview.WebViewFragmentTestActivity"
+            android:label="WebViewFragmentTestActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|locale|layoutDirection|fontScale|uiMode"
+            android:exported="false" />
     </application>
 
 </manifest>
