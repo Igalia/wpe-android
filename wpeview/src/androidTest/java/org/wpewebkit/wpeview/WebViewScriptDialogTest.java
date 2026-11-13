@@ -72,23 +72,35 @@ public class WebViewScriptDialogTest {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
         TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
         AtomicReference<WebView> webView = new AtomicReference<>();
-        // Built-in dialogs need a WebView made with the activity.
-        scenario.onActivity(activity -> {
-            webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
-            webView.get().setWebViewClient(webViewClient);
-            activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                                                              ViewGroup.LayoutParams.MATCH_PARENT));
-            webView.get().loadHtml(EMPTY_PAGE, null);
-        });
-        webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
-        waitForActivityWindowFocus(scenario, true);
+        try {
+            // Built-in dialogs need a WebView made with the activity.
+            scenario.onActivity(activity -> {
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(activity, webContext.get()));
+                webView.get().setWebViewClient(webViewClient);
+                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
+                webView.get().loadHtml(EMPTY_PAGE, null);
+            });
+            webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
+            waitForActivityWindowFocus(scenario, true);
 
-        scenario.onActivity(activity -> webView.get().evaluateJavascript("alert('Hello')", null));
-        waitForActivityWindowFocus(scenario, false);
+            scenario.onActivity(activity -> webView.get().evaluateJavascript("alert('Hello')", null));
+            waitForActivityWindowFocus(scenario, false);
 
-        scenario.onActivity(activity -> webView.get().destroy());
-        waitForActivityWindowFocus(scenario, true);
+            scenario.onActivity(activity -> webView.get().destroy());
+            waitForActivityWindowFocus(scenario, true);
+        } finally {
+            // Destroying the WebView again does nothing.
+            scenario.onActivity(activity -> {
+                if (webView.get() != null)
+                    webView.get().destroy();
+                if (webContext.get() != null)
+                    webContext.get().destroy();
+            });
+        }
     }
 
     /**

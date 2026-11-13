@@ -150,14 +150,15 @@ public class WebViewScreenTest {
         ImageReader imageReader = ImageReader.newInstance(DISPLAY_WIDTH, DISPLAY_HEIGHT, PixelFormat.RGBA_8888, 2);
         AtomicReference<VirtualDisplay> virtualDisplay = new AtomicReference<>();
         AtomicReference<Presentation> presentation = new AtomicReference<>();
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
         AtomicReference<WebView> webView = new AtomicReference<>();
         TestWebViewClient webViewClient = new TestWebViewClient();
         try {
             scenario.onActivity(activity -> {
                 virtualDisplay.set(createDisplay(activity, imageReader));
                 presentation.set(new Presentation(activity, virtualDisplay.get().getDisplay()));
-                webView.set(new WebView(presentation.get().getContext(),
-                                        WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(presentation.get().getContext(), webContext.get()));
                 webView.get().setWebViewClient(webViewClient);
                 presentation.get().setContentView(webView.get());
                 presentation.get().show();
@@ -174,6 +175,8 @@ public class WebViewScreenTest {
                     presentation.get().dismiss();
                 if (webView.get() != null)
                     webView.get().destroy();
+                if (webContext.get() != null)
+                    webContext.get().destroy();
                 if (virtualDisplay.get() != null)
                     virtualDisplay.get().release();
             });
@@ -194,6 +197,7 @@ public class WebViewScreenTest {
         AtomicReference<VirtualDisplay> virtualDisplay = new AtomicReference<>();
         AtomicReference<Display> display = new AtomicReference<>();
         AtomicReference<Presentation> presentation = new AtomicReference<>();
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
         AtomicReference<WebView> webView = new AtomicReference<>();
         TestWebViewClient webViewClient = new TestWebViewClient();
         try {
@@ -201,8 +205,8 @@ public class WebViewScreenTest {
                 virtualDisplay.set(createDisplay(activity, imageReader));
                 display.set(virtualDisplay.get().getDisplay());
                 presentation.set(new Presentation(activity, display.get()));
-                webView.set(new WebView(presentation.get().getContext(),
-                                        WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(presentation.get().getContext(), webContext.get()));
                 webView.get().setWebViewClient(webViewClient);
                 presentation.get().setContentView(webView.get());
                 presentation.get().show();
@@ -223,6 +227,8 @@ public class WebViewScreenTest {
                     presentation.get().dismiss();
                 if (webView.get() != null)
                     webView.get().destroy();
+                if (webContext.get() != null)
+                    webContext.get().destroy();
                 if (virtualDisplay.get() != null)
                     virtualDisplay.get().release();
             });
