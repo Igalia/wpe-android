@@ -55,7 +55,9 @@ public:
             JNI::NativeMethod<jboolean(jlong)>(
                 "nativeGetAudiblePlaybackRequiresPageVisibility", nativeGetAudiblePlaybackRequiresPageVisibility),
             JNI::NativeMethod<void(jlong, jboolean)>(
-                "nativeSetAudiblePlaybackRequiresPageVisibility", nativeSetAudiblePlaybackRequiresPageVisibility));
+                "nativeSetAudiblePlaybackRequiresPageVisibility", nativeSetAudiblePlaybackRequiresPageVisibility),
+            JNI::NativeMethod<jboolean(jlong)>("nativeGetZoomTextOnly", nativeGetZoomTextOnly),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetZoomTextOnly", nativeSetZoomTextOnly));
     }
 
 private:
@@ -98,6 +100,7 @@ private:
     DEFINE_BOOL_SETTER_GETTER(AllowFileAccessFromFileURLs, allow_file_access_from_file_urls)
     DEFINE_BOOL_SETTER_GETTER(DeveloperExtrasEnabled, enable_developer_extras)
     DEFINE_BOOL_SETTER_GETTER(DisableWebSecurity, disable_web_security)
+    DEFINE_BOOL_SETTER_GETTER(ZoomTextOnly, zoom_text_only)
 
 #undef DEFINE_BOOL_SETTER_GETTER
     // NOLINTEND(cppcoreguidelines-macro-usage)
