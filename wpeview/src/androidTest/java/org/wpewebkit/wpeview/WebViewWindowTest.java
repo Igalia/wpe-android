@@ -136,11 +136,13 @@ public class WebViewWindowTest {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
         TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<WebContext> tabContext = new AtomicReference<>();
         AtomicReference<WebView> tab = new AtomicReference<>();
         Function<WebViewTestActivity, WebView> inTab = activity -> tab.get();
         try {
             scenario.onActivity(activity -> {
-                tab.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                tabContext.set(new WebContext(activity, false, true));
+                tab.set(new WebView(activity, tabContext.get()));
                 tab.get().setWebViewClient(webViewClient);
                 tab.get().loadHtml(MEDIA_PAGE, null);
             });
@@ -166,6 +168,8 @@ public class WebViewWindowTest {
                         ((ViewGroup)webView.getParent()).removeView(webView);
                     webView.destroy();
                 }
+                if (tabContext.get() != null)
+                    tabContext.get().destroy();
             });
         }
     }
@@ -283,11 +287,13 @@ public class WebViewWindowTest {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
         TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<WebContext> headlessContext = new AtomicReference<>();
         AtomicReference<WebView> headless = new AtomicReference<>();
         Function<WebViewTestActivity, WebView> inHeadless = activity -> headless.get();
         try {
             scenario.onActivity(activity -> {
-                headless.set(new WebView(WebViewActivityScenarioHelper.sharedWebContext(activity), true));
+                headlessContext.set(new WebContext(activity, false, true));
+                headless.set(new WebView(headlessContext.get(), true));
                 headless.get().setWebViewClient(webViewClient);
                 headless.get().loadHtml("<html><body><script>var ready = 'yes';</script></body></html>", null);
             });
@@ -300,6 +306,8 @@ public class WebViewWindowTest {
             scenario.onActivity(activity -> {
                 if (headless.get() != null)
                     headless.get().destroy();
+                if (headlessContext.get() != null)
+                    headlessContext.get().destroy();
             });
         }
     }

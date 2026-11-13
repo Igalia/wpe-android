@@ -339,6 +339,7 @@ public class WebViewNewWindowTest {
     /** The WebView of a window can only be made in onCreateWindow, which must return it. */
     @Test
     public void testWindowMadeElsewhere() throws Throwable {
+        AtomicReference<WebContext> otherContext = new AtomicReference<>();
         AtomicReference<WebView> other = new AtomicReference<>();
         ActivityScenario<WebViewTestActivity> scenario = loadOpener(new WebChromeClient() {
             @Override
@@ -356,7 +357,8 @@ public class WebViewNewWindowTest {
                     error.set(exception);
                 }
                 assertNotNull("A window was made outside onCreateWindow", error.get());
-                other.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                otherContext.set(new WebContext(activity, false, true));
+                other.set(new WebView(activity, otherContext.get()));
             });
 
             assertEquals("true", run(scenario, "window.open('/window.html') === null"));
@@ -365,6 +367,8 @@ public class WebViewNewWindowTest {
             scenario.onActivity(activity -> {
                 if (other.get() != null)
                     other.get().destroy();
+                if (otherContext.get() != null)
+                    otherContext.get().destroy();
             });
         }
         assertTrue(windowFinishedUrls.isEmpty());

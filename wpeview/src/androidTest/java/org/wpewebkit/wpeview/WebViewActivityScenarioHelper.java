@@ -23,19 +23,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class WebViewActivityScenarioHelper {
-    private static WebContext sharedWebContext;
-
-    /**
-     * A WebContext for the WebViews a test adds besides the activity's own. It lives as long as the test process:
-     * destroying a WebContext after one of its pages has loaded crashes the process a moment later, a bug of its
-     * own.
-     */
-    public static WebContext sharedWebContext(WebViewTestActivity activity) {
-        if (sharedWebContext == null)
-            sharedWebContext = new WebContext(activity.getApplicationContext(), false, true);
-        return sharedWebContext;
-    }
-
     // A tenth of a second of silence, as a WAV file in a data: URL.
     public static String silentWavUrl() {
         int samples = 800;

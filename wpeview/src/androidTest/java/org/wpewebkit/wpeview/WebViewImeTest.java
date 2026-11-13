@@ -83,11 +83,13 @@ public class WebViewImeTest {
     public void testInputMethodOfADestroyedWebView() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
         AtomicReference<WebView> webView = new AtomicReference<>();
         CountDownLatch loaded = new CountDownLatch(1);
         try {
             scenario.onActivity(activity -> {
-                webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(activity, webContext.get()));
                 webView.get().setWebViewClient(new WebViewClient() {
                     @Override
                     public void onPageFinished(@NonNull WebView view, @NonNull String url) {
@@ -145,6 +147,8 @@ public class WebViewImeTest {
                         ((ViewGroup)view.getParent()).removeView(view);
                     view.destroy();
                 }
+                if (webContext.get() != null)
+                    webContext.get().destroy();
             });
         }
     }
@@ -344,12 +348,14 @@ public class WebViewImeTest {
     public void testOnlyATapShowsTheKeyboard() throws Throwable {
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario.moveToState(Lifecycle.State.RESUMED);
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
         AtomicReference<WebView> webView = new AtomicReference<>();
         AtomicInteger keyboardRequests = new AtomicInteger();
         CountDownLatch loaded = new CountDownLatch(1);
         try {
             scenario.onActivity(activity -> {
-                webView.set(new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)) {
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(activity, webContext.get()) {
                     @Override
                     void showSoftInput() {
                         keyboardRequests.incrementAndGet();
@@ -448,6 +454,8 @@ public class WebViewImeTest {
                         ((ViewGroup)view.getParent()).removeView(view);
                     view.destroy();
                 }
+                if (webContext.get() != null)
+                    webContext.get().destroy();
             });
         }
     }
@@ -636,12 +644,15 @@ public class WebViewImeTest {
         assertEquals("Keys the field got", "\"Enter\"", keys);
     }
 
-    // Records the input type of each connection that Android asks the WebView for, as the input method gets it.
+    // Records the input type of each connection that Android asks the WebView for, as the input method gets it. It has
+    // a WebContext of its own, which destroyRecordingWebView() destroys with it.
     private static class InputTypeRecordingWebView extends WebView {
         final List<Integer> inputTypes = new ArrayList<>();
+        final WebContext webContext;
 
         InputTypeRecordingWebView(@NonNull Context context, @NonNull WebContext webContext) {
             super(context, webContext);
+            this.webContext = webContext;
         }
 
         @Override
@@ -693,8 +704,7 @@ public class WebViewImeTest {
         throws Throwable {
         CountDownLatch loaded = new CountDownLatch(1);
         scenario.onActivity(activity -> {
-            webView.set(
-                new InputTypeRecordingWebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity)));
+            webView.set(new InputTypeRecordingWebView(activity, new WebContext(activity, false, true)));
             webView.get().setWebViewClient(new WebViewClient() {
                 @Override
                 public void onPageFinished(@NonNull WebView view, @NonNull String url) {
@@ -712,11 +722,12 @@ public class WebViewImeTest {
     private static void destroyRecordingWebView(ActivityScenario<WebViewTestActivity> scenario,
                                                 AtomicReference<InputTypeRecordingWebView> webView) {
         scenario.onActivity(activity -> {
-            WebView view = webView.get();
+            InputTypeRecordingWebView view = webView.get();
             if (view != null) {
                 if (view.getParent() != null)
                     ((ViewGroup)view.getParent()).removeView(view);
                 view.destroy();
+                view.webContext.destroy();
             }
         });
     }

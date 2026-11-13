@@ -63,6 +63,8 @@ public class WebViewToplevelLayersTest {
 
     private SurfaceView surfaceView;
     private WPEToplevel toplevel;
+    // The WebContext of the pages of a test, made with its first page.
+    private WebContext webContext;
     private final List<WebView> pages = new ArrayList<>();
 
     @After
@@ -71,6 +73,10 @@ public class WebViewToplevelLayersTest {
             for (WebView page : pages)
                 page.destroy();
             pages.clear();
+            if (webContext != null) {
+                webContext.destroy();
+                webContext = null;
+            }
             if (toplevel != null) {
                 toplevel.destroy();
                 toplevel = null;
@@ -123,7 +129,9 @@ public class WebViewToplevelLayersTest {
     private WebView loadPage(int color) {
         TestWebViewClient client = new TestWebViewClient();
         activityRule.getScenario().onActivity(activity -> {
-            WebView page = new WebView(activity, WebViewActivityScenarioHelper.sharedWebContext(activity));
+            if (webContext == null)
+                webContext = new WebContext(activity, false, true);
+            WebView page = new WebView(activity, webContext);
             pages.add(page);
             page.setWebViewClient(client);
             page.loadHtml(pageOfColor(color), null);
