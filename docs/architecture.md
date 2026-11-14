@@ -47,11 +47,14 @@ clients.
 Java code lives in:
 
 - `wpeview/src/main/java/org/wpewebkit/wpeview/WebView.java`
+- `wpeview/src/main/java/org/wpewebkit/wpeview/WebPage.java`
 - `wpeview/src/main/java/org/wpewebkit/wpeview/WebContext.java`
 - `wpeview/src/main/java/org/wpewebkit/wpeview/WebSettings.java`
 - `wpeview/src/main/java/org/wpewebkit/wpeview/CookieManager.java`
 - `wpeview/src/main/java/org/wpewebkit/wpeview/WebViewClient.java`
 - `wpeview/src/main/java/org/wpewebkit/wpeview/WebChromeClient.java`
+- `wpeview/src/main/java/org/wpewebkit/wpeview/WebPageClient.java`
+- `wpeview/src/main/java/org/wpewebkit/wpeview/WebPageChromeClient.java`
 
 Use this layer when embedding WPE in a normal Android view hierarchy:
 
@@ -82,9 +85,27 @@ WebView first = new WebView(activity, context);
 WebView second = new WebView(activity, context);
 ```
 
-See [Object Model](#object-model) and [WebView Lifecycle](#webview-lifecycle)
-for what these objects hold and how a `WebView` follows the Android view
-lifecycle.
+A `WebView` shows a `WebPage`. Each constructor makes a page that the view
+owns, and the page methods of the view, such as `loadUrl()`, go to it. An
+application that wants its pages to outlive its views, for example to keep them
+in a `ViewModel` while Android rebuilds the activity, or to show the tabs of a
+browser in one view, makes the pages itself and shows one at a time with
+`setPage()`, in a view from `WebView.createEmpty()`. A page needs only its
+`WebContext`, not an activity, and has its own `WebPageClient` and
+`WebPageChromeClient`, whose callbacks get the page. `releasePage()` hands the
+page that a view made to the application.
+
+```java
+WebPage page = new WebPage(context);
+page.setClient(new WebPageClient());
+page.loadUrl("https://www.wpewebkit.org/");
+WebView webView = WebView.createEmpty(activity);
+webView.setPage(page);
+```
+
+See [Object Model](#object-model), [WebView Lifecycle](#webview-lifecycle) and
+[Pages and Views](#pages-and-views) for what these objects hold and how a
+`WebView` follows the Android view lifecycle.
 
 ### Layer 2: Low-level Java JNI/CAPI bridge
 
@@ -202,16 +223,19 @@ application has:
   cookie manager. It also holds the default settings values, such as the
   User-Agent, that each new `WebView` starts from. A normal and an incognito
   profile are two `WebContext` instances.
-- **One per page.** A `WebView` owns its `WebKitWebView`, its own
-  `WebKitSettings` (exposed as `WebSettings`), a `WPEToplevel` and the
-  `SurfaceView` the page is drawn into. The `WPEView` and its input method
-  context are borrowed from the `WebKitWebView`. All of them go away with the
-  `WebView`; its `WebSettings` then keeps the last values, which can still be
-  read and changed without effect.
+- **One per page.** A `WebPage` owns its `WebKitWebView` and its own
+  `WebKitSettings` (exposed as `WebSettings`). The `WPEView` and its input
+  method context are borrowed from the `WebKitWebView`. All of them go away with
+  the `WebPage`; its `WebSettings` then keeps the last values, which can still
+  be read and changed without effect. A `WebContext` keeps its pages, and
+  destroys those still alive when it is destroyed.
+- **One per view.** A `WebView` owns a `WPEToplevel` and the `SurfaceView` the
+  page it shows is drawn into. A `WebView` made with one of its constructors
+  also owns a page, which it destroys with itself.
 
-A browser creates one `WebContext` per profile and one `WebView` per tab, each
-with its Activity as the UI context. Settings changed through
-`WebView.getSettings()` apply to that `WebView` only.
+A browser creates one `WebContext` per profile and one `WebPage` per tab, and
+shows the tabs in `WebView`s made with its Activity as the UI context. Settings
+changed through `WebPage.getSettings()` apply to that page only.
 
 ```mermaid
 classDiagram
@@ -241,9 +265,14 @@ classDiagram
     }
     class WebKitCookieManager
     class WebKitWebsiteDataManager
-    class WebView {
+    class WebPage {
         <<one per page>>
         +getSettings() WebSettings
+        +destroy()
+    }
+    class WebView {
+        <<one per view>>
+        +setPage(WebPage)
         +destroy()
     }
     class WebSettings
@@ -265,11 +294,12 @@ classDiagram
     WebContext "1" *-- "1" WebKitNetworkSession
     WebContext "1" *-- "1" WebKitCookieManager
     WebKitNetworkSession "1" *-- "1" WebKitWebsiteDataManager
-    WebView "*" --> "1" WebContext : shares
-    WebView "1" *-- "1" WebKitSettings
-    WebView "1" *-- "1" WebSettings
+    WebPage "*" --> "1" WebContext : shares
+    WebPage "1" *-- "1" WebKitSettings
+    WebPage "1" *-- "1" WebSettings
     WebSettings --> WebKitSettings : wraps
-    WebView "1" *-- "1" WebKitWebView
+    WebPage "1" *-- "1" WebKitWebView
+    WebView "1" --> "0..1" WebPage : shows
     WebKitWebView "1" *-- "1" WPEView : borrowed
     WebKitWebView "1" *-- "1" WPEInputMethodContext : borrowed
     WebView "1" *-- "1" WPEToplevel
@@ -295,7 +325,8 @@ Android view:
 | `onFocusChanged()` | Focuses or unfocuses the `WPEView`. | It has the focus, and the input method can engage. |
 | `surfaceDestroyed()` | Unmaps and unfocuses the `WPEView`, makes the `WPEToplevel` inactive and takes it out of fullscreen, takes the view out of it, and takes the native window from the `WPEToplevel`. | It is hidden and out of its window, and not fullscreen. |
 | `onDetachedFromWindow()` | Nothing more: the `SurfaceView` detaches first, and its surface is gone. | It is out of its window. |
-| `destroy()` | Takes the `WPEToplevel` out of fullscreen and the view out of it, and destroys its `WPEToplevel`, `WebKitWebView` and `WebKitSettings`. | It is closed. |
+| `setPage()` | Takes the page it showed out, as `surfaceDestroyed()` does, then puts the new page in its `WPEToplevel` at its size, as `surfaceCreated()` does, if it has a surface. | The old page is hidden and out of its window; the new one is in it. |
+| `destroy()` | Takes the `WPEToplevel` out of fullscreen and the page out of it, and destroys its `WPEToplevel`, and the page if the view made it. | A page the view made is closed; another is out of its window. |
 
 ```mermaid
 stateDiagram-v2
@@ -340,6 +371,45 @@ The usual cases follow from the table:
   surface and is never attached to a window. Its `WPEView` stays in its
   `WPEToplevel` for the whole life of the `WebView`, unmapped and never active.
 
+## Pages and Views
+
+A `WebPage` runs with or without a view, as a tab in the background does. A
+page with no view is unmapped and out of any window, so WebKit throttles it and
+frees the memory it keeps for pages on screen. It still lays out at a real size:
+the size of the last view that showed it. A new page takes the size of its
+opener, for the page of a new window, or of the page that a `WebView` showed
+last on the default display, or of that display before any did, at the scale of
+the screen. So scripts, media queries and snapshots see a real window.
+
+A page is in one view at most: `setPage()` refuses a page that another view
+shows, which the app first takes out with `setPage(null)` there. A view whose
+activity is destroyed lets its page go: it destroys itself when it leaves the
+window of that activity, unless it shows a page of its own, and `setPage()`
+takes a page from such a view elsewhere. The view takes
+the page out in an order that keeps WebKit and the input method in step: it
+unmaps the page, takes the focus, which ends its composition while the view
+still hears it, makes the window inactive, takes the page out of the window and
+closes its built-in dialog, and last lets the input method go of the field. An
+input connection that the input method keeps from the old page does nothing.
+The page that leaves keeps its last frame on its layer, which shows until the
+new page draws, for 100 ms at most, and shows again at once when the page comes
+back.
+
+JavaScript dialogs go to the page's chrome client first. If it does not take
+one, the view that shows the page shows its built-in dialog, while the view has
+its surface. A page that is not shown, because no view shows it, its view is
+headless or its activity is stopped, gets an answer at once, so that neither it
+nor the other pages of its web process wait for a user who cannot see the
+question: an `alert()` is answered and its message shown by the next view that
+shows the page, and `confirm()`, `prompt()` and a `beforeunload` confirmation
+are cancelled with a warning in the page's console. A cancelled `beforeunload`
+confirmation keeps the page where it is, with what the user typed. A built-in
+dialog that is open when its page stops being shown closes the same way.
+
+A page opens a window when its chrome client calls `createPage()` on the
+request that `onCreateWindow()` gets, and gives the new page its clients there,
+before WebKit loads into it.
+
 ## Fullscreen
 
 When an element of the page goes fullscreen, as a video does with its
@@ -383,9 +453,14 @@ A hidden page, or one out of its window, cannot stay fullscreen. So the
 `WebView` leaves fullscreen when it is hidden, as a tab hidden in place is, and
 before its view leaves the toplevel, as when the `WebView` is moved to another
 parent or its activity stops: WebKit sees the state of the `WPEToplevel` only
-while the view is in it. `destroy()` leaves fullscreen too, and so does the end
-of the web process of the page: the `WebView` calls
-`WebChromeClient.onExitFullscreen()` before
+while the view is in it. A hidden `WebView` calls
+`WebChromeClient.onExitFullscreen()` at once. When the page leaves fullscreen
+because it leaves the window, or the view, with `setPage()`, `releasePage()` or
+`WebPage.destroy()`, the `WebView` calls it once it is done with the page, so
+that the application may show another page or destroy the view from there.
+`WebView.destroy()` leaves fullscreen too, and calls it first, while the page is
+still in the view. So does the end of the web process of the page: the
+`WebView` calls `WebChromeClient.onExitFullscreen()` before
 `WebViewClient.onWebProcessTerminated()`.
 
 ## Ownership and Lifetime
@@ -427,10 +502,11 @@ The high-level `WebView` owns the objects it creates in this order:
 `WebView.destroy()` takes the `WPEView` out of the toplevel, destroys the
 `WPEToplevel`, destroys the `WebKitWebView` and drops the proxies borrowed from
 it, copies the values of its `WebKitSettings` into its `WebSettings` and
-destroys them, and finally destroys the owned `WebContext` if the `WebView`
-created it. When a `WebContext` is shared, the application owns
-it and must destroy it after all `WebView` instances using it have been
-destroyed.
+destroys them. A `WebContext` that a `WebView` created for itself ends with the
+last page made with it: the page of the view, the pages of the windows it
+opened, and the pages that the application made with that context. When the
+application creates a `WebContext`, it owns it and must destroy it after all
+`WebView` instances using it have been destroyed.
 
 `WebContext.destroy()` destroys the cookie manager, the network session and the
 web context. This order matters because several wrappers borrow objects from

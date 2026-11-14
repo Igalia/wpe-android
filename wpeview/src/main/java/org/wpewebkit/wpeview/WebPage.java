@@ -18,80 +18,109 @@
 
 package org.wpewebkit.wpeview;
 
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Looper;
 import android.util.LongSparseArray;
+import android.view.Display;
 
 import androidx.annotation.ColorInt;
+import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import org.wpewebkit.wpe.LocalNetworkAccess;
 import org.wpewebkit.wpe.WPEInputMethodContext;
+import org.wpewebkit.wpe.WPERuntime;
+import org.wpewebkit.wpe.WPEScreen;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitDownload;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * The page that a WebView shows: WebKit's web view with its settings and input method context, the state of its
- * loads, history, title and sound, and the requests of the page that wait for an answer, such as JavaScript dialogs,
- * file and color fields and HTTP authentication. It uses no Android context but the application's, so it does not
- * depend on an activity. Once it is destroyed, it reports nothing more, and its methods no longer reach WebKit.
+ * A web page: what it shows, its history, its settings and its scripts, apart from any view. A {@link WebView} shows
+ * one page at a time, which {@link WebView#setPage} chooses, and a page is in one view at most. A page needs no
+ * activity, only its {@link WebContext}, so it can outlive the views that show it, for example in a
+ * {@code ViewModel} while Android rebuilds the activity: it keeps its history, its form contents, its scroll position
+ * and its running scripts.
+ *
+ * <p>A page with no view keeps loading and running, hidden, as a tab in the background. It keeps the size of the last
+ * view that showed it. A page that no view showed yet has the size of its opener, for the page of a new window, or the
+ * size of the page that a WebView showed last on the default display, or the size of that display before any did, so
+ * that it lays out and takes snapshots at a real size.
+ *
+ * <p>The app owns the pages it makes, and destroys each with {@link #destroy()}, which first takes it out of its view.
+ * A WebView made with one of its constructors makes a page of its own and destroys it with itself, unless the app takes
+ * it with {@link WebView#releasePage()}. Destroying a {@link WebContext} destroys its pages first. Once destroyed, a
+ * page reports nothing more, lets go of its clients, and its methods no longer reach WebKit.
+ *
+ * <p>A page is used on the main thread: the methods of a page that the app made, which reach WebKit, throw
+ * IllegalStateException on any other.
  */
 @UiThread
-final class WebPage {
-    /** Receives what the page reports, on the main thread. */
-    interface Delegate {
-        void onCloseWindow();
-        void onPageStarted(@NonNull String url);
-        void onPageFinished(@NonNull String url);
-        void onProgressChanged(int progress);
-        void onReceivedTitle(@NonNull String title);
-        void doUpdateVisitedHistory(@NonNull String url);
-        void onReceivedHttpError(@NonNull WPEResourceRequest request, @NonNull WPEResourceResponse response);
-        void onReceivedError(@NonNull WPEResourceRequest request, @NonNull WPEResourceError error);
-        /** The dialog must be answered, by the app or the user, or cancelled. */
-        void onScriptDialog(@NonNull ScriptDialog dialog);
-        void onWebProcessTerminated(int reason);
-        /** Returns the page made for the new window with {@link #WebPage(WebPage)} in this call, or null for none. */
-        @Nullable
-        WebPage onCreateWindow(boolean isUserGesture);
-        boolean shouldOverrideUrlLoading(@NonNull WPEResourceRequest request);
-        void onDownloadStart(@NonNull WPEDownload download);
-        /** Returns whether the request is taken. One that is not is cancelled. */
-        boolean onShowFileChooser(@NonNull WebChromeClient.FileChooserParams params,
-                                  @NonNull WPECallback<String[]> callback);
-        /** Returns whether the request is taken. One that is not is cancelled. */
-        boolean onShowColorChooser(@NonNull WebChromeClient.ColorChooserParams params,
-                                   @NonNull WebChromeClient.ColorChooserCallback callback);
-        void onHideColorChooser();
-        void onReceivedHttpAuthRequest(@NonNull WebViewClient.HttpAuthHandler handler, @NonNull String host,
-                                       @NonNull String realm);
-        void onHttpAuthRequestCanceled(@NonNull WebViewClient.HttpAuthHandler handler);
-        void onPlayingAudioChanged(boolean playingAudio);
+public final class WebPage {
+    @FunctionalInterface
+    public interface JavascriptCallback {
+        void onResult(@NonNull String result);
     }
+
+    @FunctionalInterface
+    public interface SnapshotCallback {
+        void onResult(@Nullable Bitmap bitmap);
+    }
+
+    public static final int SNAPSHOT_REGION_VISIBLE = WebKitWebView.SNAPSHOT_REGION_VISIBLE;
+    public static final int SNAPSHOT_REGION_FULL_DOCUMENT = WebKitWebView.SNAPSHOT_REGION_FULL_DOCUMENT;
+
+    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface SnapshotRegion {}
+
+    // The size in logical pixels of the page that a WebView showed last on the default display, which a new page takes.
+    // A new array each time, so that a WebView made on another thread reads a whole one.
+    private static volatile @Nullable int[] lastShownSize;
 
     private final WebContext context;
     private final WebKitSettings webKitSettings;
     private final WebSettings settings;
     // Package-private: used by the inner classes (avoids synthetic accessors).
     final WebKitWebView webKitWebView;
+    @NonNull
+    WebPageClient client = new WebPageClient();
+    @NonNull
+    WebPageChromeClient chromeClient = new WebPageChromeClient();
+    // The view that shows the page, if any.
     @Nullable
-    Delegate delegate;
+    WebView view;
     boolean destroyed;
     // The JavaScript dialogs that are not answered yet, which destroy() cancels.
     final ArrayList<ScriptDialog> pendingScriptDialogs = new ArrayList<>();
+    // The last alert() that was answered while the page was not shown, for the next view that shows it.
+    @Nullable
+    ScriptDialog alertToShow;
     // The request of the color field that the page has open, if any. WebKit has one at most.
     @Nullable
     ColorChooserResult colorChooser;
-    // The requests for HTTP authentication that the delegate has not answered, by their id.
+    // The request of a file field that the chrome client took and has not answered, if any.
+    @Nullable
+    FileChooserResult fileChooser;
+    // The requests for HTTP authentication that the client has not answered, by their id.
     final LongSparseArray<HttpAuthRequest> httpAuthRequests = new LongSparseArray<>();
+    // The request for a new window that the chrome client is asked about, while it is.
+    @Nullable
+    WebPageChromeClient.WindowRequest windowRequest;
 
     private @Nullable String originalUrl;
     String url = "about:blank";
@@ -103,29 +132,135 @@ final class WebPage {
     int progress;
     boolean canGoBack;
     boolean canGoForward;
+    // Whether a field of the page has the focus of the input method. WebKit tells when it changes, and has no getter.
+    boolean inputFieldFocused;
     // Whether the page plays audio, as it last reported.
     boolean playingAudio;
     // Whether the page was muted when it was destroyed.
     private boolean mutedWhenDestroyed;
+    private @ColorInt int backgroundColor = Color.WHITE;
+    // Whether a WebView made the page with one of its constructors, and has not handed it to the app.
+    boolean madeByView;
+    // The size of the page in logical pixels.
+    private int width;
+    private int height;
 
-    WebPage(@NonNull WebContext context) { this(context, null); }
+    /**
+     * Makes a page with its own settings, starting from the defaults of {@code context}, and with clients that do
+     * nothing. It loads nothing until it is asked to. The context that a WebView made for itself, which
+     * {@link #getWebContext()} gives for its page, ends with the last page made with it: once that is destroyed, no
+     * page can be made with it.
+     *
+     * @throws IllegalStateException if the context is destroyed.
+     */
+    public WebPage(@NonNull WebContext context) { this(onMainThread(context), null, false); }
 
-    /** Makes the page of a new window that {@code opener} asks for, which shares its context. */
-    WebPage(@NonNull WebPage opener) { this(opener.context, opener.webKitWebView); }
+    // The page of a new window that opener asks for, made by its WindowRequest.
+    WebPage(@NonNull WebPage opener) { this(opener.context, opener, false); }
 
-    // The page of a new window is related to the page of its opener, which asks for it.
-    private WebPage(@NonNull WebContext context, @Nullable WebKitWebView openerView) {
+    // The page of a new window is related to the page of its opener, which asks for it, and shares its context. A page
+    // that stays in a toplevel of its own for its whole life, as the one of a headless WebView, keeps the size of that.
+    // The constructors of WebView use this one, which does not check the thread, as they never did.
+    WebPage(@NonNull WebContext context, @Nullable WebPage opener, boolean inOwnToplevel) {
+        if (opener != null)
+            context = opener.context;
+        if (context.isDestroyed())
+            throw new IllegalStateException("The WebContext of the page is destroyed");
         this.context = context;
         webKitSettings = new WebKitSettings();
         webKitSettings.setUserAgentString(context.getDefaultUserAgent());
-        webKitWebView = openerView != null ? new WebKitWebView(openerView, webKitSettings)
-                                           : new WebKitWebView(context.getWPEDisplay(), context.getWebKitWebContext(),
-                                                               null, context.getWebKitNetworkSession(), webKitSettings);
+        webKitWebView = opener != null ? new WebKitWebView(opener.webKitWebView, webKitSettings)
+                                       : new WebKitWebView(context.getWPEDisplay(), context.getWebKitWebContext(), null,
+                                                           context.getWebKitNetworkSession(), webKitSettings);
         settings = new WebSettings(webKitSettings);
         webKitWebView.setListener(new PageListener());
+        webKitWebView.getInputMethodContext().setListener(new InputMethodListener());
+        // WebKit gives every new view a toplevel of its own, with the scale of the screen, which the page keeps. The
+        // page starts out of any window, and joins the toplevel of the WebView that shows it.
+        WPEView wpeView = webKitWebView.getWPEView();
+        wpeView.setToplevel(null);
+        if (!inOwnToplevel) {
+            int[] size = sizeForNewPage(context.getApplicationContext(), opener);
+            resize(size[0], size[1]);
+        }
+        context.addPage(this);
     }
 
-    void setDelegate(@Nullable Delegate delegate) { this.delegate = delegate; }
+    // A page that no view showed yet lays out at a real size rather than at 0 by 0: the size of its opener, or of the
+    // page that a WebView showed last on the default display, or of that display before any did.
+    private static int[] sizeForNewPage(@NonNull Context appContext, @Nullable WebPage opener) {
+        if (opener != null && opener.width > 0 && opener.height > 0)
+            return new int[] {opener.width, opener.height};
+        int[] lastShown = lastShownSize;
+        if (lastShown != null)
+            return lastShown.clone();
+        DisplayManager displayManager = appContext.getSystemService(DisplayManager.class);
+        Display display = displayManager != null ? displayManager.getDisplay(Display.DEFAULT_DISPLAY) : null;
+        WPEScreen screen = display != null ? WPERuntime.getInstance().getDisplay().getScreen(display) : null;
+        if (screen == null)
+            return new int[] {0, 0};
+        return new int[] {Math.max(0, screen.getWidth()), Math.max(0, screen.getHeight())};
+    }
+
+    // Called by a WebView with the size it gives the page it shows, on the display it shows on.
+    static void setLastShownSize(int displayId, int width, int height) {
+        if (displayId == Display.DEFAULT_DISPLAY && width > 0 && height > 0)
+            lastShownSize = new int[] {width, height};
+    }
+
+    // Gives the page a size in logical pixels, which it keeps until it gets another. A page is never 0 by 0.
+    void resize(int newWidth, int newHeight) {
+        if (newWidth <= 0 || newHeight <= 0)
+            return;
+        width = newWidth;
+        height = newHeight;
+        webKitWebView.getWPEView().resized(newWidth, newHeight);
+    }
+
+    // The methods that reach WebKit run on the main thread, where its main loop runs. They check it for a page that the
+    // app made. The page that a WebView made is not checked, so that apps that use WebView alone see no change.
+    void checkThread() {
+        if (!madeByView)
+            checkMainThread();
+    }
+
+    static void checkMainThread() {
+        if (Looper.myLooper() != Looper.getMainLooper())
+            throw new IllegalStateException("A WebPage must be used on the main thread");
+    }
+
+    private static @NonNull WebContext onMainThread(@NonNull WebContext context) {
+        checkMainThread();
+        return context;
+    }
+
+    /**
+     * Sets the client that receives the navigation, load and network events of the page, which replaces the one it had.
+     */
+    public void setClient(@NonNull WebPageClient client) {
+        checkThread();
+        this.client = Objects.requireNonNull(client, "client");
+    }
+
+    public @NonNull WebPageClient getClient() { return client; }
+
+    /** Sets the client that receives what the page asks of the app and its user, which replaces the one it had. */
+    public void setChromeClient(@NonNull WebPageChromeClient client) {
+        checkThread();
+        this.chromeClient = Objects.requireNonNull(client, "client");
+    }
+
+    public @NonNull WebPageChromeClient getChromeClient() { return chromeClient; }
+
+    /** Returns the view that shows the page, or null if it is in none. */
+    public @Nullable WebView getView() { return view; }
+
+    /**
+     * Returns the context the page was made with, which its cookies, cache and network state belong to. One that a
+     * WebView made for itself ends with the last page made with it, so an app that keeps it to make pages of its own
+     * can make none once that page is destroyed.
+     */
+    public @NonNull WebContext getWebContext() { return context; }
 
     @NonNull
     WebKitWebView getWebKitWebView() {
@@ -143,44 +278,76 @@ final class WebPage {
         return webKitWebView.getInputMethodContext();
     }
 
-    boolean isDestroyed() { return destroyed; }
+    /** Whether the page is destroyed, by {@link #destroy()}, by its view, or by {@link WebContext#destroy()}. */
+    public boolean isDestroyed() { return destroyed; }
 
-    /** The settings keep their last values once the page is destroyed, and changing them has no effect. */
-    @NonNull
-    WebSettings getSettings() {
-        return settings;
+    /**
+     * Returns the settings of the page. Every page has its own, starting from the defaults of its {@link WebContext}.
+     * Once the page is destroyed they keep their last values, and changing them has no effect.
+     */
+    public @NonNull WebSettings getSettings() { return settings; }
+
+    /**
+     * Sets the opaque color behind the page, which it shows before its first frame and where it has no background of
+     * its own. The default is white. A view that shows the page paints its window with it too. This does not turn on
+     * a dark mode or change the colors of the text.
+     *
+     * @throws IllegalArgumentException if the color is not opaque.
+     */
+    public void setBackgroundColor(@ColorInt int color) {
+        checkThread();
+        if (Color.alpha(color) != 255)
+            throw new IllegalArgumentException("The background color of a page must be opaque");
+        backgroundColor = color;
+        webKitWebView.setBackgroundColor(color);
+        if (view != null)
+            view.onPageBackgroundColorChanged(color);
     }
 
-    void setBackgroundColor(@ColorInt int color) { webKitWebView.setBackgroundColor(color); }
+    public @ColorInt int getBackgroundColor() { return backgroundColor; }
 
-    @NonNull
-    String getUrl() {
-        return url;
+    /** Returns the address of the page, which is "about:blank" before it loads one. */
+    public @NonNull String getUrl() { return url; }
+
+    /** Returns the address that the app last asked the page to load, before any redirect, or null if none. */
+    public @Nullable String getOriginalUrl() { return originalUrl; }
+
+    /**
+     * Returns the title of the page, or while it has none, its address without "http://", "https://", the user name
+     * and password, "www." or the "/" after a bare host name, and with spaces unescaped. This is the title that
+     * {@link WebPageChromeClient#onReceivedTitle} reports, and it is empty before the first one.
+     */
+    public @NonNull String getTitle() { return reportedTitle != null ? reportedTitle : ""; }
+
+    /** Returns how far the page has loaded, from 0 to 100. */
+    public int getProgress() { return progress; }
+
+    public boolean canGoBack() { return canGoBack; }
+
+    public boolean canGoForward() { return canGoForward; }
+
+    /**
+     * Whether the page plays sound, as {@link WebView#isPlayingAudio()} tells it.
+     * {@link WebPageChromeClient#onPlayingAudioChanged} tells when it changes. It is false once the page is destroyed.
+     */
+    public boolean isPlayingAudio() { return playingAudio; }
+
+    /**
+     * Mutes or unmutes the sound of the page, as {@link WebView#setAudioMuted} does. The page stays muted for what it
+     * loads later, in any view, until it is unmuted. A new page starts unmuted.
+     */
+    public void setAudioMuted(boolean muted) {
+        checkThread();
+        webKitWebView.setMuted(muted);
     }
-
-    @Nullable
-    String getOriginalUrl() {
-        return originalUrl;
-    }
-
-    /** The title the page last reported, which is empty before the first one. */
-    @NonNull
-    String getTitle() {
-        return reportedTitle != null ? reportedTitle : "";
-    }
-
-    int getProgress() { return progress; }
-
-    boolean canGoBack() { return canGoBack; }
-
-    boolean canGoForward() { return canGoForward; }
-
-    boolean isPlayingAudio() { return playingAudio; }
-
-    void setMuted(boolean muted) { webKitWebView.setMuted(muted); }
 
     /** Whether the page is muted. Once it is destroyed, whether it was then. */
-    boolean isMuted() { return destroyed ? mutedWhenDestroyed : webKitWebView.isMuted(); }
+    public boolean isAudioMuted() {
+        if (destroyed)
+            return mutedWhenDestroyed;
+        checkThread();
+        return webKitWebView.isMuted();
+    }
 
     /**
      * Shows the address of a page without a title as android.webkit.WebView does: without "http://", "https://",
@@ -209,37 +376,85 @@ final class WebPage {
         if (newTitle.equals(reportedTitle))
             return;
         reportedTitle = newTitle;
-        if (delegate != null)
-            delegate.onReceivedTitle(newTitle);
+        chromeClient.onReceivedTitle(this, newTitle);
     }
 
-    void loadUrl(@NonNull String url) {
+    public void loadUrl(@NonNull String url) {
+        checkThread();
         originalUrl = url;
         webKitWebView.loadUrl(url);
     }
 
-    void loadHtml(@NonNull String content, @Nullable String baseUri) {
+    /** Loads HTML content, with {@code baseUri} as its address, or about:blank if it is null. */
+    public void loadHtml(@NonNull String content, @Nullable String baseUri) {
+        checkThread();
         originalUrl = baseUri;
         webKitWebView.loadHtml(content, baseUri);
     }
 
-    void goBack() { webKitWebView.goBack(); }
+    /** Loads HTML content, as {@link #loadHtml} does: the page always reads the content as UTF-8 HTML. */
+    public void loadData(@NonNull String data, @Nullable String mimeType, @Nullable String encoding) {
+        loadDataWithBaseURL(null, data, mimeType, encoding, null);
+    }
 
-    void goForward() { webKitWebView.goForward(); }
+    /**
+     * Loads HTML content with {@code baseUrl} as its address, as {@link #loadHtml} does. As with
+     * android.webkit.WebView, the other arguments are advisory: the page always reads the content as UTF-8 HTML.
+     */
+    public void loadDataWithBaseURL(@Nullable String baseUrl, @NonNull String data, @Nullable String mimeType,
+                                    @Nullable String encoding, @Nullable String historyUrl) {
+        loadHtml(data, baseUrl);
+    }
 
-    void reload() { webKitWebView.reload(); }
+    public void goBack() {
+        checkThread();
+        webKitWebView.goBack();
+    }
 
-    void stopLoading() { webKitWebView.stopLoading(); }
+    public void goForward() {
+        checkThread();
+        webKitWebView.goForward();
+    }
 
-    void terminateWebProcess() { webKitWebView.terminateWebProcess(); }
+    public void reload() {
+        checkThread();
+        webKitWebView.reload();
+    }
 
-    /** Returns null once the page is destroyed. */
-    @Nullable
-    byte[] saveState() {
+    public void stopLoading() {
+        checkThread();
+        webKitWebView.stopLoading();
+    }
+
+    /**
+     * Ends the web process that runs the page, as {@link WebView#terminateWebProcess()} does. The page then gets
+     * {@link WebPageClient#onWebProcessTerminated} with {@link WebPageClient#WEB_PROCESS_TERMINATED_BY_API}, and stays
+     * usable.
+     */
+    public void terminateWebProcess() {
+        checkThread();
+        webKitWebView.terminateWebProcess();
+    }
+
+    /**
+     * Saves the history of the page, for {@link #restoreState} to give it to a new page later, as
+     * {@link WebView#saveState()} does. Returns null only once the page is destroyed.
+     */
+    public @Nullable byte[] saveState() {
+        if (destroyed)
+            return null;
+        checkThread();
         return webKitWebView.saveState();
     }
 
-    boolean restoreState(@NonNull byte[] state) {
+    /**
+     * Gives a new page, before it loads anything, the history that {@link #saveState} saved, and loads its current
+     * page again, as {@link WebView#restoreState} does. Returns false, and loads nothing, if the state has no page or
+     * this version of WPE WebKit cannot read it.
+     */
+    public boolean restoreState(@NonNull byte[] state) {
+        checkThread();
+        Objects.requireNonNull(state, "state");
         if (!webKitWebView.restoreState(state))
             return false;
         canGoBack = webKitWebView.canGoBack();
@@ -247,14 +462,62 @@ final class WebPage {
         return true;
     }
 
-    void evaluateJavascript(@NonNull String script, @Nullable WebKitWebView.EvalCallback callback) {
+    /**
+     * Runs a script in the page and gives its result to {@code callback}, if any, on the main thread, as a JSON value.
+     * Does nothing once the page is destroyed: the script does not run, and the callback is not called.
+     */
+    public void evaluateJavascript(@NonNull String script, @Nullable JavascriptCallback callback) {
+        checkThread();
         if (!destroyed)
-            webKitWebView.evaluateJavascript(script, callback);
+            webKitWebView.evaluateJavascript(script, callback != null ? callback::onResult : null);
     }
 
-    /** A maxWidth or maxHeight of 0 leaves that side unlimited. Gives null, later, once the page is destroyed. */
-    void captureSnapshot(int region, int maxWidth, int maxHeight, @NonNull WebKitWebView.SnapshotCallback callback) {
-        webKitWebView.captureSnapshot(region, maxWidth, maxHeight, callback);
+    /**
+     * Captures a snapshot of the visible part of the page, as {@link WebView#captureSnapshot(WebView.SnapshotCallback)}
+     * does, also while the page has no view: the page is painted again at its size. The callback always runs later, on
+     * the main thread, with null if the snapshot could not be taken, as when the page is already destroyed.
+     */
+    public void captureSnapshot(@NonNull SnapshotCallback callback) {
+        captureSnapshot(SNAPSHOT_REGION_VISIBLE, callback);
+    }
+
+    /**
+     * Captures a snapshot of the page for the given {@code region}, as
+     * {@link WebView#captureSnapshot(int, WebView.SnapshotCallback)} does.
+     *
+     * @throws IllegalArgumentException if the region is not {@link #SNAPSHOT_REGION_VISIBLE} or
+     *     {@link #SNAPSHOT_REGION_FULL_DOCUMENT}.
+     * @throws NullPointerException if the callback is null.
+     */
+    public void captureSnapshot(@SnapshotRegion int region, @NonNull SnapshotCallback callback) {
+        checkThread();
+        checkSnapshotArguments(region, 0, 0, callback);
+        webKitWebView.captureSnapshot(region, 0, 0, callback::onResult);
+    }
+
+    /**
+     * Captures a snapshot scaled down to fit in {@code maxWidth} by {@code maxHeight} pixels, as
+     * {@link WebView#captureSnapshot(int, int, int, WebView.SnapshotCallback)} does. A limit of 0 leaves that side
+     * unlimited.
+     *
+     * @throws IllegalArgumentException if the region is not {@link #SNAPSHOT_REGION_VISIBLE} or
+     *     {@link #SNAPSHOT_REGION_FULL_DOCUMENT}, or {@code maxWidth} or {@code maxHeight} is negative.
+     * @throws NullPointerException if the callback is null.
+     */
+    public void captureSnapshot(@SnapshotRegion int region, int maxWidth, int maxHeight,
+                                @NonNull SnapshotCallback callback) {
+        checkThread();
+        checkSnapshotArguments(region, maxWidth, maxHeight, callback);
+        webKitWebView.captureSnapshot(region, maxWidth, maxHeight, callback::onResult);
+    }
+
+    static void checkSnapshotArguments(int region, int maxWidth, int maxHeight, @NonNull SnapshotCallback callback) {
+        Objects.requireNonNull(callback, "callback");
+        if (region != SNAPSHOT_REGION_VISIBLE && region != SNAPSHOT_REGION_FULL_DOCUMENT)
+            throw new IllegalArgumentException("Unknown snapshot region: " + region);
+        if (maxWidth < 0 || maxHeight < 0)
+            throw new IllegalArgumentException("Snapshot size limits must not be negative: " + maxWidth + "x" +
+                                               maxHeight);
     }
 
     /** Cancels the JavaScript dialogs that are not answered yet. */
@@ -263,22 +526,79 @@ final class WebPage {
             pendingScriptDialogs.get(0).cancel();
     }
 
-    void destroy() {
+    // Cancels the requests that wait for an answer from the clients, when they stop hearing of the page: those of the
+    // client, for HTTP authentication, and those of the chrome client, JavaScript dialogs and file and color fields.
+    // The clients hear that the requests of HTTP authentication and of a color field are gone, as when the page ends
+    // them, so that they close what they show for them. Downloads are the app's once they started, and go on. The
+    // clients and the requests are taken first: as a client hears of one, it may answer the others, set other clients,
+    // or destroy the page, which drops its requests without a word, and the clients still hear of those.
+    void cancelRequestsOfClients(boolean ofClient, boolean ofChromeClient) {
+        WebPageClient requestsClient = client;
+        WebPageChromeClient requestsChromeClient = chromeClient;
+        ArrayList<HttpAuthRequest> requests = new ArrayList<>();
+        if (ofClient) {
+            for (int i = 0; i < httpAuthRequests.size(); i++)
+                requests.add(httpAuthRequests.valueAt(i));
+        }
+        if (ofChromeClient) {
+            cancelScriptDialogs();
+            if (fileChooser != null)
+                fileChooser.onResult(null);
+            if (colorChooser != null) {
+                colorChooser.cancel();
+                requestsChromeClient.onHideColorChooser(this);
+            }
+        }
+        for (HttpAuthRequest request : requests) {
+            if (request.ended)
+                continue;
+            request.cancel();
+            requestsClient.onHttpAuthRequestCanceled(this, request);
+        }
+    }
+
+    /**
+     * Destroys the page, after taking it out of the view that shows it. Its JavaScript dialogs and other requests that
+     * wait for an answer are cancelled, and its clients do not hear of them. The clients of a WebView that made the
+     * page, and goes on, do hear of those for HTTP authentication and color fields, as when the view lets go of the
+     * page otherwise. Does nothing if the page is already destroyed.
+     */
+    public void destroy() {
         if (destroyed)
             return;
+        checkThread();
+        WebView oldView = view;
+        if (oldView != null) {
+            oldView.onPageDestroyed(this);
+            // The view's clients, which heard there that the requests of the page are gone, may have destroyed it.
+            if (destroyed) {
+                oldView.reportExitedFullscreen();
+                return;
+            }
+        }
         // Answer the dialogs while the page can still take the answers.
         cancelScriptDialogs();
+        alertToShow = null;
+        fileChooser = null;
         mutedWhenDestroyed = webKitWebView.isMuted();
         destroyed = true;
         // This also cancels the requests of file and color fields.
         webKitWebView.destroy();
         httpAuthRequests.clear();
         playingAudio = false;
+        inputFieldFocused = false;
         settings.detach();
         webKitSettings.destroy();
         // A request that the app still holds, such as an HTTP authentication waiting for credentials, keeps the page,
-        // but no longer the view or its activity.
-        delegate = null;
+        // but no longer its clients, nor what they hold, such as a view or an activity.
+        client = new WebPageClient();
+        chromeClient = new WebPageChromeClient();
+        context.removePage(this);
+        if (context.endsWithItsPages && !context.hasPages())
+            context.destroy();
+        // The chrome client of the view hears that the page left fullscreen once the page is gone.
+        if (oldView != null)
+            oldView.reportExitedFullscreen();
     }
 
     // WebKit is answered on the main thread, where its main loop runs. Returns whether the task was sent there.
@@ -291,38 +611,80 @@ final class WebPage {
 
     // The network process tells when Android blocked a connection before it ends it, so it is known by the time the
     // load fails because of it. Ending the connection fails the load with one of these codes; other failures, such as
-    // a host name that does not resolve, have another reason.
+    // a host name that does not resolve, have another reason. The check needs the application context only, so it
+    // works for a page with no view.
     @NonNull
     WPEResourceError loadError(@NonNull Uri uri, int errorCode, @NonNull String description) {
         String host = uri.getHost();
-        boolean endedConnection = errorCode == WebViewClient.ERROR_IO || errorCode == WebViewClient.ERROR_CONNECT ||
-                                  errorCode == WebViewClient.ERROR_UNKNOWN;
+        boolean endedConnection = errorCode == WPEResourceError.ERROR_IO ||
+                                  errorCode == WPEResourceError.ERROR_CONNECT ||
+                                  errorCode == WPEResourceError.ERROR_UNKNOWN;
         if (!endedConnection || host == null ||
             !LocalNetworkAccess.getInstance().isBlocked(context.getApplicationContext(), host))
             return new WPEResourceError(errorCode, description);
         // WebKit's description would say that the server ended the connection.
-        return new WPEResourceError(WebViewClient.ERROR_LOCAL_NETWORK_ACCESS_DENIED,
+        return new WPEResourceError(WPEResourceError.ERROR_LOCAL_NETWORK_ACCESS_DENIED,
                                     "Could not connect to " + host +
                                         ": the app does not have the local network permission");
+    }
+
+    // The app goes first. If it does not take the dialog, the view that shows the page shows its own, or the page gets
+    // an answer at once if it is not shown. Package-private: called from the PageListener inner class (avoids a
+    // synthetic accessor).
+    void runScriptDialog(@NonNull ScriptDialog dialog) {
+        boolean handled = false;
+        if (dialog.type == WebKitWebView.SCRIPT_DIALOG_ALERT)
+            handled = chromeClient.onJsAlert(this, dialog.url, dialog.message, dialog);
+        else if (dialog.type == WebKitWebView.SCRIPT_DIALOG_CONFIRM)
+            handled = chromeClient.onJsConfirm(this, dialog.url, dialog.message, dialog);
+        else if (dialog.type == WebKitWebView.SCRIPT_DIALOG_PROMPT)
+            handled = chromeClient.onJsPrompt(this, dialog.url, dialog.message, dialog.defaultText, dialog);
+        else if (dialog.type == WebKitWebView.SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM)
+            handled = chromeClient.onJsBeforeUnload(this, dialog.url, dialog.message, dialog);
+        // The app may also have answered without taking the dialog over, or destroyed the page.
+        if (handled || dialog.isAnswered())
+            return;
+        if (view != null && view.isShowingPage())
+            view.showScriptDialog(dialog);
+        else
+            answerScriptDialogWhileNotShown(dialog);
+    }
+
+    // A page that is not shown would wait for an answer from a user who cannot see the question, and its scripts, and
+    // others in its web process, with it. So it gets an answer at once, which keeps what the user may lose: the message
+    // of an alert is kept for the next view that shows the page, and the other dialogs are cancelled, which keeps the
+    // page where it is for a beforeunload confirmation. The same answers close a built-in dialog that is open when its
+    // page stops being shown. Package-private: also called by the view.
+    void answerScriptDialogWhileNotShown(@NonNull ScriptDialog dialog) {
+        if (dialog.isAnswered())
+            return;
+        if (dialog.type == WebKitWebView.SCRIPT_DIALOG_ALERT) {
+            alertToShow = dialog;
+            dialog.confirm();
+            return;
+        }
+        dialog.cancel();
+        String what = dialog.type == WebKitWebView.SCRIPT_DIALOG_PROMPT    ? "prompt() was cancelled"
+                      : dialog.type == WebKitWebView.SCRIPT_DIALOG_CONFIRM ? "confirm() was cancelled"
+                                                                           : "The page stays: its beforeunload "
+                                                                                 + "confirmation was cancelled";
+        webKitWebView.warnInConsole(what + ", because the page is not shown");
     }
 
     class PageListener implements WebKitWebView.Listener {
         @Override
         public void onClose() {
-            if (delegate != null)
-                delegate.onCloseWindow();
+            chromeClient.onCloseWindow(WebPage.this);
         }
 
         @Override
         public void onPageStarted(@NonNull String startedUrl) {
-            if (delegate != null)
-                delegate.onPageStarted(startedUrl);
+            client.onPageStarted(WebPage.this, startedUrl);
         }
 
         @Override
         public void onPageFinished(@NonNull String finishedUrl) {
-            if (delegate != null)
-                delegate.onPageFinished(finishedUrl);
+            client.onPageFinished(WebPage.this, finishedUrl);
         }
 
         @Override
@@ -333,8 +695,7 @@ final class WebPage {
         @Override
         public void onLoadProgress(double estimatedProgress) {
             progress = (int)Math.round(estimatedProgress * 100);
-            if (delegate != null)
-                delegate.onProgressChanged(progress);
+            chromeClient.onProgressChanged(WebPage.this, progress);
         }
 
         @Override
@@ -347,29 +708,24 @@ final class WebPage {
         public void onHistoryChanged(@NonNull String uri, boolean goBack, boolean goForward) {
             canGoBack = goBack;
             canGoForward = goForward;
-            if (delegate != null)
-                delegate.doUpdateVisitedHistory(uri);
+            client.doUpdateVisitedHistory(WebPage.this, uri, /* isReload */ false);
             updateTitle();
         }
 
         @Override
         public void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType,
                                         int statusCode, boolean isMainFrame) {
-            if (delegate == null)
-                return;
             WPEResourceRequest request = new HttpResourceRequest(Uri.parse(uri), method, isMainFrame, false, false);
             WPEResourceResponse response = new WPEResourceResponse(mimeType, statusCode, Collections.emptyMap());
-            delegate.onReceivedHttpError(request, response);
+            client.onReceivedHttpError(WebPage.this, request, response);
         }
 
         @Override
         public void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode,
                                     @NonNull String description) {
-            if (delegate == null)
-                return;
             Uri parsedUri = Uri.parse(uri);
-            delegate.onReceivedError(new HttpResourceRequest(parsedUri, method, true, false, false),
-                                     loadError(parsedUri, errorCode, description));
+            client.onReceivedError(WebPage.this, new HttpResourceRequest(parsedUri, method, true, false, false),
+                                   loadError(parsedUri, errorCode, description));
         }
 
         @Override
@@ -377,40 +733,51 @@ final class WebPage {
                                    @NonNull String defaultText) {
             ScriptDialog dialog = new ScriptDialog(dialogPtr, type, dialogUrl, message, defaultText);
             pendingScriptDialogs.add(dialog);
-            if (delegate != null)
-                delegate.onScriptDialog(dialog);
-            else
-                dialog.cancel();
+            runScriptDialog(dialog);
         }
 
+        // The focused field went with the page, and so did the fullscreen element: the view that shows the page lets
+        // go of both before the client hears that the page is gone.
         @Override
         public void onWebProcessTerminated(int reason) {
-            if (delegate != null)
-                delegate.onWebProcessTerminated(reason);
+            boolean fieldFocused = inputFieldFocused;
+            inputFieldFocused = false;
+            if (view != null)
+                view.onPageWebProcessTerminated(fieldFocused);
+            client.onWebProcessTerminated(WebPage.this, reason);
         }
 
         // WebKit can only put the page of the new window in a view made for it, in this call.
         @Override
         public @Nullable WebKitWebView onCreateWindow(boolean isUserGesture) {
-            WebPage window = delegate != null ? delegate.onCreateWindow(isUserGesture) : null;
-            // The window may have been destroyed meanwhile.
-            return window != null && !window.destroyed ? window.webKitWebView : null;
+            WebPageChromeClient.WindowRequest request =
+                new WebPageChromeClient.WindowRequest(WebPage.this, isUserGesture);
+            windowRequest = request;
+            WebPage window;
+            try {
+                chromeClient.onCreateWindow(WebPage.this, request);
+            } catch (RuntimeException | Error exception) {
+                // A client that failed opens no window, also if it made its page.
+                request.decline();
+                throw exception;
+            } finally {
+                windowRequest = null;
+                // The window opens if its page was made, and was not destroyed meanwhile.
+                window = request.close();
+            }
+            return window != null ? window.webKitWebView : null;
         }
 
         @Override
         public boolean shouldOverrideUrlLoading(@NonNull String uri, @NonNull String method, boolean isMainFrame,
                                                 boolean hasGesture, boolean isRedirect) {
-            return delegate != null && delegate.shouldOverrideUrlLoading(new HttpResourceRequest(
-                                           Uri.parse(uri), method, isMainFrame, hasGesture, isRedirect));
+            return client.shouldOverrideUrlLoading(
+                WebPage.this, new HttpResourceRequest(Uri.parse(uri), method, isMainFrame, hasGesture, isRedirect));
         }
 
         @Override
         public void onDownloadStarted(@NonNull WebKitDownload download) {
-            WPEDownload wpeDownload = new WPEDownload(download);
-            if (delegate != null)
-                delegate.onDownloadStart(wpeDownload);
-            else
-                wpeDownload.cancel();
+            client.onDownloadStart(WebPage.this, new WPEDownload(download));
         }
 
         @Override
@@ -429,8 +796,7 @@ final class WebPage {
             if (result == null || result.requestPtr != requestPtr)
                 return;
             result.end();
-            if (delegate != null)
-                delegate.onHideColorChooser();
+            chromeClient.onHideColorChooser(WebPage.this);
         }
 
         @Override
@@ -438,10 +804,7 @@ final class WebPage {
                                       @NonNull String realm, boolean isProxy, boolean isRetry) {
             HttpAuthRequest handler = new HttpAuthRequest(requestId, scheme, port, isProxy, isRetry);
             httpAuthRequests.put(requestId, handler);
-            if (delegate != null)
-                delegate.onReceivedHttpAuthRequest(handler, host, realm);
-            else
-                handler.cancel();
+            client.onReceivedHttpAuthRequest(WebPage.this, handler, host, realm);
         }
 
         @Override
@@ -449,9 +812,9 @@ final class WebPage {
             HttpAuthRequest handler = httpAuthRequests.get(requestId);
             if (handler == null)
                 return;
+            handler.ended = true;
             httpAuthRequests.remove(requestId);
-            if (delegate != null)
-                delegate.onHttpAuthRequestCanceled(handler);
+            client.onHttpAuthRequestCanceled(WebPage.this, handler);
         }
 
         @Override
@@ -460,8 +823,41 @@ final class WebPage {
             if (destroyed || playingAudio == isPlayingAudio)
                 return;
             playingAudio = isPlayingAudio;
-            if (delegate != null)
-                delegate.onPlayingAudioChanged(isPlayingAudio);
+            chromeClient.onPlayingAudioChanged(WebPage.this, isPlayingAudio);
+        }
+    }
+
+    // The page keeps whether a field has the focus, and passes the changes on to the view that shows it, which
+    // connects the input method. A change posted before the page was destroyed may arrive after it.
+    class InputMethodListener implements WPEInputMethodContext.Listener {
+        @Override
+        public void onFocusIn() {
+            if (destroyed)
+                return;
+            inputFieldFocused = true;
+            if (view != null)
+                view.onImeFieldFocused(true);
+        }
+
+        @Override
+        public void onFocusOut() {
+            if (destroyed)
+                return;
+            inputFieldFocused = false;
+            if (view != null)
+                view.onImeFieldFocused(false);
+        }
+
+        @Override
+        public void onPreeditReset() {
+            if (!destroyed && view != null)
+                view.onImePreeditReset();
+        }
+
+        @Override
+        public void onContentTypeChanged() {
+            if (!destroyed && view != null)
+                view.onImeContentTypeChanged();
         }
     }
 
@@ -523,28 +919,36 @@ final class WebPage {
 
     // Package-private: called from the PageListener inner class (avoids a synthetic accessor).
     boolean showFileChooser(long requestPtr, @NonNull String[] mimeTypes, boolean selectMultiple) {
-        WebChromeClient.FileChooserParams params =
-            new WebChromeClient.FileChooserParams(selectMultiple ? WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
-                                                                 : WebChromeClient.FileChooserParams.MODE_OPEN,
-                                                  mimeTypes);
+        WebPageChromeClient.FileChooserParams params = new WebPageChromeClient.FileChooserParams(
+            selectMultiple ? WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE
+                           : WebPageChromeClient.FileChooserParams.MODE_OPEN,
+            mimeTypes);
         FileChooserResult result = new FileChooserResult(requestPtr);
+        fileChooser = result;
         boolean taken = false;
         try {
-            taken = delegate != null && delegate.onShowFileChooser(params, result);
+            taken = chromeClient.onShowFileChooser(this, params, result);
         } finally {
             // A request that is not taken is cancelled, so the callback, if the app keeps it, has nothing to answer.
             if (!taken)
-                result.answered = true;
+                result.end();
         }
         return taken;
     }
 
-    private class FileChooserResult implements WPECallback<String[]> {
+    // Package-private, like the field that keeps the request: called by cancelRequestsOfClients.
+    class FileChooserResult implements WPECallback<String[]> {
         private final long requestPtr;
         // Once answered, the request is gone, and its pointer may be used by another one.
         boolean answered;
 
         FileChooserResult(long requestPtr) { this.requestPtr = requestPtr; }
+
+        void end() {
+            answered = true;
+            if (fileChooser == this)
+                fileChooser = null;
+        }
 
         @Override
         public void onResult(@Nullable String[] paths) {
@@ -563,7 +967,7 @@ final class WebPage {
             // Destroying the page cancelled the request.
             if (answered || destroyed)
                 return;
-            answered = true;
+            end();
             if (paths == null || paths.length == 0)
                 webKitWebView.fileChooserCancel(requestPtr);
             else
@@ -577,8 +981,8 @@ final class WebPage {
         colorChooser = result;
         boolean taken = false;
         try {
-            taken = delegate != null &&
-                    delegate.onShowColorChooser(new WebChromeClient.ColorChooserParams(color, supportsAlpha), result);
+            taken = chromeClient.onShowColorChooser(
+                this, new WebPageChromeClient.ColorChooserParams(color, supportsAlpha), result);
         } finally {
             if (!taken)
                 result.end();
@@ -586,7 +990,8 @@ final class WebPage {
         return taken;
     }
 
-    // Package-private, like the field that keeps the request: read by the PageListener inner class.
+    // Package-private, like the field that keeps the request: read by the PageListener inner class. It is also the
+    // callback of the view's chrome client.
     class ColorChooserResult implements WebChromeClient.ColorChooserCallback {
         final long requestPtr;
         private final boolean supportsAlpha;
@@ -625,13 +1030,17 @@ final class WebPage {
         }
     }
 
-    // Package-private, like the field that keeps the requests: read by the PageListener inner class.
+    // Package-private, like the field that keeps the requests: read by the PageListener inner class. It is also the
+    // handler of the view's client.
     class HttpAuthRequest implements WebViewClient.HttpAuthHandler {
         private final long requestId;
         private final String scheme;
         private final int port;
         private final boolean isProxy;
         private final boolean isRetry;
+        // Whether the request ended, answered by the app or cancelled by WebKit. Destroying the page drops it without
+        // ending it this way, as nobody hears of that.
+        boolean ended;
 
         HttpAuthRequest(long requestId, @NonNull String scheme, int port, boolean isProxy, boolean isRetry) {
             this.requestId = requestId;
@@ -647,6 +1056,7 @@ final class WebPage {
         public void proceed(@NonNull String username, @NonNull String password) {
             if (runOnMainThread(() -> proceed(username, password)) || destroyed)
                 return;
+            ended = true;
             httpAuthRequests.remove(requestId);
             webKitWebView.authenticate(requestId, username, password);
         }
@@ -655,6 +1065,7 @@ final class WebPage {
         public void cancel() {
             if (runOnMainThread(this::cancel) || destroyed)
                 return;
+            ended = true;
             httpAuthRequests.remove(requestId);
             webKitWebView.cancelAuthentication(requestId);
         }

@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -52,7 +53,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * How a page goes fullscreen and leaves it. The element fills the WebView, and the app hears of it through
  * onEnterFullscreen and onExitFullscreen, once for each change, whichever side leaves fullscreen: the page, the app,
- * Android when the WebView leaves its window, or the end of the web process.
+ * Android when the WebView leaves its window, the page leaving the view, or the end of the web process.
  */
 @RunWith(AndroidJUnit4.class)
 public class WebViewFullscreenTest {
@@ -90,6 +91,11 @@ public class WebViewFullscreenTest {
     // The calls of the chrome client, in order.
     private final BlockingQueue<String> events = new LinkedBlockingQueue<>();
     private final AtomicBoolean declineFullscreen = new AtomicBoolean();
+    // What the app does once, when it hears that the page left fullscreen.
+    private final AtomicReference<Consumer<WebView>> onExit = new AtomicReference<>();
+    // The color requests the chrome client took, and what it does once when it hears that one is gone.
+    private final AtomicInteger colorRequests = new AtomicInteger();
+    private final AtomicReference<Consumer<WebView>> onHideColorChooser = new AtomicReference<>();
     private ActivityScenario<WebViewTestActivity> scenario;
 
     @Before
@@ -108,6 +114,23 @@ public class WebViewFullscreenTest {
             @Override
             public void onExitFullscreen(@NonNull WebView view) {
                 addEvent(view, EXIT);
+                Consumer<WebView> action = onExit.getAndSet(null);
+                if (action != null)
+                    action.accept(view);
+            }
+
+            @Override
+            public boolean onShowColorChooser(@NonNull WebView view, @NonNull ColorChooserParams params,
+                                              @NonNull ColorChooserCallback callback) {
+                colorRequests.incrementAndGet();
+                return true;
+            }
+
+            @Override
+            public void onHideColorChooser(@NonNull WebView view) {
+                Consumer<WebView> action = onHideColorChooser.getAndSet(null);
+                if (action != null)
+                    action.accept(view);
             }
 
             private void addEvent(WebView view, String event) {
@@ -384,6 +407,165 @@ public class WebViewFullscreenTest {
         scenario.onActivity(activity -> activity.getWebView().destroy());
         assertNextEvent(EXIT);
         assertFalse(isFullscreen());
+        assertNoMoreEvents();
+    }
+
+    // The app hears that the page left fullscreen as the view hands it over, once the view is done with it, and only
+    // then. Shown again, the page can go fullscreen again.
+    @Test
+    public void testReleasedPageLeavesFullscreen() throws Exception {
+        enterFullscreen();
+        AtomicReference<String> pageOnExit = new AtomicReference<>();
+        onExit.set(view -> pageOnExit.set(view.getPage() == null ? "released" : "still shown"));
+        AtomicReference<WebPage> released = new AtomicReference<>();
+        try {
+            scenario.onActivity(activity -> released.set(activity.getWebView().releasePage()));
+            assertNextEvent(EXIT);
+            assertEquals("released", pageOnExit.get());
+            assertFalse(isFullscreen());
+            assertEquals(NONE, WebPageTestHelper.waitForResult(released.get(), FULLSCREEN_ELEMENT, NONE));
+
+            scenario.onActivity(activity -> activity.getWebView().setPage(released.get()));
+            assertEquals("\"visible\"", waitForJavaScriptResult("document.visibilityState", "\"visible\""));
+            assertNoMoreEvents();
+            enterFullscreen();
+        } finally {
+            scenario.onActivity(activity -> {
+                if (released.get() != null)
+                    released.get().destroy();
+            });
+        }
+    }
+
+    // The app hears that the page left fullscreen as the page that the view made is destroyed, once it is, and only
+    // then: showing another page later does not tell it again.
+    @Test
+    public void testDestroyedPageLeavesFullscreen() throws Exception {
+        enterFullscreen();
+        AtomicReference<String> pageOnExit = new AtomicReference<>();
+        onExit.set(view -> {
+            WebPage page = view.getPage();
+            pageOnExit.set(page != null && page.isDestroyed() ? "destroyed" : "not destroyed");
+        });
+        AtomicReference<WebContext> context = new AtomicReference<>();
+        AtomicReference<WebPage> other = new AtomicReference<>();
+        try {
+            scenario.onActivity(activity -> activity.getWebView().getPage().destroy());
+            assertNextEvent(EXIT);
+            assertEquals("destroyed", pageOnExit.get());
+            assertFalse(isFullscreen());
+
+            scenario.onActivity(activity -> {
+                context.set(new WebContext(activity, false, true));
+                other.set(new WebPage(context.get()));
+                activity.getWebView().setPage(other.get());
+            });
+            assertNoMoreEvents();
+        } finally {
+            scenario.onActivity(activity -> {
+                activity.getWebView().destroy();
+                if (other.get() != null)
+                    other.get().destroy();
+                if (context.get() != null)
+                    context.get().destroy();
+            });
+        }
+    }
+
+    // The app hears that the page left fullscreen before the view is destroyed, also when the chrome client destroys
+    // the view as it hears that a color request of the page that leaves is gone, before the view could tell.
+    @Test
+    public void testDestroyOnHideOfAColorRequestOfAFullscreenPage() throws Exception {
+        enterFullscreen();
+        evaluateJavascript("var field = document.createElement('input'); field.type = 'color';"
+                           + " document.getElementById('box').appendChild(field); field.click(); 'opened'");
+        WebPageTestHelper.waitFor("The chrome client got no color request", () -> colorRequests.get() == 1);
+        AtomicReference<String> viewOnExit = new AtomicReference<>();
+        onExit.set(view -> viewOnExit.set(view.getPage() != null ? "not destroyed" : "destroyed"));
+        onHideColorChooser.set(WebView::destroy);
+        AtomicReference<WebContext> context = new AtomicReference<>();
+        AtomicReference<WebPage> other = new AtomicReference<>();
+        try {
+            scenario.onActivity(activity -> {
+                context.set(new WebContext(activity, false, true));
+                other.set(new WebPage(context.get()));
+                activity.getWebView().setPage(other.get());
+            });
+            assertNextEvent(EXIT);
+            assertEquals("not destroyed", viewOnExit.get());
+            scenario.onActivity(activity -> {
+                assertNull(activity.getWebView().getPage());
+                assertNull(other.get().getView());
+            });
+            assertNoMoreEvents();
+        } finally {
+            scenario.onActivity(activity -> {
+                if (other.get() != null)
+                    other.get().destroy();
+                if (context.get() != null)
+                    context.get().destroy();
+            });
+        }
+    }
+
+    // The app hears that the page left fullscreen as it left the view once the view is done with it, so it may show
+    // yet another page then.
+    @Test
+    public void testAnotherPageShownOnExit() throws Exception {
+        enterFullscreen();
+        AtomicReference<WebContext> context = new AtomicReference<>();
+        AtomicReference<WebPage> second = new AtomicReference<>();
+        AtomicReference<WebPage> third = new AtomicReference<>();
+        scenario.onActivity(activity -> {
+            context.set(new WebContext(activity, false, true));
+            second.set(new WebPage(context.get()));
+            third.set(new WebPage(context.get()));
+            third.get().loadHtml("<p>Third</p>", null);
+        });
+        try {
+            onExit.set(view -> view.setPage(third.get()));
+            scenario.onActivity(activity -> activity.getWebView().setPage(second.get()));
+            assertNextEvent(EXIT);
+            scenario.onActivity(activity -> {
+                WebView view = activity.getWebView();
+                assertEquals(third.get(), view.getPage());
+                assertEquals(view, third.get().getView());
+                assertNull(second.get().getView());
+                assertFalse(view.isFullscreen());
+            });
+            assertEquals("\"visible\"",
+                         WebPageTestHelper.waitForResult(third.get(), "document.visibilityState", "\"visible\""));
+            assertNoMoreEvents();
+        } finally {
+            scenario.onActivity(activity -> {
+                second.get().destroy();
+                third.get().destroy();
+                context.get().destroy();
+            });
+        }
+    }
+
+    // The app may destroy the view when it hears that its page left fullscreen as the view is destroyed.
+    @Test
+    public void testDestroyOnExitOfDestroy() throws Exception {
+        enterFullscreen();
+
+        onExit.set(WebView::destroy);
+        scenario.onActivity(activity -> activity.getWebView().destroy());
+        assertNextEvent(EXIT);
+        scenario.onActivity(activity -> assertNull(activity.getWebView().getInternalWebKitWebView()));
+        assertNoMoreEvents();
+    }
+
+    // The app may destroy the view when it hears that its page left fullscreen as the activity stops.
+    @Test
+    public void testDestroyOnExitOfAStoppedActivity() throws Exception {
+        enterFullscreen();
+
+        onExit.set(WebView::destroy);
+        scenario.moveToState(Lifecycle.State.CREATED);
+        assertNextEvent(EXIT);
+        scenario.onActivity(activity -> assertNull(activity.getWebView().getInternalWebKitWebView()));
         assertNoMoreEvents();
     }
 }

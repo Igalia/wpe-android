@@ -264,6 +264,46 @@ public class WebViewWindowTest {
         scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
     }
 
+    // Takes the page out of the WebView of the activity, which hands it over, and returns it.
+    private static WebPage releaseThePage(ActivityScenario<WebViewTestActivity> scenario) {
+        AtomicReference<WebPage> page = new AtomicReference<>();
+        scenario.onActivity(activity -> page.set(activity.getWebView().releasePage()));
+        return page.get();
+    }
+
+    /**
+     * A page that leaves its view, as a tab that the app takes out of the view that shows it, pauses its audible media,
+     * and plays it again when a view shows it again.
+     */
+    @Test
+    public void testAudibleMediaPausesWhileThePageIsOutOfItsView() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = playAudio(true);
+        WebPage page = releaseThePage(scenario);
+        try {
+            assertEquals(HIDDEN, WebPageTestHelper.waitForResult(page, VISIBILITY_STATE, HIDDEN));
+            assertEquals(PAUSED, WebPageTestHelper.waitForResult(page, "state()", PAUSED));
+            scenario.onActivity(activity -> activity.getWebView().setPage(page));
+            assertEquals(PLAYING, WebPageTestHelper.waitForResult(page, "state()", PLAYING));
+        } finally {
+            WebPageTestHelper.onMain(page::destroy);
+        }
+    }
+
+    /** By default, a page that leaves its view keeps playing its audible media. */
+    @Test
+    public void testAudibleMediaKeepsPlayingOutOfItsViewByDefault() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = playAudio(false);
+        WebPage page = releaseThePage(scenario);
+        try {
+            assertEquals(HIDDEN, WebPageTestHelper.waitForResult(page, VISIBILITY_STATE, HIDDEN));
+            String time = WebPageTestHelper.evaluate(page, "audio.currentTime");
+            assertEquals("true", WebPageTestHelper.waitForResult(
+                                     page, "state() == 'playing' && audio.currentTime != " + time, "true"));
+        } finally {
+            WebPageTestHelper.onMain(page::destroy);
+        }
+    }
+
     // Android gives the focus to the window of a new activity a moment after it is shown, and not at all while a window
     // over it has the focus, such as the notification shade.
     private static void waitForWindowFocus(ActivityScenario<WebViewTestActivity> scenario) throws Throwable {
