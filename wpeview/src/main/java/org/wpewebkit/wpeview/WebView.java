@@ -70,6 +70,14 @@ import java.util.Objects;
 /**
  * WebView is the public Android widget for the WPE browser engine.
  * It handles the Surface lifecycle, gestures, and UI delegation.
+ *
+ * <p>Pages follow the dark mode of the application: the {@code prefers-color-scheme} media feature tells them whether
+ * it is on, and pages that allow a dark color scheme get it. It is the night mode of the application's configuration,
+ * the same for every WebView of the app, which follows the device unless the app chooses its own with
+ * {@code UiModeManager.setApplicationNightMode()}. It follows neither the theme of the activity nor the night mode
+ * that AppCompat gives each activity, with {@code AppCompatDelegate.setDefaultNightMode()} or
+ * {@code setLocalNightMode()}: an app that wants light pages on a dark device, or that chooses its mode with
+ * AppCompat, gives the pages that mode with {@code UiModeManager.setApplicationNightMode()}.
  */
 @UiThread
 public class WebView extends FrameLayout {
