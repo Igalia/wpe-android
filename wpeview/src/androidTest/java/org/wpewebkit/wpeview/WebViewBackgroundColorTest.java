@@ -4,6 +4,8 @@ import android.app.UiModeManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.view.ViewGroup;
 
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -86,6 +88,64 @@ public class WebViewBackgroundColorTest {
     }
 
     @Test
+    public void defaultBeforeTheFirstFrameFollowsDarkMode() throws InterruptedException {
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
+        assertViewColor(Color.WHITE);
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+        assertViewColor(DARK_CANVAS);
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
+        assertViewColor(Color.WHITE);
+    }
+
+    @Test
+    public void defaultFollowsDarkModeAlsoOutOfTheWindow() throws InterruptedException {
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
+        AtomicReference<ViewGroup> parent = new AtomicReference<>();
+        activityRule.getScenario().onActivity(activity -> {
+            WebView view = activity.getWebView();
+            parent.set((ViewGroup)view.getParent());
+            parent.get().removeView(view);
+        });
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+        activityRule.getScenario().onActivity(activity -> {
+            Assert.assertEquals(DARK_CANVAS, ((ColorDrawable)activity.getWebView().getBackground()).getColor());
+            parent.get().addView(activity.getWebView());
+        });
+    }
+
+    @Test
+    public void anotherBackgroundOfTheAppStaysInDarkMode() throws InterruptedException {
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
+        GradientDrawable background = new GradientDrawable();
+        activityRule.getScenario().onActivity(activity -> activity.getWebView().setBackground(background));
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+        // Once the activity, and the view with it, has the new mode.
+        AtomicReference<Boolean> dark = new AtomicReference<>(false);
+        for (int attempt = 0; attempt < 20 && !dark.get(); attempt++) {
+            Thread.sleep(100);
+            activityRule.getScenario().onActivity(
+                activity -> dark.set(activity.getResources().getConfiguration().isNightModeActive()));
+        }
+        Assert.assertTrue(dark.get());
+        activityRule.getScenario().onActivity(
+            activity -> Assert.assertSame(background, activity.getWebView().getBackground()));
+    }
+
+    // Only pages that allow a dark color scheme are dark, whatever the color of the app.
+    @Test
+    public void colorOfTheAppStaysInDarkMode() throws InterruptedException {
+        activityRule.getScenario().onActivity(activity -> activity.getWebView().setBackgroundColor(Color.BLUE));
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+        WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), BLANK_PAGE,
+                                                   BASE);
+        assertPageColor(Color.BLUE);
+        assertViewColor(Color.BLUE);
+        WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), DARK_PAGE,
+                                                   BASE);
+        assertPageColor(DARK_CANVAS);
+    }
+
+    @Test
     public void pagesThatAllowDarkGetTheDarkCanvasInDarkMode() throws InterruptedException {
         WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
         WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), DARK_PAGE,
@@ -97,6 +157,20 @@ public class WebViewBackgroundColorTest {
         WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), BLANK_PAGE,
                                                    BASE);
         assertPageColor(Color.WHITE);
+    }
+
+    // The color the view shows until the first frame of a page, which the native fill layer below the page has too.
+    private void assertViewColor(int expected) throws InterruptedException {
+        AtomicReference<Integer> actual = new AtomicReference<>();
+        for (int attempt = 0; attempt < 20; attempt++) {
+            activityRule.getScenario().onActivity(
+                activity -> actual.set(((ColorDrawable)activity.getWebView().getBackground()).getColor()));
+            if (actual.get() == expected)
+                return;
+            // The view hears of the new night mode a moment after the application has it.
+            Thread.sleep(100);
+        }
+        Assert.assertEquals(expected, (int)actual.get());
     }
 
     // WebKit snapshots test its canvas color, not the native SurfaceControl fallback layer.

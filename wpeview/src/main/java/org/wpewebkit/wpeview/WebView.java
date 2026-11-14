@@ -26,6 +26,7 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Display;
@@ -52,6 +53,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 
 import org.wpewebkit.R;
+import org.wpewebkit.wpe.WPEDisplay;
 import org.wpewebkit.wpe.WPEEventType;
 import org.wpewebkit.wpe.WPEInputHints;
 import org.wpewebkit.wpe.WPEInputMethodContext;
@@ -79,6 +81,8 @@ import java.util.Objects;
 @UiThread
 public class WebView extends FrameLayout {
     private static final String LOGTAG = "WPEWebView";
+    // The canvas color that WebKit gives blank pages and pages in a dark color scheme while the app is in dark mode.
+    private static final int DARK_CANVAS_COLOR = 0xff1e1e1e;
 
     private WebContext wpeContext;
     private @Nullable OwnedContext ownedContext;
@@ -96,6 +100,16 @@ public class WebView extends FrameLayout {
     // The input type and options that the input method was last restarted for.
     private int imeInputType;
     private int imeOptions;
+    // The color behind pages that the app chose, in XML or with setBackgroundColor(), or null for the default.
+    private @Nullable Integer backgroundColor;
+    // The background that the view shows that color with, which it keeps unless the app gives it another drawable.
+    private @Nullable Drawable pageColorBackground;
+    // The display tells whether the app is in dark mode, as it tells the pages, so that the default color is theirs.
+    private WPEDisplay wpeDisplay;
+    private final WPEDisplay.DarkModeListener darkModeListener = () -> {
+        if (backgroundColor == null)
+            applyBackgroundColor();
+    };
     private PageSurfaceView surfaceView;
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
@@ -111,7 +125,7 @@ public class WebView extends FrameLayout {
     public WebView(@NonNull android.content.Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         // Validate XML before allocating the owned context or any native view objects.
-        int backgroundColor = initialBackgroundColor();
+        Integer backgroundColor = initialBackgroundColor();
         WebContext ownContext = new WebContext(context);
         init(ownContext, new OwnedContext(ownContext), false, backgroundColor, null);
     }
@@ -174,7 +188,7 @@ public class WebView extends FrameLayout {
 
     // The page of a new window is related to the page of its opener, which asks for it.
     private void init(@NonNull WebContext context, @Nullable OwnedContext ownedContext, boolean headless,
-                      @ColorInt int backgroundColor, @Nullable WebPage openerPage) {
+                      @Nullable Integer backgroundColor, @Nullable WebPage openerPage) {
         this.wpeContext = context;
         this.ownedContext = ownedContext;
         this.headless = headless;
@@ -201,14 +215,17 @@ public class WebView extends FrameLayout {
                 onImeContentTypeChanged();
             }
         });
-        this.wpeToplevel = new WPEToplevel(wpeContext.getWPEDisplay(), null);
+        this.wpeDisplay = wpeContext.getWPEDisplay();
+        this.wpeToplevel = new WPEToplevel(wpeDisplay, null);
         this.wpeToplevel.setListener(this::onFullscreenRequested);
-        applyBackgroundColor(backgroundColor);
+        this.backgroundColor = backgroundColor;
         // A new SurfaceView cuts its hole in the window only after its first draw. Until then the window shows this
-        // view's own background where the page goes, so give it the page color too. This also makes getBackground()
-        // match the page color.
-        if (getBackground() == null)
-            super.setBackgroundColor(backgroundColor);
+        // view's own background where the page goes, so give it the page color too, unless XML gave it a drawable that
+        // is no color. This also makes getBackground() match the page color.
+        if (backgroundColor != null)
+            pageColorBackground = getBackground();
+        applyBackgroundColor();
+        wpeDisplay.addDarkModeListener(darkModeListener);
         // WebKit gives every new view a toplevel of its own, which this replaces. The view starts out of any
         // toplevel and joins the WebView's when the WebView gets a surface; a headless WebView never gets one, so
         // its view stays in the toplevel for its whole life.
@@ -231,9 +248,12 @@ public class WebView extends FrameLayout {
 
     /**
      * Sets the opaque color behind the page, including before its first frame is available.
-     * The default is white. The same color is used by WebKit for pages without an explicit
-     * background; a page's CSS background takes precedence. This does not enable dark mode
-     * or change the page's text colors. Call again when the embedding app changes its theme.
+     * By default, WebKit paints a page without a CSS background white. While the app is in
+     * dark mode, a blank page and a page that allows a dark color scheme get the dark canvas
+     * color of that scheme instead, whatever the color set here. Before the first frame, the
+     * view shows white, or that dark color while the app is in dark mode, and follows the app
+     * when it switches. A color set here replaces both. A page's CSS background takes
+     * precedence.
      * A solid XML background color is used as the initial color; other Android background
      * drawables do not configure the native page background. To change the color later, call
      * this method: setBackground() and setBackgroundResource() do not change it.
@@ -245,26 +265,42 @@ public class WebView extends FrameLayout {
      */
     @Override
     public void setBackgroundColor(@ColorInt int color) {
-        applyBackgroundColor(color);
-        super.setBackgroundColor(color);
+        checkOpaque(color);
+        backgroundColor = color;
+        // It replaces any other background of the view.
+        pageColorBackground = getBackground();
+        applyBackgroundColor();
     }
 
-    private int initialBackgroundColor() {
-        int color =
-            getBackground() instanceof ColorDrawable ? ((ColorDrawable)getBackground()).getColor() : Color.WHITE;
-        if (Color.alpha(color) != 255)
-            throw new IllegalArgumentException("WebView background color must be opaque");
+    // The color of a solid XML background, or null if there is none.
+    private @Nullable Integer initialBackgroundColor() {
+        if (!(getBackground() instanceof ColorDrawable))
+            return null;
+        int color = ((ColorDrawable)getBackground()).getColor();
+        checkOpaque(color);
         return color;
     }
 
-    private void applyBackgroundColor(@ColorInt int color) {
+    private static void checkOpaque(@ColorInt int color) {
         if (Color.alpha(color) != 255)
             throw new IllegalArgumentException("WebView background color must be opaque");
+    }
+
+    // Only a color of the app goes to WebKit, which paints pages white by itself. Until the first frame of a page, the
+    // toplevel and the view show that color, or the canvas color of the app's mode.
+    private void applyBackgroundColor() {
+        // View construction has no display yet.
+        int defaultColor = wpeDisplay != null && wpeDisplay.isDarkMode() ? DARK_CANVAS_COLOR : Color.WHITE;
+        int color = backgroundColor != null ? backgroundColor : defaultColor;
         // View construction has no page yet. After destroy() the page does nothing, and the toplevel is gone.
-        if (page != null)
-            page.setBackgroundColor(color);
+        if (backgroundColor != null && page != null)
+            page.setBackgroundColor(backgroundColor);
         if (wpeToplevel != null)
             wpeToplevel.setBackgroundColor(color);
+        if (getBackground() == null || getBackground() == pageColorBackground) {
+            super.setBackgroundColor(color);
+            pageColorBackground = getBackground();
+        }
     }
 
     // Null once the view is destroyed.
@@ -274,6 +310,7 @@ public class WebView extends FrameLayout {
     }
 
     public void destroy() {
+        wpeDisplay.removeDarkModeListener(darkModeListener);
         exitFullscreen();
         // Answer the dialogs while the page can still take the answers, and close the built-in ones.
         page.cancelScriptDialogs();
