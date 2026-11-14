@@ -1,6 +1,10 @@
 package org.wpewebkit.wpeview;
 
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
+import android.view.inspector.WindowInspector;
+import android.widget.EditText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,7 +22,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
 public class WebViewScriptDialogTest {
@@ -101,6 +107,63 @@ public class WebViewScriptDialogTest {
                     webContext.get().destroy();
             });
         }
+    }
+
+    // The text field of the built-in prompt dialog that is shown, if any.
+    private static EditText shownPromptField() {
+        for (View root : WindowInspector.getGlobalWindowViews()) {
+            EditText field = root.findViewById(org.wpewebkit.R.id.value);
+            if (field != null)
+                return field;
+        }
+        return null;
+    }
+
+    // Shows the built-in prompt dialog of a new WebView, and tells whether the input method may learn from its field.
+    private boolean promptFieldMayLearn(boolean learningEnabled) throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
+        AtomicReference<WebView> webView = new AtomicReference<>();
+        AtomicReference<EditText> field = new AtomicReference<>();
+        try {
+            // Built-in dialogs need a WebView made with the activity.
+            scenario.onActivity(activity -> {
+                webContext.set(new WebContext(activity, false, true));
+                webView.set(new WebView(activity, webContext.get()));
+                webView.get().getSettings().setPersonalizedLearningEnabled(learningEnabled);
+                webView.get().setWebViewClient(webViewClient);
+                activity.addContentView(webView.get(), new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                                  ViewGroup.LayoutParams.MATCH_PARENT));
+                webView.get().loadHtml(EMPTY_PAGE, null);
+            });
+            webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
+            waitForActivityWindowFocus(scenario, true);
+
+            scenario.onActivity(activity -> webView.get().evaluateJavascript("prompt('Question', 'answer')", null));
+            for (int i = 0; i < 100 && field.get() == null; i++) {
+                Thread.sleep(100);
+                scenario.onActivity(activity -> field.set(shownPromptField()));
+            }
+            assertNotNull("The prompt dialog was not shown", field.get());
+            return (field.get().getImeOptions() & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0;
+        } finally {
+            scenario.onActivity(activity -> {
+                if (webView.get() != null)
+                    webView.get().destroy();
+                if (webContext.get() != null)
+                    webContext.get().destroy();
+            });
+            waitForActivityWindowFocus(scenario, true);
+        }
+    }
+
+    /** The answer to the built-in prompt dialog follows the setting for what the input method may learn. */
+    @Test
+    public void testBuiltInPromptFollowsTheLearningSetting() throws Throwable {
+        assertTrue("The input method may not learn from the prompt", promptFieldMayLearn(true));
+        assertFalse("The input method may learn from the prompt", promptFieldMayLearn(false));
     }
 
     /**
