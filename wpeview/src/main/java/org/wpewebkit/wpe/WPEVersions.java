@@ -19,8 +19,11 @@
 
 package org.wpewebkit.wpe;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 
+// The native code sets these fields when WPEView loads.
+@Keep
 public class WPEVersions {
     public static int WEBKIT_MAJOR = 0;
     public static int WEBKIT_MINOR = 0;

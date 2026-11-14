@@ -18,6 +18,7 @@ android {
         targetSdk = (findProperty("testTargetSdk") ?: libs.versions.target.android.sdk.get()).toInteger()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
 
         externalNativeBuild {
             cmake {
