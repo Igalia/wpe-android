@@ -47,6 +47,8 @@ struct _WPEViewAndroid {
     WPEScreen* screen;
     gulong screenRefreshRateChangedID;
     bool frameRateDirty;
+    // While the first page of the view loads, see wpe_view_android_set_awaits_first_page().
+    bool awaitsFirstPage;
 };
 
 G_DEFINE_FINAL_TYPE(WPEViewAndroid, wpe_view_android, WPE_TYPE_VIEW)
@@ -301,9 +303,9 @@ static void wpeViewAndroidUpdateFrameRate(WPEViewAndroid* view, ASurfaceTransact
     view->frameRateDirty = false;
 }
 
-// A frame of a view that has no layer yet, in a toplevel with no window, goes nowhere. WebKit hears at once that it
-// was shown and released, so that it draws the next one, and waits for the frame to be drawn before it draws into the
-// buffer again.
+// A frame of a view that has no layer yet, in a toplevel with no window, goes nowhere, and neither does one drawn
+// while the first page of the view loads. WebKit hears at once that it was shown and released, so that it draws the
+// next one, and waits for the frame to be drawn before it draws into the buffer again.
 static void wpeViewAndroidDropFrame(WPEView* view, WPEBuffer* buffer)
 {
     struct DroppedFrame {
@@ -343,6 +345,11 @@ static gboolean wpeViewAndroidRenderBuffer(
     UNUSED_PARAM(nDamageRects);
 
     auto* viewAndroid = WPE_VIEW_ANDROID(view);
+    if (viewAndroid->awaitsFirstPage) {
+        wpeViewAndroidDropFrame(view, buffer);
+        return TRUE;
+    }
+
     WPEToplevelAndroid* toplevel = viewAndroid->toplevel;
     ASurfaceControl* root = toplevel ? wpe_toplevel_android_get_root_surface_control(toplevel) : nullptr;
     bool newLayer = !viewAndroid->surfaceControl && root;
@@ -426,6 +433,17 @@ WPEView* wpe_view_android_new(WPEDisplay* display)
 {
     g_return_val_if_fail(WPE_IS_DISPLAY(display), nullptr);
     return WPE_VIEW(g_object_new(WPE_TYPE_VIEW_ANDROID, "display", display, nullptr));
+}
+
+// While the first page of a view loads, the view has nothing of its own to show, but WebKit draws a frame for it
+// when it gets its size, as for a tab that a browser shows once its page has started to load. Nothing is painted in
+// that frame, so it would show black until the page comes. The frames of a view that waits for its first page are
+// not shown, and the toplevel keeps showing its background color meanwhile. This can go once WebKit paints its
+// background color in a frame that has nothing else.
+void wpe_view_android_set_awaits_first_page(WPEView* view, gboolean awaitsFirstPage)
+{
+    g_return_if_fail(WPE_IS_VIEW_ANDROID(view));
+    WPE_VIEW_ANDROID(view)->awaitsFirstPage = awaitsFirstPage;
 }
 
 // Shows the layer of a view in the toplevel under its new root, or takes it out of the window when the toplevel loses

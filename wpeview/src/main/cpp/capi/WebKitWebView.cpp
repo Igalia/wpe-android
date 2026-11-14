@@ -19,6 +19,7 @@
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
 #include "Logging.h"
+#include "WPEViewAndroid.h"
 #include "WebKitDownloadBridge.h"
 
 #include <algorithm>
@@ -130,6 +131,8 @@ struct WebKitWebViewBridge {
     // Whether a load started and has not committed yet, and whether the title changed meanwhile.
     bool m_loadStarting {false};
     bool m_titlePending {false};
+    // Whether a page has committed in the view. Until then, its frames are not shown while it loads.
+    bool m_pageCommitted {false};
     // The address and method of the last main frame navigation WebKit decided on. For a load the page starts itself,
     // WebKit changes its URI only after the start of the load is reported, so the start is reported with this address,
     // while the load has not started yet. Each navigation is decided on before its load starts, so one that never
@@ -326,6 +329,7 @@ private:
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void reportTitle(WebKitWebViewBridge* bridge);
     static void onIsLoadingChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void updateAwaitsFirstPage(WebKitWebViewBridge* bridge);
     static void onBackForwardListChanged(
         WebKitBackForwardList*, WebKitBackForwardListItem*, gpointer, WebKitWebViewBridge* bridge);
     static void reportHistory(WebKitWebViewBridge* bridge, bool committed = false);
@@ -428,6 +432,8 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
         bridge->m_loadStarting = false;
+        bridge->m_pageCommitted = true;
+        updateAwaitsFirstPage(bridge);
         // The new page ends the frames of the old one and their loads, so their navigations no longer count. The
         // downloads of the old page have taken their counts by then: WebKit tells of a download right after it is
         // decided on, not once the server answers.
@@ -476,8 +482,20 @@ void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebVie
 
 void JNIWebKitWebViewCache::onIsLoadingChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
 {
+    updateAwaitsFirstPage(bridge);
     if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)))
         reportHistory(bridge);
+}
+
+// The view waits for its first page while the page loads and has not committed. A view that loads nothing, as one
+// that a script writes, shows what it draws, and so does one whose first load ends without a page.
+void JNIWebKitWebViewCache::updateAwaitsFirstPage(WebKitWebViewBridge* bridge)
+{
+    auto* view = webkit_web_view_get_wpe_view(bridge->m_webView);
+    if (WPE_IS_VIEW_ANDROID(view)) {
+        wpe_view_android_set_awaits_first_page(
+            view, !bridge->m_pageCommitted && webkit_web_view_is_loading(bridge->m_webView));
+    }
 }
 
 // A navigation within the page that keeps the address, such as history.pushState to the same address, or a navigation
