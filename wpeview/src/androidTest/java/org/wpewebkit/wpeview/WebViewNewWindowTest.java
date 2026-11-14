@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -58,6 +59,15 @@ import static org.junit.Assert.assertTrue;
 @RunWith(AndroidJUnit4.class)
 public class WebViewNewWindowTest {
     private static final long TIMEOUT_SECONDS = 30;
+    // Puts the same text twice in the page of the window opened, and gives the width of the first over that of the
+    // second, which WebKit's text zoom leaves out: the text zoom of that page.
+    private static final String WINDOW_TEXT_ZOOM =
+        "(() => { const body = opened.document.body;"
+        + " body.innerHTML = '<span style=\"font: 16px monospace; white-space: pre\">MMMMMMMMMMMMMMMMMMMM</span><br>'"
+        + " + '<span style=\"font: 16px monospace; white-space: pre; -webkit-text-zoom: reset\">'"
+        + " + 'MMMMMMMMMMMMMMMMMMMM</span>';"
+        + " const spans = body.querySelectorAll('span');"
+        + " return spans[0].getBoundingClientRect().width / spans[1].getBoundingClientRect().width; })()";
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -253,6 +263,27 @@ public class WebViewNewWindowTest {
             assertFalse(window.isAudioMuted());
             assertTrue(activity.getWebView().isAudioMuted());
         });
+    }
+
+    /**
+     * The window of a view whose app set a text zoom starts with the font size of the device, as a new view does,
+     * until the app sets its own.
+     */
+    @Test
+    public void testWindowOfAZoomedViewStartsAtTheFontSize() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = loadOpener(new WindowOpener());
+        scenario.onActivity(activity -> activity.getWebView().getSettings().setTextZoom(150));
+
+        assertEquals("true", run(scenario, "opened = window.open('/window.html'); opened !== null"));
+        WebView window = waitForWindow(windowUrl);
+        AtomicInteger fontSize = new AtomicInteger();
+        scenario.onActivity(activity -> {
+            float fontScale = activity.getApplicationContext().getResources().getConfiguration().fontScale;
+            fontSize.set(Math.round(fontScale * 100));
+            assertEquals(fontSize.get(), window.getSettings().getTextZoom());
+            assertEquals(150, activity.getWebView().getSettings().getTextZoom());
+        });
+        assertEquals(fontSize.get() / 100.0, Double.parseDouble(run(scenario, WINDOW_TEXT_ZOOM)), 0.02);
     }
 
     /** A tap on a link with target=_blank opens its page in a window, without an opener. */
