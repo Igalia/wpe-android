@@ -110,8 +110,15 @@ final class WebPage {
 
     WebPage(@NonNull WebContext context) { this(context, null); }
 
-    /** Makes the page of a new window that {@code opener} asks for, which shares its context. */
-    WebPage(@NonNull WebPage opener) { this(opener.context, opener.webKitWebView); }
+    /**
+     * Makes the page of a new window that {@code opener} asks for, which shares its context. It also starts with what
+     * the settings of {@code opener} say about the input method learning, so that the window of a private page is
+     * private too when the app sets nothing on it.
+     */
+    WebPage(@NonNull WebPage opener) {
+        this(opener.context, opener.webKitWebView);
+        settings.setPersonalizedLearningEnabled(opener.settings.getPersonalizedLearningEnabled());
+    }
 
     // The page of a new window is related to the page of its opener, which asks for it.
     private WebPage(@NonNull WebContext context, @Nullable WebKitWebView openerView) {

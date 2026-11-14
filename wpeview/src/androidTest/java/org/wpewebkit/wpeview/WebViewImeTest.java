@@ -626,6 +626,31 @@ public class WebViewImeTest {
         assertEquals("Wrong action for #search", EditorInfo.IME_ACTION_SEARCH, imeActionOf(scenario));
     }
 
+    /**
+     * A view whose settings do not allow it asks the input method not to learn from any of its fields, as a private
+     * browsing mode needs. A change applies to the next field that gets the focus.
+     */
+    @Test
+    public void testSettingsKeepTheInputMethodFromLearning() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.onActivity(activity -> {
+            activity.getWebView().getSettings().setPersonalizedLearningEnabled(false);
+            activity.getWebView().requestFocus();
+        });
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(), PURPOSE_PAGE);
+        scenario.moveToState(Lifecycle.State.RESUMED);
+
+        int text = EditorInfo.TYPE_CLASS_TEXT | EditorInfo.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT;
+        assertInputType(scenario, "text", text | EditorInfo.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        assertFalse("The input method may learn from #text", inputMethodMayLearn(scenario));
+        assertInputType(scenario, "search", text);
+        assertFalse("The input method may learn from #search", inputMethodMayLearn(scenario));
+
+        scenario.onActivity(activity -> activity.getWebView().getSettings().setPersonalizedLearningEnabled(true));
+        assertInputType(scenario, "words", text | EditorInfo.TYPE_TEXT_FLAG_CAP_WORDS);
+        assertTrue("The input method may not learn from #words", inputMethodMayLearn(scenario));
+    }
+
     /** The search key of the keyboard sends Enter to the search field, as the Enter key would. */
     @Test
     public void testTheSearchKeySendsEnter() throws Throwable {

@@ -768,6 +768,9 @@ public class WebView extends FrameLayout {
             final View view = LayoutInflater.from(getContext()).inflate(R.layout.js_prompt, null);
             EditText edit = view.findViewById(R.id.value);
             edit.setText(dialog.defaultText);
+            // The answer is typed for the page, like the text of its fields.
+            if (!getSettings().getPersonalizedLearningEnabled())
+                edit.setImeOptions(edit.getImeOptions() | EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
             builder.setPositiveButton(positiveTextId, new ScriptDialogPositiveListener(dialog, edit));
             ((TextView)view.findViewById(R.id.message)).setText(message);
             builder.setView(view);
@@ -999,12 +1002,13 @@ public class WebView extends FrameLayout {
         return 0;
     }
 
-    // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard.
-    private static int imeOptionsForPurpose(int purpose, int hints) {
+    // The password variations keep most keyboards from learning what is typed. The flag asks it of every keyboard, for
+    // those fields and for every field of a view whose settings do not allow it.
+    private int imeOptionsForPurpose(int purpose, int hints) {
         int action = purpose == WPEInputPurpose.SEARCH ? EditorInfo.IME_ACTION_SEARCH : EditorInfo.IME_ACTION_NONE;
         int options = action | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         if (purpose == WPEInputPurpose.PASSWORD || purpose == WPEInputPurpose.PIN ||
-            (hints & WPEInputHints.PRIVATE) != 0)
+            (hints & WPEInputHints.PRIVATE) != 0 || !getSettings().getPersonalizedLearningEnabled())
             options |= EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
         return options;
     }

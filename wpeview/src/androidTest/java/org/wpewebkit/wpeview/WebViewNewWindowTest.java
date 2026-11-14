@@ -21,6 +21,7 @@ package org.wpewebkit.wpeview;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -252,6 +254,44 @@ public class WebViewNewWindowTest {
         scenario.onActivity(activity -> {
             assertFalse(window.isAudioMuted());
             assertTrue(activity.getWebView().isAudioMuted());
+        });
+    }
+
+    /**
+     * The window of a view whose settings keep the input method from learning starts with the same, though the app
+     * sets nothing on it: the fields of the windows that a private page opens ask the input method not to learn.
+     */
+    @Test
+    public void testWindowTakesWhetherTheInputMethodMayLearnFromItsOpener() throws Throwable {
+        String fieldUrl = setPage("/field.html", "<html><body><input id='text'></body></html>");
+        ActivityScenario<WebViewTestActivity> scenario = loadOpener(new WindowOpener());
+        scenario.onActivity(activity -> {
+            assertTrue(activity.getWebView().getSettings().getPersonalizedLearningEnabled());
+            activity.getWebView().getSettings().setPersonalizedLearningEnabled(false);
+        });
+
+        assertEquals("true", run(scenario, "opened = window.open('/field.html'); opened !== null"));
+        WebView window = waitForWindow(fieldUrl);
+        scenario.onActivity(activity -> {
+            assertFalse(window.getSettings().getPersonalizedLearningEnabled());
+            window.requestFocus();
+        });
+
+        AtomicBoolean editing = new AtomicBoolean();
+        for (int i = 0; i < 60 && !editing.get(); i++) {
+            scenario.onActivity(activity -> {
+                window.evaluateJavascript("document.getElementById('text').focus()", null);
+                editing.set(window.onCheckIsTextEditor());
+            });
+            if (!editing.get())
+                Thread.sleep(250);
+        }
+        assertTrue("The field of the window did not take the focus", editing.get());
+        scenario.onActivity(activity -> {
+            EditorInfo editorInfo = new EditorInfo();
+            assertNotNull(window.onCreateInputConnection(editorInfo));
+            assertTrue("The input method may learn from the field of the window",
+                       (editorInfo.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0);
         });
     }
 
