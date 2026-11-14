@@ -18,8 +18,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // The release build shrinks its code, as apps do, so that it shows whether WPEView's rules keep what its
+            // native code needs. It is signed with the debug key, so that it can be installed to try.
+            minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt")
+            signingConfig signingConfigs.debug
         }
     }
 
