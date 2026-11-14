@@ -37,6 +37,8 @@ public class WebSettings {
     private boolean developerExtrasEnabled;
     private boolean disableWebSecurity;
     private boolean audiblePlaybackRequiresPageVisibility;
+    // Not a WebKit setting: the WebView reads it for the input method.
+    private boolean personalizedLearningEnabled = true;
 
     WebSettings(@NonNull WebKitSettings settings) { this.settings = settings; }
 
@@ -130,4 +132,16 @@ public class WebSettings {
         else
             audiblePlaybackRequiresPageVisibility = require;
     }
+
+    public boolean getPersonalizedLearningEnabled() { return personalizedLearningEnabled; }
+    /**
+     * Whether the input method may learn from what the user types in the page's fields, such as new words for its
+     * suggestions. When false, the WebView asks every input method not to, with
+     * {@link android.view.inputmethod.EditorInfo#IME_FLAG_NO_PERSONALIZED_LEARNING}, as a private browsing mode
+     * needs: for the fields of the page, and for the answer to a {@code prompt()} dialog that the WebView shows
+     * itself. The input method reads it when it connects to a field, as when the field gets the focus, so set it
+     * before the page loads: a field that has the focus may keep what it had. Password fields never allow it. Like
+     * the other settings, it does not pass to the WebView of a window that the page opens. The default is true.
+     */
+    public void setPersonalizedLearningEnabled(boolean enabled) { personalizedLearningEnabled = enabled; }
 }
