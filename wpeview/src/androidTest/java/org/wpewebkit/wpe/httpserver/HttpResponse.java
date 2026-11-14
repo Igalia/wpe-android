@@ -9,16 +9,21 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class HttpResponse {
 
     public static final int HTTP_NOT_FOUND = 404;
+    // How long a held response waits at most, so that a test that fails does not leave its thread waiting.
+    private static final long HELD_SECONDS = 30;
 
     private int statusCode;
     private String statusMessage;
     private final Map<String, String> headers = new HashMap<>();
     private String bodyText;
     private String body;
+    private CountDownLatch held;
 
     private static final String bodyTemplate = "<html><head><title>%s</title></head><body>%s</body></html>";
 
@@ -37,7 +42,17 @@ public class HttpResponse {
     /** Sends this page as it is, instead of a page made from the body text with that text as its title. */
     public void setBody(String body) { this.body = body; }
 
+    /** Sends nothing, not even the headers, until the latch opens, as a server that takes its time. */
+    public void holdUntil(CountDownLatch released) { held = released; }
+
     public void send(OutputStream outputStream) throws IOException {
+        if (held != null) {
+            try {
+                held.await(HELD_SECONDS, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         PrintWriter writer = new PrintWriter(outputStream);
 
         // Write status line

@@ -24,6 +24,8 @@ import org.wpewebkit.wpe.WPERuntime;
 import org.wpewebkit.wpe.WPEToplevel;
 import org.wpewebkit.wpe.WPEView;
 import org.wpewebkit.wpe.WebKitWebView;
+import org.wpewebkit.wpe.httpserver.HttpResponse;
+import org.wpewebkit.wpe.httpserver.HttpServer;
 
 import java.io.File;
 import java.io.IOException;
@@ -539,6 +541,75 @@ public class WebViewToplevelLayersTest {
             done.countDown();
         }
         assertColorOnScreen("The new page does not show", GREEN);
+    }
+
+    // A WebView in no window, whose first page starts to load, from a server that answers once the latch opens.
+    private WebView startPage(HttpServer server, CountDownLatch answer, int color) {
+        HttpResponse response = new HttpResponse();
+        response.setStatusCode(200);
+        response.setStatusMessage("OK");
+        response.addHeader("Content-Type", "text/html; charset=utf-8");
+        response.setBody(pageOfColor(color));
+        response.holdUntil(answer);
+        String url = server.setResponse("/held.html", response);
+        activityRule.getScenario().onActivity(activity -> {
+            if (webContext == null)
+                webContext = new WebContext(activity, false, true);
+            WebView page = new WebView(activity, webContext);
+            pages.add(page);
+            page.loadUrl(url);
+        });
+        return pages.get(pages.size() - 1);
+    }
+
+    // A page that gets its window while its first page loads shows the background until that page comes. WebKit
+    // draws a frame for it meanwhile, with nothing painted in it once the load is under way, which would show black.
+    private void assertBackgroundUntilTheFirstPage(boolean loadUnderWay) throws Exception {
+        showToplevel();
+        HttpServer server = HttpServer.start();
+        CountDownLatch answer = new CountDownLatch(1);
+        try {
+            WebView page = startPage(server, answer, GREEN);
+            if (loadUnderWay)
+                waitFor("The page did not ask the server", () -> server.getLastRequest("/held.html") != null);
+            show(page);
+            // Until the load is under way, however long the web process takes to start, and for a while after.
+            long deadline = SystemClock.uptimeMillis() + TIMEOUT_MS;
+            while (server.getLastRequest("/held.html") == null && SystemClock.uptimeMillis() < deadline)
+                assertColorStaysOnScreen("The page showed a frame before it had a page", BACKGROUND, 200);
+            assertColorStaysOnScreen("The page showed a frame before it had a page", BACKGROUND, 1500);
+            answer.countDown();
+            assertColorOnScreen("The page does not show", GREEN);
+        } finally {
+            answer.countDown();
+            server.shutdown();
+        }
+    }
+
+    // As a browser opens a new tab with an address: the page starts to load, and gets its window at once.
+    @Test
+    public void testPageShowsTheBackgroundWhileItsFirstPageLoads() throws Exception {
+        assertBackgroundUntilTheFirstPage(false);
+    }
+
+    // As a browser shows the tab of a link once its load is under way.
+    @Test
+    public void testPageThatGetsItsWindowDuringItsFirstLoadShowsTheBackground() throws Exception {
+        assertBackgroundUntilTheFirstPage(true);
+    }
+
+    // A page that loads nothing has frames of its own to show, as when a script writes it.
+    @Test
+    public void testPageWrittenByScriptWithoutALoadShows() throws Exception {
+        showToplevel();
+        activityRule.getScenario().onActivity(activity -> {
+            webContext = new WebContext(activity, false, true);
+            pages.add(new WebView(activity, webContext));
+        });
+        WebView page = pages.get(0);
+        show(page);
+        setPageColor(page, YELLOW);
+        assertColorOnScreen("The page does not show what the script wrote", YELLOW);
     }
 
     // The old page is destroyed while its layer waits for the new page, so the toplevel holds the last reference to

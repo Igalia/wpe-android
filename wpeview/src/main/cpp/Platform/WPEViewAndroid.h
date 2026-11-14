@@ -35,4 +35,7 @@ WPEView* wpe_view_android_new(WPEDisplay* display);
 void wpe_view_android_move_layer(WPEView* view, WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction);
 void wpe_view_android_hide_layer(WPEView* view, WPEToplevelAndroid* toplevel, ASurfaceTransaction* transaction);
 
+// For the web view of the page, which knows when its first page loads and commits.
+void wpe_view_android_set_awaits_first_page(WPEView* view, gboolean awaitsFirstPage);
+
 G_END_DECLS
