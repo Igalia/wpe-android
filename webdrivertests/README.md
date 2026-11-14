@@ -21,6 +21,8 @@ checkout that is not exported to `patches/`: it stops and says what to do instea
 
 ## Running the tests
 
+The packages in `requirements.txt` need Python 3.10 or newer.
+
 ```
 python3 -m venv .venv
 .venv/bin/pip install -r webdrivertests/requirements.txt
