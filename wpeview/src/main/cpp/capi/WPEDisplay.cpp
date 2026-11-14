@@ -36,7 +36,8 @@ public:
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jlong)>("nativeAddScreen", nativeAddScreen),
             JNI::NativeMethod<void(jlong, jlong)>("nativeRemoveScreen", nativeRemoveScreen),
-            JNI::NativeMethod<void(jlong, jint)>("nativeSetAvailableInputDevices", nativeSetAvailableInputDevices));
+            JNI::NativeMethod<void(jlong, jint)>("nativeSetAvailableInputDevices", nativeSetAvailableInputDevices),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetDarkMode", nativeSetDarkMode));
     }
 
 private:
@@ -75,6 +76,16 @@ private:
     {
         wpe_display_set_available_input_devices(
             JNI::from_jlong<WPEDisplay>(displayPtr), static_cast<WPEAvailableInputDevices>(devices));
+    }
+
+    // WebKit reads the setting of the primary display, and tells the pages of every web process when it changes.
+    static void nativeSetDarkMode(JNIEnv*, jobject, jlong displayPtr, jboolean darkMode)
+    {
+        auto* settings = wpe_display_get_settings(JNI::from_jlong<WPEDisplay>(displayPtr));
+        g_autoptr(GError) error = nullptr;
+        if (!wpe_settings_set_boolean(
+                settings, WPE_SETTING_DARK_MODE, darkMode ? TRUE : FALSE, WPE_SETTINGS_SOURCE_PLATFORM, &error))
+            Logging::logError("WPEDisplay: failed to set dark mode: %s", error ? error->message : "unknown");
     }
 };
 

@@ -1,5 +1,7 @@
 package org.wpewebkit.wpeview;
 
+import android.app.UiModeManager;
+import android.content.Context;
 import android.os.ParcelFileDescriptor;
 import android.util.Base64;
 
@@ -76,11 +78,41 @@ public class WebViewActivityScenarioHelper {
         return restarts;
     }
 
+    // Whether the device is in dark mode, which the application follows until a test gives it a night mode of its
+    // own. The resources of the system are not asked: in the process of the app, they may have the app's night mode.
+    private static Boolean deviceInDarkMode;
+
+    /**
+     * Gives the app a night mode, MODE_NIGHT_NO, MODE_NIGHT_YES or MODE_NIGHT_AUTO, which follows the device again, as
+     * UiModeManager takes it, and waits until the application has it. Android keeps it after the app ends, so a test
+     * that sets it sets MODE_NIGHT_AUTO again at its end.
+     */
+    public static void setNightMode(int mode) throws InterruptedException {
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext().getApplicationContext();
+        if (deviceInDarkMode == null)
+            deviceInDarkMode = context.getResources().getConfiguration().isNightModeActive();
+        context.getSystemService(UiModeManager.class).setApplicationNightMode(mode);
+        boolean dark =
+            mode == UiModeManager.MODE_NIGHT_YES || mode == UiModeManager.MODE_NIGHT_AUTO && deviceInDarkMode;
+        for (int i = 0; i < 50 && context.getResources().getConfiguration().isNightModeActive() != dark; i++)
+            Thread.sleep(100);
+        Assert.assertEquals(dark, context.getResources().getConfiguration().isNightModeActive());
+    }
+
     public static void loadHtmlSync(ActivityScenario<WebViewTestActivity> scenario, TestWebViewClient webViewClient,
                                     String html) {
+        loadHtmlSync(scenario, webViewClient, html, null);
+    }
+
+    /**
+     * Loads the page as if it came from the base address. WebKit treats a page without one as blank, which in dark mode
+     * is dark, as before the first page.
+     */
+    public static void loadHtmlSync(ActivityScenario<WebViewTestActivity> scenario, TestWebViewClient webViewClient,
+                                    String html, String baseUri) {
         scenario.onActivity(activity -> {
             activity.getWebView().setWebViewClient(webViewClient);
-            activity.getWebView().loadHtml(html, null);
+            activity.getWebView().loadHtml(html, baseUri);
         });
         webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
     }
