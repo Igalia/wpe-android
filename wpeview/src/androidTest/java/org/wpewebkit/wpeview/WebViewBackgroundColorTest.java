@@ -1,5 +1,6 @@
 package org.wpewebkit.wpeview;
 
+import android.app.UiModeManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -20,17 +21,24 @@ import java.util.concurrent.atomic.AtomicReference;
 @RunWith(AndroidJUnit4.class)
 public class WebViewBackgroundColorTest {
     private static final String BLANK_PAGE = "<!doctype html><html><body></body></html>";
+    private static final String DARK_PAGE =
+        "<!doctype html><html><head><meta name='color-scheme' content='light dark'></head><body></body></html>";
+    // Pages from an address, rather than blank ones, which are dark in dark mode.
+    private static final String BASE = "https://example.test/";
+    // The canvas color of pages in a dark color scheme.
+    private static final int DARK_CANVAS = 0xff1e1e1e;
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> activityRule =
         new ActivityScenarioRule<>(WebViewTestActivity.class);
 
     @After
-    public void destroyWebView() {
+    public void destroyWebView() throws InterruptedException {
         activityRule.getScenario().onActivity(activity -> {
             if (activity.getWebView().getInternalWebKitWebView() != null)
                 activity.getWebView().destroy();
         });
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_AUTO);
     }
 
     @Test
@@ -75,6 +83,20 @@ public class WebViewBackgroundColorTest {
         });
         WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), BLANK_PAGE);
         assertPageColor(Color.BLUE);
+    }
+
+    @Test
+    public void pagesThatAllowDarkGetTheDarkCanvasInDarkMode() throws InterruptedException {
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_NO);
+        WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), DARK_PAGE,
+                                                   BASE);
+        assertPageColor(Color.WHITE);
+        WebViewActivityScenarioHelper.setNightMode(UiModeManager.MODE_NIGHT_YES);
+        assertPageColor(DARK_CANVAS);
+        // A page that does not allow a dark color scheme stays light.
+        WebViewActivityScenarioHelper.loadHtmlSync(activityRule.getScenario(), new TestWebViewClient(), BLANK_PAGE,
+                                                   BASE);
+        assertPageColor(Color.WHITE);
     }
 
     // WebKit snapshots test its canvas color, not the native SurfaceControl fallback layer.

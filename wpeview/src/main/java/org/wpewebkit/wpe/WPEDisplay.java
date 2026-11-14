@@ -18,7 +18,9 @@
 
 package org.wpewebkit.wpe;
 
+import android.content.ComponentCallbacks;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
@@ -37,7 +39,7 @@ import androidx.annotation.UiThread;
  * WPEDisplay is an owning JNI proxy for a native WPEDisplay object.
  * <p>It has a screen for each Android display, kept up to date as displays come, change and go: when the device
  * turns or folds, or the display size setting changes. It also tells WebKit which kinds of input devices are
- * connected.</p>
+ * connected, and whether the app is in dark mode.</p>
  */
 @UiThread
 public final class WPEDisplay {
@@ -88,6 +90,20 @@ public final class WPEDisplay {
         }
     };
 
+    // Pages see whether the app is in dark mode, with the prefers-color-scheme media feature, and the ones that allow a
+    // dark color scheme get it. WebKit has one such setting for the whole display, so it follows the night mode of the
+    // application, which the app may choose for itself with UiModeManager.setApplicationNightMode().
+    private boolean darkMode;
+    private final ComponentCallbacks configurationCallbacks = new ComponentCallbacks() {
+        @Override
+        public void onConfigurationChanged(@NonNull Configuration newConfig) {
+            updateDarkMode(newConfig);
+        }
+
+        @Override
+        public void onLowMemory() {}
+    };
+
     public WPEDisplay(@NonNull Context context) {
         this.context = context.getApplicationContext();
         displayManager = this.context.getSystemService(DisplayManager.class);
@@ -106,6 +122,9 @@ public final class WPEDisplay {
 
         updateInputDevices();
         inputManager.registerInputDeviceListener(inputDeviceListener, new Handler(Looper.getMainLooper()));
+
+        updateDarkMode(this.context.getResources().getConfiguration());
+        this.context.registerComponentCallbacks(configurationCallbacks);
     }
 
     /**
@@ -186,7 +205,21 @@ public final class WPEDisplay {
             nativeSetAvailableInputDevices(mNativePtr, devices);
     }
 
+    /** Whether the app is in dark mode, as the pages see it. */
+    public boolean isDarkMode() { return darkMode; }
+
+    // Only a change goes to WebKit, which starts in light mode. Package-private: called from the ComponentCallbacks
+    // inner class (avoids a synthetic accessor).
+    void updateDarkMode(@NonNull Configuration configuration) {
+        if (configuration.isNightModeActive() == darkMode)
+            return;
+        darkMode = !darkMode;
+        if (mNativePtr != 0)
+            nativeSetDarkMode(mNativePtr, darkMode);
+    }
+
     public void destroy() {
+        context.unregisterComponentCallbacks(configurationCallbacks);
         inputManager.unregisterInputDeviceListener(inputDeviceListener);
         displayManager.unregisterDisplayListener(displayListener);
         if (mNativePtr != 0) {
@@ -203,4 +236,5 @@ public final class WPEDisplay {
     private native void nativeAddScreen(long nativePtr, long screenPtr);
     private native void nativeRemoveScreen(long nativePtr, long screenPtr);
     private native void nativeSetAvailableInputDevices(long nativePtr, int devices);
+    private native void nativeSetDarkMode(long nativePtr, boolean darkMode);
 }
