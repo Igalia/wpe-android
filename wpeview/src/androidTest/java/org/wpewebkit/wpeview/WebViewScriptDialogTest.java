@@ -20,6 +20,7 @@ import org.junit.runner.RunWith;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -72,6 +73,107 @@ public class WebViewScriptDialogTest {
                                                                                               "confirm('First')"));
         assertEquals("true", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
                                                                                               "confirm('Second')"));
+    }
+
+    // Answers on a thread of its own, as an app may, and waits for that thread. What goes wrong is kept for the test
+    // to report, since the dialog's callbacks run on the main thread.
+    private static void answerOnAnotherThread(@NonNull Runnable answer, @NonNull AtomicReference<Throwable> failure) {
+        Thread thread = new Thread(() -> {
+            try {
+                answer.run();
+            } catch (Throwable throwable) {
+                failure.compareAndSet(null, throwable);
+            }
+        });
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException exception) {
+            failure.compareAndSet(null, exception);
+        }
+    }
+
+    /**
+     * The app may answer a dialog from another thread. The answer reaches the page on the main thread, so not before
+     * the call that asked returns.
+     */
+    @Test
+    public void testAnswersFromAnotherThread() throws Throwable {
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicInteger answeredInTheCall = new AtomicInteger();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+                // confirm('Yes') is confirmed, and the others are cancelled.
+                @Override
+                public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                           @NonNull WPEJsResult result) {
+                    answerOnAnotherThread("Yes".equals(message) ? result::confirm : result::cancel, failure);
+                    if (((WebPage.ScriptDialog)result).isAnswered())
+                        answeredInTheCall.incrementAndGet();
+                    return true;
+                }
+
+                @Override
+                public boolean onJsPrompt(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                          @NonNull String defaultValue, @NonNull WPEJsPromptResult result) {
+                    answerOnAnotherThread(() -> result.confirm("From another thread"), failure);
+                    if (((WebPage.ScriptDialog)result).isAnswered())
+                        answeredInTheCall.incrementAndGet();
+                    return true;
+                }
+            }))
+            .moveToState(Lifecycle.State.RESUMED);
+
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        assertEquals("true", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                              "confirm('Yes')"));
+        assertEquals("false", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                               "confirm('No')"));
+        assertEquals("\"From another thread\"", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+                                                    scenario, webViewClient, "prompt('Question', 'answer')"));
+        assertNull(failure.get());
+        assertEquals("A dialog was answered before the call that asked returned", 0, answeredInTheCall.get());
+    }
+
+    /**
+     * Only the first answer to reach the main thread counts, from whichever thread it comes. The later ones do nothing,
+     * also once the page has its answer, and do not release the dialog again.
+     */
+    @Test
+    public void testOnlyTheFirstAnswerFromAnyThreadCounts() throws Throwable {
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<WPEJsResult> firstResult = new AtomicReference<>();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                           @NonNull WPEJsResult result) {
+                    if (!firstResult.compareAndSet(null, result)) {
+                        result.confirm();
+                        return true;
+                    }
+                    // The answers of one thread reach the main thread in their order.
+                    answerOnAnotherThread(() -> {
+                        result.cancel();
+                        result.confirm();
+                    }, failure);
+                    return true;
+                }
+            }))
+            .moveToState(Lifecycle.State.RESUMED);
+
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+        assertEquals("false", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                               "confirm('First')"));
+        answerOnAnotherThread(() -> firstResult.get().confirm(), failure);
+        scenario.onActivity(activity -> firstResult.get().confirm());
+        assertEquals("true", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                              "confirm('Second')"));
+        assertNull(failure.get());
     }
 
     /** Destroying the WebView closes its built-in dialog, which would otherwise stay over the activity. */
@@ -239,10 +341,14 @@ public class WebViewScriptDialogTest {
         }
     }
 
-    /** An answer that comes after the WebView is destroyed does nothing. */
+    /**
+     * An answer after the WebView is destroyed does nothing, from any thread. Neither does one sent from another thread
+     * before the destroy that reaches the main thread after it.
+     */
     @Test
     public void testAnswerAfterDestroy() throws Throwable {
         TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<WPEJsResult> heldResult = new AtomicReference<>();
         ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
         scenario
@@ -263,9 +369,14 @@ public class WebViewScriptDialogTest {
         assertNotNull(heldResult.get());
 
         scenario.onActivity(activity -> {
+            answerOnAnotherThread(() -> heldResult.get().confirm(), failure);
             activity.getWebView().destroy();
             heldResult.get().confirm();
             heldResult.get().cancel();
         });
+        answerOnAnotherThread(() -> heldResult.get().confirm(), failure);
+        // The answers from the other threads reach the main thread.
+        scenario.onActivity(activity -> {});
+        assertNull(failure.get());
     }
 }

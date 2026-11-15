@@ -1311,7 +1311,7 @@ public class WebView extends FrameLayout {
         } catch (WindowManager.BadTokenException exception) {
             // Android shows dialogs only for a running activity, and the WebView's context may be the application.
             Log.w("WPEAndroid", "Cannot show the JavaScript dialog, cancelling it", exception);
-            dialog.cancel();
+            dialog.answer(false, null);
         }
     }
 
