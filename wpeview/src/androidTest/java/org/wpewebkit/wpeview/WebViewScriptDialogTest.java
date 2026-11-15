@@ -17,6 +17,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
@@ -180,6 +182,61 @@ public class WebViewScriptDialogTest {
         assertEquals("false", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
                                   scenario, webViewClient, "alert('Hello'); confirm('Question')"));
         scenario.onActivity(activity -> activity.getWebView().destroy());
+    }
+
+    /**
+     * WebDriver answers the dialogs of the pages it controls: neither the app nor the built-in dialog gets them, and
+     * the page waits for WebDriver's answer.
+     */
+    @Test
+    public void testDialogUnderAutomationWaitsForWebDriver() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicBoolean appAsked = new AtomicBoolean();
+        CountDownLatch scriptsRun = new CountDownLatch(1);
+        AtomicReference<String> scriptResult = new AtomicReference<>();
+        AtomicReference<WebContext> webContext = new AtomicReference<>();
+        AtomicReference<WebView> webView = new AtomicReference<>();
+        try {
+            // Made as the WebDriver app makes its views, with the application context, where a built-in dialog cannot
+            // be shown and would be cancelled at once.
+            scenario.onActivity(activity -> {
+                webContext.set(new WebContext(activity, true, true));
+                webView.set(new WebView(webContext.get(), true));
+                webView.get().setWebViewClient(webViewClient);
+                webView.get().setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public boolean onJsAlert(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                             @NonNull WPEJsResult result) {
+                        appAsked.set(true);
+                        return false;
+                    }
+                });
+                webView.get().loadHtml(EMPTY_PAGE, null);
+            });
+            webViewClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
+
+            // The page runs scripts, so a script that does not end is held by its dialog.
+            scenario.onActivity(
+                activity -> webView.get().evaluateJavascript("'Ready'", result -> scriptsRun.countDown()));
+            assertTrue("The page does not run scripts", scriptsRun.await(30, TimeUnit.SECONDS));
+
+            scenario.onActivity(
+                activity -> webView.get().evaluateJavascript("alert('Hello'); 'Answered'", scriptResult::set));
+            // A dialog that is answered at once lets the script end within milliseconds.
+            Thread.sleep(1000);
+            assertFalse(appAsked.get());
+            assertNull(scriptResult.get());
+        } finally {
+            // Destroying the WebView closes the dialog that waits for WebDriver.
+            scenario.onActivity(activity -> {
+                if (webView.get() != null)
+                    webView.get().destroy();
+                if (webContext.get() != null)
+                    webContext.get().destroy();
+            });
+        }
     }
 
     /** An answer that comes after the WebView is destroyed does nothing. */

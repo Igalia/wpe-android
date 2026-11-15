@@ -65,6 +65,11 @@ public class WebContext {
 
     public WebContext(@NonNull android.content.Context context) { this(context, false); }
 
+    /**
+     * Makes a context whose pages WebDriver controls if {@code automationMode} is true. WebDriver then answers the
+     * JavaScript dialogs of these pages, and neither {@link WebChromeClient} nor {@link WebPageChromeClient} is asked
+     * about them.
+     */
     public WebContext(@NonNull android.content.Context context, boolean automationMode) {
         this(context, automationMode, shouldUseEphemeralSession());
     }

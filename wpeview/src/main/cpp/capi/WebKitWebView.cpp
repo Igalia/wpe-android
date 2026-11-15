@@ -857,6 +857,11 @@ gboolean JNIWebKitWebViewCache::onLoadFailed(
 gboolean JNIWebKitWebViewCache::onScriptDialog(
     WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge)
 {
+    // WebDriver answers the dialogs of the pages it controls, as its session's user prompt handler says. WebKit keeps
+    // a dialog for it only when no handler takes the dialog, so neither the app nor the built-in dialog gets it.
+    if (webkit_web_view_is_controlled_by_automation(webView))
+        return FALSE;
+
     // Keep the dialog alive across the asynchronous round-trip to Java; it is released by
     // nativeScriptDialogClose once the embedder (or the default dialog) has answered.
     auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
