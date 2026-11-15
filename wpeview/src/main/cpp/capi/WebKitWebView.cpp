@@ -26,6 +26,7 @@
 #include <android/bitmap.h>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <memory>
 #include <pthread.h>
@@ -148,9 +149,10 @@ struct WebKitWebViewBridge {
     // Whether the web process of the page ended, until the next page commits. WebKit then empties the address and the
     // title, but the page stays in the Back/Forward list, where a reload finds it, so the view keeps both meanwhile.
     bool m_webProcessTerminated {false};
-    // The address of the last load the app asked for, as WebKit keeps it, until WebKit decides on the next main frame
-    // navigation, which is that load if it has this address. The app is not asked about its own loads.
-    std::string m_appLoadUri;
+    // The addresses of the loads the app asked for, as WebKit keeps them, in the order it asked, until WebKit decides
+    // on them. The app may ask for a load before WebKit decided on the one before, as for the first page of a new
+    // view, and WebKit then decides on each in turn. The app is not asked about its own loads.
+    std::deque<std::string> m_appLoadUris;
     // The authentication requests that the app was asked about and has not answered, by the id it was given. WebKit
     // cancels a request when its load ends or another one starts, and a later answer for it is dropped.
     std::unordered_map<jlong, WebKitAuthenticationRequest*> m_authenticationRequests;
@@ -340,6 +342,7 @@ private:
     static void countNavigation(
         WebKitWebViewBridge* bridge, WebKitNavigationAction* action, bool isMainFrame, bool isUserLoad);
     static bool takeNavigationGesture(WebKitWebViewBridge* bridge, const char* uri);
+    static bool takeAppLoad(WebKitWebViewBridge* bridge, const char* uri);
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
@@ -420,11 +423,13 @@ void JNIWebKitWebViewCache::onLoadChanged(
         // For a load the page starts itself, a link or a script, the web view's URI is still the old one here.
         auto jUri = JNI::String(
             bridge->m_navigationPending ? bridge->m_navigationUri.c_str() : webkit_web_view_get_uri(webView));
+        // Each navigation is decided on before its load starts. Should a load start without, the loads of the app still
+        // to be decided on are no longer taken as the app's, as after a navigation of the page.
+        if (!bridge->m_navigationPending)
+            bridge->m_appLoadUris.clear();
         bridge->m_navigationPending = false;
         bridge->m_redirectCount = 0;
         bridge->m_failedLoadUri.clear();
-        // The load of the app was decided on by now.
-        bridge->m_appLoadUri.clear();
         bridge->m_loadStarting = true;
         if (!getJNIWebKitWebViewCache().m_onLoadStarted.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadStarted callback");
@@ -593,14 +598,13 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
         bool isMainFrame = isNewWindow || (frame && webkit_frame_info_is_main_frame(frame));
         auto* request = webkit_navigation_action_get_request(action);
         const char* uri = webkit_uri_request_get_uri(request);
-        // WebKit decides on the load the app asked for before any other navigation in the main frame, unless the page
-        // started one meanwhile.
         bool isAppLoad = false;
         // The page of a window that a user gesture opened.
         bool isOpenedByUser = false;
         if (isMainFrame && !isNewWindow) {
-            isAppLoad = !bridge->m_appLoadUri.empty() && uri && bridge->m_appLoadUri == uri;
-            bridge->m_appLoadUri.clear();
+            // A server redirect goes on with the navigation it follows: it is no load of the app, nor a navigation of
+            // the page that ends the loads of the app still to come.
+            isAppLoad = !webkit_navigation_action_is_redirect(action) && takeAppLoad(bridge, uri);
             isOpenedByUser = bridge->m_windowLoadGesture && uri && bridge->m_windowLoadUri == uri;
             bridge->m_windowLoadUri.clear();
             bridge->m_windowLoadGesture = false;
@@ -656,6 +660,24 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
         Logging::logError("cannot deliver WebKitWebView onReceivedHttpError callback");
 
     return FALSE;
+}
+
+// Whether a main frame navigation is a load that the app asked for. WebKit decides on the loads of the app in the order
+// they were asked for, before any later navigation in the main frame, unless the page started one meanwhile. A load
+// that a later one replaced may never be decided on, and goes with the later one. A navigation of the page empties the
+// list, so that no load of the app outlives it and is taken for a later navigation of the page to the same address.
+// The loads of the app still to come are then taken as the page's: the app is asked about them, and they get no
+// gesture, which is the cautious side.
+bool JNIWebKitWebViewCache::takeAppLoad(WebKitWebViewBridge* bridge, const char* uri)
+{
+    auto& loads = bridge->m_appLoadUris;
+    auto it = uri ? std::find(loads.begin(), loads.end(), uri) : loads.end();
+    if (it == loads.end()) {
+        loads.clear();
+        return false;
+    }
+    loads.erase(loads.begin(), it + 1);
+    return true;
 }
 
 // Asks the app about the navigations of the page, as android.webkit.WebView does: not about its own loads, nor about
@@ -887,6 +909,7 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     bridge->m_loadStarting = false;
     bridge->m_navigationPending = false;
     bridge->m_failedLoadUri.clear();
+    bridge->m_appLoadUris.clear();
 
     // WebKit ends every load of the view with it, also one in another web process that would have replaced the page,
     // but cancels a request for credentials only when a load starts or ends. So the requests are cancelled here, which
@@ -1235,7 +1258,8 @@ void JNIWebKitWebViewCache::nativeDestroy(JNIEnv*, jobject, jlong nativePtr)
 static void rememberAppLoad(WebKitWebViewBridge* bridge)
 {
     const char* uri = webkit_web_view_get_uri(bridge->m_webView);
-    bridge->m_appLoadUri = uri && g_ascii_strncasecmp(uri, "javascript:", 11) ? uri : "";
+    if (uri && g_ascii_strncasecmp(uri, "javascript:", 11))
+        bridge->m_appLoadUris.emplace_back(uri);
 }
 
 void JNIWebKitWebViewCache::nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url)

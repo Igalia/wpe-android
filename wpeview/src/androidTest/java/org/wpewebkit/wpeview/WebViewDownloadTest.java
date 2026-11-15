@@ -560,6 +560,73 @@ public class WebViewDownloadTest {
         }
     }
 
+    /**
+     * The app may ask for a load before WebKit decided on the one it asked for before, as for the blank page that a new
+     * view loads first. WebKit then loads both, one after the other, and both are the app's.
+     */
+    @Test
+    public void testLoadAfterAnotherLoadOfTheAppStartsADownloadWithAGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.onActivity(activity -> {
+            activity.getWebView().setWebViewClient(client);
+            activity.getWebView().loadUrl("about:blank");
+            activity.getWebView().loadUrl(file);
+        });
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertTrue(download.hasGesture());
+    }
+
+    /** A load of the app that was stopped is not the app's when the page goes to its address by itself. */
+    @Test
+    public void testPageThatGoesToTheAddressOfAStoppedLoadOfTheAppHasNoGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        // It goes once the test lets it, from a timer that it started by itself.
+        String page = serve("/page.html", "text/html",
+                            "<script>var go = false; setInterval(() => { if (go) { go = false; location.href = '" +
+                                file + "'; } }, 50);</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        scenario.onActivity(activity -> {
+            activity.getWebView().loadUrl(file);
+            activity.getWebView().stopLoading();
+        });
+
+        run(scenario, "go = true");
+        WPEDownload download = nextDownload();
+        scenario.onActivity(activity -> download.cancel());
+        assertEquals(file, download.getUrl().toString());
+        assertFalse(download.hasGesture());
+    }
+
+    /** Two loads of the app to one address are both the app's, and neither is left for the page to go there. */
+    @Test
+    public void testPageThatGoesToTheAddressOfTwoLoadsOfTheAppHasNoGesture() throws Exception {
+        String file = serve("/file.txt", "text/plain", "text", "Content-Disposition", "attachment");
+        String page = serve("/page.html", "text/html",
+                            "<script>var go = false; setInterval(() => { if (go) { go = false; location.href = '" +
+                                file + "'; } }, 50);</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        scenario.onActivity(activity -> {
+            activity.getWebView().loadUrl(file);
+            activity.getWebView().loadUrl(file);
+        });
+        // WebKit may download the file once for both loads, or once for each.
+        WPEDownload download = nextDownload();
+        do {
+            WPEDownload byApp = download;
+            scenario.onActivity(activity -> byApp.cancel());
+            assertTrue(byApp.hasGesture());
+        } while ((download = client.downloads.poll(2, TimeUnit.SECONDS)) != null);
+
+        run(scenario, "go = true");
+        WPEDownload byPage = nextDownload();
+        scenario.onActivity(activity -> byPage.cancel());
+        assertEquals(file, byPage.getUrl().toString());
+        assertFalse(byPage.hasGesture());
+    }
+
     /** A link to a new window, or a script that opens one, gives the download of the window its gesture. */
     @Test
     public void testNewWindowStartsADownloadWithAGesture() throws Exception {
