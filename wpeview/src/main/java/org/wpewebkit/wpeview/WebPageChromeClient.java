@@ -75,7 +75,11 @@ public class WebPageChromeClient {
     /** Tells the app how far the page has loaded, from 0 to 100. */
     public void onProgressChanged(@NonNull WebPage page, int newProgress) {}
 
-    /** Reports a new title of the page, as {@link WebPage#getTitle()} returns it: its address while it has none. */
+    /**
+     * Reports a new title of the page, as {@link WebPage#getTitle()} returns it: its address while it has none. While a
+     * new page loads, the title stays the one of the page loaded before, which can still set a new one, until the new
+     * page commits, also when {@link WebPage#getUrl()} already returns the new address.
+     */
     public void onReceivedTitle(@NonNull WebPage page, @NonNull String title) {}
 
     /** Tells the app that the page started or stopped playing sound, as {@link WebPage#isPlayingAudio()} returns it. */

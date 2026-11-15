@@ -60,7 +60,11 @@ public class WebChromeClient {
      */
     public void onCloseWindow(@NonNull WebView window) {}
     public void onProgressChanged(@NonNull WebView view, int newProgress) {}
-    /** Reports a new title of the page, as {@link WebView#getTitle()} returns it: its address while it has none. */
+    /**
+     * Reports a new title of the page, as {@link WebView#getTitle()} returns it: its address while it has none. While a
+     * new page loads, the title stays the one of the page loaded before, which can still set a new one, until the new
+     * page commits, also when {@link WebView#getUrl()} already returns the new address.
+     */
     public void onReceivedTitle(@NonNull WebView view, @NonNull String title) {}
 
     /**
