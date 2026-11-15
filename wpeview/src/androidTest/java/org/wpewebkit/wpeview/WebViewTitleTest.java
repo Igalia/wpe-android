@@ -30,6 +30,7 @@ import org.junit.runner.RunWith;
 import org.wpewebkit.wpe.httpserver.HttpResponse;
 import org.wpewebkit.wpe.httpserver.HttpServer;
 
+import java.net.ServerSocket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
@@ -38,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -189,6 +191,40 @@ public class WebViewTitleTest {
         webViewActivityTestRule.getScenario().onActivity(activity -> activity.getWebView().goBack());
         waitForPageFinished(first);
         assertEquals(Arrays.asList("started " + first, "title " + withoutScheme(first)), new ArrayList<>(events));
+    }
+
+    /**
+     * The page that is shown keeps reporting its title while a new page loads, until that page commits. WebKit can send
+     * the title of a page after its load finished, so a title that comes after the next load started is not lost. The
+     * next page that commits has its address as its title until its own comes.
+     */
+    @Test
+    public void testTitleOfTheShownPageWhileAnotherLoads() throws Exception {
+        String first = setPage("/first.html", "<title>First</title>");
+        loadAndWait(first);
+        waitForTitle("First");
+
+        try (ServerSocket silentServer = new ServerSocket(0)) {
+            String slow = "http://127.0.0.1:" + silentServer.getLocalPort() + "/slow.html";
+            events.clear();
+            webViewActivityTestRule.getScenario().onActivity(activity -> activity.getWebView().loadUrl(slow));
+            assertEquals("started " + slow, events.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            evaluateJavascript("document.title = 'Changed'");
+            assertEquals("title Changed", events.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals("Changed", getTitle());
+            // The load still waits for the server: the title did not come with its end.
+            assertFalse(finishedUrls.contains(slow));
+            // The load ends before the server closes, which would make it fail and load WebKit's error page.
+            webViewActivityTestRule.getScenario().onActivity(activity -> activity.getWebView().stopLoading());
+            assertNotNull("The stopped load did not end", finishedUrls.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        }
+
+        String second = setPage("/second.html", "<title>Second</title>");
+        events.clear();
+        loadAndWait(second);
+        waitForTitle("Second");
+        assertEquals(Arrays.asList("started " + second, "title " + withoutScheme(second), "title Second"),
+                     new ArrayList<>(events));
     }
 
     @Test

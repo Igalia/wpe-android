@@ -23,6 +23,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.os.SystemClock;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
@@ -212,6 +213,17 @@ public class WebPageTest {
         }
     }
 
+    // Adds the events to received until the expected one, which may come after the load finished, as a title can.
+    private static void takeEventsUntil(BlockingQueue<String> events, List<String> received, String expected)
+        throws InterruptedException {
+        long deadline = SystemClock.uptimeMillis() + WebPageTestHelper.TIMEOUT_SECONDS * 1000;
+        while (!received.contains(expected) && SystemClock.uptimeMillis() < deadline) {
+            String event = events.poll(100, TimeUnit.MILLISECONDS);
+            if (event != null)
+                received.add(event);
+        }
+    }
+
     /** A page reports its loads, title, progress and history to its own clients, with or without a view. */
     @Test
     public void testPageReportsToItsClients() throws Exception {
@@ -242,22 +254,19 @@ public class WebPageTest {
             }
         }));
 
+        List<String> received = new ArrayList<>();
         HttpServer server = HttpServer.start();
         try {
             WebPageTestHelper.loadUrl(
                 page, client, WebPageTestHelper.servePage(server, "/first", "<title>First</title><p>First</p>"));
+            // WebKit drops a title that it has not sent yet once the next page commits, so the next load waits for it.
+            takeEventsUntil(events, received, "title:First");
             WebPageTestHelper.loadUrl(
                 page, client, WebPageTestHelper.servePage(server, "/second", "<title>Second</title><p>Second</p>"));
         } finally {
             server.shutdown();
         }
-        // The title may come after the load finished.
-        List<String> received = new ArrayList<>();
-        for (int i = 0; i < 100 && !received.contains("title:Second"); i++) {
-            String event = events.poll(100, TimeUnit.MILLISECONDS);
-            if (event != null)
-                received.add(event);
-        }
+        takeEventsUntil(events, received, "title:Second");
         events.drainTo(received);
         assertTrue(received.toString(), received.contains("started"));
         assertTrue(received.toString(), received.contains("history"));

@@ -128,7 +128,7 @@ struct WebKitWebViewBridge {
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
     bool m_historyCanGoForward {false};
-    // Whether a load started and has not committed yet, and whether the title changed meanwhile.
+    // Whether a load started and has not committed yet, and whether a title waits for that load.
     bool m_loadStarting {false};
     bool m_titlePending {false};
     // Whether a page has committed in the view. Until then, its frames are not shown while it loads.
@@ -555,11 +555,14 @@ void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, W
 }
 
 // WebKit empties the title when a new page commits, which can be before it tells the address of that page. A page
-// without a title has its address as its title, so a title that changes while a load starts waits for the commit. It
-// also empties the title when the web process ends, and the view keeps the title of its page until the next commit.
+// without a title has its address as its title, so a title emptied while a load starts waits for the commit, or for the
+// end of a load that does not commit. Until then, any other title is the one of the page that is still shown, which can
+// set it or send it after its load finished, and it is reported at once. WebKit also empties the title when the web
+// process ends, and the view keeps the title of its page until the next commit.
 void JNIWebKitWebViewCache::onTitleChanged(GObject*, GParamSpec*, WebKitWebViewBridge* bridge)
 {
-    if (bridge->m_loadStarting || bridge->m_webProcessTerminated)
+    const char* title = webkit_web_view_get_title(bridge->m_webView);
+    if (bridge->m_webProcessTerminated || (bridge->m_loadStarting && (!title || !*title)))
         bridge->m_titlePending = true;
     else
         reportTitle(bridge);
