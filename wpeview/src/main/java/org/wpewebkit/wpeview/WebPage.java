@@ -547,7 +547,7 @@ public final class WebPage {
     /** Cancels the JavaScript dialogs that are not answered yet. */
     void cancelScriptDialogs() {
         while (!pendingScriptDialogs.isEmpty())
-            pendingScriptDialogs.get(0).cancel();
+            pendingScriptDialogs.get(0).answer(false, null);
     }
 
     // Cancels the requests that wait for an answer from the clients, when they stop hearing of the page: those of the
@@ -665,7 +665,8 @@ public final class WebPage {
             handled = chromeClient.onJsPrompt(this, dialog.url, dialog.message, dialog.defaultText, dialog);
         else if (dialog.type == WebKitWebView.SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM)
             handled = chromeClient.onJsBeforeUnload(this, dialog.url, dialog.message, dialog);
-        // The app may also have answered without taking the dialog over, or destroyed the page.
+        // The app may also have answered on the main thread without taking the dialog over, or destroyed the page. An
+        // answer from another thread arrives later, so the app takes the dialog over for it.
         if (handled || dialog.isAnswered())
             return;
         if (view != null && view.canShowDialogs())
@@ -684,10 +685,10 @@ public final class WebPage {
             return;
         if (dialog.type == WebKitWebView.SCRIPT_DIALOG_ALERT) {
             alertToShow = dialog;
-            dialog.confirm();
+            dialog.answer(true, null);
             return;
         }
-        dialog.cancel();
+        dialog.answer(false, null);
         String what = dialog.type == WebKitWebView.SCRIPT_DIALOG_PROMPT    ? "prompt() was cancelled"
                       : dialog.type == WebKitWebView.SCRIPT_DIALOG_CONFIRM ? "confirm() was cancelled"
                                                                            : "The page stays: its beforeunload "
@@ -887,7 +888,8 @@ public final class WebPage {
 
     /**
      * A JavaScript dialog of the page. WebKit takes one answer per dialog, and the native dialog is released with
-     * it, so later answers do nothing.
+     * it, so later answers do nothing. The app may answer from any thread: its answer reaches WebKit on the main
+     * thread, where its main loop runs, and only the first answer to get there counts.
      */
     final class ScriptDialog implements WPEJsPromptResult {
         private final long dialogPtr;
@@ -914,20 +916,26 @@ public final class WebPage {
 
         @Override
         public void cancel() {
-            answer(false, null);
+            if (!runOnMainThread(this::cancel))
+                answer(false, null);
         }
 
         @Override
         public void confirm() {
-            answer(true, null);
+            if (!runOnMainThread(this::confirm))
+                answer(true, null);
         }
 
         @Override
         public void confirm(@NonNull String result) {
-            answer(true, result);
+            if (!runOnMainThread(() -> confirm(result)))
+                answer(true, result);
         }
 
-        private void answer(boolean confirmed, @Nullable String text) {
+        // Answers on the calling thread, unless the dialog is answered already. Package-private: the page and its view
+        // answer this way, on the main thread, or on the thread where the app destroys a page that a WebView made, or
+        // that WebView, which is not checked. Only the answers of the app go to the main thread first.
+        void answer(boolean confirmed, @Nullable String text) {
             if (answered)
                 return;
             answered = true;
