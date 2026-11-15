@@ -247,7 +247,11 @@ public final class WebKitWebView {
         void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode,
                                  boolean isMainFrame);
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
-        void onScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
+        /**
+         * A script of the page opens a dialog, and waits until it is answered once with {@link #scriptDialogAnswer}.
+         * If this throws, the dialog is cancelled unless it was answered.
+         */
+        void onScriptDialog(long dialogId, int type, @Nullable String url, @Nullable String message,
                             @NonNull String defaultText);
         void onWebProcessTerminated(int reason);
 
@@ -352,12 +356,12 @@ public final class WebKitWebView {
     }
 
     @Keep
-    private void onScriptDialog(long dialogPtr, int type, String url, String message, String defaultText) {
+    private void onScriptDialog(long dialogId, int type, String url, String message, String defaultText) {
         Listener currentListener = listener;
         if (currentListener != null)
-            MainLooperDispatcher.post(() -> currentListener.onScriptDialog(dialogPtr, type, url, message, defaultText));
+            MainLooperDispatcher.post(() -> currentListener.onScriptDialog(dialogId, type, url, message, defaultText));
         else
-            nativeScriptDialogClose(dialogPtr);
+            scriptDialogAnswer(dialogId, false, null);
     }
 
     @Keep
@@ -403,15 +407,14 @@ public final class WebKitWebView {
     }
 
     /**
-     * Answers a script dialog reported via {@link Listener#onScriptDialog}. Must be paired with
-     *  {@link #scriptDialogClose}. For prompts, {@code text} carries the user's input.
+     * Answers a script dialog reported via {@link Listener#onScriptDialog}: {@code confirm} for a confirmation, and
+     * {@code text} for a prompt, null when it is cancelled. Only the first answer counts, and none counts once the view
+     * is destroyed, which cancels the dialogs that are left.
      */
-    public void scriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text) {
-        nativeScriptDialogConfirm(dialogPtr, confirm, text);
+    public void scriptDialogAnswer(long dialogId, boolean confirm, @Nullable String text) {
+        if (mNativePtr != 0)
+            nativeScriptDialogAnswer(mNativePtr, dialogId, confirm, text);
     }
-
-    /** Releases the native script dialog reported via {@link Listener#onScriptDialog}. */
-    public void scriptDialogClose(long dialogPtr) { nativeScriptDialogClose(dialogPtr); }
 
     // Called by WebKit on the main thread, where its main loop runs. The request is taken first, so that it is
     // cancelled if anything fails.
@@ -584,8 +587,7 @@ public final class WebKitWebView {
                                               @NonNull SnapshotCallbackHolder callbackHolder);
     private native void nativeEvaluateJavascript(long nativePtr, String script, @Nullable String worldName,
                                                  @Nullable EvalCallbackHolder callbackHolder);
-    private native void nativeScriptDialogConfirm(long dialogPtr, boolean confirm, @Nullable String text);
-    private native void nativeScriptDialogClose(long dialogPtr);
+    private native void nativeScriptDialogAnswer(long nativePtr, long dialogId, boolean confirm, @Nullable String text);
     private native void nativeTerminateWebProcess(long nativePtr);
     private native byte[] nativeSaveState(long nativePtr);
     private native boolean nativeRestoreState(long nativePtr, @NonNull byte[] state);

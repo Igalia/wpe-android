@@ -113,6 +113,10 @@ struct WebKitWebViewBridge {
             g_object_unref(request);
         }
         m_authenticationRequests.clear();
+        // The dialogs that Java did not answer get the answer of a dismissed one, while the view is still alive.
+        for (auto& [id, dialog] : m_scriptDialogs)
+            webkit_script_dialog_unref(dialog);
+        m_scriptDialogs.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         if (m_downloadStartedId)
@@ -157,6 +161,10 @@ struct WebKitWebViewBridge {
     // cancels a request when its load ends or another one starts, and a later answer for it is dropped.
     std::unordered_map<jlong, WebKitAuthenticationRequest*> m_authenticationRequests;
     jlong m_lastAuthenticationRequestId {0};
+    // The JavaScript dialogs that Java was told of and has not answered, by the id it was given. The script of each
+    // waits for its answer, and a later answer for it is dropped.
+    std::unordered_map<jlong, WebKitScriptDialog*> m_scriptDialogs;
+    jlong m_lastScriptDialogId {0};
     // The navigations of the page and its frames since the page committed, with and without a user gesture, by the key
     // of their address (navigationKey). WebKit does not tell whether a user gesture started a download, so a download
     // takes it from the navigations to its address.
@@ -283,8 +291,8 @@ public:
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
             JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
-            JNI::NativeMethod<void(jlong, jboolean, jstring)>("nativeScriptDialogConfirm", nativeScriptDialogConfirm),
-            JNI::NativeMethod<void(jlong)>("nativeScriptDialogClose", nativeScriptDialogClose),
+            JNI::NativeMethod<void(jlong, jlong, jboolean, jstring)>(
+                "nativeScriptDialogAnswer", nativeScriptDialogAnswer),
             JNI::NativeMethod<void(jlong)>("nativeTerminateWebProcess", nativeTerminateWebProcess),
             JNI::NativeMethod<jbyteArray(jlong)>("nativeSaveState", nativeSaveState),
             JNI::NativeMethod<jboolean(jlong, jbyteArray)>("nativeRestoreState", nativeRestoreState),
@@ -346,6 +354,7 @@ private:
     static gboolean onLoadFailed(
         WebKitWebView*, WebKitLoadEvent, const gchar* failingUri, GError* error, WebKitWebViewBridge* bridge);
     static gboolean onScriptDialog(WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge);
+    static void answerScriptDialog(WebKitWebViewBridge* bridge, jlong dialogId, gboolean confirmed, const char* text);
     static void onWebProcessTerminated(
         WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge);
     static WebKitWebView* onCreate(WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge);
@@ -382,8 +391,8 @@ private:
         JNIWebKitWebViewEvalCallbackHolder callbackHolder);
     static void nativeCaptureSnapshot(JNIEnv* env, jobject, jlong nativePtr, jint region, jint maxWidth, jint maxHeight,
         JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
-    static void nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text);
-    static void nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr);
+    static void nativeScriptDialogAnswer(
+        JNIEnv*, jobject, jlong nativePtr, jlong dialogId, jboolean confirm, jstring text);
     static void nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr);
     static jbyteArray nativeSaveState(JNIEnv* env, jobject, jlong nativePtr);
     static jboolean nativeRestoreState(JNIEnv* env, jobject, jlong nativePtr, jbyteArray data);
@@ -879,6 +888,9 @@ gboolean JNIWebKitWebViewCache::onLoadFailed(
     return FALSE;
 }
 
+// A script of the page opens a dialog, and waits for its answer. Java is told of it with an id, and answers it once
+// with nativeScriptDialogAnswer. The bridge keeps the dialog meanwhile, so that an answer that comes later, or for a
+// view that was destroyed, is dropped.
 gboolean JNIWebKitWebViewCache::onScriptDialog(
     WebKitWebView* webView, WebKitScriptDialog* dialog, WebKitWebViewBridge* bridge)
 {
@@ -887,9 +899,8 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     if (webkit_web_view_is_controlled_by_automation(webView))
         return FALSE;
 
-    // Keep the dialog alive across the asynchronous round-trip to Java; it is released by
-    // nativeScriptDialogClose once the embedder (or the default dialog) has answered.
-    auto dialogPtr = reinterpret_cast<jlong>(webkit_script_dialog_ref(dialog));
+    jlong dialogId = ++bridge->m_lastScriptDialogId;
+    bridge->m_scriptDialogs.emplace(dialogId, webkit_script_dialog_ref(dialog));
     WebKitScriptDialogType type = webkit_script_dialog_get_dialog_type(dialog);
     // The active URI is null before the first commit and the message may be null; pass them through
     // as null (JNI::String(nullptr) yields a null jstring) — the Java callbacks treat null as "no value".
@@ -898,14 +909,37 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     JNI::String jDefaultText = type == WEBKIT_SCRIPT_DIALOG_PROMPT
         ? JNI::String(webkit_script_dialog_prompt_get_default_text(dialog))
         : JNI::String("");
-    if (!getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogPtr, static_cast<jint>(type),
+    // The app may destroy the WebView while it is told, which deletes the bridge.
+    g_autoptr(WebKitWebView) protectedWebView = WEBKIT_WEB_VIEW(g_object_ref(webView));
+    if (!getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogId, static_cast<jint>(type),
             static_cast<jstring>(jUrl), static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText))) {
         Logging::logError("cannot deliver WebKitWebView onScriptDialog callback");
-        webkit_script_dialog_unref(dialog);
-        return FALSE;
+        // Java answers the dialog when anything fails after it took it. If the call failed before, nothing else would.
+        bridge = static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
+        if (bridge)
+            answerScriptDialog(bridge, dialogId, FALSE, nullptr);
     }
 
     return TRUE;
+}
+
+// Answers a dialog that Java was told of, unless it was answered already. The script goes on once WebKit is done with
+// the dialog too.
+void JNIWebKitWebViewCache::answerScriptDialog(
+    WebKitWebViewBridge* bridge, jlong dialogId, gboolean confirmed, const char* text)
+{
+    auto it = bridge->m_scriptDialogs.find(dialogId);
+    if (it == bridge->m_scriptDialogs.end())
+        return;
+    WebKitScriptDialog* dialog = it->second;
+    bridge->m_scriptDialogs.erase(it);
+    WebKitScriptDialogType type = webkit_script_dialog_get_dialog_type(dialog);
+    // A prompt without text gives null, as when it is cancelled. An alert has no answer.
+    if (type == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
+        webkit_script_dialog_prompt_set_text(dialog, text);
+    if (type == WEBKIT_SCRIPT_DIALOG_CONFIRM || type == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM)
+        webkit_script_dialog_confirm_set_confirmed(dialog, confirmed);
+    webkit_script_dialog_unref(dialog);
 }
 
 // The web process of the page ended: it crashed, Android ended it, as it does to free memory, WebKit ended it for using
@@ -1566,21 +1600,13 @@ void JNIWebKitWebViewCache::nativeCaptureSnapshot(JNIEnv* env, jobject, jlong na
         onCaptureSnapshotReady, request.release());
 }
 
-void JNIWebKitWebViewCache::nativeScriptDialogConfirm(JNIEnv*, jobject, jlong dialogPtr, jboolean confirm, jstring text)
+void JNIWebKitWebViewCache::nativeScriptDialogAnswer(
+    JNIEnv*, jobject, jlong nativePtr, jlong dialogId, jboolean confirm, jstring text)
 {
-    auto* dialog = reinterpret_cast<WebKitScriptDialog*>(dialogPtr); // NOLINT(performance-no-int-to-ptr)
-    WebKitScriptDialogType type = webkit_script_dialog_get_dialog_type(dialog);
-    // A prompt without text gives null, as when it is cancelled. An alert has no answer.
-    if (type == WEBKIT_SCRIPT_DIALOG_PROMPT && text != nullptr)
-        webkit_script_dialog_prompt_set_text(dialog, JNI::String(text).getContent().get());
-    if (type == WEBKIT_SCRIPT_DIALOG_CONFIRM || type == WEBKIT_SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM)
-        webkit_script_dialog_confirm_set_confirmed(dialog, static_cast<gboolean>(confirm));
-}
-
-void JNIWebKitWebViewCache::nativeScriptDialogClose(JNIEnv*, jobject, jlong dialogPtr)
-{
-    // Releases the reference taken in onScriptDialog; the dialog is closed once its refcount reaches zero.
-    webkit_script_dialog_unref(reinterpret_cast<WebKitScriptDialog*>(dialogPtr)); // NOLINT(performance-no-int-to-ptr)
+    // The JNI::String must outlive its content, whose release uses the Java string. A null text has no content.
+    auto javaText = JNI::String(text);
+    answerScriptDialog(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), dialogId, static_cast<gboolean>(confirm),
+        javaText.getContent().get());
 }
 
 void JNIWebKitWebViewCache::nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr)
