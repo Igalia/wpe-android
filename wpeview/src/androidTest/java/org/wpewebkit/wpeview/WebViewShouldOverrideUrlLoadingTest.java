@@ -328,6 +328,24 @@ public class WebViewShouldOverrideUrlLoadingTest {
         assertNull("The app was asked about its own navigation", client.requests.poll());
     }
 
+    /** Nor about a load that it asks for before WebKit decided on its previous one, which WebKit loads before it. */
+    @Test
+    public void testAppLoadsOneAfterTheOtherAreNotAsked() throws Exception {
+        String page = serve("/page.html", "<p>Page");
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.onActivity(activity -> {
+            activity.getWebView().setWebViewClient(client);
+            activity.getWebView().loadUrl("about:blank");
+            activity.getWebView().loadUrl(page);
+        });
+        String finished;
+        do {
+            finished = client.finishedPages.poll(30, TimeUnit.SECONDS);
+        } while (finished != null && !finished.equals(page));
+        assertEquals(page, finished);
+        assertNull("The app was asked about its own navigation", client.requests.poll());
+    }
+
     @Test
     public void testPostIsNotAsked() throws Exception {
         String result = serve("/post", "<p>Posted");
