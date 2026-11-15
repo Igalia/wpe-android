@@ -43,6 +43,8 @@ import java.lang.annotation.RetentionPolicy;
  * cancelled {@code beforeunload} confirmation keeps the page where it is, so that nothing the user typed is lost; the
  * navigation can be started again. A built-in dialog that is open when its page stops being shown, as when the view
  * leaves its window or the page leaves its view, is answered the same way.
+ *
+ * <p>The pages of a {@link WebContext} made for automation go to none of this: WebDriver answers their dialogs.
  */
 @UiThread
 public class WebPageChromeClient {

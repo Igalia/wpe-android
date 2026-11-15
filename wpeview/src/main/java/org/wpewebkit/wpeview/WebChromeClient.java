@@ -28,6 +28,9 @@ import java.lang.annotation.RetentionPolicy;
 
 /**
  * WebChromeClient provides the high-level chrome and UI callbacks for {@link WebView}.
+ *
+ * <p>The JavaScript dialog callbacks are not called for the pages of a {@link WebContext} made for automation:
+ * WebDriver answers their dialogs.
  */
 public class WebChromeClient {
     /**
