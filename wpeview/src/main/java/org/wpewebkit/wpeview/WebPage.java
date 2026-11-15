@@ -753,12 +753,22 @@ public final class WebPage {
                                    loadError(parsedUri, errorCode, description));
         }
 
+        // A client that fails does not take the dialog, so an answer it gives later, or from another thread, does
+        // nothing. The page gets the answer of a dismissed dialog, unless the client answered on the main thread before
+        // it failed. The exception goes on to the caller, which logs it.
         @Override
-        public void onScriptDialog(long dialogPtr, int type, @Nullable String dialogUrl, @Nullable String message,
+        public void onScriptDialog(long dialogId, int type, @Nullable String dialogUrl, @Nullable String message,
                                    @NonNull String defaultText) {
-            ScriptDialog dialog = new ScriptDialog(dialogPtr, type, dialogUrl, message, defaultText);
+            ScriptDialog dialog = new ScriptDialog(dialogId, type, dialogUrl, message, defaultText);
             pendingScriptDialogs.add(dialog);
-            runScriptDialog(dialog);
+            boolean ran = false;
+            try {
+                runScriptDialog(dialog);
+                ran = true;
+            } finally {
+                if (!ran)
+                    dialog.answer(false, null);
+            }
         }
 
         // The focused field went with the page, and so did the fullscreen element: the view that shows the page lets
@@ -892,7 +902,7 @@ public final class WebPage {
      * thread, where its main loop runs, and only the first answer to get there counts.
      */
     final class ScriptDialog implements WPEJsPromptResult {
-        private final long dialogPtr;
+        private final long dialogId;
         final int type;
         final @Nullable String url;
         final @Nullable String message;
@@ -900,9 +910,9 @@ public final class WebPage {
         private boolean answered;
         private @Nullable Runnable onAnswered;
 
-        ScriptDialog(long dialogPtr, int type, @Nullable String url, @Nullable String message,
+        ScriptDialog(long dialogId, int type, @Nullable String url, @Nullable String message,
                      @NonNull String defaultText) {
-            this.dialogPtr = dialogPtr;
+            this.dialogId = dialogId;
             this.type = type;
             this.url = url;
             this.message = message;
@@ -940,8 +950,7 @@ public final class WebPage {
                 return;
             answered = true;
             pendingScriptDialogs.remove(this);
-            webKitWebView.scriptDialogConfirm(dialogPtr, confirmed, text);
-            webKitWebView.scriptDialogClose(dialogPtr);
+            webKitWebView.scriptDialogAnswer(dialogId, confirmed, text);
             Runnable callback = onAnswered;
             onAnswered = null;
             if (callback != null)

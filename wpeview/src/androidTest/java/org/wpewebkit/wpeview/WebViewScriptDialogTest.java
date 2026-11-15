@@ -17,7 +17,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -378,5 +380,133 @@ public class WebViewScriptDialogTest {
         // The answers from the other threads reach the main thread.
         scenario.onActivity(activity -> {});
         assertNull(failure.get());
+    }
+
+    /** A chrome client that answers a dialog and then throws gives the page its answer, and the page goes on. */
+    @Test
+    public void testCallbackThatAnswersAndThrows() throws Throwable {
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                           @NonNull WPEJsResult result) {
+                    result.confirm();
+                    throw new IllegalStateException("The app failed after answering");
+                }
+
+                @Override
+                public boolean onJsPrompt(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                          @NonNull String defaultValue, @NonNull WPEJsPromptResult result) {
+                    result.confirm("from the app");
+                    throw new IllegalStateException("The app failed after answering");
+                }
+            }))
+            .moveToState(Lifecycle.State.RESUMED);
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+
+        assertEquals("true", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                              "confirm('First')"));
+        assertEquals("true", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                              "confirm('Second')"));
+        assertEquals("\"from the app\"", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+                                             scenario, webViewClient, "prompt('Question', 'answer')"));
+        scenario.onActivity(activity -> activity.getWebView().destroy());
+    }
+
+    /**
+     * A dialog whose chrome client throws before answering on the main thread is cancelled. The client did not take
+     * it: an answer it gave from another thread, or gives later, does not reach the page, nor the next dialog, and
+     * destroying the WebView afterwards is safe.
+     */
+    @Test
+    public void testCallbackThatThrowsCancelsTheDialog() throws Throwable {
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        BlockingQueue<WPEJsResult> results = new LinkedBlockingQueue<>();
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                           @NonNull WPEJsResult result) {
+                    if ("Elsewhere".equals(message)) {
+                        // The answer reaches the main thread after the call is over.
+                        answerOnAnotherThread(result::confirm, failure);
+                        throw new IllegalStateException("The app failed after answering from another thread");
+                    }
+                    results.add(result);
+                    if ("First".equals(message))
+                        throw new IllegalStateException("The app failed");
+                    return true;
+                }
+
+                @Override
+                public boolean onJsPrompt(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                          @NonNull String defaultValue, @NonNull WPEJsPromptResult result) {
+                    throw new IllegalStateException("The app failed");
+                }
+            }))
+            .moveToState(Lifecycle.State.RESUMED);
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+
+        assertEquals("false", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                               "confirm('First')"));
+        assertEquals("null", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
+                                 scenario, webViewClient, "prompt('Question', 'answer')"));
+        assertEquals("false", WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient,
+                                                                                               "confirm('Elsewhere')"));
+        assertNull(failure.get());
+        AtomicBoolean kept = new AtomicBoolean(true);
+        scenario.onActivity(activity -> kept.set(!activity.getWebView().getPage().pendingScriptDialogs.isEmpty()));
+        assertFalse("The page still waits for an answer from the client that failed", kept.get());
+        WPEJsResult failed = results.poll(30, TimeUnit.SECONDS);
+        assertNotNull(failed);
+
+        BlockingQueue<String> secondAnswer = new LinkedBlockingQueue<>();
+        scenario.onActivity(
+            activity -> activity.getWebView().evaluateJavascript("confirm('Second')", secondAnswer::add));
+        WPEJsResult held = results.poll(30, TimeUnit.SECONDS);
+        assertNotNull(held);
+        scenario.onActivity(activity -> failed.confirm());
+        scenario.onActivity(activity -> held.cancel());
+        assertEquals("false", secondAnswer.poll(30, TimeUnit.SECONDS));
+
+        scenario.onActivity(activity -> {
+            activity.getWebView().destroy();
+            failed.confirm();
+            held.confirm();
+        });
+    }
+
+    /**
+     * A chrome client may destroy the WebView while it is told of a dialog, also when it then throws. The dialog is
+     * opened by a script, whose pending result keeps the web view alive until WebKit is done with the dialog.
+     */
+    @Test
+    public void testCallbackThatDestroysTheWebViewAndThrows() throws Throwable {
+        TestWebViewClient webViewClient = new TestWebViewClient();
+        CountDownLatch called = new CountDownLatch(1);
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario
+            .onActivity(activity -> activity.getWebView().setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onJsConfirm(@NonNull WebView view, @Nullable String url, @Nullable String message,
+                                           @NonNull WPEJsResult result) {
+                    view.destroy();
+                    called.countDown();
+                    throw new IllegalStateException("The app failed after destroying the WebView");
+                }
+            }))
+            .moveToState(Lifecycle.State.RESUMED);
+        WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, EMPTY_PAGE);
+
+        scenario.onActivity(activity -> activity.getWebView().evaluateJavascript("confirm('Question')", null));
+        assertTrue("The chrome client was not told of the dialog", called.await(30, TimeUnit.SECONDS));
+        // The app goes on once the call is over.
+        AtomicBoolean destroyed = new AtomicBoolean();
+        scenario.onActivity(activity -> destroyed.set(activity.getWebView().getPage().isDestroyed()));
+        assertTrue(destroyed.get());
     }
 }
