@@ -156,15 +156,20 @@ public class WebChromeClient {
 
     /** What a file field of the page asks for, given to {@link #onShowFileChooser}. */
     public static final class FileChooserParams {
-        /** One file. */
+        /** One file, the same as {@link WebPageChromeClient.FileChooserParams#MODE_OPEN}. */
         public static final int MODE_OPEN = WebPageChromeClient.FileChooserParams.MODE_OPEN;
-        /** One file or more, for a field with the multiple attribute. */
+        /**
+         * One file or more, for a field with the multiple attribute, the same as
+         * {@link WebPageChromeClient.FileChooserParams#MODE_OPEN_MULTIPLE}.
+         */
         public static final int MODE_OPEN_MULTIPLE = WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE;
 
-        // The same values as WebPageChromeClient.FileChooserParams.Mode, so that a mode passes from one to the other.
+        // The constants of this class and of WebPageChromeClient.FileChooserParams, so that lint takes either one. It
+        // must list the same constants as WebPageChromeClient.FileChooserParams.Mode, so that a mode passes from one
+        // class to the other.
         @Retention(RetentionPolicy.SOURCE)
-        @IntDef(
-            {WebPageChromeClient.FileChooserParams.MODE_OPEN, WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE})
+        @IntDef({MODE_OPEN, MODE_OPEN_MULTIPLE, WebPageChromeClient.FileChooserParams.MODE_OPEN,
+                 WebPageChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE})
         public @interface Mode {}
 
         private final @Mode int mode;
