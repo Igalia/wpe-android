@@ -82,10 +82,15 @@ public final class WebPage {
         void onResult(@Nullable Bitmap bitmap);
     }
 
+    /** The visible part of the page. */
     public static final int SNAPSHOT_REGION_VISIBLE = WebKitWebView.SNAPSHOT_REGION_VISIBLE;
+    /** The whole document. */
     public static final int SNAPSHOT_REGION_FULL_DOCUMENT = WebKitWebView.SNAPSHOT_REGION_FULL_DOCUMENT;
 
-    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT})
+    // Also the WebView constants of the same names and values, so that lint takes either one. It must list the same
+    // constants as WebView.SnapshotRegion, so that a region passes from one class to the other.
+    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT, WebView.SNAPSHOT_REGION_VISIBLE,
+             WebView.SNAPSHOT_REGION_FULL_DOCUMENT})
     @Retention(RetentionPolicy.SOURCE)
     public @interface SnapshotRegion {}
 

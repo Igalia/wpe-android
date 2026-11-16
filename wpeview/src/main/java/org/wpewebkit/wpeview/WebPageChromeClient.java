@@ -213,8 +213,12 @@ public class WebPageChromeClient {
         /** One file or more, for a field with the multiple attribute. */
         public static final int MODE_OPEN_MULTIPLE = 1;
 
+        // Also the WebChromeClient.FileChooserParams constants of the same names and values, so that lint takes either
+        // one. It must list the same constants as WebChromeClient.FileChooserParams.Mode, so that a mode passes from
+        // one class to the other.
         @Retention(RetentionPolicy.SOURCE)
-        @IntDef({MODE_OPEN, MODE_OPEN_MULTIPLE})
+        @IntDef({MODE_OPEN, MODE_OPEN_MULTIPLE, WebChromeClient.FileChooserParams.MODE_OPEN,
+                 WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE})
         public @interface Mode {}
 
         private final @Mode int mode;

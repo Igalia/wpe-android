@@ -44,7 +44,7 @@ public final class WebKitWebView {
     public static final int SCRIPT_DIALOG_PROMPT = 2;
     public static final int SCRIPT_DIALOG_BEFORE_UNLOAD_CONFIRM = 3;
 
-    // Values mapped to WebKitSnapshotRegion by nativeCaptureSnapshot. WebView checks the region.
+    // Values mapped to WebKitSnapshotRegion by nativeCaptureSnapshot. WebPage checks the region.
     public static final int SNAPSHOT_REGION_VISIBLE = 0;
     public static final int SNAPSHOT_REGION_FULL_DOCUMENT = 1;
 

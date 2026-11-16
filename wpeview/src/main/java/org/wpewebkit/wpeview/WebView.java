@@ -934,11 +934,15 @@ public class WebView extends FrameLayout {
     @FunctionalInterface
     public interface SnapshotCallback extends WebPage.SnapshotCallback {}
 
+    /** The visible part of the page, the same as {@link WebPage#SNAPSHOT_REGION_VISIBLE}. */
     public static final int SNAPSHOT_REGION_VISIBLE = WebPage.SNAPSHOT_REGION_VISIBLE;
+    /** The whole document, the same as {@link WebPage#SNAPSHOT_REGION_FULL_DOCUMENT}. */
     public static final int SNAPSHOT_REGION_FULL_DOCUMENT = WebPage.SNAPSHOT_REGION_FULL_DOCUMENT;
 
-    // The same values as WebPage.SnapshotRegion, so that a region passes from one to the other.
-    @IntDef({WebPage.SNAPSHOT_REGION_VISIBLE, WebPage.SNAPSHOT_REGION_FULL_DOCUMENT})
+    // The constants of this class and of WebPage, so that lint takes either one. It must list the same constants as
+    // WebPage.SnapshotRegion, so that a region passes from one class to the other.
+    @IntDef({SNAPSHOT_REGION_VISIBLE, SNAPSHOT_REGION_FULL_DOCUMENT, WebPage.SNAPSHOT_REGION_VISIBLE,
+             WebPage.SNAPSHOT_REGION_FULL_DOCUMENT})
     @Retention(RetentionPolicy.SOURCE)
     public @interface SnapshotRegion {}
 
