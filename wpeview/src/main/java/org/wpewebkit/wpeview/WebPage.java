@@ -82,6 +82,41 @@ public final class WebPage {
         void onResult(@Nullable Bitmap bitmap);
     }
 
+    /**
+     * Receives the results of a search in the page that {@link #findAllAsync} started, on the main thread: one for the
+     * search, and one for each step to another match with {@link #findNext}, until another search starts, or
+     * {@link #clearMatches()} or {@link #destroy()} ends it.
+     */
+    @FunctionalInterface
+    public interface FindListener {
+        /**
+         * Tells which match is selected, and how many matches of the text the page has, its frames included, up to
+         * {@link #MAX_FIND_MATCHES}.
+         *
+         * @param activeMatchOrdinal the position of the selected match among the matches, from 0, or -1 if there is no
+         *     match, the selected one is past those that are counted, or its position is not known. It is -1 for now:
+         *     WebKit reports only the number of matches.
+         * @param numberOfMatches the number of matches, or 0 if the page has none, or could not be searched, as while
+         *     its web process is gone. Nothing is selected or highlighted then.
+         * @param hasMoreMatches whether the page has more matches than {@link #MAX_FIND_MATCHES}, which are not counted
+         *     nor highlighted, but which {@link #findNext} selects in turn. {@code numberOfMatches} is then
+         *     {@link #MAX_FIND_MATCHES}.
+         */
+        void onFindResultReceived(int activeMatchOrdinal, int numberOfMatches, boolean hasMoreMatches);
+    }
+
+    /** The most matches that a search counts and highlights. */
+    public static final int MAX_FIND_MATCHES = 1000;
+
+    /** Matches only text in the same case: without it, a search ignores case, as users expect. */
+    public static final int FIND_CASE_SENSITIVE = 1;
+    /** Matches only text at the start of a word. */
+    public static final int FIND_AT_WORD_STARTS = 1 << 1;
+
+    @IntDef(flag = true, value = {FIND_CASE_SENSITIVE, FIND_AT_WORD_STARTS})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface FindOptions {}
+
     /** The visible part of the page. */
     public static final int SNAPSHOT_REGION_VISIBLE = WebKitWebView.SNAPSHOT_REGION_VISIBLE;
     /** The whole document. */
@@ -151,6 +186,17 @@ public final class WebPage {
     // The size of the page in logical pixels.
     private int width;
     private int height;
+    // The text, the WebKit options and the listener of the search that findAllAsync started, until another starts, or
+    // clearMatches or destroy ends it.
+    private @Nullable String findText;
+    private int findOptions;
+    private @Nullable FindListener findListener;
+    // The searches and steps that WebKit has not answered yet, and how many of those belong to searches that ended,
+    // whose answers are dropped. WebKit answers each once, in order.
+    private int findAnswersPending;
+    private int findAnswersToDrop;
+    // Counts the searches, so that the answer given for an empty text is dropped once another search starts.
+    private int findGeneration;
 
     /**
      * Makes a page with its own settings, starting from the defaults of {@code context}, and with clients that do
@@ -570,6 +616,106 @@ public final class WebPage {
                                                maxHeight);
     }
 
+    /**
+     * Searches the page for {@code text}, its frames included, as the user does with find in page: highlights the
+     * matches, selects the first one from the start of the selection of the page, or of the page, and scrolls it into
+     * view. {@code listener} gets the result, and the results of the steps of {@link #findNext}, until another search
+     * starts, or {@link #clearMatches()} or {@link #destroy()} ends this one. A search ignores case unless
+     * {@link #FIND_CASE_SENSITIVE} is given, and finds text that is laid out, not hidden text.
+     *
+     * <p>The matches belong to the document they were found in: once the page shows another one, as after a navigation,
+     * the listener hears nothing until the next step, which searches the new document. A search does not select the
+     * text that is selected already, which the current match is, so a new search for the same text, as with other
+     * options, selects the match after it. A search for an empty text ends the search in progress, and tells the
+     * listener that there is no match. Does nothing once the page is destroyed.
+     *
+     * @throws IllegalArgumentException if the options are unknown.
+     */
+    public void findAllAsync(@NonNull String text, @FindOptions int options, @NonNull FindListener listener) {
+        checkThread();
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(listener, "listener");
+        if ((options & ~(FIND_CASE_SENSITIVE | FIND_AT_WORD_STARTS)) != 0)
+            throw new IllegalArgumentException("Unknown find options: " + options);
+        if (destroyed)
+            return;
+        if (text.isEmpty()) {
+            clearMatches();
+            int generation = findGeneration;
+            context.getApplicationContext().getMainExecutor().execute(() -> {
+                if (generation == findGeneration && !destroyed)
+                    listener.onFindResultReceived(-1, 0, false);
+            });
+            return;
+        }
+        // The new search highlights its own matches in place of those of the last one, whose answers are dropped.
+        findGeneration++;
+        findAnswersToDrop = findAnswersPending;
+        findText = text;
+        findListener = listener;
+        findOptions = WebKitWebView.FIND_OPTIONS_WRAP_AROUND;
+        if ((options & FIND_CASE_SENSITIVE) == 0)
+            findOptions |= WebKitWebView.FIND_OPTIONS_CASE_INSENSITIVE;
+        if ((options & FIND_AT_WORD_STARTS) != 0)
+            findOptions |= WebKitWebView.FIND_OPTIONS_AT_WORD_STARTS;
+        search(false);
+    }
+
+    /**
+     * Selects the next match of the search that {@link #findAllAsync} started, or with {@code forward} false the
+     * previous one, going round from the last match to the first and back, and scrolls it into view. Each step searches
+     * the page again, so that the highlights and the number of matches that the listener of the search gets follow
+     * what the page shows. Does nothing if no search is in progress.
+     */
+    public void findNext(boolean forward) {
+        checkThread();
+        if (destroyed || findText == null)
+            return;
+        search(!forward);
+    }
+
+    /**
+     * Ends the search in progress: takes the highlights of the matches away, and its listener hears nothing more. The
+     * last match stays selected. Does nothing if no search is in progress.
+     */
+    public void clearMatches() {
+        checkThread();
+        findGeneration++;
+        if (destroyed || findText == null)
+            return;
+        findText = null;
+        findListener = null;
+        findAnswersToDrop = findAnswersPending;
+        webKitWebView.findFinish();
+    }
+
+    // A search with the text and the options of the search in progress, from the selection: one with the same text
+    // selects the match after the one selected, or before it backwards. Each highlights the matches again, which a step
+    // of WebKit's own (webkit_find_controller_search_next) does not: the page may have changed, shown another document,
+    // or lost the highlights, as WebKit takes them away when it finds nothing.
+    private void search(boolean backwards) {
+        findAnswersPending++;
+        webKitWebView.findSearch(Objects.requireNonNull(findText),
+                                 backwards ? findOptions | WebKitWebView.FIND_OPTIONS_BACKWARDS : findOptions,
+                                 MAX_FIND_MATCHES);
+    }
+
+    // Package-private: called from the PageListener inner class (avoids a synthetic accessor).
+    void onFindResult(int matchCount) {
+        if (findAnswersPending > 0)
+            findAnswersPending--;
+        if (findAnswersToDrop > 0) {
+            findAnswersToDrop--;
+            return;
+        }
+        FindListener listener = findListener;
+        if (listener == null || destroyed)
+            return;
+        boolean hasMoreMatches = matchCount < 0;
+        // The GLib API of WebKit gives only the number of matches, not which one is selected.
+        listener.onFindResultReceived(-1, hasMoreMatches ? MAX_FIND_MATCHES : matchCount, hasMoreMatches);
+    }
+
     /** Cancels the JavaScript dialogs that are not answered yet. */
     void cancelScriptDialogs() {
         while (!pendingScriptDialogs.isEmpty())
@@ -630,6 +776,9 @@ public final class WebPage {
         cancelScriptDialogs();
         alertToShow = null;
         fileChooser = null;
+        // The listener of a search, which may hold a view or an activity, goes with the clients.
+        findText = null;
+        findListener = null;
         mutedWhenDestroyed = webKitWebView.isMuted();
         destroyed = true;
         // This also cancels the requests of file and color fields.
@@ -876,6 +1025,11 @@ public final class WebPage {
             handler.ended = true;
             httpAuthRequests.remove(requestId);
             client.onHttpAuthRequestCanceled(WebPage.this, handler);
+        }
+
+        @Override
+        public void onFindResult(int matchCount) {
+            WebPage.this.onFindResult(matchCount);
         }
 
         @Override

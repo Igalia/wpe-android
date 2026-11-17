@@ -51,6 +51,12 @@ public final class WebKitWebView {
     // The isolated world of the scripts that warnInConsole runs.
     private static final String CONSOLE_WORLD = "WPEView";
 
+    // Mirrors WebKitFindOptions.
+    public static final int FIND_OPTIONS_CASE_INSENSITIVE = 1;
+    public static final int FIND_OPTIONS_AT_WORD_STARTS = 1 << 1;
+    public static final int FIND_OPTIONS_BACKWARDS = 1 << 3;
+    public static final int FIND_OPTIONS_WRAP_AROUND = 1 << 4;
+
     // Mirrors WebKitWebProcessTerminationReason.
     public static final int WEB_PROCESS_CRASHED = 0;
     public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
@@ -205,6 +211,22 @@ public final class WebKitWebView {
 
     public boolean isMuted() { return mNativePtr != 0 && nativeIsMuted(mNativePtr); }
 
+    /**
+     * Highlights the matches of {@code text} in the page, counting up to {@code maxMatchCount} of them, and selects the
+     * first one from the start of the selection of the page, or of the page, but not the selected text itself, or with
+     * {@link #FIND_OPTIONS_BACKWARDS} the last one before. {@link Listener#onFindResult} tells the result.
+     */
+    public void findSearch(@NonNull String text, int options, int maxMatchCount) {
+        if (mNativePtr != 0)
+            nativeFindSearch(mNativePtr, text, options, maxMatchCount);
+    }
+
+    /** Takes the highlights of the matches away. */
+    public void findFinish() {
+        if (mNativePtr != 0)
+            nativeFindFinish(mNativePtr);
+    }
+
     public void setZoomLevel(double zoomLevel) {
         if (mNativePtr != 0)
             nativeSetZoomLevel(mNativePtr, zoomLevel);
@@ -323,6 +345,13 @@ public final class WebKitWebView {
         void onHttpAuthRequestCancelled(long requestId);
 
         void onPlayingAudioChanged(boolean isPlayingAudio);
+
+        /**
+         * Answers a search with the number of matches in the page, 0 if none was found, or -1 if there are more than
+         * the search could count. WebKit answers each search once, in the order they were asked for, also when the web
+         * process ends meanwhile.
+         */
+        void onFindResult(int matchCount);
     }
 
     private @Nullable Listener listener;
@@ -560,6 +589,13 @@ public final class WebKitWebView {
     }
 
     @Keep
+    private void onFindResult(int matchCount) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onFindResult(matchCount));
+    }
+
+    @Keep
     private void onIsPlayingAudioChanged(boolean isPlayingAudio) {
         Listener currentListener = listener;
         if (currentListener != null)
@@ -653,4 +689,6 @@ public final class WebKitWebView {
     private native void nativeAuthenticationCancel(long nativePtr, long requestId);
     private native void nativeSetIsMuted(long nativePtr, boolean muted);
     private native boolean nativeIsMuted(long nativePtr);
+    private native void nativeFindSearch(long nativePtr, @NonNull String text, int options, int maxMatchCount);
+    private native void nativeFindFinish(long nativePtr);
 }

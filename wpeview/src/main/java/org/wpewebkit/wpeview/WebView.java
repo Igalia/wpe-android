@@ -1031,6 +1031,40 @@ public class WebView extends FrameLayout {
             target.evaluateJavascript(script, callback);
     }
 
+    /**
+     * Searches the page for {@code text}, as {@link WebPage#findAllAsync} does: highlights the matches, selects the
+     * first one and scrolls it into view, and gives {@code listener} the result, as {@link WebPage.FindListener} tells.
+     * The search belongs to the page, and goes with it to another view. Does nothing while the view shows no page, or
+     * once its page is destroyed.
+     *
+     * @throws IllegalArgumentException if the options are unknown.
+     */
+    public void findAllAsync(@NonNull String text, @WebPage.FindOptions int options,
+                             @NonNull WebPage.FindListener listener) {
+        WebPage target = pageFor("findAllAsync");
+        if (target != null)
+            target.findAllAsync(text, options, listener);
+    }
+
+    /**
+     * Selects the next match of the search in the page, or with {@code forward} false the previous one, as
+     * {@link WebPage#findNext} does. Does nothing while the view shows no page, or if no search is in progress.
+     */
+    public void findNext(boolean forward) {
+        WebPage target = pageFor("findNext");
+        if (target != null)
+            target.findNext(forward);
+    }
+
+    /**
+     * Ends the search in the page, as {@link WebPage#clearMatches()} does: the highlights of the matches go away. Does
+     * nothing while the view shows no page, or if no search is in progress.
+     */
+    public void clearMatches() {
+        if (page != null)
+            page.clearMatches();
+    }
+
     /** Sets the policy for TLS errors of the {@link WebContext} of the page, or of the view while it shows no page. */
     public void setTLSErrorsPolicy(int policy) {
         WebContext context = currentContext();
