@@ -131,7 +131,13 @@ struct WebKitWebViewBridge {
         auto* findController = webkit_web_view_get_find_controller(m_webView);
         for (gulong id : m_findSignalIds)
             g_signal_handler_disconnect(findController, id);
-        g_object_unref(m_webView);
+        // The app may destroy the WebView in one of its callbacks, while WebKit emits a signal of the web view or of a
+        // request of its page, or while a call into WebKit has not returned, and WebKit then still uses the web view.
+        // So it goes in the next iteration of the main loop, ahead of the sources of default priority. The main loop is
+        // woken up for it, as the WebView may be destroyed outside of it, and nothing else may wake it up soon.
+        g_idle_add_full(
+            G_PRIORITY_HIGH, +[](gpointer) -> gboolean { return G_SOURCE_REMOVE; }, m_webView, g_object_unref);
+        g_main_context_wakeup(nullptr);
     }
 
     WebKitWebView* m_webView;
@@ -196,6 +202,14 @@ struct WebKitWebViewBridge {
     std::string m_windowLoadUri;
     bool m_windowLoadGesture {false};
 };
+
+// The bridge of the web view, or null once the app destroyed the WebView. The web view itself stays until the main
+// loop runs again. A call into Java may call the app, which may destroy the WebView, so a callback that called Java
+// finds the bridge again with this before it uses it again.
+static WebKitWebViewBridge* webViewBridge(WebKitWebView* webView)
+{
+    return static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
+}
 
 class JNIWebKitWebViewEvalCallbackHolderCache final : public JNI::TypedClass<JNIWebKitWebViewEvalCallbackHolder> {
 public:
@@ -483,16 +497,26 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge->m_navigationCounts.clear();
         bridge->m_navigationCountsFull = false;
         // The first page after the end of the web process has its title reported, also when WebKit's stays empty.
-        if (bridge->m_titlePending || bridge->m_webProcessTerminated)
-            reportTitle(bridge);
+        bool titlePending = bridge->m_titlePending || bridge->m_webProcessTerminated;
         bridge->m_webProcessTerminated = false;
+        if (titlePending) {
+            reportTitle(bridge);
+            // The app may have destroyed the WebView as it heard of the title.
+            bridge = webViewBridge(webView);
+            if (!bridge)
+                return;
+        }
         reportHistory(bridge, true);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
         // Also the end of a load that failed or stopped before it committed. After the end of the web process, the view
         // keeps the title and the address of its page until a new one commits.
         bridge->m_loadStarting = false;
-        if (bridge->m_titlePending && !bridge->m_webProcessTerminated)
+        if (bridge->m_titlePending && !bridge->m_webProcessTerminated) {
             reportTitle(bridge);
+            bridge = webViewBridge(webView);
+            if (!bridge)
+                return;
+        }
         const char* uri = webkit_web_view_get_uri(webView);
         if (bridge->m_webProcessTerminated && (!uri || !*uri))
             uri = bridge->m_historyUri.c_str();
@@ -519,7 +543,8 @@ void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebVie
     if (!getJNIWebKitWebViewCache().m_onUriChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
         Logging::logError("cannot deliver WebKitWebView onUriChanged callback");
 
-    if (!webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)))
+    bridge = webViewBridge(WEBKIT_WEB_VIEW(obj));
+    if (bridge && !webkit_web_view_is_loading(WEBKIT_WEB_VIEW(obj)))
         reportHistory(bridge);
 }
 
@@ -672,13 +697,12 @@ gboolean JNIWebKitWebViewCache::onDecidePolicy(WebKitWebView* webView, WebKitPol
             bridge->m_windowLoadUri.clear();
             bridge->m_windowLoadGesture = false;
         }
-        // The app may destroy the WebView while it is asked, which deletes the bridge.
-        g_autoptr(WebKitWebView) protectedWebView = WEBKIT_WEB_VIEW(g_object_ref(webView));
         if (shouldOverrideUrlLoading(bridge, action, isMainFrame, isAppLoad)) {
             webkit_policy_decision_ignore(decision);
             return TRUE;
         }
-        bridge = static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
+        // The app may have destroyed the WebView while it was asked.
+        bridge = webViewBridge(webView);
         // A new window loads its page in a web view of its own, which decides on it again (onCreate).
         if (!bridge || isNewWindow)
             return FALSE;
@@ -960,13 +984,12 @@ gboolean JNIWebKitWebViewCache::onScriptDialog(
     JNI::String jDefaultText = type == WEBKIT_SCRIPT_DIALOG_PROMPT
         ? JNI::String(webkit_script_dialog_prompt_get_default_text(dialog))
         : JNI::String("");
-    // The app may destroy the WebView while it is told, which deletes the bridge.
-    g_autoptr(WebKitWebView) protectedWebView = WEBKIT_WEB_VIEW(g_object_ref(webView));
     if (!getJNIWebKitWebViewCache().m_onScriptDialog.invoke(bridge->m_javaRef.get(), dialogId, static_cast<jint>(type),
             static_cast<jstring>(jUrl), static_cast<jstring>(jMessage), static_cast<jstring>(jDefaultText))) {
         Logging::logError("cannot deliver WebKitWebView onScriptDialog callback");
         // Java answers the dialog when anything fails after it took it. If the call failed before, nothing else would.
-        bridge = static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()));
+        // The app may have destroyed the WebView before the call failed, which let go of the dialog.
+        bridge = webViewBridge(webView);
         if (bridge)
             answerScriptDialog(bridge, dialogId, FALSE, nullptr);
     }
@@ -996,7 +1019,7 @@ void JNIWebKitWebViewCache::answerScriptDialog(
 // The web process of the page ended: it crashed, Android ended it, as it does to free memory, WebKit ended it for using
 // too much memory, or the app asked for it. A load in progress ends with it, and is not reported as finished.
 void JNIWebKitWebViewCache::onWebProcessTerminated(
-    WebKitWebView*, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge)
+    WebKitWebView* webView, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge)
 {
     bridge->m_webProcessTerminated = true;
     bridge->m_loadStarting = false;
@@ -1016,6 +1039,10 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
         g_object_unref(request);
     }
 
+    // The app may have destroyed the WebView as it heard that a request was cancelled.
+    bridge = webViewBridge(webView);
+    if (!bridge)
+        return;
     if (!getJNIWebKitWebViewCache().m_onWebProcessTerminated.invoke(bridge->m_javaRef.get(), static_cast<jint>(reason)))
         Logging::logError("cannot deliver WebKitWebView onWebProcessTerminated callback");
 }
@@ -1023,25 +1050,17 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
 // WebKit asks for the view of a new window while it makes the page of that window, which needs the view before this
 // returns, so the app makes it right away. It must be related to this view: WebKit then puts its page in the same web
 // process, with this page as its opener unless the page asked for none, as rel=noopener does. The bridge of the new
-// view keeps the view, as WebKit takes no reference of its own.
+// view keeps the view, as WebKit takes no reference of its own. The app may destroy this view meanwhile.
 WebKitWebView* JNIWebKitWebViewCache::onCreate(
-    WebKitWebView* webView, WebKitNavigationAction* action, WebKitWebViewBridge* bridge)
+    WebKitWebView*, WebKitNavigationAction* action, WebKitWebViewBridge* bridge)
 {
-    // The app may destroy this view while it is asked, which deletes the bridge and drops its reference on the view.
-    // WebKit still uses the view once the signal returns, so keep a reference until the main loop runs again.
-    g_idle_add_full(
-        G_PRIORITY_DEFAULT, +[](gpointer) -> gboolean { return G_SOURCE_REMOVE; }, g_object_ref(webView),
-        g_object_unref);
-
     bool isUserGesture = webkit_navigation_action_is_user_gesture(action);
     jlong webViewPtr = getJNIWebKitWebViewCache().m_onCreateWindow.invoke(
         bridge->m_javaRef.get(), static_cast<jboolean>(isUserGesture));
     auto* newWebView = JNI::from_jlong<WebKitWebView>(webViewPtr);
     // WebKit decides on the navigation of the window's page again, in the new view, but without the gesture of the link
     // or the script that opened the window. The new view keeps it for the download that the page may become.
-    auto* newBridge = newWebView
-        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(newWebView), webViewBridgeQuark()))
-        : nullptr;
+    auto* newBridge = newWebView ? webViewBridge(newWebView) : nullptr;
     if (newBridge) {
         const char* uri = webkit_uri_request_get_uri(webkit_navigation_action_get_request(action));
         newBridge->m_windowLoadUri = uri ? uri : "";
@@ -1090,9 +1109,7 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
         g_signal_handlers_disconnect_by_func(download, reinterpret_cast<gpointer>(onAppDownloadFailed), nullptr);
 
     auto* webView = webkit_download_get_web_view(download);
-    auto* bridge = webView
-        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
-        : nullptr;
+    auto* bridge = webView ? webViewBridge(webView) : nullptr;
     if (!bridge) {
         webkit_download_cancel(download);
         return TRUE;
@@ -1131,9 +1148,7 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
 void JNIWebKitWebViewCache::onAppDownloadFailed(WebKitDownload* download, GError* error, gpointer)
 {
     auto* webView = webkit_download_get_web_view(download);
-    auto* bridge = webView
-        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
-        : nullptr;
+    auto* bridge = webView ? webViewBridge(webView) : nullptr;
     if (!bridge)
         return;
     auto jUri = JNI::String(static_cast<const char*>(g_object_get_data(G_OBJECT(download), appDownloadKey)));
@@ -1219,7 +1234,7 @@ void JNIWebKitWebViewCache::onColorChooserFinished(WebKitColorChooserRequest* re
 
 // A server or a proxy asks for a user name and password. The load waits until the app answers.
 gboolean JNIWebKitWebViewCache::onAuthenticate(
-    WebKitWebView*, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
+    WebKitWebView* webView, WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge)
 {
     switch (webkit_authentication_request_get_scheme(request)) {
     case WEBKIT_AUTHENTICATION_SCHEME_CLIENT_CERTIFICATE_REQUESTED:
@@ -1256,7 +1271,10 @@ gboolean JNIWebKitWebViewCache::onAuthenticate(
             static_cast<jboolean>(webkit_authentication_request_is_for_proxy(request)),
             static_cast<jboolean>(webkit_authentication_request_is_retry(request)))) {
         Logging::logError("cannot deliver WebKitWebView onAuthenticate callback");
-        answerAuthentication(bridge, requestId, nullptr);
+        // The app may have destroyed the WebView before the call failed, which let go of the request.
+        bridge = webViewBridge(webView);
+        if (bridge)
+            answerAuthentication(bridge, requestId, nullptr);
     }
 
     return TRUE;
@@ -1400,19 +1418,23 @@ void JNIWebKitWebViewCache::nativeDestroy(JNIEnv*, jobject, jlong nativePtr)
 }
 
 // WebKit takes the address of a load the app asks for as the web view's URI at once, as it will be in the request.
-// A javascript: address runs in the page, and is no navigation.
-static void rememberAppLoad(WebKitWebViewBridge* bridge)
+// A javascript: address runs in the page, and is no navigation. WebKit ends the load in progress first, which the app
+// hears of, and it may destroy the WebView then.
+static void rememberAppLoad(WebKitWebView* webView)
 {
-    const char* uri = webkit_web_view_get_uri(bridge->m_webView);
+    auto* bridge = webViewBridge(webView);
+    if (!bridge)
+        return;
+    const char* uri = webkit_web_view_get_uri(webView);
     if (uri && g_ascii_strncasecmp(uri, "javascript:", 11))
         bridge->m_appLoadUris.emplace_back(uri);
 }
 
 void JNIWebKitWebViewCache::nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url)
 {
-    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
-    webkit_web_view_load_uri(bridge->m_webView, JNI::String(url).getContent().get());
-    rememberAppLoad(bridge);
+    auto* webView = JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView;
+    webkit_web_view_load_uri(webView, JNI::String(url).getContent().get());
+    rememberAppLoad(webView);
 }
 
 // Downloads the address in the network session of the view, with its cookies and its user agent. WebKit tells of the
@@ -1436,10 +1458,10 @@ void JNIWebKitWebViewCache::nativeDownloadUri(JNIEnv*, jobject, jlong nativePtr,
 
 void JNIWebKitWebViewCache::nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri)
 {
-    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    auto* webView = JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView;
     webkit_web_view_load_html(
-        bridge->m_webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
-    rememberAppLoad(bridge);
+        webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
+    rememberAppLoad(webView);
 }
 
 void JNIWebKitWebViewCache::nativeStopLoading(JNIEnv*, jobject, jlong nativePtr)

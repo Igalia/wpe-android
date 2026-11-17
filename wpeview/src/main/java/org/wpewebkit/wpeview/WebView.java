@@ -565,7 +565,8 @@ public class WebView extends FrameLayout {
     /**
      * Destroys the view. A page that the view made itself is destroyed with it, and the page methods of the view then
      * keep giving its last values. A page that the app gave it with {@link #setPage} leaves the view, as with
-     * {@code setPage(null)}, and stays the app's.
+     * {@code setPage(null)}, and stays the app's. The app may destroy the view in any callback of its clients, as
+     * when the web process of its page ended.
      */
     public void destroy() {
         if (wpeToplevel == null)
