@@ -220,9 +220,10 @@ application has:
   is read at the same times; a change of refresh rate on its own is not followed.
 - **One per profile.** A `WebContext` owns the `WebKitWebContext`, the
   `WebKitNetworkSession` that stores cookies, cache and website data, and the
-  cookie manager. It also holds the default settings values, such as the
-  User-Agent, that each new `WebView` starts from. A normal and an incognito
-  profile are two `WebContext` instances.
+  cookie manager. Tracking prevention is turned on or off for the session, so
+  for all the pages of the profile at once. The context also holds the default
+  settings values, such as the User-Agent, that each new `WebView` starts from.
+  A normal and an incognito profile are two `WebContext` instances.
 - **One per page.** A `WebPage` owns its `WebKitWebView` and its own
   `WebKitSettings` (exposed as `WebSettings`). The `WPEView` and its input
   method context are borrowed from the `WebKitWebView`. All of them go away with
@@ -257,6 +258,7 @@ classDiagram
         <<one per profile>>
         defaultUserAgent
         +getCookieManager() CookieManager
+        +setTrackingPreventionEnabled(boolean)
         +destroy()
     }
     class WebKitWebContext

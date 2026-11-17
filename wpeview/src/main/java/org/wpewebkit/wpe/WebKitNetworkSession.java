@@ -58,9 +58,15 @@ public final class WebKitNetworkSession {
 
     public void setTLSErrorsPolicy(int policy) { nativeSetTLSErrorsPolicy(mNativePtr, policy); }
 
+    public void setITPEnabled(boolean enabled) { nativeSetITPEnabled(mNativePtr, enabled); }
+
+    public boolean isITPEnabled() { return nativeIsITPEnabled(mNativePtr); }
+
     private native long nativeInit(long contextPtr, boolean automationMode, boolean ephemeral, String dataDir,
                                    String cacheDir);
     private native void nativeDestroy(long nativePtr);
     private native long nativeWebsiteDataManager(long nativePtr);
     private native void nativeSetTLSErrorsPolicy(long nativePtr, int policy);
+    private native void nativeSetITPEnabled(long nativePtr, boolean enabled);
+    private native boolean nativeIsITPEnabled(long nativePtr);
 }

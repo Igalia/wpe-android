@@ -35,7 +35,9 @@ public:
             JNI::NativeMethod<jlong(jlong, jboolean, jboolean, jstring, jstring)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<jlong(jlong)>("nativeWebsiteDataManager", nativeWebsiteDataManager),
-            JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", nativeSetTLSErrorsPolicy));
+            JNI::NativeMethod<void(jlong, jint)>("nativeSetTLSErrorsPolicy", nativeSetTLSErrorsPolicy),
+            JNI::NativeMethod<void(jlong, jboolean)>("nativeSetITPEnabled", nativeSetITPEnabled),
+            JNI::NativeMethod<jboolean(jlong)>("nativeIsITPEnabled", nativeIsITPEnabled));
     }
 
 private:
@@ -80,6 +82,16 @@ private:
     {
         webkit_network_session_set_tls_errors_policy(
             JNI::from_jlong<WebKitNetworkSession>(sessionPtr), static_cast<WebKitTLSErrorsPolicy>(policy));
+    }
+
+    static void nativeSetITPEnabled(JNIEnv*, jobject, jlong sessionPtr, jboolean enabled)
+    {
+        webkit_network_session_set_itp_enabled(JNI::from_jlong<WebKitNetworkSession>(sessionPtr), enabled);
+    }
+
+    static jboolean nativeIsITPEnabled(JNIEnv*, jobject, jlong sessionPtr)
+    {
+        return webkit_network_session_get_itp_enabled(JNI::from_jlong<WebKitNetworkSession>(sessionPtr));
     }
 };
 
