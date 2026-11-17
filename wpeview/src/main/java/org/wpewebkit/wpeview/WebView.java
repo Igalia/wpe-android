@@ -792,6 +792,18 @@ public class WebView extends FrameLayout {
             target.loadUrl(url);
     }
 
+    /**
+     * Downloads the address in the network session of the page, as {@link WebPage#downloadUrl} does. The download
+     * comes to {@link WebViewClient#onDownloadStart}. Does nothing while the view shows no page.
+     *
+     * @param url The address to download.
+     */
+    public void downloadUrl(@NonNull String url) {
+        WebPage target = pageFor("downloadUrl");
+        if (target != null)
+            target.downloadUrl(url);
+    }
+
     public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         WebPage target = pageFor("loadHtml");
         if (target != null)

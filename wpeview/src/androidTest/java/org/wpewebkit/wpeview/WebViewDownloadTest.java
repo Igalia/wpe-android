@@ -41,6 +41,7 @@ import org.wpewebkit.wpe.httpserver.HttpServer;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -259,6 +260,8 @@ public class WebViewDownloadTest {
         WPEDownload download = nextDownload();
         assertEquals(file, download.getUrl().toString());
         assertTrue(download.hasGesture());
+        assertFalse(download.isRequestedByApp());
+        assertNull(download.getRequestedUrl());
         assertEquals("test-file.txt", download.getSuggestedFileName());
         assertEquals("text/plain", download.getMimeType());
         assertEquals(content.length(), download.getContentLength());
@@ -761,5 +764,268 @@ public class WebViewDownloadTest {
                                                                          "location.href = '" + file + "'; true");
         defaultClient.getOnPageFinishedHelper().waitForCallback(30, TimeUnit.SECONDS);
         scenario.onActivity(activity -> assertEquals(page, activity.getWebView().getUrl()));
+    }
+
+    /**
+     * The app downloads an address in the network session of the page, with its cookies and its user agent, as when
+     * the user saves a link of the page. The page stays.
+     */
+    @Test
+    public void testAppDownloadsAnAddressInTheSessionOfThePage() throws Exception {
+        String content = content();
+        String page =
+            serve("/page.html", "text/html", "<title>Page</title><p>Page", "Set-Cookie", "session=signed-in; Path=/");
+        String file =
+            serve("/private.txt", "text/plain", content, "Content-Disposition", "attachment; filename=\"saved.txt\"");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(file));
+        WPEDownload download = nextDownload();
+        assertTrue(download.isRequestedByApp());
+        assertTrue(download.hasGesture());
+        assertEquals(file, download.getUrl().toString());
+        assertEquals(file, download.getRequestedUrl().toString());
+        assertEquals("saved.txt", download.getSuggestedFileName());
+        assertEquals("text/plain", download.getMimeType());
+        assertEquals(content.length(), download.getContentLength());
+
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
+        assertEquals(content, new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+
+        HttpRequest request = httpServer.getLastRequest("/private.txt");
+        assertNotNull(request);
+        assertEquals("session=signed-in", request.getHeaders().get("Cookie"));
+        String userAgent =
+            WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, client, "navigator.userAgent");
+        assertEquals(userAgent, "\"" + request.getHeaders().get("User-Agent") + "\"");
+        assertNull(client.finishedPages.poll(1, TimeUnit.SECONDS));
+        scenario.onActivity(activity -> {
+            assertEquals(page, activity.getWebView().getUrl());
+            assertEquals("Page", activity.getWebView().getTitle());
+        });
+    }
+
+    /** The address of a page that shows a file downloads that file. */
+    @Test
+    public void testAppDownloadsTheFileThatThePageShows() throws Exception {
+        String content = content();
+        String file = serve("/shown.txt", "text/plain", content);
+        ActivityScenario<WebViewTestActivity> scenario = load(file);
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(activity.getWebView().getUrl()));
+        WPEDownload download = nextDownload();
+        assertTrue(download.isRequestedByApp());
+        assertEquals(file, download.getUrl().toString());
+        assertEquals("shown.txt", download.getSuggestedFileName());
+        assertEquals("text/plain", download.getMimeType());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
+        assertEquals(content, new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+        scenario.onActivity(activity -> assertEquals(file, activity.getWebView().getUrl()));
+    }
+
+    /** A PDF that the page shows in the built in viewer keeps its address, which downloads the PDF itself. */
+    @Test
+    public void testAppDownloadsThePdfThatThePageShows() throws Exception {
+        String pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+                     + "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+                     + "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+                     + "trailer<</Root 1 0 R>>\n%%EOF\n";
+        String file = serve("/document.pdf", "application/pdf", pdf);
+        ActivityScenario<WebViewTestActivity> scenario = load(file);
+        assertNull("The PDF was not shown", client.downloads.poll(1, TimeUnit.SECONDS));
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(activity.getWebView().getUrl()));
+        WPEDownload download = nextDownload();
+        assertEquals(file, download.getUrl().toString());
+        assertEquals("application/pdf", download.getMimeType());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
+        assertEquals(pdf, new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A download that the app asks for follows the redirects of the server, and has the address it ends at, besides the
+     * address that the app asked for.
+     */
+    @Test
+    public void testAppDownloadFollowsTheRedirectsOfTheServer() throws Exception {
+        String page = serve("/page.html", "text/html", "<p>Page");
+        String file = serve("/file.txt", "text/plain", "text");
+        String redirect = redirect("/redirect", file);
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(redirect));
+        WPEDownload download = nextDownload();
+        assertTrue(download.isRequestedByApp());
+        assertEquals(file, download.getUrl().toString());
+        assertEquals(redirect, download.getRequestedUrl().toString());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("finished", listener.ends.poll(30, TimeUnit.SECONDS));
+        assertEquals("text", new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+    }
+
+    /**
+     * A download that the app asks for and that fails before the server answers comes all the same, as one that
+     * failed: without a type or a size, and with the last part of the address it asked for as its name, which is a
+     * plain name also when the address hides slashes in it.
+     */
+    @Test
+    public void testAppDownloadThatFailsBeforeTheServerAnswersComesFailed() throws Exception {
+        String page = serve("/page.html", "text/html", "<p>Page");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        String refused = "http://127.0.0.1:" + WebPageTestHelper.closedPort();
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(refused + "/file.txt"));
+        WPEDownload download = nextDownload();
+        assertTrue(download.isRequestedByApp());
+        assertTrue(download.hasGesture());
+        assertEquals(refused + "/file.txt", download.getUrl().toString());
+        assertEquals(refused + "/file.txt", download.getRequestedUrl().toString());
+        assertEquals("file.txt", download.getSuggestedFileName());
+        assertEquals("", download.getMimeType());
+        assertEquals(-1, download.getContentLength());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        assertEquals("failed " + WPEDownload.ERROR_NETWORK, listener.ends.poll(30, TimeUnit.SECONDS));
+        assertFalse(destination.exists());
+        assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(refused + "/..%2F..%2F.hidden%2Fname.txt"));
+        WPEDownload hidden = nextDownload();
+        scenario.onActivity(activity -> hidden.cancel());
+        assertEquals("name.txt", hidden.getSuggestedFileName());
+    }
+
+    /** An address that WebKit cannot load comes at once as failed, and only once. */
+    @Test
+    public void testAppDownloadOfAnAddressThatCannotBeLoadedComesFailed() throws Exception {
+        String page = serve("/page.html", "text/html", "<p>Page");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        String broken = "http://[broken/file.txt";
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(broken));
+        WPEDownload download = nextDownload();
+        assertEquals(broken, download.getRequestedUrl().toString());
+        Listener listener = new Listener();
+        scenario.onActivity(activity -> download.start(destination, listener));
+        String end = listener.ends.poll(30, TimeUnit.SECONDS);
+        assertNotNull(end);
+        assertTrue(end, end.startsWith("failed "));
+        assertFalse(destination.exists());
+        assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
+    }
+
+    /**
+     * Only http, https, data and blob addresses download. Any other comes at once as failed, such as the address of a
+     * file of the app, which the network process could read, also when written in the other ways that WebKit reads.
+     */
+    @Test
+    public void testAppDownloadOfAnotherAddressComesFailed() throws Exception {
+        String page = serve("/page.html", "text/html", "<p>Page");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        File secret = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir(),
+                               "download-test-" + UUID.randomUUID());
+        Files.write(secret.toPath(), "Secret".getBytes(StandardCharsets.UTF_8));
+        String path = secret.getAbsolutePath();
+        try {
+            for (String url : new String[] {"file://" + path, "FILE://" + path, " file://" + path, "fi\nle://" + path,
+                                            "about:blank", "javascript:void(0)"}) {
+                scenario.onActivity(activity -> {
+                    activity.getWebView().downloadUrl(url);
+                    // It comes later, as any download, so that the app can first note what it asked for.
+                    assertNull(url, client.downloads.peek());
+                });
+                WPEDownload download = nextDownload();
+                assertTrue(url, download.isRequestedByApp());
+                assertEquals(url, download.getRequestedUrl().toString());
+                Listener listener = new Listener();
+                scenario.onActivity(activity -> download.start(destination, listener));
+                assertEquals(url, "failed " + WPEDownload.ERROR_UNKNOWN, listener.ends.poll(30, TimeUnit.SECONDS));
+                assertFalse(url, destination.exists());
+            }
+            assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
+        } finally {
+            secret.delete();
+        }
+    }
+
+    /** The data and blob addresses of the pages download as web addresses do, with their schemes in either case. */
+    @Test
+    public void testAppDownloadsDataAndBlobAddresses() throws Exception {
+        // The page keeps its blob, and reads it once, so that the network process has it when the app downloads it.
+        String page =
+            serve("/page.html", "text/html",
+                  "<p>Page<script>var blob = new Blob(['Blob text'], {type: 'text/plain'});"
+                      + "var blobUrl = URL.createObjectURL(blob); var blobRead = false;"
+                      + "fetch(blobUrl).then(response => response.text()).then(() => blobRead = true);</script>");
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+        assertEquals("The page could not read its blob", "true",
+                     WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "blobRead", "true"));
+        String blob = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, client, "blobUrl");
+        // The result of the script is a JSON string.
+        blob = blob.substring(1, blob.length() - 1);
+
+        String[][] addresses = {{"data:text/plain,Data%20text", "Data text"},
+                                {"DATA:text/plain,Upper%20case", "Upper case"},
+                                {blob, "Blob text"}};
+        for (String[] address : addresses) {
+            scenario.onActivity(activity -> activity.getWebView().downloadUrl(address[0]));
+            WPEDownload download = nextDownload();
+            assertEquals(address[0], download.getRequestedUrl().toString());
+            Listener listener = new Listener();
+            scenario.onActivity(activity -> download.start(destination, listener));
+            // How it ended first, which tells why it failed.
+            assertEquals(address[0], "finished", listener.ends.poll(30, TimeUnit.SECONDS));
+            assertEquals(address[0], "text/plain", download.getMimeType());
+            assertEquals(address[1], new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+            destination.delete();
+        }
+    }
+
+    /** A response that never ends its headers, and tells when the client closes the connection. */
+    static class EndlessHeaders extends HttpResponse {
+        final CountDownLatch requested = new CountDownLatch(1);
+        final CountDownLatch closed = new CountDownLatch(1);
+
+        @Override
+        public void send(OutputStream outputStream) {
+            requested.countDown();
+            PrintStream stream = new PrintStream(outputStream);
+            stream.print("HTTP/1.1 200 OK\r\n");
+            long deadline = SystemClock.uptimeMillis() + 30_000;
+            while (SystemClock.uptimeMillis() < deadline) {
+                stream.print("X-Wait: 1\r\n");
+                // A write fails once the client has closed the connection.
+                if (stream.checkError()) {
+                    closed.countDown();
+                    return;
+                }
+                SystemClock.sleep(100);
+            }
+        }
+    }
+
+    /**
+     * A download that the app asks for ends with its WebView when the WebView is destroyed before the server answers:
+     * the app is not told of it, and the request ends.
+     */
+    @Test
+    public void testAppDownloadIsCancelledWhenTheWebViewIsDestroyedFirst() throws Exception {
+        String page = serve("/page.html", "text/html", "<p>Page");
+        EndlessHeaders endless = new EndlessHeaders();
+        String file = httpServer.setResponse("/endless.txt", endless);
+        ActivityScenario<WebViewTestActivity> scenario = load(page);
+
+        scenario.onActivity(activity -> activity.getWebView().downloadUrl(file));
+        assertTrue("The server got no request", endless.requested.await(30, TimeUnit.SECONDS));
+        scenario.onActivity(activity -> activity.getWebView().destroy());
+        assertTrue("The request went on", endless.closed.await(15, TimeUnit.SECONDS));
+        assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
     }
 }
