@@ -18,6 +18,8 @@
 
 package org.wpewebkit.wpeview;
 
+import android.os.Looper;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -182,6 +184,55 @@ public class WebContext {
             cookieManager = new CookieManager(webKitCookieManager, websiteDataManager);
         }
         return cookieManager;
+    }
+
+    /**
+     * Turns tracking prevention on or off for the pages of this context. It is off unless turned on. While it is on,
+     * WebKit keeps sites from following the user across the sites that embed them:
+     * <ul>
+     * <li>A request that a page makes to another site, as for a frame, an image or a script of that site, sends none
+     * of that site's cookies and sets none, and a frame of another site sees none, whatever their {@code SameSite}
+     * attribute says. Frames cannot get them back with the Storage Access API yet: WebKit would ask the app, which
+     * WPEView does not pass on, so their requests are refused.</li>
+     * <li>A cookie that a script sets, with {@code document.cookie}, lasts 7 days at most.</li>
+     * <li>WebKit notes which sites load resources from, or send the user to, which others, and tells the trackers among
+     * them. It deletes the website data of a tracker, and the data that scripts keep for any other site, as local
+     * storage and databases, unless the user tapped or typed in a page of that site in the last 30 days that the
+     * browser was used.</li>
+     * </ul>
+     * A change applies at once, to the pages already open too: their next requests and scripts follow it.
+     *
+     * <p>While it is on, it decides about the cookies of other sites itself: a cookie policy of
+     * {@link CookieManager.CookieAcceptPolicy#AcceptNoThirdParty}, the default, then counts as
+     * {@link CookieManager.CookieAcceptPolicy#AcceptAlways}, and {@link CookieManager#getCookieAcceptPolicy} reports
+     * it so. The policy that was set comes back once it is off.
+     *
+     * <p>A context whose session keeps its data keeps what WebKit notes about sites beside its cookies, in the folder
+     * {@code itp} of the app's files folder, for the next run. An ephemeral session, as the one of a context in
+     * automation mode, keeps it in memory, and it ends with the context.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void setTrackingPreventionEnabled(boolean enabled) {
+        checkUsable();
+        networkSession.setITPEnabled(enabled);
+    }
+
+    /**
+     * Whether tracking prevention is on for the pages of this context. See {@link #setTrackingPreventionEnabled}.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public boolean isTrackingPreventionEnabled() {
+        checkUsable();
+        return networkSession.isITPEnabled();
+    }
+
+    private void checkUsable() {
+        if (Looper.myLooper() != Looper.getMainLooper())
+            throw new IllegalStateException("A WebContext must be used on the main thread");
+        if (destroyed)
+            throw new IllegalStateException("The WebContext is destroyed");
     }
 
     // Internal getters for WebView to access proxies.

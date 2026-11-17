@@ -55,6 +55,11 @@ public final class CookieManager {
         this.websiteDataManager = websiteDataManager;
     }
 
+    /**
+     * Gives the policy that WebKit applies to {@code callback}. While tracking prevention is on, a policy of
+     * {@link CookieAcceptPolicy#AcceptNoThirdParty} counts as {@link CookieAcceptPolicy#AcceptAlways}, which this
+     * reports: see {@link WebContext#setTrackingPreventionEnabled}.
+     */
     public void getCookieAcceptPolicy(@Nullable WPECallback<CookieAcceptPolicy> callback) {
         cookieManager.getAcceptPolicy(policy -> {
             currentPolicy = CookieAcceptPolicy.values()[policy];

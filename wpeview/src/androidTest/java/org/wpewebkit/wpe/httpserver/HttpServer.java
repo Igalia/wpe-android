@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import javax.net.ServerSocketFactory;
 
 public class HttpServer {
     private static final String TAG = "HttpServer";
@@ -28,15 +29,28 @@ public class HttpServer {
     private final Map<String, HttpResponse> responseMap = new HashMap<>();
     private final Map<String, HttpRequest> requestMap = new HashMap<>();
 
-    private HttpServer(int port) throws Exception {
-        serverThread = new ServerThread(port);
+    private final String scheme;
+
+    private HttpServer(int port, ServerSocketFactory socketFactory, String scheme) throws Exception {
+        this.scheme = scheme;
+        serverThread = new ServerThread(port, socketFactory);
         setServerHost("localhost");
         serverThread.start();
 
         synchronized (serverThreadStarted) { serverThreadStarted.wait(10000); }
     }
 
-    public static HttpServer start() throws Exception { return new HttpServer(0); }
+    public static HttpServer start() throws Exception {
+        return new HttpServer(0, ServerSocketFactory.getDefault(), "http");
+    }
+
+    /**
+     * Starts a server that answers over TLS, as https addresses need. Its certificate, for localhost and 127.0.0.1, is
+     * signed by no authority, so the session of the pages must ignore TLS errors.
+     */
+    public static HttpServer startSecure() throws Exception {
+        return new HttpServer(0, TestCertificate.serverSocketFactory(), "https");
+    }
 
     public void shutdown() {
         try {
@@ -52,7 +66,7 @@ public class HttpServer {
     private void setServerHost(String hostname) {
         try {
             serverUri =
-                new java.net.URI("http", null, hostname, serverThread.serverSocket.getLocalPort(), null, null, null)
+                new java.net.URI(scheme, null, hostname, serverThread.serverSocket.getLocalPort(), null, null, null)
                     .toString();
         } catch (java.net.URISyntaxException e) {
             Log.wtf(TAG, e.getMessage());
@@ -82,17 +96,18 @@ public class HttpServer {
         @GuardedBy("lock")
         private final Set<Socket> openSockets = new HashSet<>();
 
-        public ServerThread(int port) throws Exception {
+        public ServerThread(int port, ServerSocketFactory socketFactory) throws Exception {
             int retryCount = 3;
             int delay = 1000; // Initial delay in milliseconds
 
-            tryToCreateServerSocket(port, retryCount, delay);
+            tryToCreateServerSocket(port, socketFactory, retryCount, delay);
         }
 
-        private void tryToCreateServerSocket(int port, int retryCount, int delay) throws Exception {
+        private void tryToCreateServerSocket(int port, ServerSocketFactory socketFactory, int retryCount, int delay)
+            throws Exception {
             while (retryCount > 0) {
                 try {
-                    serverSocket = new ServerSocket(port);
+                    serverSocket = socketFactory.createServerSocket(port);
                     Log.i(TAG, "ServerSocket created successfully on port: " + port);
                     return;
                 } catch (IOException e) {
