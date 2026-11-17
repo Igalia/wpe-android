@@ -93,8 +93,8 @@ public class WebPageClient {
 
     /**
      * Tells the app that a response is to be saved to a file instead of shown, as {@link
-     * WebViewClient#onDownloadStart}. The app starts or cancels the download, now or later; destroying the page cancels
-     * it. By default it is cancelled.
+     * WebViewClient#onDownloadStart}, also one that the app asked for with {@link WebPage#downloadUrl}. The app starts
+     * or cancels the download, now or later; destroying the page cancels it. By default it is cancelled.
      */
     public void onDownloadStart(@NonNull WebPage page, @NonNull WPEDownload download) { download.cancel(); }
 

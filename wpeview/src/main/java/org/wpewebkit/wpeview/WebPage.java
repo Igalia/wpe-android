@@ -414,6 +414,27 @@ public final class WebPage {
         webKitWebView.loadUrl(url);
     }
 
+    /**
+     * Downloads the address in the network session of the page, as when the user saves a link of the page: with its
+     * cookies and logins, and the page's user agent. The address of a page that shows a file, such as an image or plain
+     * text, downloads that file. The download comes to {@link WebPageClient#onDownloadStart} like those of the page,
+     * as {@link WPEDownload#isRequestedByApp() requested by the app}, with this address as its
+     * {@link WPEDownload#getRequestedUrl() requested address}, once the server answers, or at once with its failure if
+     * it fails before, as when the server cannot be reached. Does nothing once the page is destroyed, which also
+     * cancels a download that the app was not told of yet.
+     *
+     * <p>Only http, https, data and blob addresses download. Any other comes at once as failed, with
+     * {@link WPEDownload#ERROR_UNKNOWN}: a file address, for example, would have the network process, which runs as
+     * the app, read the app's own files.
+     *
+     * @param url The address to download.
+     */
+    public void downloadUrl(@NonNull String url) {
+        checkThread();
+        if (!destroyed)
+            webKitWebView.downloadUri(url);
+    }
+
     /** Loads HTML content, with {@code baseUri} as its address, or about:blank if it is null. */
     public void loadHtml(@NonNull String content, @Nullable String baseUri) {
         checkThread();

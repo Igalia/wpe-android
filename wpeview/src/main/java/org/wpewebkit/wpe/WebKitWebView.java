@@ -112,6 +112,44 @@ public final class WebKitWebView {
         }
     }
 
+    // The addresses that the app may download: those of the web, and the data and blobs of the pages. The network
+    // process reads any other that WebKit can load, such as a file: address, as the app, which may then save its own
+    // files, as its cookies, where other apps read them.
+    private static final String[] downloadSchemes = {"http:", "https:", "data:", "blob:"};
+
+    /**
+     * Downloads the address in the network session of the view. The listener hears of the download in
+     * {@link Listener#onDownloadStarted}, as of those of the pages, as requested by the app. An address that the app
+     * may not download comes at once as failed.
+     */
+    public void downloadUri(@NonNull String uri) {
+        if (mNativePtr == 0)
+            return;
+        for (String scheme : downloadSchemes) {
+            if (startsWithScheme(uri, scheme)) {
+                nativeDownloadUri(mNativePtr, uri);
+                return;
+            }
+        }
+        onDownloadFailedBeforeResponse(uri, WebKitDownload.ERROR_UNKNOWN,
+                                       "Only http, https, data and blob addresses can be downloaded");
+    }
+
+    // Whether the address has the scheme, given in lower case with its colon. WebKit reads the scheme up to the first
+    // colon, with ASCII letters in either case, so only those are compared without regard to case.
+    private static boolean startsWithScheme(@NonNull String uri, @NonNull String scheme) {
+        if (uri.length() < scheme.length())
+            return false;
+        for (int i = 0; i < scheme.length(); i++) {
+            char c = uri.charAt(i);
+            if (c >= 'A' && c <= 'Z')
+                c += 'a' - 'A';
+            if (c != scheme.charAt(i))
+                return false;
+        }
+        return true;
+    }
+
     public void loadHtml(@NonNull String content, @NonNull String baseUri) {
         if (mNativePtr != 0) {
             nativeLoadHtml(mNativePtr, content, baseUri);
@@ -393,9 +431,9 @@ public final class WebKitWebView {
     // destroyed.
     @Keep
     private void onDownloadStarted(long downloadPtr, String uri, String suggestedFilename, String mimeType,
-                                   long contentLength, boolean hasGesture) {
+                                   long contentLength, boolean hasGesture, @Nullable String requestedUri) {
         WebKitDownload download =
-            new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength, hasGesture);
+            new WebKitDownload(downloadPtr, uri, suggestedFilename, mimeType, contentLength, hasGesture, requestedUri);
         Listener currentListener = listener;
         if (currentListener == null) {
             download.cancel();
@@ -404,6 +442,18 @@ public final class WebKitWebView {
         undecidedDownloads.add(download);
         download.setDecidedCallback(() -> undecidedDownloads.remove(download));
         MainLooperDispatcher.post(() -> currentListener.onDownloadStarted(download));
+    }
+
+    // A download that the app asked for (downloadUri) failed before its response. The listener is told of it as of one
+    // that already failed, which it reports once it is started. It is told later, also of an address that downloadUri
+    // refused, as of any download, so that the app can first note what it asked for.
+    @Keep
+    private void onDownloadFailedBeforeResponse(String uri, int errorCode, String description) {
+        Listener currentListener = listener;
+        if (currentListener == null)
+            return;
+        WebKitDownload download = WebKitDownload.failedBeforeResponse(uri, errorCode, description);
+        MainLooperDispatcher.postLater(() -> currentListener.onDownloadStarted(download));
     }
 
     /**
@@ -574,6 +624,7 @@ public final class WebKitWebView {
     private native long nativeInitRelated(long relatedPtr, long settingsPtr);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, String url);
+    private native void nativeDownloadUri(long nativePtr, String uri);
     private native void nativeLoadHtml(long nativePtr, String content, String baseUri);
     private native void nativeStopLoading(long nativePtr);
     private native void nativeReload(long nativePtr);

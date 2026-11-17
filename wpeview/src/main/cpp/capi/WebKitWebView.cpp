@@ -121,6 +121,12 @@ struct WebKitWebViewBridge {
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         if (m_downloadStartedId)
             g_signal_handler_disconnect(webkit_web_view_get_network_session(m_webView), m_downloadStartedId);
+        // The app was not told of these downloads yet, and no one would be.
+        for (auto* download : m_appDownloads) {
+            webkit_download_cancel(download);
+            g_object_unref(download);
+        }
+        m_appDownloads.clear();
         g_object_unref(m_webView);
     }
 
@@ -129,6 +135,9 @@ struct WebKitWebViewBridge {
     std::vector<gulong> m_signalIds;
     gulong m_backForwardListChangedId {0};
     gulong m_downloadStartedId {0};
+    // The downloads that the app asked for (nativeDownloadUri) until it is told of them, once their response is known
+    // or they failed before it.
+    std::vector<WebKitDownload*> m_appDownloads;
     // The address and the Back/Forward state last reported, none at first.
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
@@ -264,7 +273,9 @@ public:
         , m_onCreateWindow(getMethod<jlong(jboolean)>("onCreateWindow"))
         , m_shouldOverrideUrlLoading(
               getMethod<jboolean(jstring, jstring, jboolean, jboolean, jboolean)>("shouldOverrideUrlLoading"))
-        , m_onDownloadStarted(getMethod<void(jlong, jstring, jstring, jstring, jlong, jboolean)>("onDownloadStarted"))
+        , m_onDownloadStarted(
+              getMethod<void(jlong, jstring, jstring, jstring, jlong, jboolean, jstring)>("onDownloadStarted"))
+        , m_onDownloadFailedBeforeResponse(getMethod<void(jstring, jint, jstring)>("onDownloadFailedBeforeResponse"))
         , m_onRunFileChooser(getMethod<void(jlong, jstringArray, jboolean)>("onRunFileChooser"))
         , m_onRunColorChooser(getMethod<void(jlong, jint, jboolean)>("onRunColorChooser"))
         , m_onColorChooserFinished(getMethod<void(jlong)>("onColorChooserFinished"))
@@ -277,6 +288,7 @@ public:
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", nativeLoadUrl),
+            JNI::NativeMethod<void(jlong, jstring)>("nativeDownloadUri", nativeDownloadUri),
             JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", nativeLoadHtml),
             JNI::NativeMethod<void(jlong)>("nativeStopLoading", nativeStopLoading),
             JNI::NativeMethod<void(jlong)>("nativeReload", nativeReload),
@@ -323,7 +335,8 @@ public:
     const JNI::Method<void(jint)> m_onWebProcessTerminated;
     const JNI::Method<jlong(jboolean)> m_onCreateWindow;
     const JNI::Method<jboolean(jstring, jstring, jboolean, jboolean, jboolean)> m_shouldOverrideUrlLoading;
-    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong, jboolean)> m_onDownloadStarted;
+    const JNI::Method<void(jlong, jstring, jstring, jstring, jlong, jboolean, jstring)> m_onDownloadStarted;
+    const JNI::Method<void(jstring, jint, jstring)> m_onDownloadFailedBeforeResponse;
     const JNI::Method<void(jlong, jstringArray, jboolean)> m_onRunFileChooser;
     const JNI::Method<void(jlong, jint, jboolean)> m_onRunColorChooser;
     const JNI::Method<void(jlong)> m_onColorChooserFinished;
@@ -361,6 +374,7 @@ private:
     static void onDownloadStarted(WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge);
     static gboolean onDecideDownloadDestination(
         WebKitDownload* download, const char* suggestedFilename, gpointer hasGesture);
+    static void onAppDownloadFailed(WebKitDownload* download, GError* error, gpointer);
     static gboolean onRunFileChooser(WebKitWebView*, WebKitFileChooserRequest* request, WebKitWebViewBridge* bridge);
     static gboolean onRunColorChooser(WebKitWebView*, WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
     static void onColorChooserFinished(WebKitColorChooserRequest* request, WebKitWebViewBridge* bridge);
@@ -377,6 +391,7 @@ private:
     static jlong nativeInitRelated(JNIEnv* env, jobject jniWebView, jlong relatedPtr, jlong settingsPtr);
     static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr);
     static void nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url);
+    static void nativeDownloadUri(JNIEnv*, jobject, jlong nativePtr, jstring uri);
     static void nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri);
     static void nativeStopLoading(JNIEnv*, jobject, jlong nativePtr);
     static void nativeReload(JNIEnv*, jobject, jlong nativePtr);
@@ -999,11 +1014,28 @@ WebKitWebView* JNIWebKitWebViewCache::onCreate(
     return newWebView;
 }
 
-// Every web view of the network session hears of every download, and follows those of its own pages.
+// The address that the app asked to download (nativeDownloadUri), as it gave it, which marks the downloads it asked
+// for: those are followed from the start.
+static constexpr const char* appDownloadKey = "wpeview-app-download";
+
+// The app is told of a download that it asked for, which the view then no longer cancels when it ends.
+static void forgetAppDownload(WebKitWebViewBridge* bridge, WebKitDownload* download)
+{
+    auto& downloads = bridge->m_appDownloads;
+    auto found = std::find(downloads.begin(), downloads.end(), download);
+    if (found == downloads.end())
+        return;
+    downloads.erase(found);
+    g_object_unref(download);
+}
+
+// Every web view of the network session hears of every download, and follows those of its own pages. Those that the
+// app asked for are followed already, and take no gesture from the navigations of the page.
 void JNIWebKitWebViewCache::onDownloadStarted(
     WebKitNetworkSession*, WebKitDownload* download, WebKitWebViewBridge* bridge)
 {
-    if (webkit_download_get_web_view(download) != bridge->m_webView)
+    if (webkit_download_get_web_view(download) != bridge->m_webView
+        || g_object_get_data(G_OBJECT(download), appDownloadKey))
         return;
     auto* request = webkit_download_get_request(download);
     bool hasGesture = takeNavigationGesture(bridge, request ? webkit_uri_request_get_uri(request) : nullptr);
@@ -1016,6 +1048,11 @@ void JNIWebKitWebViewCache::onDownloadStarted(
 gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
     WebKitDownload* download, const char* suggestedFilename, gpointer hasGesture)
 {
+    // From now on, the download reports its failure to the app itself.
+    auto* requestedUri = static_cast<const char*>(g_object_get_data(G_OBJECT(download), appDownloadKey));
+    if (requestedUri)
+        g_signal_handlers_disconnect_by_func(download, reinterpret_cast<gpointer>(onAppDownloadFailed), nullptr);
+
     auto* webView = webkit_download_get_web_view(download);
     auto* bridge = webView
         ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
@@ -1024,6 +1061,8 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
         webkit_download_cancel(download);
         return TRUE;
     }
+    if (requestedUri)
+        forgetAppDownload(bridge, download);
 
     // The address after the redirects of the server.
     auto* response = webkit_download_get_response(download);
@@ -1037,14 +1076,38 @@ gboolean JNIWebKitWebViewCache::onDecideDownloadDestination(
     auto jUri = JNI::String(uri ? uri : "");
     auto jSuggestedFilename = JNI::String(suggestedFilename ? suggestedFilename : "");
     auto jMimeType = JNI::String(mimeType ? mimeType : "");
+    // Null for a download of the page.
+    auto jRequestedUri = JNI::String(requestedUri);
     if (!getJNIWebKitWebViewCache().m_onDownloadStarted.invoke(bridge->m_javaRef.get(), downloadPtr,
             static_cast<jstring>(jUri), static_cast<jstring>(jSuggestedFilename), static_cast<jstring>(jMimeType),
-            length ? static_cast<jlong>(length) : -1, static_cast<jboolean>(GPOINTER_TO_INT(hasGesture)))
+            length ? static_cast<jlong>(length) : -1, static_cast<jboolean>(GPOINTER_TO_INT(hasGesture)),
+            static_cast<jstring>(jRequestedUri))
         || !isWebKitDownloadBridgeAttached(downloadPtr)) {
         Logging::logError("cannot deliver WebKitWebView onDownloadStarted callback");
         webkit_download_cancel(download);
     }
     return TRUE;
+}
+
+// A download that the app asked for failed before its response, as when the server cannot be reached, so before the
+// app was told of it. The app is told of it then, as of a download that failed, with the address it asked for, unless
+// its web view went meanwhile, which cancelled it.
+void JNIWebKitWebViewCache::onAppDownloadFailed(WebKitDownload* download, GError* error, gpointer)
+{
+    auto* webView = webkit_download_get_web_view(download);
+    auto* bridge = webView
+        ? static_cast<WebKitWebViewBridge*>(g_object_get_qdata(G_OBJECT(webView), webViewBridgeQuark()))
+        : nullptr;
+    if (!bridge)
+        return;
+    auto jUri = JNI::String(static_cast<const char*>(g_object_get_data(G_OBJECT(download), appDownloadKey)));
+    forgetAppDownload(bridge, download);
+
+    jint code = error && error->domain == WEBKIT_DOWNLOAD_ERROR ? error->code : 0;
+    auto jDescription = JNI::String(error && error->message ? error->message : "");
+    if (!getJNIWebKitWebViewCache().m_onDownloadFailedBeforeResponse.invoke(
+            bridge->m_javaRef.get(), static_cast<jstring>(jUri), code, static_cast<jstring>(jDescription)))
+        Logging::logError("cannot deliver WebKitWebView onDownloadFailedBeforeResponse callback");
 }
 
 // Marks a file chooser request that Java answered, which released the reference taken for it.
@@ -1309,6 +1372,25 @@ void JNIWebKitWebViewCache::nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jst
     auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
     webkit_web_view_load_uri(bridge->m_webView, JNI::String(url).getContent().get());
     rememberAppLoad(bridge);
+}
+
+// Downloads the address in the network session of the view, with its cookies and its user agent. WebKit tells of the
+// download only once the network process started it, so it is followed from now on, as the app's: it has the app's
+// gesture, and the app is told of it once its response is known, or of its failure if it fails before, with the
+// address as the app gave it. Until then, the view keeps it, and cancels it if it ends first.
+void JNIWebKitWebViewCache::nativeDownloadUri(JNIEnv*, jobject, jlong nativePtr, jstring uri)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    // The characters are released with the string, so it lives as long.
+    JNI::String jUri(uri);
+    auto content = jUri.getContent();
+    g_autoptr(WebKitDownload) download = webkit_web_view_download_uri(bridge->m_webView, content.get());
+    if (!download)
+        return;
+    bridge->m_appDownloads.push_back(WEBKIT_DOWNLOAD(g_object_ref(download)));
+    g_object_set_data_full(G_OBJECT(download), appDownloadKey, g_strdup(content.get()), g_free);
+    g_signal_connect(download, "decide-destination", G_CALLBACK(onDecideDownloadDestination), GINT_TO_POINTER(TRUE));
+    g_signal_connect(download, "failed", G_CALLBACK(onAppDownloadFailed), nullptr);
 }
 
 void JNIWebKitWebViewCache::nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri)

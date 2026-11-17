@@ -38,12 +38,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wpewebkit.wpe.LocalNetworkAccess;
+import org.wpewebkit.wpe.httpserver.HttpRequest;
 import org.wpewebkit.wpe.httpserver.HttpResponse;
 import org.wpewebkit.wpe.httpserver.HttpServer;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -1032,5 +1037,115 @@ public class WebPageTest {
         }
         assertNull("The destroyed page kept its chrome client", chromeClient.get());
         assertEquals(1, held.size());
+    }
+
+    // A client that keeps the downloads of the page.
+    private static class DownloadingClient extends WebPageTestHelper.RecordingClient {
+        final BlockingQueue<WPEDownload> downloads = new LinkedBlockingQueue<>();
+
+        @Override
+        public void onDownloadStart(@NonNull WebPage page, @NonNull WPEDownload download) {
+            downloads.add(download);
+        }
+    }
+
+    private static HttpResponse response(String contentType, String body, String... headers) {
+        HttpResponse response = new HttpResponse();
+        response.setStatusCode(200);
+        response.setStatusMessage("OK");
+        response.addHeader("Content-Type", contentType);
+        for (int i = 0; i < headers.length; i += 2)
+            response.addHeader(headers[i], headers[i + 1]);
+        response.setBody(body);
+        return response;
+    }
+
+    /**
+     * A page downloads the addresses that the app asks for in its own network session, with the cookies it got there,
+     * also when its context keeps them in memory only.
+     */
+    @Test
+    public void testPageDownloadsInItsOwnSession() throws Exception {
+        HttpServer server = HttpServer.start();
+        File destination = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getCacheDir(),
+                                    "page-download-" + UUID.randomUUID());
+        try {
+            String pageUrl =
+                server.setResponse("/page.html", response("text/html", "<p>Page", "Set-Cookie", "session=own; Path=/"));
+            String fileUrl = server.setResponse("/file.txt", response("text/plain", "private"));
+            DownloadingClient client = new DownloadingClient();
+            WebPage page = newPage(context, client);
+            pages.add(page);
+            WebPageTestHelper.loadUrl(page, client, pageUrl);
+
+            onMain(() -> page.downloadUrl(fileUrl));
+            WPEDownload download = client.downloads.poll(30, TimeUnit.SECONDS);
+            assertNotNull("The app was not told of the download", download);
+            assertTrue(download.isRequestedByApp());
+            BlockingQueue<String> ends = new LinkedBlockingQueue<>();
+            onMain(() -> download.start(destination, new WPEDownload.Listener() {
+                @Override
+                public void onProgress(@NonNull WPEDownload download, long receivedBytes, long totalBytes) {}
+
+                @Override
+                public void onFinished(@NonNull WPEDownload download) {
+                    ends.add("finished");
+                }
+
+                @Override
+                public void onFailed(@NonNull WPEDownload download, int errorCode, @NonNull String description) {
+                    ends.add("failed " + errorCode);
+                }
+            }));
+            assertEquals("finished", ends.poll(30, TimeUnit.SECONDS));
+            assertEquals("private", new String(Files.readAllBytes(destination.toPath()), StandardCharsets.UTF_8));
+            HttpRequest request = server.getLastRequest("/file.txt");
+            assertNotNull(request);
+            assertEquals("session=own", request.getHeaders().get("Cookie"));
+        } finally {
+            server.shutdown();
+            destination.delete();
+        }
+    }
+
+    /**
+     * A download that the app asks for ends with its page when the page is destroyed before the server answers, also
+     * while the context and the network session of the page stay: the app is not told of it, and the request ends.
+     */
+    @Test
+    public void testPendingDownloadEndsWithThePage() throws Exception {
+        HttpServer server = HttpServer.start();
+        try {
+            WebViewDownloadTest.EndlessHeaders endless = new WebViewDownloadTest.EndlessHeaders();
+            String fileUrl = server.setResponse("/endless.txt", endless);
+            DownloadingClient client = new DownloadingClient();
+            WebPage page = newPage(context, client);
+            onMain(() -> page.downloadUrl(fileUrl));
+            assertTrue("The server got no request", endless.requested.await(30, TimeUnit.SECONDS));
+            onMain(page::destroy);
+            assertTrue("The request went on", endless.closed.await(15, TimeUnit.SECONDS));
+            assertNull(client.downloads.poll(1, TimeUnit.SECONDS));
+        } finally {
+            server.shutdown();
+        }
+    }
+
+    /** A destroyed page downloads nothing: the server gets no request. */
+    @Test
+    public void testDestroyedPageDownloadsNothing() throws Exception {
+        HttpServer server = HttpServer.start();
+        try {
+            String fileUrl = server.setResponse("/file.txt", response("text/plain", "text"));
+            DownloadingClient client = new DownloadingClient();
+            WebPage page = newPage(context, client);
+            onMain(() -> {
+                page.destroy();
+                page.downloadUrl(fileUrl);
+            });
+            assertNull(client.downloads.poll(2, TimeUnit.SECONDS));
+            assertNull(server.getLastRequest("/file.txt"));
+        } finally {
+            server.shutdown();
+        }
     }
 }
