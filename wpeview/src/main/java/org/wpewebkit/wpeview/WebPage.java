@@ -757,7 +757,8 @@ public final class WebPage {
      * Destroys the page, after taking it out of the view that shows it. Its JavaScript dialogs and other requests that
      * wait for an answer are cancelled, and its clients do not hear of them. The clients of a WebView that made the
      * page, and goes on, do hear of those for HTTP authentication and color fields, as when the view lets go of the
-     * page otherwise. Does nothing if the page is already destroyed.
+     * page otherwise. Does nothing if the page is already destroyed. The app may destroy the page in any callback of
+     * its clients.
      */
     public void destroy() {
         if (destroyed)
