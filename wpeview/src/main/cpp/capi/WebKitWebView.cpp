@@ -127,6 +127,10 @@ struct WebKitWebViewBridge {
             g_object_unref(download);
         }
         m_appDownloads.clear();
+        // The find controller belongs to the web view, which may outlive the bridge.
+        auto* findController = webkit_web_view_get_find_controller(m_webView);
+        for (gulong id : m_findSignalIds)
+            g_signal_handler_disconnect(findController, id);
         g_object_unref(m_webView);
     }
 
@@ -138,6 +142,7 @@ struct WebKitWebViewBridge {
     // The downloads that the app asked for (nativeDownloadUri) until it is told of them, once their response is known
     // or they failed before it.
     std::vector<WebKitDownload*> m_appDownloads;
+    std::vector<gulong> m_findSignalIds;
     // The address and the Back/Forward state last reported, none at first.
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
@@ -283,6 +288,7 @@ public:
               getMethod<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)>("onAuthenticate"))
         , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
         , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
+        , m_onFindResult(getMethod<void(jint)>("onFindResult"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -319,7 +325,9 @@ public:
             JNI::NativeMethod<void(jlong, jlong, jstring, jstring)>("nativeAuthenticate", nativeAuthenticate),
             JNI::NativeMethod<void(jlong, jlong)>("nativeAuthenticationCancel", nativeAuthenticationCancel),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetIsMuted", nativeSetIsMuted),
-            JNI::NativeMethod<jboolean(jlong)>("nativeIsMuted", nativeIsMuted));
+            JNI::NativeMethod<jboolean(jlong)>("nativeIsMuted", nativeIsMuted),
+            JNI::NativeMethod<void(jlong, jstring, jint, jint)>("nativeFindSearch", nativeFindSearch),
+            JNI::NativeMethod<void(jlong)>("nativeFindFinish", nativeFindFinish));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -343,6 +351,7 @@ public:
     const JNI::Method<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)> m_onAuthenticate;
     const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
     const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
+    const JNI::Method<void(jint)> m_onFindResult;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -382,6 +391,9 @@ private:
     static void onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
     static void answerAuthentication(WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential);
     static void onIsPlayingAudioChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void onFoundText(WebKitFindController*, guint matchCount, WebKitWebViewBridge* bridge);
+    static void onFailedToFindText(WebKitFindController*, WebKitWebViewBridge* bridge);
+    static void reportFindResult(WebKitWebViewBridge* bridge, jint matchCount);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -424,6 +436,8 @@ private:
     static void nativeAuthenticationCancel(JNIEnv*, jobject, jlong nativePtr, jlong requestId);
     static void nativeSetIsMuted(JNIEnv*, jobject, jlong nativePtr, jboolean muted);
     static jboolean nativeIsMuted(JNIEnv*, jobject, jlong nativePtr);
+    static void nativeFindSearch(JNIEnv*, jobject, jlong nativePtr, jstring text, jint options, jint maxMatchCount);
+    static void nativeFindFinish(JNIEnv*, jobject, jlong nativePtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -574,6 +588,28 @@ void JNIWebKitWebViewCache::onIsPlayingAudioChanged(GObject* obj, GParamSpec*, W
     if (!getJNIWebKitWebViewCache().m_onIsPlayingAudioChanged.invoke(
             bridge->m_javaRef.get(), static_cast<jboolean>(isPlayingAudio)))
         Logging::logError("cannot deliver WebKitWebView onIsPlayingAudioChanged callback");
+}
+
+// WebKit answers each search once, in the order they were asked for, as a page without site isolation sends them all to
+// its one web process, also when that ends meanwhile, as its replies then come with nothing found. An answer says how
+// many matches the page has, but not which one is the current match. A search that found more matches than it was
+// allowed to count reports G_MAXUINT.
+void JNIWebKitWebViewCache::onFoundText(WebKitFindController*, guint matchCount, WebKitWebViewBridge* bridge)
+{
+    reportFindResult(
+        bridge, matchCount > static_cast<guint>(std::numeric_limits<jint>::max()) ? -1 : static_cast<jint>(matchCount));
+}
+
+// No match, or the page could not be searched. WebKit then takes the highlights of the matches away.
+void JNIWebKitWebViewCache::onFailedToFindText(WebKitFindController*, WebKitWebViewBridge* bridge)
+{
+    reportFindResult(bridge, 0);
+}
+
+void JNIWebKitWebViewCache::reportFindResult(WebKitWebViewBridge* bridge, jint matchCount)
+{
+    if (!getJNIWebKitWebViewCache().m_onFindResult.invoke(bridge->m_javaRef.get(), matchCount))
+        Logging::logError("cannot deliver WebKitWebView onFindResult callback");
 }
 
 void JNIWebKitWebViewCache::onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
@@ -1349,6 +1385,11 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
     bridge->m_downloadStartedId = g_signal_connect(
         webkit_web_view_get_network_session(webView), "download-started", G_CALLBACK(onDownloadStarted), bridge);
+    auto* findController = webkit_web_view_get_find_controller(webView);
+    bridge->m_findSignalIds = {
+        g_signal_connect(findController, "found-text", G_CALLBACK(onFoundText), bridge),
+        g_signal_connect(findController, "failed-to-find-text", G_CALLBACK(onFailedToFindText), bridge),
+    };
 
     return bridge;
 }
@@ -1765,6 +1806,24 @@ jboolean JNIWebKitWebViewCache::nativeIsMuted(JNIEnv*, jobject, jlong nativePtr)
 {
     return webkit_web_view_get_is_muted(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView) ? JNI_TRUE
                                                                                                     : JNI_FALSE;
+}
+
+// Highlights the matches of the text and selects the first one from the start of the selection of the page, or of the
+// page, but not the selected text itself, and scrolls to it, or with WEBKIT_FIND_OPTIONS_BACKWARDS the last one before.
+// The options are those of WebKitFindOptions, which the Java side checks.
+void JNIWebKitWebViewCache::nativeFindSearch(
+    JNIEnv*, jobject, jlong nativePtr, jstring text, jint options, jint maxMatchCount)
+{
+    webkit_find_controller_search(
+        webkit_web_view_get_find_controller(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView),
+        JNI::String(text).getContent().get(), static_cast<guint32>(options), static_cast<guint>(maxMatchCount));
+}
+
+// Takes the highlights of the matches away. The selection of the current match stays.
+void JNIWebKitWebViewCache::nativeFindFinish(JNIEnv*, jobject, jlong nativePtr)
+{
+    webkit_find_controller_search_finish(
+        webkit_web_view_get_find_controller(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView));
 }
 
 void JNIWebKitWebViewCache::nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray)
