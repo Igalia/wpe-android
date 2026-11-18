@@ -72,9 +72,19 @@ jobs:
             adb shell am start -W -n org.wpewebkit.tools.webdriver/.WebDriverActivity
             sleep 5
             adb shell am force-stop org.wpewebkit.tools.webdriver
+            adb logcat -c; adb logcat -v threadtime > logcat.txt 2>&1 < /dev/null &
             python3 -m venv .venv
             .venv/bin/pip install -r webdrivertests/requirements.txt
             .venv/bin/python tools/scripts/run-webdriver-tests --json-output=results.json
 
       - name: Test results
         run: tools/scripts/print-webdriver-json-results ./results.json
+
+      - name: Save Test Results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: webdriver-test-results
+          path: |
+            results.json
+            logcat.txt
