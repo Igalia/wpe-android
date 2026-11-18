@@ -221,9 +221,10 @@ application has:
 - **One per profile.** A `WebContext` owns the `WebKitWebContext`, the
   `WebKitNetworkSession` that stores cookies, cache and website data, and the
   cookie manager. Tracking prevention is turned on or off for the session, so
-  for all the pages of the profile at once. The context also holds the default
-  settings values, such as the User-Agent, that each new `WebView` starts from.
-  A normal and an incognito profile are two `WebContext` instances.
+  for all the pages of the profile at once, and what it noted about the sites
+  of those pages is read and cleared there too. The context also holds the
+  default settings values, such as the User-Agent, that each new `WebView`
+  starts from. A normal and an incognito profile are two `WebContext` instances.
 - **One per page.** A `WebPage` owns its `WebKitWebView` and its own
   `WebKitSettings` (exposed as `WebSettings`). The `WPEView` and its input
   method context are borrowed from the `WebKitWebView`. All of them go away with
@@ -259,6 +260,7 @@ classDiagram
         defaultUserAgent
         +getCookieManager() CookieManager
         +setTrackingPreventionEnabled(boolean)
+        +getTrackingPreventionSiteSummary(url, callback)
         +destroy()
     }
     class WebKitWebContext

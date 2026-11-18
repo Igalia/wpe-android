@@ -18,6 +18,7 @@
 
 package org.wpewebkit.wpeview;
 
+import android.os.Handler;
 import android.os.Looper;
 
 import androidx.annotation.NonNull;
@@ -32,6 +33,8 @@ import org.wpewebkit.wpe.WebKitWebView;
 import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 
 /**
  * WebContext represents the shared engine and session state used by high-level {@link WebView} instances.
@@ -61,6 +64,7 @@ public class WebContext {
     // The pages made with the context and not destroyed yet, which destroy() destroys first.
     private final ArrayList<WebPage> pages = new ArrayList<>();
     private boolean destroyed;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     // Whether the context ends when the last page made with it is destroyed, as the one that a WebView makes for itself
     // does, since the app did not make it, and its pages may outlive the view.
     boolean endsWithItsPages;
@@ -208,8 +212,10 @@ public class WebContext {
      * it so. The policy that was set comes back once it is off.
      *
      * <p>A context whose session keeps its data keeps what WebKit notes about sites beside its cookies, in the folder
-     * {@code itp} of the app's files folder, for the next run. An ephemeral session, as the one of a context in
-     * automation mode, keeps it in memory, and it ends with the context.
+     * {@code itp} of the app's files folder, for the next run: {@link #getTrackingPreventionSummary} lists it, and
+     * {@link #clearTrackingPreventionData} clears it. An ephemeral session, as the one of a context in automation mode,
+     * notes no sites, so it tells no trackers apart and deletes no data, but it keeps the cookies of other sites from
+     * them all the same. It keeps the Storage Access that frames are given in memory, and it ends with the context.
      *
      * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
      */
@@ -226,6 +232,81 @@ public class WebContext {
     public boolean isTrackingPreventionEnabled() {
         checkUsable();
         return networkSession.isITPEnabled();
+    }
+
+    /**
+     * Whether the session of this context is ephemeral: it keeps cookies, cache and website data in memory only, and
+     * they end with the context. That of a context in automation mode always is.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public boolean isEphemeralSession() {
+        checkUsable();
+        return networkSession.isEphemeral();
+    }
+
+    /**
+     * Gives {@code callback} the other sites that tracking prevention saw in the pages of each site of this context:
+     * those that the pages loaded frames, images or scripts from, with the sites they were seen on. It adds up the
+     * visits of earlier runs too, for a session that keeps its data, until {@link #clearTrackingPreventionData}. The
+     * list is empty while tracking prevention is off, and the sites noted before come back once it is on again. It is
+     * always empty for an ephemeral session, which notes no sites: see {@link #isEphemeralSession}.
+     *
+     * <p>The callback is called once, on the main thread, never before this returns, with what the pages loaded up to
+     * this call. It is not called if the context is destroyed first. The order of the list is not defined.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void getTrackingPreventionSummary(@NonNull WPECallback<List<TrackingPrevention.ThirdParty>> callback) {
+        checkUsable();
+        networkSession.getITPSummary(thirdParties -> {
+            if (!destroyed)
+                callback.onResult(TrackingPrevention.fromWebKit(thirdParties));
+        });
+    }
+
+    /**
+     * Gives {@code callback} the site of {@code url} and the other sites that tracking prevention saw in its pages,
+     * as {@link #getTrackingPreventionSummary} does for all the sites. The site is what WebKit files the pages of the
+     * address's host under: see {@link TrackingPrevention}. Usually {@code url} is the address of the page shown, and
+     * the result covers all the visits to its site, not that page alone. WebKit also lists a site that redirected a
+     * request to this one, even if its pages did not load it.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void getTrackingPreventionSiteSummary(@NonNull String url,
+                                                 @NonNull WPECallback<TrackingPrevention.SiteSummary> callback) {
+        checkUsable();
+        String site = TrackingPrevention.siteOf(url);
+        networkSession.getITPSummary(thirdParties -> {
+            if (!destroyed)
+                callback.onResult(TrackingPrevention.siteSummary(site, thirdParties));
+        });
+    }
+
+    /**
+     * Clears what tracking prevention noted about sites, which {@link #getTrackingPreventionSummary} lists, and gives
+     * {@code callback} whether they are cleared, on the main thread, never before this returns. WebKit clears them only
+     * while tracking prevention is on: while it is off, a session that keeps its data keeps them for when it is on
+     * again, and {@code callback} gets false. The callback is not called if the context is destroyed first.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void clearTrackingPreventionData(@Nullable WPECallback<Boolean> callback) {
+        checkUsable();
+        // WebKit would say that it cleared them.
+        if (!networkSession.isITPEnabled() && !networkSession.isEphemeral()) {
+            if (callback != null)
+                mainHandler.post(() -> {
+                    if (!destroyed)
+                        callback.onResult(false);
+                });
+            return;
+        }
+        websiteDataManager.clear(EnumSet.of(WebKitWebsiteDataManager.WebsiteDataType.ITP), cleared -> {
+            if (callback != null && !destroyed)
+                callback.onResult(cleared);
+        });
     }
 
     private void checkUsable() {
