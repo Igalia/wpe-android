@@ -34,6 +34,7 @@
 #include <string_view>
 #include <sys/resource.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 #include <wpe/webkit.h>
 #include <wpe/wpe-platform.h>
@@ -117,6 +118,15 @@ struct WebKitWebViewBridge {
         for (auto& [id, dialog] : m_scriptDialogs)
             webkit_script_dialog_unref(dialog);
         m_scriptDialogs.clear();
+        // The permission requests that Java did not answer are denied, and the queries get WebKit's own answer.
+        for (auto& [id, request] : m_permissionRequests) {
+            webkit_permission_request_deny(request);
+            g_object_unref(request);
+        }
+        m_permissionRequests.clear();
+        for (auto& [id, query] : m_permissionStateQueries)
+            webkit_permission_state_query_unref(query);
+        m_permissionStateQueries.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         if (m_downloadStartedId)
@@ -185,6 +195,16 @@ struct WebKitWebViewBridge {
     // waits for its answer, and a later answer for it is dropped.
     std::unordered_map<jlong, WebKitScriptDialog*> m_scriptDialogs;
     jlong m_lastScriptDialogId {0};
+    // The origin of the main document that committed last, which its permission requests are for, or empty if its
+    // address is not http or https. WebKit gives no origin with most requests, and the web view's URI already names the
+    // next page while it loads, when the document shown can still ask.
+    std::string m_documentOrigin;
+    // The permission requests and queries that Java was told of and has not answered, by the id it was given. They end
+    // with the document that asked, which WebKit does not tell (endDocumentPermissions).
+    std::unordered_map<jlong, WebKitPermissionRequest*> m_permissionRequests;
+    jlong m_lastPermissionRequestId {0};
+    std::unordered_map<jlong, WebKitPermissionStateQuery*> m_permissionStateQueries;
+    jlong m_lastPermissionStateQueryId {0};
     // The navigations of the page and its frames since the page committed, with and without a user gesture, by the key
     // of their address (navigationKey). WebKit does not tell whether a user gesture started a download, so a download
     // takes it from the navigations to its address.
@@ -303,6 +323,9 @@ public:
         , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
         , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
         , m_onFindResult(getMethod<void(jint)>("onFindResult"))
+        , m_onPermissionRequest(getMethod<void(jlong, jint, jstring)>("onPermissionRequest"))
+        , m_onPermissionRequestCancelled(getMethod<void(jlong)>("onPermissionRequestCancelled"))
+        , m_onQueryPermissionState(getMethod<jboolean(jlong, jint, jstring)>("onQueryPermissionState"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -341,7 +364,11 @@ public:
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetIsMuted", nativeSetIsMuted),
             JNI::NativeMethod<jboolean(jlong)>("nativeIsMuted", nativeIsMuted),
             JNI::NativeMethod<void(jlong, jstring, jint, jint)>("nativeFindSearch", nativeFindSearch),
-            JNI::NativeMethod<void(jlong)>("nativeFindFinish", nativeFindFinish));
+            JNI::NativeMethod<void(jlong)>("nativeFindFinish", nativeFindFinish),
+            JNI::NativeMethod<void(jlong, jlong, jboolean)>(
+                "nativePermissionRequestAnswer", nativePermissionRequestAnswer),
+            JNI::NativeMethod<void(jlong, jlong, jint)>(
+                "nativePermissionStateQueryAnswer", nativePermissionStateQueryAnswer));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -366,6 +393,9 @@ public:
     const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
     const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
     const JNI::Method<void(jint)> m_onFindResult;
+    const JNI::Method<void(jlong, jint, jstring)> m_onPermissionRequest;
+    const JNI::Method<void(jlong)> m_onPermissionRequestCancelled;
+    const JNI::Method<jboolean(jlong, jint, jstring)> m_onQueryPermissionState;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -408,6 +438,12 @@ private:
     static void onFoundText(WebKitFindController*, guint matchCount, WebKitWebViewBridge* bridge);
     static void onFailedToFindText(WebKitFindController*, WebKitWebViewBridge* bridge);
     static void reportFindResult(WebKitWebViewBridge* bridge, jint matchCount);
+    static gboolean onPermissionRequest(
+        WebKitWebView* webView, WebKitPermissionRequest* request, WebKitWebViewBridge* bridge);
+    static gboolean onQueryPermissionState(
+        WebKitWebView* webView, WebKitPermissionStateQuery* query, WebKitWebViewBridge* bridge);
+    static void answerPermissionRequest(WebKitWebViewBridge* bridge, jlong requestId, bool allow);
+    static void endDocumentPermissions(WebKitWebView* webView, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -452,12 +488,49 @@ private:
     static jboolean nativeIsMuted(JNIEnv*, jobject, jlong nativePtr);
     static void nativeFindSearch(JNIEnv*, jobject, jlong nativePtr, jstring text, jint options, jint maxMatchCount);
     static void nativeFindFinish(JNIEnv*, jobject, jlong nativePtr);
+    static void nativePermissionRequestAnswer(JNIEnv*, jobject, jlong nativePtr, jlong requestId, jboolean allow);
+    static void nativePermissionStateQueryAnswer(JNIEnv*, jobject, jlong nativePtr, jlong queryId, jint state);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
 {
     static const JNIWebKitWebViewCache s_singleton;
     return s_singleton;
+}
+
+// The PERMISSION_* flags of WebKitWebView.java, for the kinds of permission that WPEView passes to the app.
+static constexpr jint permissionLocation = 1;
+
+// What a permission request asks for, or 0 for the kinds that WPEView does not pass to the app yet.
+static jint permissionResources(WebKitPermissionRequest* request)
+{
+    if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request))
+        return permissionLocation;
+    return 0;
+}
+
+// What a Permissions API query asks about, by the name the page gives, or 0 for the kinds that WebKit answers itself.
+static jint permissionResourceForQuery(const char* name)
+{
+    if (!g_strcmp0(name, "geolocation"))
+        return permissionLocation;
+    return 0;
+}
+
+// The origin of a document at this address, for its permissions, or empty if the address is not http or https, as
+// about:blank or a data: address, whose origin the app could not show the user.
+static std::string permissionOrigin(const char* uri)
+{
+    if (!uri || !*uri)
+        return {};
+    g_autoptr(WebKitSecurityOrigin) origin = webkit_security_origin_new_for_uri(uri);
+    if (!origin)
+        return {};
+    const char* protocol = webkit_security_origin_get_protocol(origin);
+    if (g_strcmp0(protocol, "http") && g_strcmp0(protocol, "https"))
+        return {};
+    g_autofree char* string = webkit_security_origin_to_string(origin);
+    return string ? string : "";
 }
 
 void JNIWebKitWebViewCache::onClose(WebKitWebView*, WebKitWebViewBridge* bridge)
@@ -488,6 +561,11 @@ void JNIWebKitWebViewCache::onLoadChanged(
     } else if (loadEvent == WEBKIT_LOAD_REDIRECTED) {
         bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
+        // The origin of the new document, before Java hears of anything. WebKit gives the view the address of a load
+        // that the app asked for as soon as it asks, so while one waits to be decided on, the address may not be the
+        // one that committed: the document then asks nothing of the app until the next one commits.
+        bridge->m_documentOrigin
+            = bridge->m_appLoadUris.empty() ? permissionOrigin(webkit_web_view_get_uri(webView)) : std::string();
         bridge->m_loadStarting = false;
         bridge->m_pageCommitted = true;
         updateAwaitsFirstPage(bridge);
@@ -507,6 +585,10 @@ void JNIWebKitWebViewCache::onLoadChanged(
                 return;
         }
         reportHistory(bridge, true);
+        // Last, since the app may destroy the WebView as it hears that the requests of the old document ended.
+        bridge = webViewBridge(webView);
+        if (bridge)
+            endDocumentPermissions(webView, bridge);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
         // Also the end of a load that failed or stopped before it committed. After the end of the web process, the view
         // keeps the title and the address of its page until a new one commits.
@@ -1043,6 +1125,12 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     bridge = webViewBridge(webView);
     if (!bridge)
         return;
+    // The document that asked for permissions went with the process.
+    endDocumentPermissions(webView, bridge);
+    bridge = webViewBridge(webView);
+    if (!bridge)
+        return;
+
     if (!getJNIWebKitWebViewCache().m_onWebProcessTerminated.invoke(bridge->m_javaRef.get(), static_cast<jint>(reason)))
         Logging::logError("cannot deliver WebKitWebView onWebProcessTerminated callback");
 }
@@ -1312,6 +1400,110 @@ void JNIWebKitWebViewCache::answerAuthentication(
     g_object_unref(request);
 }
 
+// A page asks to use something that needs the user's consent. Java is told of it with an id and the origin of the
+// document that asks, and answers it once with nativePermissionRequestAnswer. The bridge keeps the request meanwhile.
+// WebDriver controls the pages of automation, and the kinds that WPEView does not pass on yet keep WebKit's answer,
+// which denies them.
+gboolean JNIWebKitWebViewCache::onPermissionRequest(
+    WebKitWebView* webView, WebKitPermissionRequest* request, WebKitWebViewBridge* bridge)
+{
+    if (webkit_web_view_is_controlled_by_automation(webView))
+        return FALSE;
+    jint resources = permissionResources(request);
+    if (!resources)
+        return FALSE;
+    if (bridge->m_documentOrigin.empty()) {
+        webkit_permission_request_deny(request);
+        return TRUE;
+    }
+
+    jlong requestId = ++bridge->m_lastPermissionRequestId;
+    bridge->m_permissionRequests.emplace(requestId, WEBKIT_PERMISSION_REQUEST(g_object_ref(request)));
+    auto jOrigin = JNI::String(bridge->m_documentOrigin.c_str());
+    if (!getJNIWebKitWebViewCache().m_onPermissionRequest.invoke(
+            bridge->m_javaRef.get(), requestId, resources, static_cast<jstring>(jOrigin))) {
+        Logging::logError("cannot deliver WebKitWebView onPermissionRequest callback");
+        bridge = webViewBridge(webView);
+        if (bridge)
+            answerPermissionRequest(bridge, requestId, false);
+    }
+    return TRUE;
+}
+
+// Answers a request that Java was told of, unless it was answered already or ended with its document.
+void JNIWebKitWebViewCache::answerPermissionRequest(WebKitWebViewBridge* bridge, jlong requestId, bool allow)
+{
+    auto it = bridge->m_permissionRequests.find(requestId);
+    if (it == bridge->m_permissionRequests.end())
+        return;
+    WebKitPermissionRequest* request = it->second;
+    bridge->m_permissionRequests.erase(it);
+    if (allow)
+        webkit_permission_request_allow(request);
+    else
+        webkit_permission_request_deny(request);
+    g_object_unref(request);
+}
+
+// A page asks with navigator.permissions.query() what a request would get. WebKit gives the origin of the top
+// document. Java takes the query, to answer it later with nativePermissionStateQueryAnswer, or leaves it to WebKit,
+// which answers prompt.
+gboolean JNIWebKitWebViewCache::onQueryPermissionState(
+    WebKitWebView* webView, WebKitPermissionStateQuery* query, WebKitWebViewBridge* bridge)
+{
+    if (webkit_web_view_is_controlled_by_automation(webView))
+        return FALSE;
+    jint resource = permissionResourceForQuery(webkit_permission_state_query_get_name(query));
+    if (!resource)
+        return FALSE;
+    WebKitSecurityOrigin* securityOrigin = webkit_permission_state_query_get_security_origin(query);
+    g_autofree char* originUri = securityOrigin ? webkit_security_origin_to_string(securityOrigin) : nullptr;
+    std::string origin = permissionOrigin(originUri);
+    if (origin.empty())
+        return FALSE;
+
+    jlong queryId = ++bridge->m_lastPermissionStateQueryId;
+    bridge->m_permissionStateQueries.emplace(queryId, webkit_permission_state_query_ref(query));
+    auto jOrigin = JNI::String(origin.c_str());
+    bool taken = getJNIWebKitWebViewCache().m_onQueryPermissionState.invoke(
+        bridge->m_javaRef.get(), queryId, resource, static_cast<jstring>(jOrigin));
+    // A WebView that the app destroyed meanwhile gave the query WebKit's answer, and so did an answer given already.
+    bridge = webViewBridge(webView);
+    if (!bridge)
+        return TRUE;
+    auto it = bridge->m_permissionStateQueries.find(queryId);
+    if (it == bridge->m_permissionStateQueries.end() || taken)
+        return TRUE;
+    webkit_permission_state_query_unref(it->second);
+    bridge->m_permissionStateQueries.erase(it);
+    return FALSE;
+}
+
+// The document that asked went away, with a new main document or with its web process. WebKit drops its requests
+// without a word, and ignores answers to them, so they are denied here, and Java hears that they ended, to take down
+// what it shows for them. The queries get WebKit's own answer. The app may destroy the WebView as it hears of a
+// request, so the bridge is found again before each.
+void JNIWebKitWebViewCache::endDocumentPermissions(WebKitWebView* webView, WebKitWebViewBridge* bridge)
+{
+    for (auto& [id, query] : std::exchange(bridge->m_permissionStateQueries, {}))
+        webkit_permission_state_query_unref(query);
+    std::vector<jlong> requestIds;
+    for (auto& [id, request] : std::exchange(bridge->m_permissionRequests, {})) {
+        webkit_permission_request_deny(request);
+        g_object_unref(request);
+        requestIds.push_back(id);
+    }
+    // In the order the page asked.
+    std::sort(requestIds.begin(), requestIds.end());
+    for (jlong requestId : requestIds) {
+        bridge = webViewBridge(webView);
+        if (!bridge)
+            return;
+        if (!getJNIWebKitWebViewCache().m_onPermissionRequestCancelled.invoke(bridge->m_javaRef.get(), requestId))
+            Logging::logError("cannot deliver WebKitWebView onPermissionRequestCancelled callback");
+    }
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -1398,6 +1590,8 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "run-color-chooser", G_CALLBACK(onRunColorChooser), bridge),
         g_signal_connect(webView, "authenticate", G_CALLBACK(onAuthenticate), bridge),
         g_signal_connect(webView, "notify::is-playing-audio", G_CALLBACK(onIsPlayingAudioChanged), bridge),
+        g_signal_connect(webView, "permission-request", G_CALLBACK(onPermissionRequest), bridge),
+        g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1846,6 +2040,26 @@ void JNIWebKitWebViewCache::nativeFindFinish(JNIEnv*, jobject, jlong nativePtr)
 {
     webkit_find_controller_search_finish(
         webkit_web_view_get_find_controller(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView));
+}
+
+void JNIWebKitWebViewCache::nativePermissionRequestAnswer(
+    JNIEnv*, jobject, jlong nativePtr, jlong requestId, jboolean allow)
+{
+    answerPermissionRequest(JNI::from_jlong<WebKitWebViewBridge>(nativePtr), requestId, allow);
+}
+
+// Answers a query that Java took, unless it was answered already or ended with its document.
+void JNIWebKitWebViewCache::nativePermissionStateQueryAnswer(
+    JNIEnv*, jobject, jlong nativePtr, jlong queryId, jint state)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    auto it = bridge->m_permissionStateQueries.find(queryId);
+    if (it == bridge->m_permissionStateQueries.end())
+        return;
+    WebKitPermissionStateQuery* query = it->second;
+    bridge->m_permissionStateQueries.erase(it);
+    webkit_permission_state_query_finish(query, static_cast<WebKitPermissionState>(state));
+    webkit_permission_state_query_unref(query);
 }
 
 void JNIWebKitWebViewCache::nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray)
