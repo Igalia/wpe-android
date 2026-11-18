@@ -178,6 +178,24 @@ public class WebPageChromeClient {
     }
 
     /**
+     * Gives the app a notification that the page shows, to show the user, for example as an Android notification: see
+     * {@link WPENotification}. The default closes it, as does a client that throws.
+     *
+     * <p>The notifications that the page shows while it waits for a chrome client, after its view let go of it with
+     * {@link WebView#releasePage()}, wait for the next one that the app sets, as permission requests do; only the
+     * newest {@link WPENotification#MAX_WAITING} wait, and the older ones are closed.
+     */
+    public void onShowNotification(@NonNull WebPage page, @NonNull WPENotification notification) {
+        notification.close();
+    }
+
+    /**
+     * Tells the app that a notification it was given closed, so that it takes it down: the page closed it, went into
+     * the back forward cache, or loaded another document. See {@link WPENotification}.
+     */
+    public void onCloseNotification(@NonNull WebPage page, @NonNull WPENotification notification) {}
+
+    /**
      * A request of a page for a new window, given to {@link #onCreateWindow}. It is answered once the call returns:
      * the window opens if {@link #createPage()} made its page.
      */

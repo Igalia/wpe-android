@@ -365,9 +365,10 @@ public class WebView extends FrameLayout {
      * ends them itself, so that they close what they show for them. Its permission requests are not cancelled, as
      * WebKit would keep the refusal for the rest of the page: the view's chrome client hears that they are gone, with
      * {@link WebChromeClient#onPermissionRequestCanceled}, and they wait, with those the page makes meanwhile, for the
-     * chrome client that the app sets on the page next, which is asked about them. Clients that the app set on the page
-     * itself stay, with their requests. Shown again in this view, the page is a page of the app, and the view's clients
-     * do not hear of it.
+     * chrome client that the app sets on the page next, which is asked about them. The same goes for its notifications,
+     * which the view's chrome client hears are closed, with {@link WebChromeClient#onCloseNotification}, and which the
+     * next chrome client is given. Clients that the app set on the page itself stay, with their requests. Shown again
+     * in this view, the page is a page of the app, and the view's clients do not hear of it.
      *
      * @throws IllegalStateException if the view is destroyed or headless.
      */
@@ -1316,6 +1317,23 @@ public class WebView extends FrameLayout {
         public boolean onQueryPermissionState(@NonNull WebPage source, @NonNull WPEPermissionStateQuery query) {
             WebView target = target();
             return target != null && target.chromeClient.onQueryPermissionState(target, query);
+        }
+
+        // A notification the view no longer hears of is closed, as the default client closes it.
+        @Override
+        public void onShowNotification(@NonNull WebPage source, @NonNull WPENotification notification) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onShowNotification(target, notification);
+            else
+                notification.close();
+        }
+
+        @Override
+        public void onCloseNotification(@NonNull WebPage source, @NonNull WPENotification notification) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onCloseNotification(target, notification);
         }
     }
 

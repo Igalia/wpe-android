@@ -18,6 +18,7 @@
 
 package org.wpewebkit.wpeview;
 
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -33,6 +34,7 @@ import org.wpewebkit.wpe.WebKitWebView;
 import org.wpewebkit.wpe.WebKitWebsiteDataManager;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -322,6 +324,39 @@ public class WebContext {
     public void setLocationSource(@Nullable WPELocationSource source) {
         checkUsable();
         location.setSource(source);
+    }
+
+    /**
+     * Sets the origins whose pages may show notifications, and those whose pages may not, as the app answered their
+     * requests for {@link WPEPermissionRequest#RESOURCE_NOTIFICATIONS}: these lists replace the ones set before. Each
+     * web process of this context that starts from now on takes them, for {@code Notification.permission} and
+     * {@code new Notification()} in its pages, which do not ask the app; a refused origin reads "default" there until
+     * its page asks. The web processes that run keep what they had, so the app sets the lists before the first page
+     * loads, and again after each change. Every web process of the context gets the whole lists.
+     *
+     * <p>An origin is given as {@link WPEPermissionRequest#getOrigin()} gives it; any address of the origin will do.
+     *
+     * @throws IllegalArgumentException if an address is not http or https, or has no host.
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void setNotificationPermissions(@NonNull Collection<Uri> allowed, @NonNull Collection<Uri> denied) {
+        checkUsable();
+        webContext.setNotificationPermissions(notificationOrigins(allowed), notificationOrigins(denied));
+    }
+
+    @NonNull
+    private static String[] notificationOrigins(@NonNull Collection<Uri> origins) {
+        String[] addresses = new String[origins.size()];
+        int i = 0;
+        for (Uri origin : origins) {
+            String scheme = origin.getScheme();
+            String host = origin.getHost();
+            if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) ||
+                host == null || host.isEmpty())
+                throw new IllegalArgumentException("Not the origin of an http or https page: " + origin);
+            addresses[i++] = origin.toString();
+        }
+        return addresses;
     }
 
     private void checkUsable() {

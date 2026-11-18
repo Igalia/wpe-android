@@ -233,6 +233,21 @@ public class WebChromeClient {
         return false;
     }
 
+    /**
+     * Gives the host a notification that the page in {@code view} shows, to show the user, for example as an Android
+     * notification: see {@link WPENotification}. The default closes it, as does a client that throws, and so does a
+     * view that no longer shows the page that it made.
+     */
+    public void onShowNotification(@NonNull WebView view, @NonNull WPENotification notification) {
+        notification.close();
+    }
+
+    /**
+     * Tells the host that a notification it was given closed, so that it takes it down: the page closed it, went into
+     * the back forward cache, or loaded another document. See {@link WPENotification}.
+     */
+    public void onCloseNotification(@NonNull WebView view, @NonNull WPENotification notification) {}
+
     /** A {@link WebPageChromeClient.ColorChooserCallback}, as {@link #onShowColorChooser} gets it. */
     public interface ColorChooserCallback extends WebPageChromeClient.ColorChooserCallback {}
 

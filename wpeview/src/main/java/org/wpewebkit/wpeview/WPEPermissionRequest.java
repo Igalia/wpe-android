@@ -39,9 +39,11 @@ import androidx.annotation.NonNull;
  *
  * <p>A request ends without an answer when the document that asked goes away: when the page loads another document,
  * or when its web process ends. The page is refused, and {@link WebPageChromeClient#onPermissionRequestCanceled} tells
- * the app to take its question down. Destroying the page refuses its requests without a word. Answers to a request
- * that ended do nothing. A request of a frame that loads another document, or is removed, stays until it is answered,
- * and its answer goes nowhere, as WebKit does not tell of it.
+ * the app to take its question down. Destroying the page refuses its requests too: the chrome client of a
+ * {@link WebView} that made the page, and goes on, hears that they are gone, as when the view lets go of the page
+ * otherwise, and other clients hear nothing. Answers to a request that ended do nothing. A request of a frame that
+ * loads another document, or is removed, stays until it is answered, and its answer goes nowhere, as WebKit does not
+ * tell of it.
  */
 public abstract class WPEPermissionRequest {
     /**
@@ -50,6 +52,20 @@ public abstract class WPEPermissionRequest {
      * {@code ACCESS_COARSE_LOCATION} or {@code ACCESS_FINE_LOCATION} permission.
      */
     public static final String RESOURCE_LOCATION = "org.wpewebkit.resource.LOCATION";
+
+    /**
+     * Showing notifications, for {@code Notification.requestPermission()}, which a page may call only with a user
+     * gesture, from its main document or a frame of the same origin. WebKit asks the app every time, also for a site it
+     * answered before, so the app answers from what it keeps. A page that keeps no data, such as one of a
+     * {@link WebContext} made with {@code ephemeralSession}, is refused before the app hears of it.
+     *
+     * <p>Unlike the other kinds, the answer lasts for the web process of the page rather than for its document, until
+     * the process ends: also the refusal that a request gets when it ends without an answer. The answers that a web
+     * process starts with, which {@code Notification.permission} reads before a page asks, come from
+     * {@link WebContext#setNotificationPermissions}. The notifications themselves come to
+     * {@link WebPageChromeClient#onShowNotification}.
+     */
+    public static final String RESOURCE_NOTIFICATIONS = "org.wpewebkit.resource.NOTIFICATIONS";
 
     // Only WPEView makes requests.
     WPEPermissionRequest() {}

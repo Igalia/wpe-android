@@ -61,9 +61,32 @@ public:
     }
 
 private:
+    // WPEView does not show the notifications of service workers yet: WebKit would send them to a notification service
+    // of desktop systems, which Android does not have, and resolve the page's promise as if they showed. Without the
+    // feature, pages find registration.showNotification() missing, as it is, and those that check for it can show
+    // their notifications with new Notification() instead.
     static jlong nativeInit(JNIEnv*, jobject)
     {
-        return reinterpret_cast<jlong>(webkit_settings_new());
+        auto* settings = webkit_settings_new();
+        if (WebKitFeature* feature = notificationEvent())
+            webkit_settings_set_feature_enabled(settings, feature, FALSE);
+        return reinterpret_cast<jlong>(settings);
+    }
+
+    // The WebKit preference for ServiceWorkerRegistration.showNotification() and the notification events of service
+    // workers.
+    static WebKitFeature* notificationEvent()
+    {
+        static WebKitFeature* const feature = [] {
+            g_autoptr(WebKitFeatureList) features = webkit_settings_get_all_features();
+            WebKitFeature* found = webkit_feature_list_find(features, "NotificationEvent");
+            if (!found) {
+                Logging::logError("WebKitSettings: WebKit has no NotificationEvent feature");
+                return static_cast<WebKitFeature*>(nullptr);
+            }
+            return webkit_feature_ref(found);
+        }();
+        return feature;
     }
 
     static void nativeDestroy(JNIEnv*, jobject, jlong settingsPtr)

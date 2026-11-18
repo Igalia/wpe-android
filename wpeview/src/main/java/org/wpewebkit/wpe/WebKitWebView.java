@@ -59,6 +59,7 @@ public final class WebKitWebView {
 
     // What a permission request asks for, as a set of these flags, which the native side maps WebKit's requests to.
     public static final int PERMISSION_LOCATION = 1;
+    public static final int PERMISSION_NOTIFICATIONS = 1 << 1;
 
     // Mirrors WebKitPermissionState.
     public static final int PERMISSION_STATE_GRANTED = 0;
@@ -376,6 +377,19 @@ public final class WebKitWebView {
          * WebKit answers one that is not.
          */
         boolean onQueryPermissionState(long queryId, int resource, @NonNull String origin);
+        /**
+         * The page shows a notification, for the origin of its main document, with its title and body cut to what
+         * Android shows, and its tag, if it has one. The listener clicks it or closes it later with
+         * {@link #notificationClick} and {@link #notificationClose}, on the main thread.
+         */
+        void onShowNotification(long notificationId, @NonNull String origin, @NonNull String title,
+                                @NonNull String body, @Nullable String tag);
+        /**
+         * WebKit closed a notification that was shown and not closed with {@link #notificationClose}: the page closed
+         * it, showed another one with its tag, or went away. This comes while WebKit runs, which the listener must not
+         * reenter, for example by destroying the view.
+         */
+        void onNotificationClosed(long notificationId);
     }
 
     private @Nullable Listener listener;
@@ -650,6 +664,36 @@ public final class WebKitWebView {
         return currentListener != null && currentListener.onQueryPermissionState(queryId, resource, origin);
     }
 
+    @Keep
+    private void onShowNotification(long notificationId, String origin, String title, String body,
+                                    @Nullable String tag) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(
+                () -> currentListener.onShowNotification(notificationId, origin, title, body, tag));
+        else
+            notificationClose(notificationId);
+    }
+
+    @Keep
+    private void onNotificationClosed(long notificationId) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onNotificationClosed(notificationId));
+    }
+
+    /** Tells the page that the user tapped a notification, unless it is closed. */
+    public void notificationClick(long notificationId) {
+        if (mNativePtr != 0)
+            nativeNotificationClick(mNativePtr, notificationId);
+    }
+
+    /** Closes a notification that is not closed yet, which the listener then does not hear of. */
+    public void notificationClose(long notificationId) {
+        if (mNativePtr != 0)
+            nativeNotificationClose(mNativePtr, notificationId);
+    }
+
     /**
      * Answers a request reported via {@link Listener#onPermissionRequest}. Only the first answer counts, and none
      * counts once the request ended, or the view is destroyed, which denies the requests that are left.
@@ -759,4 +803,6 @@ public final class WebKitWebView {
     private native void nativeFindFinish(long nativePtr);
     private native void nativePermissionRequestAnswer(long nativePtr, long requestId, boolean allow);
     private native void nativePermissionStateQueryAnswer(long nativePtr, long queryId, int state);
+    private native void nativeNotificationClick(long nativePtr, long notificationId);
+    private native void nativeNotificationClose(long nativePtr, long notificationId);
 }

@@ -161,6 +161,15 @@ public final class WebKitWebContext {
             nativeSetPreferredLanguages(mNativePtr, languages);
     }
 
+    /**
+     * Sets the origins whose pages may show notifications, and those that may not, as {@code scheme://host:port}
+     * addresses, which each web process that starts from now on takes. The running ones keep what they had.
+     */
+    public void setNotificationPermissions(@NonNull String[] allowed, @NonNull String[] denied) {
+        if (mNativePtr != 0)
+            nativeSetNotificationPermissions(mNativePtr, allowed, denied);
+    }
+
     private native long nativeInit(boolean automationMode);
     private native void nativeDestroy(long nativePtr);
     private native boolean nativeIsAutomationMode(long nativePtr);
@@ -170,4 +179,5 @@ public final class WebKitWebContext {
                                                         double accuracy, double altitude, double altitudeAccuracy,
                                                         double heading, double speed, long timeSeconds);
     private native void nativeGeolocationFailed(long nativePtr, String message);
+    private native void nativeSetNotificationPermissions(long nativePtr, String[] allowed, String[] denied);
 }
