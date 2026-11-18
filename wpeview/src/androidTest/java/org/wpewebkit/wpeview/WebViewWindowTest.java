@@ -63,8 +63,8 @@ public class WebViewWindowTest {
                                              + "audio.loop = true;\n"
                                              + "var started = false;\n"
                                              + "function play() { audio.play().then(() => started = true); }\n"
-                                             + "function state() { return audio.paused ? 'paused' : 'playing'; }\n"
-                                             + "</script></body></html>";
+                                             + "function state() { return audio.paused ? 'paused' : 'playing'; }\n" +
+                                             WebViewActivityScenarioHelper.MEDIA_TIMELINE + "</script></body></html>";
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -218,11 +218,10 @@ public class WebViewWindowTest {
         // playback it admits after the page was hidden resumes the media despite the setting. The promise of play()
         // tells when the playback was admitted, but only for media that could already play: for media still loading,
         // the data that arrives resolves it.
-        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
-                                 scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true"));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true");
         WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(scenario, webViewClient, "play(); 0");
-        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "started", "true"));
-        assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "started", "true");
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "state()", PLAYING);
         return scenario;
     }
 
@@ -242,10 +241,10 @@ public class WebViewWindowTest {
 
         AtomicReference<ViewGroup> parent = new AtomicReference<>();
         takeWebViewOutOfTheWindow(scenario, parent);
-        assertEquals(PAUSED, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PAUSED));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "state()", PAUSED);
 
         scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
-        assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "state()", PLAYING);
     }
 
     /** By default, audible media keeps playing in a hidden page, as it does without the setting in WebKit. */
@@ -258,8 +257,8 @@ public class WebViewWindowTest {
         assertEquals(HIDDEN, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, VISIBILITY_STATE, HIDDEN));
         String time = WebViewActivityScenarioHelper.evaluateJavaScriptAndWaitForResult(
             scenario, new TestWebViewClient(), "audio.currentTime");
-        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
-                                 scenario, "state() == 'playing' && audio.currentTime != " + time, "true"));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario,
+                                                        "state() == 'playing' && audio.currentTime != " + time, "true");
 
         scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
     }
@@ -281,9 +280,9 @@ public class WebViewWindowTest {
         WebPage page = releaseThePage(scenario);
         try {
             assertEquals(HIDDEN, WebPageTestHelper.waitForResult(page, VISIBILITY_STATE, HIDDEN));
-            assertEquals(PAUSED, WebPageTestHelper.waitForResult(page, "state()", PAUSED));
+            WebPageTestHelper.assertMediaResult(page, "state()", PAUSED);
             scenario.onActivity(activity -> activity.getWebView().setPage(page));
-            assertEquals(PLAYING, WebPageTestHelper.waitForResult(page, "state()", PLAYING));
+            WebPageTestHelper.assertMediaResult(page, "state()", PLAYING);
         } finally {
             WebPageTestHelper.onMain(page::destroy);
         }
@@ -297,8 +296,7 @@ public class WebViewWindowTest {
         try {
             assertEquals(HIDDEN, WebPageTestHelper.waitForResult(page, VISIBILITY_STATE, HIDDEN));
             String time = WebPageTestHelper.evaluate(page, "audio.currentTime");
-            assertEquals("true", WebPageTestHelper.waitForResult(
-                                     page, "state() == 'playing' && audio.currentTime != " + time, "true"));
+            WebPageTestHelper.assertMediaResult(page, "state() == 'playing' && audio.currentTime != " + time, "true");
         } finally {
             WebPageTestHelper.onMain(page::destroy);
         }

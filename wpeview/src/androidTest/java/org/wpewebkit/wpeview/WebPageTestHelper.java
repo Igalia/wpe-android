@@ -39,6 +39,7 @@ import java.util.function.Supplier;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /** Runs pages on the main thread for the tests of {@link WebPage}, and waits for what they report. */
 final class WebPageTestHelper {
@@ -134,6 +135,15 @@ final class WebPageTestHelper {
             Thread.sleep(100);
         }
         return result;
+    }
+
+    /** Like {@link WebViewActivityScenarioHelper#assertMediaResult}, for a page with its media timeline. */
+    static void assertMediaResult(@NonNull WebPage page, @NonNull String script, @NonNull String expected)
+        throws InterruptedException {
+        String result = waitForResult(page, script, expected);
+        if (!expected.equals(result))
+            fail(script + " gave " + result + " instead of " + expected +
+                 ", media: " + evaluate(page, WebViewActivityScenarioHelper.MEDIA_TIMELINE_RESULT));
     }
 
     /** Takes a snapshot with the given call, and returns its bitmap, or null. */

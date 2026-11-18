@@ -38,6 +38,42 @@ public class WebViewActivityScenarioHelper {
         return "data:audio/wav;base64," + Base64.encodeToString(wav.array(), Base64.NO_WRAP);
     }
 
+    // Goes in the script of a page that makes its media element "audio". It notes what the media does and when the page
+    // is hidden or shown, which assertMediaResult gives when the media does not do what a test waits for. Looping media
+    // seeks at every loop, so the seeks are counted instead of noted. The times are UTC, like the logcat of the CI.
+    public static final String MEDIA_TIMELINE =
+        "var mediaTimeline = [];\n"
+        + "var seeks = 0;\n"
+        + "function noteMedia(what) {\n"
+        + "    mediaTimeline.push(new Date().toISOString().slice(11, 23) + ' ' + what + ' '\n"
+        + "                       + document.visibilityState + ' paused ' + audio.paused\n"
+        + "                       + ' seeking ' + audio.seeking + ' seeks ' + seeks\n"
+        + "                       + ' ready ' + audio.readyState + ' network ' + audio.networkState\n"
+        + "                       + (audio.error ? ' error ' + audio.error.code + ' ' + audio.error.message : ''));\n"
+        + "}\n"
+        + "['loadstart', 'loadeddata', 'canplay', 'play', 'playing', 'pause', 'waiting', 'suspend', 'stalled',\n"
+        + " 'emptied', 'abort', 'error', 'ended']\n"
+        + "    .forEach(type => audio.addEventListener(type, () => noteMedia(type)));\n"
+        + "audio.addEventListener('seeked', () => seeks++);\n"
+        + "document.addEventListener('visibilitychange', () => noteMedia('visibilitychange'));\n";
+
+    // The timeline of MEDIA_TIMELINE, with the state of the media now.
+    static final String MEDIA_TIMELINE_RESULT = "noteMedia('now'), mediaTimeline.join(' | ')";
+
+    /**
+     * Like {@link #waitForJavaScriptResult(ActivityScenario, String, String)} in a page with {@link #MEDIA_TIMELINE},
+     * and fails with the timeline of the media when the script does not give the expected result.
+     */
+    public static void assertMediaResult(ActivityScenario<WebViewTestActivity> scenario, String script, String expected)
+        throws InterruptedException, TimeoutException {
+        String result = waitForJavaScriptResult(scenario, script, expected);
+        if (!expected.equals(result))
+            Assert.fail(script + " gave " + result + " instead of " + expected + ", media: " +
+                        evaluateJavaScriptAndWaitForResult(scenario, WebViewTestActivity::getWebView,
+                                                           new TestWebViewClient.OnEvaluateJavaScriptResultHelper(),
+                                                           MEDIA_TIMELINE_RESULT));
+    }
+
     /** Runs a shell command as the shell user, and returns its output. */
     public static String shell(String command) throws IOException {
         ParcelFileDescriptor output =
