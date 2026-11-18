@@ -61,6 +61,7 @@ public class WebContext {
     private final String defaultUserAgent;
     private final android.content.Context appContext;
     private CookieManager cookieManager;
+    private final ContextLocation location;
     // The pages made with the context and not destroyed yet, which destroy() destroys first.
     private final ArrayList<WebPage> pages = new ArrayList<>();
     private boolean destroyed;
@@ -95,6 +96,7 @@ public class WebContext {
         this.webKitCookieManager.setAcceptPolicy(WebKitCookieManager.WEBKIT_COOKIE_POLICY_ACCEPT_NO_THIRD_PARTY);
 
         this.defaultUserAgent = defaultMobileUserAgent();
+        this.location = new ContextLocation(webContext, appContext);
     }
 
     /**
@@ -163,6 +165,7 @@ public class WebContext {
         destroyed = true;
         while (!pages.isEmpty())
             pages.get(pages.size() - 1).destroy();
+        location.destroy();
         webKitCookieManager.destroy();
         networkSession.destroy();
         webContext.destroy();
@@ -307,6 +310,18 @@ public class WebContext {
             if (callback != null && !destroyed)
                 callback.onResult(cleared);
         });
+    }
+
+    /**
+     * Sets where the pages of this context get the location of the device from, once the app grants them
+     * {@link WPEPermissionRequest#RESOURCE_LOCATION}, or with null, Android's location services, the default, as
+     * {@link WPELocationSource} tells. A source that runs is stopped, and the new one starts in its place.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void setLocationSource(@Nullable WPELocationSource source) {
+        checkUsable();
+        location.setSource(source);
     }
 
     private void checkUsable() {
