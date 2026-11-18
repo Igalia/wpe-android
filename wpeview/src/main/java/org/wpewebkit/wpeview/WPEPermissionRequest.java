@@ -44,7 +44,11 @@ import androidx.annotation.NonNull;
  * and its answer goes nowhere, as WebKit does not tell of it.
  */
 public abstract class WPEPermissionRequest {
-    /** The location of the device, for {@code navigator.geolocation}. */
+    /**
+     * The location of the device, for {@code navigator.geolocation}. The positions come from the
+     * {@link WPELocationSource} of the {@link WebContext}, which by default needs the app to hold Android's
+     * {@code ACCESS_COARSE_LOCATION} or {@code ACCESS_FINE_LOCATION} permission.
+     */
     public static final String RESOURCE_LOCATION = "org.wpewebkit.resource.LOCATION";
 
     // Only WPEView makes requests.

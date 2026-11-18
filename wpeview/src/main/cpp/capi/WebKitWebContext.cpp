@@ -18,7 +18,9 @@
 
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
+#include "Logging.h"
 
+#include <cmath>
 #include <wpe/webkit.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebContext, "org/wpewebkit/wpe/WebKitWebContext");
@@ -34,6 +36,7 @@ struct WebKitWebContextBridge {
 
     ~WebKitWebContextBridge()
     {
+        g_signal_handlers_disconnect_by_data(webkit_web_context_get_geolocation_manager(m_context), this);
         if (m_automationSignalId)
             g_signal_handler_disconnect(m_context, m_automationSignalId);
         if (m_createWebViewSignalId) {
@@ -58,12 +61,18 @@ public:
     JNIWebKitWebContextCache()
         : JNI::TypedClass<JNIWebKitWebContext>(true)
         , m_invokeCreateWebKitWebViewForAutomation(getMethod<jlong()>("createWebKitWebViewForAutomation"))
+        , m_onGeolocationStart(getMethod<void(jboolean)>("onGeolocationStart"))
+        , m_onGeolocationStop(getMethod<void()>("onGeolocationStop"))
+        , m_onGeolocationHighAccuracyChanged(getMethod<void(jboolean)>("onGeolocationHighAccuracyChanged"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jboolean)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<jboolean(jlong)>("nativeIsAutomationMode", nativeIsAutomationMode),
             JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebContextPtr", nativeGetWebKitWebContextPtr),
-            JNI::NativeMethod<void(jlong, jstringArray)>("nativeSetPreferredLanguages", nativeSetPreferredLanguages));
+            JNI::NativeMethod<void(jlong, jstringArray)>("nativeSetPreferredLanguages", nativeSetPreferredLanguages),
+            JNI::NativeMethod<void(jlong, jdouble, jdouble, jdouble, jdouble, jdouble, jdouble, jdouble, jlong)>(
+                "nativeUpdateGeolocationPosition", nativeUpdateGeolocationPosition),
+            JNI::NativeMethod<void(jlong, jstring)>("nativeGeolocationFailed", nativeGeolocationFailed));
     }
 
     WebKitWebView* invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const;
@@ -72,15 +81,26 @@ private:
     static void onAutomationStarted(
         WebKitWebContext*, WebKitAutomationSession* session, WebKitWebContextBridge* bridge);
     static WebKitWebView* onCreateWebViewForAutomation(WebKitWebContextBridge* bridge);
+    static gboolean onGeolocationStart(WebKitGeolocationManager* manager, WebKitWebContextBridge* bridge);
+    static void onGeolocationStop(WebKitGeolocationManager*, WebKitWebContextBridge* bridge);
+    static void onGeolocationHighAccuracyChanged(GObject* manager, GParamSpec*, WebKitWebContextBridge* bridge);
 
     static jlong nativeInit(JNIEnv* env, jobject jniContext, jboolean automationMode);
     static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr);
     static jboolean nativeIsAutomationMode(JNIEnv*, jobject, jlong nativePtr);
     static jlong nativeGetWebKitWebContextPtr(JNIEnv*, jobject, jlong nativePtr);
     static void nativeSetPreferredLanguages(JNIEnv*, jobject, jlong nativePtr, jstringArray languagesArray);
+    static void nativeUpdateGeolocationPosition(JNIEnv*, jobject, jlong nativePtr, jdouble latitude, jdouble longitude,
+        jdouble accuracy, jdouble altitude, jdouble altitudeAccuracy, jdouble heading, jdouble speed,
+        jlong timeSeconds);
+    static void nativeGeolocationFailed(JNIEnv*, jobject, jlong nativePtr, jstring message);
 
     const JNI::Method<jlong()>
         m_invokeCreateWebKitWebViewForAutomation; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void(jboolean)> m_onGeolocationStart; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void()> m_onGeolocationStop; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void(jboolean)>
+        m_onGeolocationHighAccuracyChanged; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 static const JNIWebKitWebContextCache& getJNIWebKitWebContextCache()
@@ -113,14 +133,54 @@ void JNIWebKitWebContextCache::onAutomationStarted(
         = g_signal_connect_swapped(session, "create-web-view", G_CALLBACK(onCreateWebViewForAutomation), bridge);
 }
 
+// WebKit wants the location of the device for the pages of the context. Java starts its source, which gives the
+// positions later. Unhandled, WebKit would look for GeoClue, a location service of desktop systems.
+gboolean JNIWebKitWebContextCache::onGeolocationStart(WebKitGeolocationManager* manager, WebKitWebContextBridge* bridge)
+{
+    if (!getJNIWebKitWebContextCache().m_onGeolocationStart.invoke(bridge->m_javaRef.get(),
+            static_cast<jboolean>(webkit_geolocation_manager_get_enable_high_accuracy(manager)))) {
+        Logging::logError("cannot deliver WebKitWebContext onGeolocationStart callback");
+        // Later, as WebKit is still in its start signal.
+        g_idle_add_full(
+            G_PRIORITY_DEFAULT,
+            +[](gpointer manager) -> gboolean {
+                webkit_geolocation_manager_failed(
+                    WEBKIT_GEOLOCATION_MANAGER(manager), "The location source failed to start");
+                return G_SOURCE_REMOVE;
+            },
+            g_object_ref(manager), g_object_unref);
+    }
+    return TRUE;
+}
+
+void JNIWebKitWebContextCache::onGeolocationStop(WebKitGeolocationManager*, WebKitWebContextBridge* bridge)
+{
+    if (!getJNIWebKitWebContextCache().m_onGeolocationStop.invoke(bridge->m_javaRef.get()))
+        Logging::logError("cannot deliver WebKitWebContext onGeolocationStop callback");
+}
+
+void JNIWebKitWebContextCache::onGeolocationHighAccuracyChanged(
+    GObject* manager, GParamSpec*, WebKitWebContextBridge* bridge)
+{
+    if (!getJNIWebKitWebContextCache().m_onGeolocationHighAccuracyChanged.invoke(bridge->m_javaRef.get(),
+            static_cast<jboolean>(
+                webkit_geolocation_manager_get_enable_high_accuracy(WEBKIT_GEOLOCATION_MANAGER(manager)))))
+        Logging::logError("cannot deliver WebKitWebContext onGeolocationHighAccuracyChanged callback");
+}
+
 jlong JNIWebKitWebContextCache::nativeInit(JNIEnv* env, jobject jniContext, jboolean automationMode)
 {
     auto* context = webkit_web_context_new();
     webkit_web_context_set_automation_allowed(context, automationMode ? TRUE : FALSE);
 
     auto* bridge = new WebKitWebContextBridge(context);
+    bridge->m_javaRef = JNI::GlobalRef<JNIWebKitWebContext>(env, jniContext);
+    auto* geolocationManager = webkit_web_context_get_geolocation_manager(context);
+    g_signal_connect(geolocationManager, "start", G_CALLBACK(onGeolocationStart), bridge);
+    g_signal_connect(geolocationManager, "stop", G_CALLBACK(onGeolocationStop), bridge);
+    g_signal_connect(
+        geolocationManager, "notify::enable-high-accuracy", G_CALLBACK(onGeolocationHighAccuracyChanged), bridge);
     if (automationMode) {
-        bridge->m_javaRef = JNI::GlobalRef<JNIWebKitWebContext>(env, jniContext);
         bridge->m_automationSignalId
             = g_signal_connect(context, "automation-started", G_CALLBACK(onAutomationStarted), bridge);
     }
@@ -158,6 +218,36 @@ void JNIWebKitWebContextCache::nativeSetPreferredLanguages(
 
     webkit_web_context_set_preferred_languages(
         JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context, languages);
+}
+
+// The values a position does not have are NaN, and a time of 0 is the current one.
+void JNIWebKitWebContextCache::nativeUpdateGeolocationPosition(JNIEnv*, jobject, jlong nativePtr, jdouble latitude,
+    jdouble longitude, jdouble accuracy, jdouble altitude, jdouble altitudeAccuracy, jdouble heading, jdouble speed,
+    jlong timeSeconds)
+{
+    auto* position = webkit_geolocation_position_new(latitude, longitude, accuracy);
+    if (!std::isnan(altitude))
+        webkit_geolocation_position_set_altitude(position, altitude);
+    if (!std::isnan(altitudeAccuracy))
+        webkit_geolocation_position_set_altitude_accuracy(position, altitudeAccuracy);
+    if (!std::isnan(heading))
+        webkit_geolocation_position_set_heading(position, heading);
+    if (!std::isnan(speed))
+        webkit_geolocation_position_set_speed(position, speed);
+    webkit_geolocation_position_set_timestamp(position, static_cast<guint64>(timeSeconds));
+    webkit_geolocation_manager_update_position(
+        webkit_web_context_get_geolocation_manager(JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context),
+        position);
+    webkit_geolocation_position_free(position);
+}
+
+void JNIWebKitWebContextCache::nativeGeolocationFailed(JNIEnv*, jobject, jlong nativePtr, jstring message)
+{
+    auto javaMessage = JNI::String(message);
+    auto content = javaMessage.getContent();
+    webkit_geolocation_manager_failed(
+        webkit_web_context_get_geolocation_manager(JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context),
+        content ? content.get() : "");
 }
 
 WebKitWebView* JNIWebKitWebContextCache::invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const

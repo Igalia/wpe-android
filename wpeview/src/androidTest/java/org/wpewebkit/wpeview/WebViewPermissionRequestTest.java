@@ -18,6 +18,7 @@
 
 package org.wpewebkit.wpeview;
 
+import android.location.Location;
 import android.net.Uri;
 
 import androidx.annotation.NonNull;
@@ -220,7 +221,21 @@ public class WebViewPermissionRequestTest {
     public void grantsFromAnotherThread() throws Throwable {
         Client client = setClient(true);
         String url = setPage("/locate.html", LOCATE_PAGE);
-        onMain(() -> getWebView().loadUrl(url));
+        onMain(() -> {
+            getWebView().getPage().getWebContext().setLocationSource(new WPELocationSource() {
+                @Override
+                public void start(boolean highAccuracy, @NonNull Listener listener) {
+                    Location location = new Location("test");
+                    location.setLatitude(1.5);
+                    location.setLongitude(2.5);
+                    listener.onLocationChanged(location);
+                }
+
+                @Override
+                public void stop() {}
+            });
+            getWebView().loadUrl(url);
+        });
 
         WPEPermissionRequest request = take(client.requests, "permission request");
         Thread thread = new Thread(() -> {
@@ -229,9 +244,7 @@ public class WebViewPermissionRequestTest {
         });
         thread.start();
         thread.join();
-        // Granted, the page waits for a position, which no source gives here.
-        String title = waitForTitle(client.titles, "error", "position");
-        assertEquals("error 2", title);
+        assertEquals("position 1.5 2.5", waitForTitle(client.titles, "error", "position"));
     }
 
     @Test

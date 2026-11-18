@@ -4,6 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 17's local network permission, for WebViewLocalNetworkTest. -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- For WebContextLocationTest, which grants them to read Android's location. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application>
         <activity android:name="org.wpewebkit.wpeview.WebViewTestActivity"
