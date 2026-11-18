@@ -16,6 +16,10 @@ jobs:
           with:
             distribution: temurin
             java-version: 17
+        - name: Gradle Setup
+          uses: gradle/actions/setup-gradle@v6
+          with:
+            cache-provider: basic
         - name: Fetch Dependencies (WPE Bootstrap)
           run: python3 tools/scripts/bootstrap.py -a x86_64
         - name: Enable KVM
@@ -34,7 +38,7 @@ jobs:
             force-avd-creation: false
             emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
             disable-animations: true
-            pre-emulator-launch-script: ./gradlew wpeview:build
+            pre-emulator-launch-script: ./gradlew wpeview:assembleDebug wpeview:assembleDebugAndroidTest
             script: ./gradlew wpeview:connectedDebugAndroidTest --stacktrace
         - name: Create Test Summary
           if: always()
