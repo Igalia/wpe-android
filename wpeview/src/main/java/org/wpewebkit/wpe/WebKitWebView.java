@@ -57,6 +57,14 @@ public final class WebKitWebView {
     public static final int FIND_OPTIONS_BACKWARDS = 1 << 3;
     public static final int FIND_OPTIONS_WRAP_AROUND = 1 << 4;
 
+    // What a permission request asks for, as a set of these flags, which the native side maps WebKit's requests to.
+    public static final int PERMISSION_LOCATION = 1;
+
+    // Mirrors WebKitPermissionState.
+    public static final int PERMISSION_STATE_GRANTED = 0;
+    public static final int PERMISSION_STATE_DENIED = 1;
+    public static final int PERMISSION_STATE_PROMPT = 2;
+
     // Mirrors WebKitWebProcessTerminationReason.
     public static final int WEB_PROCESS_CRASHED = 0;
     public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
@@ -352,6 +360,22 @@ public final class WebKitWebView {
          * process ends meanwhile.
          */
         void onFindResult(int matchCount);
+        /**
+         * The page asks for permission to use {@code resources}, a set of {@code PERMISSION_*} flags, for the origin of
+         * its main document. It waits until it is answered once with {@link #permissionRequestAnswer}.
+         */
+        void onPermissionRequest(long requestId, int resources, @NonNull String origin);
+        /**
+         * A request that was not answered ended with the document that asked, or with its web process, and was denied.
+         * Answers to it do nothing.
+         */
+        void onPermissionRequestCancelled(long requestId);
+        /**
+         * The page asks what a request for {@code resource}, a {@code PERMISSION_*} flag, would get, on the main
+         * thread. Returns whether the query is taken, to be answered later with {@link #permissionStateQueryAnswer};
+         * WebKit answers one that is not.
+         */
+        boolean onQueryPermissionState(long queryId, int resource, @NonNull String origin);
     }
 
     private @Nullable Listener listener;
@@ -602,6 +626,48 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onPlayingAudioChanged(isPlayingAudio));
     }
 
+    @Keep
+    private void onPermissionRequest(long requestId, int resources, String origin) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onPermissionRequest(requestId, resources, origin));
+        else
+            permissionRequestAnswer(requestId, false);
+    }
+
+    @Keep
+    private void onPermissionRequestCancelled(long requestId) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onPermissionRequestCancelled(requestId));
+    }
+
+    // WebKit answers a query that is not taken when this returns, so the listener is called right away, on the main
+    // thread, where WebKit runs.
+    @Keep
+    private boolean onQueryPermissionState(long queryId, int resource, String origin) {
+        Listener currentListener = listener;
+        return currentListener != null && currentListener.onQueryPermissionState(queryId, resource, origin);
+    }
+
+    /**
+     * Answers a request reported via {@link Listener#onPermissionRequest}. Only the first answer counts, and none
+     * counts once the request ended, or the view is destroyed, which denies the requests that are left.
+     */
+    public void permissionRequestAnswer(long requestId, boolean allow) {
+        if (mNativePtr != 0)
+            nativePermissionRequestAnswer(mNativePtr, requestId, allow);
+    }
+
+    /**
+     * Answers a query taken in {@link Listener#onQueryPermissionState} with a {@code PERMISSION_STATE_*} value. Only
+     * the first answer counts, and none counts once the page loaded another document.
+     */
+    public void permissionStateQueryAnswer(long queryId, int state) {
+        if (mNativePtr != 0)
+            nativePermissionStateQueryAnswer(mNativePtr, queryId, state);
+    }
+
     /**
      * Answers a request reported via {@link Listener#onHttpAuthRequest} with these credentials. Only the first answer
      * counts, and none counts once WebKit cancelled the request, because its load ended or another one started.
@@ -691,4 +757,6 @@ public final class WebKitWebView {
     private native boolean nativeIsMuted(long nativePtr);
     private native void nativeFindSearch(long nativePtr, @NonNull String text, int options, int maxMatchCount);
     private native void nativeFindFinish(long nativePtr);
+    private native void nativePermissionRequestAnswer(long nativePtr, long requestId, boolean allow);
+    private native void nativePermissionStateQueryAnswer(long nativePtr, long queryId, int state);
 }

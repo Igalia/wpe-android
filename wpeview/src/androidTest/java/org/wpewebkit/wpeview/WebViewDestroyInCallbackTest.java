@@ -70,6 +70,11 @@ public class WebViewDestroyInCallbackTest {
                                            + "  rendered = true; }));"
                                            + "document.getElementById('target').addEventListener('click', () => {"
                                            + "%s });</script></body></html>";
+    // Pages that ask for the location of the device, and what a request for it would get, as they load.
+    private static final String LOCATE_PAGE =
+        "<title>Locate</title><script>navigator.geolocation.getCurrentPosition(p => {}, e => {});</script>";
+    private static final String QUERY_PAGE =
+        "<title>Query</title><script>navigator.permissions.query({name: 'geolocation'});</script>";
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -382,6 +387,79 @@ public class WebViewDestroyInCallbackTest {
             }
         }));
         killWebProcesses();
+        assertDestroyedAndTheAppGoesOn();
+    }
+
+    /** An answer that the app gives after that does nothing. */
+    @Test
+    public void testDestroyInOnPermissionRequest() throws Exception {
+        String url = setPage("/locate.html", LOCATE_PAGE);
+        onWebView(view -> {
+            view.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(@NonNull WebView view, @NonNull WPEPermissionRequest request) {
+                    destroy(view);
+                    request.grant();
+                }
+            });
+            view.loadUrl(url);
+        });
+        assertDestroyedAndTheAppGoesOn();
+    }
+
+    // Loads a page that asks for the location, and keeps its request unanswered, with a client that destroys the
+    // WebView when the request ends.
+    private void loadAPageThatAsksAndDestroyWhenItsRequestEnds() throws Exception {
+        CountDownLatch asked = new CountDownLatch(1);
+        String url = setPage("/locate.html", LOCATE_PAGE);
+        onWebView(view -> {
+            view.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public void onPermissionRequest(@NonNull WebView view, @NonNull WPEPermissionRequest request) {
+                    asked.countDown();
+                }
+
+                @Override
+                public void onPermissionRequestCanceled(@NonNull WebView view, @NonNull WPEPermissionRequest request) {
+                    destroy(view);
+                }
+            });
+            view.loadUrl(url);
+        });
+        assertTrue("The page did not ask", asked.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    /** The request ends with the document that asked. */
+    @Test
+    public void testDestroyInOnPermissionRequestCanceledByTheNextPage() throws Exception {
+        loadAPageThatAsksAndDestroyWhenItsRequestEnds();
+        String next = setPage("/next.html", "<title>Next</title><p>Next");
+        onWebView(view -> view.loadUrl(next));
+        assertDestroyedAndTheAppGoesOn();
+    }
+
+    /** The request ends with the web process. */
+    @Test
+    public void testDestroyInOnPermissionRequestCanceledByTheEndOfTheWebProcess() throws Exception {
+        loadAPageThatAsksAndDestroyWhenItsRequestEnds();
+        killWebProcesses();
+        assertDestroyedAndTheAppGoesOn();
+    }
+
+    /** A query that the app takes and never answers gets WebKit's answer. */
+    @Test
+    public void testDestroyInOnQueryPermissionState() throws Exception {
+        String url = setPage("/query.html", QUERY_PAGE);
+        onWebView(view -> {
+            view.setWebChromeClient(new WebChromeClient() {
+                @Override
+                public boolean onQueryPermissionState(@NonNull WebView view, @NonNull WPEPermissionStateQuery query) {
+                    destroy(view);
+                    return true;
+                }
+            });
+            view.loadUrl(url);
+        });
         assertDestroyedAndTheAppGoesOn();
     }
 

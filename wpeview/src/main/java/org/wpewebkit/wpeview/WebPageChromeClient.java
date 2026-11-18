@@ -29,9 +29,9 @@ import java.lang.annotation.RetentionPolicy;
 
 /**
  * Receives what a {@link WebPage} asks of the app and its user: new windows and closing its own, its title and
- * progress, its JavaScript dialogs, its file and color fields and its sound. Set with {@link WebPage#setChromeClient}.
- * The page may have no view, so each method gets the page, not a {@link WebView}. Each one works as the
- * {@link WebChromeClient} method of the same name, which a view gets for the page it made itself.
+ * progress, its JavaScript dialogs, its file and color fields, its sound and its permission requests. Set with
+ * {@link WebPage#setChromeClient}. The page may have no view, so each method gets the page, not a {@link WebView}. Each
+ * one works as the {@link WebChromeClient} method of the same name, which a view gets for the page it made itself.
  *
  * <p>A JavaScript dialog goes to the app first. If the app does not take it, the view that shows the page shows its
  * built-in dialog, while the view is in a window: the dialog of a stopped activity, as under another app or a file
@@ -149,6 +149,33 @@ public class WebPageChromeClient {
      * for the request of a page that is destroyed.
      */
     public void onHideColorChooser(@NonNull WebPage page) {}
+
+    /**
+     * Asks the app whether the page may use something that needs the user's consent, such as the location of the
+     * device, as {@link WebChromeClient#onPermissionRequest}: call {@link WPEPermissionRequest#grant()} or
+     * {@link WPEPermissionRequest#deny()}, now or later. The default denies it, as does a client that throws.
+     *
+     * <p>A request that the page asked of a view's client, which the view lets go of with
+     * {@link WebView#releasePage()}, waits for the next chrome client that the app sets on the page, which is asked
+     * again, since a refusal would last for the rest of the document. So do the requests the page makes until then.
+     */
+    public void onPermissionRequest(@NonNull WebPage page, @NonNull WPEPermissionRequest request) { request.deny(); }
+
+    /**
+     * Tells the app that a request it has not answered ended without an answer, because the page that asked went away,
+     * so that it takes down what it shows for it. See {@link WPEPermissionRequest}.
+     */
+    public void onPermissionRequestCanceled(@NonNull WebPage page, @NonNull WPEPermissionRequest request) {}
+
+    /**
+     * Asks the app what a permission request of the page would get, for {@code navigator.permissions.query()}, as
+     * {@link WebChromeClient#onQueryPermissionState}. Return true to take the query, and answer it with
+     * {@link WPEPermissionStateQuery#answer}, now or later; return false, the default, to let WebKit answer, which
+     * says prompt.
+     */
+    public boolean onQueryPermissionState(@NonNull WebPage page, @NonNull WPEPermissionStateQuery query) {
+        return false;
+    }
 
     /**
      * A request of a page for a new window, given to {@link #onCreateWindow}. It is answered once the call returns:

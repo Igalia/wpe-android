@@ -162,6 +162,12 @@ public final class WebPage {
     // The request for a new window that the chrome client is asked about, while it is.
     @Nullable
     WebPageChromeClient.WindowRequest windowRequest;
+    // The permission requests that are not answered: those the chrome client was asked about, and those whose client
+    // let go of them, which wait for the next chrome client that the app sets (cancelRequestsOfClients).
+    final ArrayList<PermissionRequest> permissionRequests = new ArrayList<>();
+    // Whether the view that made the page let go of it, and the app has not set a chrome client since: the permission
+    // requests of the page wait for that client meanwhile.
+    boolean awaitsChromeClient;
 
     private @Nullable String originalUrl;
     String url = "about:blank";
@@ -304,10 +310,48 @@ public final class WebPage {
 
     public @NonNull WebPageClient getClient() { return client; }
 
-    /** Sets the client that receives what the page asks of the app and its user, which replaces the one it had. */
+    /**
+     * Sets the client that receives what the page asks of the app and its user, which replaces the one it had. It is
+     * asked about the permission requests that wait for a client, those that a view let go of (see
+     * {@link WebPageChromeClient#onPermissionRequest}).
+     */
     public void setChromeClient(@NonNull WebPageChromeClient client) {
         checkThread();
         this.chromeClient = Objects.requireNonNull(client, "client");
+        awaitsChromeClient = false;
+        // The client may answer them, set another client or destroy the page meanwhile. If it throws, the requests that
+        // it was not asked about yet are denied too, as no client would be asked about them.
+        ArrayList<PermissionRequest> waiting = new ArrayList<>();
+        for (PermissionRequest request : permissionRequests) {
+            if (request.waitsForClient)
+                waiting.add(request);
+        }
+        boolean asked = false;
+        try {
+            for (PermissionRequest request : waiting) {
+                if (destroyed || chromeClient != client)
+                    break;
+                if (!request.ended) {
+                    request.waitsForClient = false;
+                    askPermission(request);
+                }
+            }
+            asked = true;
+        } finally {
+            if (!asked) {
+                for (PermissionRequest request : waiting) {
+                    if (request.waitsForClient && !request.ended)
+                        request.deny();
+                }
+            }
+        }
+    }
+
+    // Gives the page a chrome client that does nothing, once the view that made it lets go of it. The permission
+    // requests of the page, those it has and those it makes until the app sets a client, wait for that client.
+    void resetChromeClient() {
+        chromeClient = new WebPageChromeClient();
+        awaitsChromeClient = true;
     }
 
     public @NonNull WebPageChromeClient getChromeClient() { return chromeClient; }
@@ -728,10 +772,14 @@ public final class WebPage {
     // them, so that they close what they show for them. Downloads are the app's once they started, and go on. The
     // clients and the requests are taken first: as a client hears of one, it may answer the others, set other clients,
     // or destroy the page, which drops its requests without a word, and the clients still hear of those.
+    //
+    // Permission requests are not cancelled, since WebKit would keep a refusal for the rest of the document: the chrome
+    // client hears that they are gone, and each waits, as a new request, for the next chrome client the app sets.
     void cancelRequestsOfClients(boolean ofClient, boolean ofChromeClient) {
         WebPageClient requestsClient = client;
         WebPageChromeClient requestsChromeClient = chromeClient;
         ArrayList<HttpAuthRequest> requests = new ArrayList<>();
+        ArrayList<PermissionRequest> letGo = new ArrayList<>();
         if (ofClient) {
             for (int i = 0; i < httpAuthRequests.size(); i++)
                 requests.add(httpAuthRequests.valueAt(i));
@@ -744,6 +792,13 @@ public final class WebPage {
                 colorChooser.cancel();
                 requestsChromeClient.onHideColorChooser(this);
             }
+            for (int i = 0; i < permissionRequests.size(); i++) {
+                PermissionRequest request = permissionRequests.get(i);
+                if (request.waitsForClient)
+                    continue;
+                permissionRequests.set(i, request.waitForNextClient());
+                letGo.add(request);
+            }
         }
         for (HttpAuthRequest request : requests) {
             if (request.ended)
@@ -751,6 +806,8 @@ public final class WebPage {
             request.cancel();
             requestsClient.onHttpAuthRequestCanceled(this, request);
         }
+        for (PermissionRequest request : letGo)
+            requestsChromeClient.onPermissionRequestCanceled(this, request);
     }
 
     /**
@@ -782,9 +839,12 @@ public final class WebPage {
         findListener = null;
         mutedWhenDestroyed = webKitWebView.isMuted();
         destroyed = true;
-        // This also cancels the requests of file and color fields.
+        // This also cancels the requests of file and color fields, and denies the permission requests.
         webKitWebView.destroy();
         httpAuthRequests.clear();
+        for (PermissionRequest request : permissionRequests)
+            request.ended = true;
+        permissionRequests.clear();
         playingAudio = false;
         inputFieldFocused = false;
         settings.detach();
@@ -1040,6 +1100,173 @@ public final class WebPage {
                 return;
             playingAudio = isPlayingAudio;
             chromeClient.onPlayingAudioChanged(WebPage.this, isPlayingAudio);
+        }
+
+        @Override
+        public void onPermissionRequest(long requestId, int resources, @NonNull String origin) {
+            PermissionRequest request =
+                new PermissionRequest(requestId, resources, Uri.parse(origin), awaitsChromeClient);
+            permissionRequests.add(request);
+            if (!awaitsChromeClient)
+                askPermission(request);
+        }
+
+        // A request whose client let go of it waits for the next one without a word, as that client was told already.
+        @Override
+        public void onPermissionRequestCancelled(long requestId) {
+            PermissionRequest request = findPermissionRequest(requestId);
+            if (request == null)
+                return;
+            request.end();
+            if (!request.waitsForClient)
+                chromeClient.onPermissionRequestCanceled(WebPage.this, request);
+        }
+
+        // A client that throws does not take the query, which WebKit then answers, unless the client answered it.
+        @Override
+        public boolean onQueryPermissionState(long queryId, int resource, @NonNull String origin) {
+            return chromeClient.onQueryPermissionState(WebPage.this,
+                                                       new PermissionStateQuery(queryId, resource, Uri.parse(origin)));
+        }
+    }
+
+    @Nullable
+    PermissionRequest findPermissionRequest(long requestId) {
+        for (PermissionRequest request : permissionRequests) {
+            if (request.requestId == requestId)
+                return request;
+        }
+        return null;
+    }
+
+    // A client that throws denies the request, unless it answered it, from the main thread, before. Package-private:
+    // called from the PageListener inner class (avoids a synthetic accessor).
+    void askPermission(@NonNull PermissionRequest request) {
+        boolean asked = false;
+        try {
+            chromeClient.onPermissionRequest(this, request);
+            asked = true;
+        } finally {
+            if (!asked)
+                request.deny();
+        }
+    }
+
+    // The RESOURCE_* names of the PERMISSION_* flags of WebKitWebView.
+    static @NonNull String[] permissionResources(int resources) {
+        ArrayList<String> names = new ArrayList<>();
+        if ((resources & WebKitWebView.PERMISSION_LOCATION) != 0)
+            names.add(WPEPermissionRequest.RESOURCE_LOCATION);
+        return names.toArray(new String[0]);
+    }
+
+    /**
+     * A permission request of the page. WebKit takes one answer, which the app may give from any thread: it reaches
+     * WebKit on the main thread, where its main loop runs, and only the first one to get there counts.
+     */
+    final class PermissionRequest extends WPEPermissionRequest {
+        final long requestId;
+        private final int resources;
+        private final Uri origin;
+        // Whether the request waits for the next chrome client that the app sets, which has not been asked yet.
+        boolean waitsForClient;
+        // Whether the request was answered, ended without an answer, or handed on to the next client as a new object.
+        boolean ended;
+
+        PermissionRequest(long requestId, int resources, @NonNull Uri origin, boolean waitsForClient) {
+            this.requestId = requestId;
+            this.resources = resources;
+            this.origin = origin;
+            this.waitsForClient = waitsForClient;
+        }
+
+        // The same request, for the next chrome client. This one, which the old client may still answer, does nothing.
+        @NonNull
+        PermissionRequest waitForNextClient() {
+            ended = true;
+            return new PermissionRequest(requestId, resources, origin, true);
+        }
+
+        void end() {
+            ended = true;
+            permissionRequests.remove(this);
+        }
+
+        @Override
+        public @NonNull Uri getOrigin() {
+            return origin;
+        }
+
+        @Override
+        public @NonNull String[] getResources() {
+            return permissionResources(resources);
+        }
+
+        @Override
+        public void grant() {
+            answer(true);
+        }
+
+        @Override
+        public void grant(@NonNull String[] granted) {
+            Objects.requireNonNull(granted, "resources");
+            for (String resource : getResources()) {
+                boolean found = false;
+                for (String name : granted)
+                    found |= resource.equals(name);
+                if (!found) {
+                    answer(false);
+                    return;
+                }
+            }
+            answer(true);
+        }
+
+        @Override
+        public void deny() {
+            answer(false);
+        }
+
+        private void answer(boolean allow) {
+            if (runOnMainThread(() -> answer(allow)) || ended || destroyed)
+                return;
+            end();
+            webKitWebView.permissionRequestAnswer(requestId, allow);
+        }
+    }
+
+    /**
+     * A query of the page about a permission, which takes one answer, from any thread, as a permission request does.
+     */
+    final class PermissionStateQuery extends WPEPermissionStateQuery {
+        private final long queryId;
+        private final int resource;
+        private final Uri origin;
+
+        PermissionStateQuery(long queryId, int resource, @NonNull Uri origin) {
+            this.queryId = queryId;
+            this.resource = resource;
+            this.origin = origin;
+        }
+
+        @Override
+        public @NonNull Uri getOrigin() {
+            return origin;
+        }
+
+        @Override
+        public @NonNull String getResource() {
+            String[] names = permissionResources(resource);
+            return names.length > 0 ? names[0] : "";
+        }
+
+        @Override
+        public void answer(@State int state) {
+            if (state != STATE_GRANTED && state != STATE_DENIED && state != STATE_PROMPT)
+                throw new IllegalArgumentException("Unknown permission state: " + state);
+            if (runOnMainThread(() -> answer(state)) || destroyed)
+                return;
+            webKitWebView.permissionStateQueryAnswer(queryId, state);
         }
     }
 

@@ -362,9 +362,12 @@ public class WebView extends FrameLayout {
      * them become clients that do nothing, and its requests that wait for an answer from them are cancelled: JavaScript
      * dialogs, file and color fields, and HTTP authentication. The view's clients hear of the last two, with
      * {@link WebChromeClient#onHideColorChooser} and {@link WebViewClient#onHttpAuthRequestCanceled}, as when the page
-     * ends them itself, so that they close what they show for them. Clients that the app set on the page itself stay,
-     * with their requests. Shown again in this view, the page is a page of the app, and the view's clients do not hear
-     * of it.
+     * ends them itself, so that they close what they show for them. Its permission requests are not cancelled, as
+     * WebKit would keep the refusal for the rest of the page: the view's chrome client hears that they are gone, with
+     * {@link WebChromeClient#onPermissionRequestCanceled}, and they wait, with those the page makes meanwhile, for the
+     * chrome client that the app sets on the page next, which is asked about them. Clients that the app set on the page
+     * itself stay, with their requests. Shown again in this view, the page is a page of the app, and the view's clients
+     * do not hear of it.
      *
      * @throws IllegalStateException if the view is destroyed or headless.
      */
@@ -411,8 +414,9 @@ public class WebView extends FrameLayout {
             // The clients may have set others on the page, or destroyed it, which replaced them.
             if (handOver && oldClientAdapter != null && ownPage.client == oldClientAdapter)
                 ownPage.setClient(new WebPageClient());
+            // Its permission requests wait for the next chrome client that the app sets, rather than this one.
             if (handOver && oldChromeClientAdapter != null && ownPage.chromeClient == oldChromeClientAdapter)
-                ownPage.setChromeClient(new WebPageChromeClient());
+                ownPage.resetChromeClient();
         }
         if (oldClientAdapter != null)
             oldClientAdapter.view = null;
@@ -1289,6 +1293,29 @@ public class WebView extends FrameLayout {
             WebView target = target();
             if (target != null)
                 target.chromeClient.onHideColorChooser(target);
+        }
+
+        // A request the view no longer hears of gets the default answer, as the dialogs get.
+        @Override
+        public void onPermissionRequest(@NonNull WebPage source, @NonNull WPEPermissionRequest request) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onPermissionRequest(target, request);
+            else
+                request.deny();
+        }
+
+        @Override
+        public void onPermissionRequestCanceled(@NonNull WebPage source, @NonNull WPEPermissionRequest request) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onPermissionRequestCanceled(target, request);
+        }
+
+        @Override
+        public boolean onQueryPermissionState(@NonNull WebPage source, @NonNull WPEPermissionStateQuery query) {
+            WebView target = target();
+            return target != null && target.chromeClient.onQueryPermissionState(target, query);
         }
     }
 

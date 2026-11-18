@@ -208,6 +208,31 @@ public class WebChromeClient {
      */
     public void onHideColorChooser(@NonNull WebView view) {}
 
+    /**
+     * Asks the host whether the page in {@code view} may use something that needs the user's consent, such as the
+     * location of the device, as android.webkit.WebChromeClient does: call {@link WPEPermissionRequest#grant()} or
+     * {@link WPEPermissionRequest#deny()}, now or later. The default denies it, as does a client that throws. Unlike
+     * android.webkit.WebView, location requests come here too, rather than to a callback of their own.
+     */
+    public void onPermissionRequest(@NonNull WebView view, @NonNull WPEPermissionRequest request) { request.deny(); }
+
+    /**
+     * Tells the host that a request it has not answered ended without an answer, because the page that asked went
+     * away, or the page that the view made left it with {@link WebView#releasePage()}, so that it takes down what it
+     * shows for it. See {@link WPEPermissionRequest}.
+     */
+    public void onPermissionRequestCanceled(@NonNull WebView view, @NonNull WPEPermissionRequest request) {}
+
+    /**
+     * Asks the host what a permission request of the page in {@code view} would get, for
+     * {@code navigator.permissions.query()}. Return true to take the query, and answer it with
+     * {@link WPEPermissionStateQuery#answer}, now or later; return false, the default, to let WebKit answer, which
+     * says prompt.
+     */
+    public boolean onQueryPermissionState(@NonNull WebView view, @NonNull WPEPermissionStateQuery query) {
+        return false;
+    }
+
     /** A {@link WebPageChromeClient.ColorChooserCallback}, as {@link #onShowColorChooser} gets it. */
     public interface ColorChooserCallback extends WebPageChromeClient.ColorChooserCallback {}
 
