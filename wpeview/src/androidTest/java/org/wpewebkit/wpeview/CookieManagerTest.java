@@ -166,6 +166,41 @@ public class CookieManagerTest {
         assertFalse("The next session has the removed cookie", hasCookie(newWebView(newSession(false))));
     }
 
+    // WebKit answers a call for the policy once the network process does, after a context destroyed in the meantime
+    // is gone, and the app goes on.
+    @Test
+    public void testPolicyIsAnsweredAfterTheContextIsDestroyed() throws Exception {
+        BlockingQueue<CookieManager.CookieAcceptPolicy> policies = new LinkedBlockingQueue<>();
+        for (boolean ephemeral : new boolean[] {false, true}) {
+            WebContext session = newSession(ephemeral);
+            webViewActivityTestRule.getScenario().onActivity(activity -> {
+                session.getCookieManager().getCookieAcceptPolicy(policies::add);
+                session.destroy();
+            });
+        }
+        assertNotNull("No policy for the persistent session", policies.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertNotNull("No policy for the ephemeral session", policies.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+        // A page that sets no cookie, as the store is shared with the tests that run next.
+        HttpResponse response = new HttpResponse();
+        response.setStatusCode(200);
+        response.setStatusMessage("OK");
+        response.addHeader("Content-Type", "text/html; charset=utf-8");
+        response.setBodyText("After the destroyed contexts");
+        loadAndWait(newWebView(newSession(false)), httpServer.setResponse("/after.html", response));
+    }
+
+    // An app may keep the CookieManager of a context that it destroyed, and setting the policy then does nothing.
+    @Test
+    public void testPolicyCanBeSetAfterTheContextIsDestroyed() {
+        WebContext session = newSession(false);
+        webViewActivityTestRule.getScenario().onActivity(activity -> {
+            CookieManager cookieManager = session.getCookieManager();
+            session.destroy();
+            cookieManager.setCookieAcceptPolicy(CookieManager.CookieAcceptPolicy.AcceptNever);
+        });
+    }
+
     @Test
     public void testEphemeralSessionKeepsNoCookies() throws Exception {
         WebView ephemeral = newWebView(newSession(true));
