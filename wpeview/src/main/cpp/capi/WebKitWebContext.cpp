@@ -39,14 +39,22 @@ struct WebKitWebContextBridge {
         g_signal_handlers_disconnect_by_data(webkit_web_context_get_geolocation_manager(m_context), this);
         if (m_automationSignalId)
             g_signal_handler_disconnect(m_context, m_automationSignalId);
-        if (m_createWebViewSignalId) {
-            if (GObject* automationSession = static_cast<GObject*>(g_weak_ref_get(&m_automationSession))) {
-                g_signal_handler_disconnect(automationSession, m_createWebViewSignalId);
-                g_object_unref(automationSession);
-            }
-        }
+        disconnectAutomationSession();
         g_weak_ref_clear(&m_automationSession);
         g_object_unref(m_context);
+    }
+
+    void disconnectAutomationSession()
+    {
+        if (GObject* automationSession = static_cast<GObject*>(g_weak_ref_get(&m_automationSession))) {
+            if (m_createWebViewSignalId)
+                g_signal_handler_disconnect(automationSession, m_createWebViewSignalId);
+            if (m_willCloseSignalId)
+                g_signal_handler_disconnect(automationSession, m_willCloseSignalId);
+            g_object_unref(automationSession);
+        }
+        m_createWebViewSignalId = 0;
+        m_willCloseSignalId = 0;
     }
 
     WebKitWebContext* m_context;
@@ -54,6 +62,7 @@ struct WebKitWebContextBridge {
     GWeakRef m_automationSession;
     gulong m_automationSignalId {0};
     gulong m_createWebViewSignalId {0};
+    gulong m_willCloseSignalId {0};
 };
 
 class JNIWebKitWebContextCache final : public JNI::TypedClass<JNIWebKitWebContext> {
@@ -61,6 +70,7 @@ public:
     JNIWebKitWebContextCache()
         : JNI::TypedClass<JNIWebKitWebContext>(true)
         , m_invokeCreateWebKitWebViewForAutomation(getMethod<jlong()>("createWebKitWebViewForAutomation"))
+        , m_onAutomationSessionWillClose(getMethod<void()>("onAutomationSessionWillClose"))
         , m_onGeolocationStart(getMethod<void(jboolean)>("onGeolocationStart"))
         , m_onGeolocationStop(getMethod<void()>("onGeolocationStop"))
         , m_onGeolocationHighAccuracyChanged(getMethod<void(jboolean)>("onGeolocationHighAccuracyChanged"))
@@ -81,6 +91,7 @@ private:
     static void onAutomationStarted(
         WebKitWebContext*, WebKitAutomationSession* session, WebKitWebContextBridge* bridge);
     static WebKitWebView* onCreateWebViewForAutomation(WebKitWebContextBridge* bridge);
+    static void onAutomationSessionWillClose(WebKitWebContextBridge* bridge);
     static gboolean onGeolocationStart(WebKitGeolocationManager* manager, WebKitWebContextBridge* bridge);
     static void onGeolocationStop(WebKitGeolocationManager*, WebKitWebContextBridge* bridge);
     static void onGeolocationHighAccuracyChanged(GObject* manager, GParamSpec*, WebKitWebContextBridge* bridge);
@@ -97,6 +108,8 @@ private:
 
     const JNI::Method<jlong()>
         m_invokeCreateWebKitWebViewForAutomation; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void()>
+        m_onAutomationSessionWillClose; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jboolean)> m_onGeolocationStart; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void()> m_onGeolocationStop; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jboolean)>
@@ -114,6 +127,12 @@ WebKitWebView* JNIWebKitWebContextCache::onCreateWebViewForAutomation(WebKitWebC
     return getJNIWebKitWebContextCache().invokeCreateWebKitWebViewForAutomation(bridge->m_javaRef.get());
 }
 
+void JNIWebKitWebContextCache::onAutomationSessionWillClose(WebKitWebContextBridge* bridge)
+{
+    if (!getJNIWebKitWebContextCache().m_onAutomationSessionWillClose.invoke(bridge->m_javaRef.get()))
+        Logging::logError("cannot deliver WebKitWebContext onAutomationSessionWillClose callback");
+}
+
 void JNIWebKitWebContextCache::onAutomationStarted(
     WebKitWebContext*, WebKitAutomationSession* session, WebKitWebContextBridge* bridge)
 {
@@ -122,15 +141,13 @@ void JNIWebKitWebContextCache::onAutomationStarted(
     webkit_application_info_set_version(info, WEBKIT_MAJOR_VERSION, WEBKIT_MINOR_VERSION, WEBKIT_MICRO_VERSION);
     webkit_automation_session_set_application_info(session, info);
 
-    if (GObject* previousAutomationSession = static_cast<GObject*>(g_weak_ref_get(&bridge->m_automationSession))) {
-        if (bridge->m_createWebViewSignalId)
-            g_signal_handler_disconnect(previousAutomationSession, bridge->m_createWebViewSignalId);
-        g_object_unref(previousAutomationSession);
-    }
+    bridge->disconnectAutomationSession();
 
     g_weak_ref_set(&bridge->m_automationSession, G_OBJECT(session));
     bridge->m_createWebViewSignalId
         = g_signal_connect_swapped(session, "create-web-view", G_CALLBACK(onCreateWebViewForAutomation), bridge);
+    bridge->m_willCloseSignalId
+        = g_signal_connect_swapped(session, "will-close", G_CALLBACK(onAutomationSessionWillClose), bridge);
 }
 
 // WebKit wants the location of the device for the pages of the context. Java starts its source, which gives the

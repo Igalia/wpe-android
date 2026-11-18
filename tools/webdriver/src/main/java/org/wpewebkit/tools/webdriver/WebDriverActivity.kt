@@ -43,7 +43,7 @@ class WebDriverActivity : AppCompatActivity() {
     private val LOGTAG = "WebDriver"
 
     private lateinit var webContext: WebContext
-    private val webViewMap = mutableMapOf<Int, WebView>()
+    private val webViews = mutableSetOf<WebView>()
     private var freePort = getFreePort()
     private var isHeadless = false
 
@@ -63,25 +63,38 @@ class WebDriverActivity : AppCompatActivity() {
     private val webChromeClient: WebChromeClient = object : WebChromeClient() {
         override fun onCloseWindow(window: WebView) {
             val wasShown = window.parent != null
-            (window.parent as? ViewGroup)?.removeView(window)
-            webViewMap.remove(window.hashCode())
-            window.destroy()
+            close(window)
             // Like closing the front window on a desktop, show the most recent window left.
             if (wasShown && !isHeadless)
-                webViewMap.values.lastOrNull()?.let { show(it) }
+                webViews.lastOrNull()?.let { show(it) }
         }
     }
 
-    private val webContextClient: WebContext.Client = WebContext.Client {
-        val view = WebView(webContext, isHeadless).apply {
-            setWebChromeClient(this@WebDriverActivity.webChromeClient)
-            if (!isHeadless) {
-                show(this)
-                loadUrl("about:blank")
+    private val webContextClient: WebContext.Client = object : WebContext.Client {
+        override fun createWebViewForAutomation(): WebView {
+            val view = WebView(webContext, isHeadless).apply {
+                setWebChromeClient(this@WebDriverActivity.webChromeClient)
+                if (!isHeadless) {
+                    show(this)
+                    loadUrl("about:blank")
+                }
             }
+            webViews.add(view)
+            return view
         }
-        webViewMap[view.hashCode()] = view
-        view
+
+        // WebDriver leaves the windows open when it ends a session, as the app was running before it: close them,
+        // so that each session starts without the windows of the previous ones, and their web processes end.
+        override fun onAutomationSessionEnded() {
+            for (window in webViews.toList())
+                close(window)
+        }
+    }
+
+    private fun close(window: WebView) {
+        (window.parent as? ViewGroup)?.removeView(window)
+        webViews.remove(window)
+        window.destroy()
     }
 
     // Put the window in front and give it focus, so that its page is focused like in a browser.
@@ -144,7 +157,7 @@ class WebDriverActivity : AppCompatActivity() {
             webContext.setClient(null)
         }
 
-        val iterator = webViewMap.values.iterator()
+        val iterator = webViews.iterator()
         while (iterator.hasNext()) {
             iterator.next().destroy()
             iterator.remove()

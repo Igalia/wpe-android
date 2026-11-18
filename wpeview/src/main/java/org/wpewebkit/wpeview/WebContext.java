@@ -45,12 +45,24 @@ import java.util.List;
 public class WebContext {
     /**
      * Embedder hook for automation sessions. The WebDriver/automation path calls
-     * {@link #createWebViewForAutomation()} when a remote client asks for a new browsing context. The browsing context
-     * is the page that the returned WebView shows: returning null, or a WebView that shows no page, opens none.
+     * {@link #createWebViewForAutomation()} when a remote client asks for a new browsing context, and
+     * {@link #onAutomationSessionEnded()} when its session ends. The browsing context is the page that the returned
+     * WebView shows: returning null, or a WebView that shows no page, opens none.
      */
     public interface Client {
         @Nullable
         WebView createWebViewForAutomation();
+
+        /**
+         * Called on the main thread once the WebDriver session has ended: WebDriver deleted it or disconnected, or the
+         * network process ended. It comes after WebKit ended the session, to the client set then, and not once this
+         * context is destroyed.
+         * <p>
+         * WebDriver leaves the pages of the session open, as it does with a browser that it did not start, and
+         * WebDriver on Android connects to the running app: an app that does not keep them for a later session
+         * destroys their WebViews here. Until then, the next session also finds them.
+         */
+        default void onAutomationSessionEnded() {}
     }
 
     private final WPEDisplay display;
@@ -141,12 +153,21 @@ public class WebContext {
 
     /**
      * Register an automation {@link Client}. Only meaningful when this context was constructed with
-     * {@code automationMode=true}; the callback fires when WebDriver asks for a new browsing context.
+     * {@code automationMode=true}; {@link Client#createWebViewForAutomation()} is called when WebDriver asks for a new
+     * browsing context, and {@link Client#onAutomationSessionEnded()} when its session ends.
      */
     public void setClient(@Nullable Client client) {
-        webContext.setClient(client == null ? null : () -> {
-            WebView view = client.createWebViewForAutomation();
-            return view != null ? view.getInternalWebKitWebView() : null;
+        webContext.setClient(client == null ? null : new WebKitWebContext.Client() {
+            @Override
+            public @Nullable WebKitWebView createWebKitWebViewForAutomation() {
+                WebView view = client.createWebViewForAutomation();
+                return view != null ? view.getInternalWebKitWebView() : null;
+            }
+
+            @Override
+            public void onAutomationSessionEnded() {
+                client.onAutomationSessionEnded();
+            }
         });
     }
 

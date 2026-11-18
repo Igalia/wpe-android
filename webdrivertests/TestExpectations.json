@@ -364,8 +364,7 @@
     },
     "imported/w3c/webdriver/tests/classic/get_window_handles/iframe.py": {
         "subtests": {
-            "test_window_with_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}},
-            "test_window_with_frame[same_origin]": {"expected": {"wpe": {"status": ["FAIL"]}}}
+            "test_window_with_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/get_window_rect/user_prompts.py": {
@@ -400,15 +399,6 @@
             "test_no_top_browsing_context": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_seen_nodes[https coop]": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_seen_nodes[https]": {"expected": {"wpe": {"status": ["PASS"]}}}
-        }
-    },
-    "imported/w3c/webdriver/tests/classic/new_session/unhandled_prompt_behavior.py": {
-        "subtests": {
-            "test_beforeunload_prompts_always_automatically_accepted[accept and notify]": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_beforeunload_prompts_always_automatically_accepted[accept]": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_beforeunload_prompts_always_automatically_accepted[dismiss and notify]": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_beforeunload_prompts_always_automatically_accepted[dismiss]": {"expected": {"wpe": {"status": ["FAIL"]}}},
-            "test_beforeunload_prompts_always_automatically_accepted[ignore]": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/new_session/websocket_url.py": {

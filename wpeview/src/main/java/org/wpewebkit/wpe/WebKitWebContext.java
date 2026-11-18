@@ -35,6 +35,9 @@ public final class WebKitWebContext {
     public interface Client {
         @Nullable
         WebKitWebView createWebKitWebViewForAutomation();
+
+        /** Called once the automation session has ended. Its pages stay open. */
+        default void onAutomationSessionEnded() {}
     }
 
     /**
@@ -99,6 +102,18 @@ public final class WebKitWebContext {
         }
 
         return webViewPtr.get();
+    }
+
+    @Keep
+    private void onAutomationSessionWillClose() {
+        // WebKit is still ending the session, which a page closed now would reenter: the client hears of it after.
+        // That is before a next session can open a window, so the client may close all of its windows: the inspector
+        // takes one automation connection at a time, and WebDriver waits 100 ms before it connects for a session.
+        MainLooperDispatcher.postLater(() -> {
+            Client currentClient = client;
+            if (currentClient != null && mNativePtr != 0)
+                currentClient.onAutomationSessionEnded();
+        });
     }
 
     public long getWebKitWebContextPtr() { return nativeGetWebKitWebContextPtr(mNativePtr); }
