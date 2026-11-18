@@ -39,7 +39,11 @@ jobs:
             emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
             disable-animations: true
             pre-emulator-launch-script: ./gradlew wpeview:assembleDebug wpeview:assembleDebugAndroidTest
-            script: ./gradlew wpeview:connectedDebugAndroidTest --stacktrace
+            # One line for the runner, which runs each line in a shell of its own. The logcat goes with the results.
+            script: >-
+              adb logcat -c;
+              adb logcat -v threadtime > logcat.txt 2>&1 < /dev/null &
+              ./gradlew wpeview:connectedDebugAndroidTest --stacktrace
         - name: Create Test Summary
           if: always()
           uses: test-summary/action@v2
@@ -54,3 +58,4 @@ jobs:
             path: |
               wpeview/build/outputs/androidTest-results/
               wpeview/build/reports/androidTests/
+              logcat.txt
