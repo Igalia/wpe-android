@@ -68,8 +68,8 @@ public class WebViewAudioTest {
                                              + "    oscillator.connect(new GainNode(context, {gain: 0.01}))\n"
                                              + "        .connect(context.destination);\n"
                                              + "    oscillator.start();\n"
-                                             + "}\n"
-                                             + "</script></body></html>";
+                                             + "}\n" + WebViewActivityScenarioHelper.MEDIA_TIMELINE +
+                                             "</script></body></html>";
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -93,8 +93,7 @@ public class WebViewAudioTest {
     private void loadAudioPage() throws Throwable {
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, new TestWebViewClient(), AUDIO_PAGE);
         // WebKit admits a playback some time after play(), and only for media that can already play.
-        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(
-                                 scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true"));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "audio.readyState >= audio.HAVE_FUTURE_DATA", "true");
     }
 
     private String run(String script) throws Throwable {
@@ -104,8 +103,8 @@ public class WebViewAudioTest {
 
     private void play() throws Throwable {
         run("play(); 0");
-        assertEquals("true", WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "started", "true"));
-        assertEquals(PLAYING, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PLAYING));
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "started", "true");
+        WebViewActivityScenarioHelper.assertMediaResult(scenario, "state()", PLAYING);
     }
 
     private static String report(boolean isPlayingAudio, boolean getter) {
@@ -265,7 +264,7 @@ public class WebViewAudioTest {
         AtomicReference<ViewGroup> parent = new AtomicReference<>();
         takeOutOfTheWindow(parent);
         try {
-            assertEquals(PAUSED, WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, "state()", PAUSED));
+            WebViewActivityScenarioHelper.assertMediaResult(scenario, "state()", PAUSED);
             assertReported(false);
         } finally {
             scenario.onActivity(activity -> parent.get().addView(activity.getWebView()));
