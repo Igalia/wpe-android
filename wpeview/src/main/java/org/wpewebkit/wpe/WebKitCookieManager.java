@@ -72,7 +72,10 @@ public final class WebKitCookieManager {
         nativeGetAcceptPolicy(mNativePtr, callback != null ? new AcceptPolicyCallbackHolder(callback) : null);
     }
 
-    public void setAcceptPolicy(int policy) { nativeSetAcceptPolicy(mNativePtr, policy); }
+    public void setAcceptPolicy(int policy) {
+        if (mNativePtr != 0)
+            nativeSetAcceptPolicy(mNativePtr, policy);
+    }
 
     private native long nativeInit(long sessionPtr);
     private native void nativeDestroy(long nativePtr);
