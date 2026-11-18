@@ -72,7 +72,9 @@ public:
             JNI::NativeMethod<void(jlong, jstringArray)>("nativeSetPreferredLanguages", nativeSetPreferredLanguages),
             JNI::NativeMethod<void(jlong, jdouble, jdouble, jdouble, jdouble, jdouble, jdouble, jdouble, jlong)>(
                 "nativeUpdateGeolocationPosition", nativeUpdateGeolocationPosition),
-            JNI::NativeMethod<void(jlong, jstring)>("nativeGeolocationFailed", nativeGeolocationFailed));
+            JNI::NativeMethod<void(jlong, jstring)>("nativeGeolocationFailed", nativeGeolocationFailed),
+            JNI::NativeMethod<void(jlong, jstringArray, jstringArray)>(
+                "nativeSetNotificationPermissions", nativeSetNotificationPermissions));
     }
 
     WebKitWebView* invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const;
@@ -94,6 +96,8 @@ private:
         jdouble accuracy, jdouble altitude, jdouble altitudeAccuracy, jdouble heading, jdouble speed,
         jlong timeSeconds);
     static void nativeGeolocationFailed(JNIEnv*, jobject, jlong nativePtr, jstring message);
+    static void nativeSetNotificationPermissions(
+        JNIEnv*, jobject, jlong nativePtr, jstringArray allowedArray, jstringArray deniedArray);
 
     const JNI::Method<jlong()>
         m_invokeCreateWebKitWebViewForAutomation; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
@@ -248,6 +252,33 @@ void JNIWebKitWebContextCache::nativeGeolocationFailed(JNIEnv*, jobject, jlong n
     webkit_geolocation_manager_failed(
         webkit_web_context_get_geolocation_manager(JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context),
         content ? content.get() : "");
+}
+
+// The origins of the addresses, as WebKit's security origins.
+static GList* securityOrigins(jstringArray originsArray)
+{
+    GList* origins = nullptr;
+    for (auto origin : JNI::ObjectArray<jstring>(originsArray).getReadOnlyContent()) {
+        // The JNI::String must outlive its content, whose release uses the Java string.
+        auto javaOrigin = JNI::String(origin);
+        auto content = javaOrigin.getContent();
+        if (content)
+            origins = g_list_prepend(origins, webkit_security_origin_new_for_uri(content.get()));
+    }
+    return g_list_reverse(origins);
+}
+
+// WebKit gives the lists to each web process it starts from now on, for Notification.permission and new
+// Notification() in its pages. The processes that run keep what they had.
+void JNIWebKitWebContextCache::nativeSetNotificationPermissions(
+    JNIEnv*, jobject, jlong nativePtr, jstringArray allowedArray, jstringArray deniedArray)
+{
+    GList* allowed = securityOrigins(allowedArray);
+    GList* denied = securityOrigins(deniedArray);
+    webkit_web_context_initialize_notification_permissions(
+        JNI::from_jlong<WebKitWebContextBridge>(nativePtr)->m_context, allowed, denied);
+    g_list_free_full(allowed, reinterpret_cast<GDestroyNotify>(webkit_security_origin_unref));
+    g_list_free_full(denied, reinterpret_cast<GDestroyNotify>(webkit_security_origin_unref));
 }
 
 WebKitWebView* JNIWebKitWebContextCache::invokeCreateWebKitWebViewForAutomation(JNIWebKitWebContext javaContext) const

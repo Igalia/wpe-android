@@ -75,6 +75,14 @@ public class WebViewDestroyInCallbackTest {
         "<title>Locate</title><script>navigator.geolocation.getCurrentPosition(p => {}, e => {});</script>";
     private static final String QUERY_PAGE =
         "<title>Query</title><script>navigator.permissions.query({name: 'geolocation'});</script>";
+    // A page that asks to show notifications when the test runs ask(), and then shows one, which it closes itself
+    // once it showed if close is true.
+    private static final String NOTIFY_PAGE = "<title>Notify</title><script>function ask(close) {"
+                                              + "  Notification.requestPermission().then(() => {"
+                                              + "    const n = new Notification('Hello');"
+                                              + "    if (close) n.onshow = () => n.close();"
+                                              + "  });"
+                                              + "}</script>";
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -90,11 +98,26 @@ public class WebViewDestroyInCallbackTest {
         httpServer = HttpServer.start();
     }
 
+    // The view of the notification tests, and its context, which keeps its data: WebKit refuses notifications in
+    // sessions that keep none, as the default context does on emulators.
+    private WebView notifyingView;
+    private WebContext notifyingContext;
+
     @After
     public void tearDown() {
         onWebView(view -> {
             if (view.getInternalWebKitWebView() != null)
                 view.destroy();
+        });
+        scenario().onActivity(activity -> {
+            if (notifyingView != null) {
+                if (notifyingView.getParent() != null)
+                    ((ViewGroup)notifyingView.getParent()).removeView(notifyingView);
+                if (notifyingView.getInternalWebKitWebView() != null)
+                    notifyingView.destroy();
+            }
+            if (notifyingContext != null)
+                notifyingContext.destroy();
         });
         if (httpServer != null)
             httpServer.shutdown();
@@ -427,6 +450,72 @@ public class WebViewDestroyInCallbackTest {
             view.loadUrl(url);
         });
         assertTrue("The page did not ask", asked.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    // Loads the page in a view of its own, with the client, which is given the page's notification.
+    private void loadAPageThatNotifies(boolean close, @NonNull WebChromeClient client) throws Exception {
+        String url = setPage("/notify.html", NOTIFY_PAGE);
+        CountDownLatch finished = new CountDownLatch(1);
+        scenario().onActivity(activity -> {
+            notifyingContext = new WebContext(activity.getApplicationContext(), false, false);
+            notifyingView = new WebView(activity, notifyingContext);
+            notifyingView.setWebChromeClient(client);
+            notifyingView.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(@NonNull WebView view, @NonNull String finishedUrl) {
+                    finished.countDown();
+                }
+            });
+            activity.addContentView(notifyingView, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                              ViewGroup.LayoutParams.MATCH_PARENT));
+            notifyingView.loadUrl(url);
+        });
+        assertTrue("The page did not load", finished.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        // A script of the test runs as a user gesture, which asking needs.
+        scenario().onActivity(activity -> notifyingView.evaluateJavascript("ask(" + close + ")", null));
+    }
+
+    private void assertNotifyingViewDestroyedAndTheAppGoesOn() throws Exception {
+        assertTrue("The callback did not destroy the WebView", destroyed.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        scenario().onActivity(activity -> assertNull(notifyingView.getInternalWebKitWebView()));
+        assertTheAppGoesOn();
+    }
+
+    /** WebKit gives the app the notification while it shows it, and goes on once the callback returns. */
+    @Test
+    public void testDestroyInOnShowNotification() throws Exception {
+        loadAPageThatNotifies(false, new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(@NonNull WebView view, @NonNull WPEPermissionRequest request) {
+                request.grant();
+            }
+
+            @Override
+            public void onShowNotification(@NonNull WebView view, @NonNull WPENotification notification) {
+                destroy(view);
+            }
+        });
+        assertNotifyingViewDestroyedAndTheAppGoesOn();
+    }
+
+    /** The page closes the notification that it showed. */
+    @Test
+    public void testDestroyInOnCloseNotification() throws Exception {
+        loadAPageThatNotifies(true, new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(@NonNull WebView view, @NonNull WPEPermissionRequest request) {
+                request.grant();
+            }
+
+            @Override
+            public void onShowNotification(@NonNull WebView view, @NonNull WPENotification notification) {}
+
+            @Override
+            public void onCloseNotification(@NonNull WebView view, @NonNull WPENotification notification) {
+                destroy(view);
+            }
+        });
+        assertNotifyingViewDestroyedAndTheAppGoesOn();
     }
 
     /** The request ends with the document that asked. */

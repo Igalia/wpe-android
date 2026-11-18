@@ -166,8 +166,14 @@ public final class WebPage {
     // let go of them, which wait for the next chrome client that the app sets (cancelRequestsOfClients).
     final ArrayList<PermissionRequest> permissionRequests = new ArrayList<>();
     // Whether the view that made the page let go of it, and the app has not set a chrome client since: the permission
-    // requests of the page wait for that client meanwhile.
+    // requests and the notifications of the page wait for that client meanwhile.
     boolean awaitsChromeClient;
+    // The notifications of the page that are not closed, by their id, which grows with each one: those the chrome
+    // client was given, and those that wait for the next chrome client the app sets.
+    final LongSparseArray<Notification> notifications = new LongSparseArray<>();
+    // The notifications that WebKit closed, which the chrome client hears of once WebKit returns, unless a new
+    // notification with the tag of one replaces it first (reportClosedNotification).
+    final ArrayList<Notification> closingNotifications = new ArrayList<>();
 
     private @Nullable String originalUrl;
     String url = "about:blank";
@@ -313,19 +319,21 @@ public final class WebPage {
     /**
      * Sets the client that receives what the page asks of the app and its user, which replaces the one it had. It is
      * asked about the permission requests that wait for a client, those that a view let go of (see
-     * {@link WebPageChromeClient#onPermissionRequest}).
+     * {@link WebPageChromeClient#onPermissionRequest}), and then given the notifications that wait for one.
      */
     public void setChromeClient(@NonNull WebPageChromeClient client) {
         checkThread();
         this.chromeClient = Objects.requireNonNull(client, "client");
         awaitsChromeClient = false;
         // The client may answer them, set another client or destroy the page meanwhile. If it throws, the requests that
-        // it was not asked about yet are denied too, as no client would be asked about them.
+        // it was not asked about yet are denied too, as no client would be asked about them, and the notifications that
+        // it was not given yet are closed.
         ArrayList<PermissionRequest> waiting = new ArrayList<>();
         for (PermissionRequest request : permissionRequests) {
             if (request.waitsForClient)
                 waiting.add(request);
         }
+        ArrayList<Notification> waitingShows = waitingNotifications();
         boolean asked = false;
         try {
             for (PermissionRequest request : waiting) {
@@ -336,12 +344,25 @@ public final class WebPage {
                     askPermission(request);
                 }
             }
+            // Then the notifications that waited, in the order the page showed them.
+            for (Notification notification : waitingShows) {
+                if (destroyed || chromeClient != client)
+                    break;
+                if (notification.waitsForClient && !notification.ended) {
+                    notification.waitsForClient = false;
+                    showNotification(notification);
+                }
+            }
             asked = true;
         } finally {
             if (!asked) {
                 for (PermissionRequest request : waiting) {
                     if (request.waitsForClient && !request.ended)
                         request.deny();
+                }
+                for (Notification notification : waitingShows) {
+                    if (notification.waitsForClient && !notification.ended)
+                        notification.close();
                 }
             }
         }
@@ -774,12 +795,15 @@ public final class WebPage {
     // or destroy the page, which drops its requests without a word, and the clients still hear of those.
     //
     // Permission requests are not cancelled, since WebKit would keep a refusal for the rest of the document: the chrome
-    // client hears that they are gone, and each waits, as a new request, for the next chrome client the app sets.
+    // client hears that they are gone, and each waits, as a new request, for the next chrome client the app sets. So
+    // do the notifications of the page, which the chrome client hears are closed.
     void cancelRequestsOfClients(boolean ofClient, boolean ofChromeClient) {
         WebPageClient requestsClient = client;
         WebPageChromeClient requestsChromeClient = chromeClient;
         ArrayList<HttpAuthRequest> requests = new ArrayList<>();
         ArrayList<PermissionRequest> letGo = new ArrayList<>();
+        ArrayList<Notification> letGoNotifications = new ArrayList<>();
+        ArrayList<Notification> closing = new ArrayList<>();
         if (ofClient) {
             for (int i = 0; i < httpAuthRequests.size(); i++)
                 requests.add(httpAuthRequests.valueAt(i));
@@ -799,6 +823,17 @@ public final class WebPage {
                 permissionRequests.set(i, request.waitForNextClient());
                 letGo.add(request);
             }
+            for (int i = 0; i < notifications.size(); i++) {
+                Notification notification = notifications.valueAt(i);
+                if (notification.waitsForClient)
+                    continue;
+                notifications.setValueAt(i, notification.waitForNextClient());
+                letGoNotifications.add(notification);
+            }
+            closeOldWaitingNotifications();
+            // The closes that WebKit reported and the client was not told of yet go to this client, which showed them.
+            closing.addAll(closingNotifications);
+            closingNotifications.clear();
         }
         for (HttpAuthRequest request : requests) {
             if (request.ended)
@@ -808,14 +843,18 @@ public final class WebPage {
         }
         for (PermissionRequest request : letGo)
             requestsChromeClient.onPermissionRequestCanceled(this, request);
+        for (Notification notification : closing)
+            requestsChromeClient.onCloseNotification(this, notification);
+        for (Notification notification : letGoNotifications)
+            requestsChromeClient.onCloseNotification(this, notification);
     }
 
     /**
      * Destroys the page, after taking it out of the view that shows it. Its JavaScript dialogs and other requests that
      * wait for an answer are cancelled, and its clients do not hear of them. The clients of a WebView that made the
-     * page, and goes on, do hear of those for HTTP authentication and color fields, as when the view lets go of the
-     * page otherwise. Does nothing if the page is already destroyed. The app may destroy the page in any callback of
-     * its clients.
+     * page, and goes on, do hear of those for HTTP authentication, color fields and permissions, and that its
+     * notifications close, as when the view lets go of the page otherwise. Does nothing if the page is already
+     * destroyed. The app may destroy the page in any callback of its clients.
      */
     public void destroy() {
         if (destroyed)
@@ -845,6 +884,8 @@ public final class WebPage {
         for (PermissionRequest request : permissionRequests)
             request.ended = true;
         permissionRequests.clear();
+        endNotifications();
+        closingNotifications.clear();
         playingAudio = false;
         inputFieldFocused = false;
         settings.detach();
@@ -1009,8 +1050,11 @@ public final class WebPage {
 
         // The focused field went with the page, and so did the fullscreen element: the view that shows the page lets
         // go of both before the client hears that the page is gone.
+        // The notifications of the page stay with the app, which may keep them as a way back to the page, but no page
+        // hears of them any more.
         @Override
         public void onWebProcessTerminated(int reason) {
+            endNotifications();
             boolean fieldFocused = inputFieldFocused;
             inputFieldFocused = false;
             if (view != null)
@@ -1128,6 +1172,106 @@ public final class WebPage {
             return chromeClient.onQueryPermissionState(WebPage.this,
                                                        new PermissionStateQuery(queryId, resource, Uri.parse(origin)));
         }
+
+        @Override
+        public void onShowNotification(long notificationId, @NonNull String origin, @NonNull String title,
+                                       @NonNull String body, @Nullable String tag) {
+            addNotification(notificationId, Uri.parse(origin), title, body, tag);
+        }
+
+        @Override
+        public void onNotificationClosed(long notificationId) {
+            notificationClosed(notificationId);
+        }
+    }
+
+    // WebKit closed a notification. The chrome client hears of it once WebKit returns, as WebKit may close it while it
+    // shows another one, and goes on with the page. One that waited for a chrome client goes without a word.
+    // Package-private: called from the PageListener inner class (avoids a synthetic accessor).
+    void notificationClosed(long notificationId) {
+        Notification notification = notifications.get(notificationId);
+        if (notification == null)
+            return;
+        notifications.remove(notificationId);
+        notification.ended = true;
+        if (notification.waitsForClient)
+            return;
+        closingNotifications.add(notification);
+        context.getApplicationContext().getMainExecutor().execute(() -> reportClosedNotification(notification));
+    }
+
+    // A new notification with the tag of one that WebKit closed just before, and whose closing the chrome client has
+    // not heard of, takes the place of that one. Package-private: called from the PageListener inner class (avoids a
+    // synthetic accessor).
+    void addNotification(long notificationId, @NonNull Uri origin, @NonNull String title, @NonNull String body,
+                         @Nullable String tag) {
+        Notification replaced = null;
+        if (tag != null) {
+            for (Notification closing : closingNotifications) {
+                if (tag.equals(closing.tag)) {
+                    replaced = closing;
+                    break;
+                }
+            }
+            if (replaced != null) {
+                closingNotifications.remove(replaced);
+                replaced.replaced = null;
+            }
+        }
+        Notification notification =
+            new Notification(notificationId, origin, title, body, tag, replaced, awaitsChromeClient);
+        notifications.put(notificationId, notification);
+        if (awaitsChromeClient)
+            closeOldWaitingNotifications();
+        else
+            showNotification(notification);
+    }
+
+    // A client that throws closes the notification, unless it closed it before. Package-private: called from the
+    // PageListener inner class (avoids a synthetic accessor).
+    void showNotification(@NonNull Notification notification) {
+        boolean shown = false;
+        try {
+            chromeClient.onShowNotification(this, notification);
+            shown = true;
+        } finally {
+            if (!shown)
+                notification.close();
+        }
+    }
+
+    // The chrome client hears that WebKit closed the notification, unless a new one replaced it, or the page was
+    // destroyed meanwhile. Package-private: called from the PageListener inner class (avoids a synthetic accessor).
+    void reportClosedNotification(@NonNull Notification notification) {
+        if (closingNotifications.remove(notification) && !destroyed)
+            chromeClient.onCloseNotification(this, notification);
+    }
+
+    // The notifications that wait for a chrome client, in the order the page showed them.
+    @NonNull
+    ArrayList<Notification> waitingNotifications() {
+        ArrayList<Notification> waiting = new ArrayList<>();
+        for (int i = 0; i < notifications.size(); i++) {
+            Notification notification = notifications.valueAt(i);
+            if (notification.waitsForClient)
+                waiting.add(notification);
+        }
+        return waiting;
+    }
+
+    // Only the newest notifications wait for a chrome client: the page could show any number meanwhile.
+    void closeOldWaitingNotifications() {
+        ArrayList<Notification> waiting = waitingNotifications();
+        for (int i = 0; i < waiting.size() - WPENotification.MAX_WAITING; i++)
+            waiting.get(i).close();
+    }
+
+    // The notifications no longer reach a page, as it is destroyed or its web process ended: clicks and closes do
+    // nothing, and the clients do not hear of them. The native side dropped them too.
+    void endNotifications() {
+        for (int i = 0; i < notifications.size(); i++)
+            notifications.valueAt(i).ended = true;
+        notifications.clear();
     }
 
     @Nullable
@@ -1157,6 +1301,8 @@ public final class WebPage {
         ArrayList<String> names = new ArrayList<>();
         if ((resources & WebKitWebView.PERMISSION_LOCATION) != 0)
             names.add(WPEPermissionRequest.RESOURCE_LOCATION);
+        if ((resources & WebKitWebView.PERMISSION_NOTIFICATIONS) != 0)
+            names.add(WPEPermissionRequest.RESOURCE_NOTIFICATIONS);
         return names.toArray(new String[0]);
     }
 
@@ -1272,6 +1418,88 @@ public final class WebPage {
 
     // The page keeps whether a field has the focus, and passes the changes on to the view that shows it, which
     // connects the input method. A change posted before the page was destroyed may arrive after it.
+    /**
+     * A notification of the page. Clicks and closes may come from any thread: they reach WebKit on the main thread,
+     * where its main loop runs, and do nothing once the notification is closed.
+     */
+    final class Notification extends WPENotification {
+        final long notificationId;
+        private final Uri origin;
+        private final String title;
+        private final String body;
+        @Nullable
+        final String tag;
+        // The one whose place it takes, until another one takes its place in turn: a page that keeps updating a
+        // notification would otherwise keep every earlier one. Package-private and not final for addNotification.
+        @Nullable
+        Notification replaced;
+        // Whether it waits for the next chrome client that the app sets, which has not been given it yet.
+        boolean waitsForClient;
+        // Whether it is closed, by WebKit or the app, handed on to the next client as a new object, or no longer
+        // reaches a page.
+        boolean ended;
+
+        Notification(long notificationId, @NonNull Uri origin, @NonNull String title, @NonNull String body,
+                     @Nullable String tag, @Nullable Notification replaced, boolean waitsForClient) {
+            this.notificationId = notificationId;
+            this.origin = origin;
+            this.title = title;
+            this.body = body;
+            this.tag = tag;
+            this.replaced = replaced;
+            this.waitsForClient = waitsForClient;
+        }
+
+        // The same notification, for the next chrome client. This one, which the old client may still hold, does
+        // nothing.
+        @NonNull
+        Notification waitForNextClient() {
+            ended = true;
+            return new Notification(notificationId, origin, title, body, tag, null, true);
+        }
+
+        @Override
+        public @NonNull Uri getOrigin() {
+            return origin;
+        }
+
+        @Override
+        public @NonNull String getTitle() {
+            return title;
+        }
+
+        @Override
+        public @NonNull String getBody() {
+            return body;
+        }
+
+        @Override
+        public @Nullable String getTag() {
+            return tag;
+        }
+
+        @Override
+        public @Nullable WPENotification getReplaced() {
+            return replaced;
+        }
+
+        @Override
+        public void click() {
+            if (runOnMainThread(this::click) || ended || destroyed)
+                return;
+            webKitWebView.notificationClick(notificationId);
+        }
+
+        @Override
+        public void close() {
+            if (runOnMainThread(this::close) || ended || destroyed)
+                return;
+            ended = true;
+            notifications.remove(notificationId);
+            webKitWebView.notificationClose(notificationId);
+        }
+    }
+
     class InputMethodListener implements WPEInputMethodContext.Listener {
         @Override
         public void onFocusIn() {

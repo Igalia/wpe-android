@@ -127,6 +127,12 @@ struct WebKitWebViewBridge {
         for (auto& [id, query] : m_permissionStateQueries)
             webkit_permission_state_query_unref(query);
         m_permissionStateQueries.clear();
+        // WebKit closes the notifications of the page when the view goes, and no one would hear of it.
+        for (auto& [id, notification] : m_notifications) {
+            g_signal_handlers_disconnect_by_data(notification, this);
+            g_object_unref(notification);
+        }
+        m_notifications.clear();
         if (m_backForwardListChangedId)
             g_signal_handler_disconnect(webkit_web_view_get_back_forward_list(m_webView), m_backForwardListChangedId);
         if (m_downloadStartedId)
@@ -205,6 +211,11 @@ struct WebKitWebViewBridge {
     jlong m_lastPermissionRequestId {0};
     std::unordered_map<jlong, WebKitPermissionStateQuery*> m_permissionStateQueries;
     jlong m_lastPermissionStateQueryId {0};
+    // The notifications that Java was told of and that are not closed, by the id it was given. WebKit keeps one of a
+    // document that went away without the back forward cache, and tells nothing of it, so the bridge closes those of
+    // the old document itself (endDocumentNotifications).
+    std::unordered_map<jlong, WebKitNotification*> m_notifications;
+    jlong m_lastNotificationId {0};
     // The navigations of the page and its frames since the page committed, with and without a user gesture, by the key
     // of their address (navigationKey). WebKit does not tell whether a user gesture started a download, so a download
     // takes it from the navigations to its address.
@@ -326,6 +337,8 @@ public:
         , m_onPermissionRequest(getMethod<void(jlong, jint, jstring)>("onPermissionRequest"))
         , m_onPermissionRequestCancelled(getMethod<void(jlong)>("onPermissionRequestCancelled"))
         , m_onQueryPermissionState(getMethod<jboolean(jlong, jint, jstring)>("onQueryPermissionState"))
+        , m_onShowNotification(getMethod<void(jlong, jstring, jstring, jstring, jstring)>("onShowNotification"))
+        , m_onNotificationClosed(getMethod<void(jlong)>("onNotificationClosed"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -368,7 +381,9 @@ public:
             JNI::NativeMethod<void(jlong, jlong, jboolean)>(
                 "nativePermissionRequestAnswer", nativePermissionRequestAnswer),
             JNI::NativeMethod<void(jlong, jlong, jint)>(
-                "nativePermissionStateQueryAnswer", nativePermissionStateQueryAnswer));
+                "nativePermissionStateQueryAnswer", nativePermissionStateQueryAnswer),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClick", nativeNotificationClick),
+            JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClose", nativeNotificationClose));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -396,6 +411,8 @@ public:
     const JNI::Method<void(jlong, jint, jstring)> m_onPermissionRequest;
     const JNI::Method<void(jlong)> m_onPermissionRequestCancelled;
     const JNI::Method<jboolean(jlong, jint, jstring)> m_onQueryPermissionState;
+    const JNI::Method<void(jlong, jstring, jstring, jstring, jstring)> m_onShowNotification;
+    const JNI::Method<void(jlong)> m_onNotificationClosed;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -444,6 +461,11 @@ private:
         WebKitWebView* webView, WebKitPermissionStateQuery* query, WebKitWebViewBridge* bridge);
     static void answerPermissionRequest(WebKitWebViewBridge* bridge, jlong requestId, bool allow);
     static void endDocumentPermissions(WebKitWebView* webView, WebKitWebViewBridge* bridge);
+    static gboolean onShowNotification(
+        WebKitWebView* webView, WebKitNotification* notification, WebKitWebViewBridge* bridge);
+    static void onNotificationClosed(WebKitNotification* notification, WebKitWebViewBridge* bridge);
+    static void endDocumentNotifications(WebKitWebViewBridge* bridge);
+    static void dropNotifications(WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -490,6 +512,8 @@ private:
     static void nativeFindFinish(JNIEnv*, jobject, jlong nativePtr);
     static void nativePermissionRequestAnswer(JNIEnv*, jobject, jlong nativePtr, jlong requestId, jboolean allow);
     static void nativePermissionStateQueryAnswer(JNIEnv*, jobject, jlong nativePtr, jlong queryId, jint state);
+    static void nativeNotificationClick(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
+    static void nativeNotificationClose(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -500,21 +524,42 @@ static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
 
 // The PERMISSION_* flags of WebKitWebView.java, for the kinds of permission that WPEView passes to the app.
 static constexpr jint permissionLocation = 1;
+static constexpr jint permissionNotifications = 1 << 1;
 
 // What a permission request asks for, or 0 for the kinds that WPEView does not pass to the app yet.
 static jint permissionResources(WebKitPermissionRequest* request)
 {
     if (WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request))
         return permissionLocation;
+    if (WEBKIT_IS_NOTIFICATION_PERMISSION_REQUEST(request))
+        return permissionNotifications;
     return 0;
 }
 
 // What a Permissions API query asks about, by the name the page gives, or 0 for the kinds that WebKit answers itself.
+// WebKit also asks about "notifications" for a query of "push".
 static jint permissionResourceForQuery(const char* name)
 {
     if (!g_strcmp0(name, "geolocation"))
         return permissionLocation;
+    if (!g_strcmp0(name, "notifications"))
+        return permissionNotifications;
     return 0;
+}
+
+// The most characters of the title, the body or the tag of a notification that Java is given: Android shows no more of
+// the first two.
+static constexpr int maxNotificationTextLength = 1024;
+
+// The text cut to maxNotificationTextLength characters. WebKit gives valid UTF-8.
+static std::string notificationText(const char* text)
+{
+    if (!text)
+        return {};
+    const char* end = text;
+    for (int i = 0; i < maxNotificationTextLength && *end; ++i)
+        end = g_utf8_next_char(end);
+    return {text, end};
 }
 
 // The origin of a document at this address, for its permissions, or empty if the address is not http or https, as
@@ -589,6 +634,9 @@ void JNIWebKitWebViewCache::onLoadChanged(
         bridge = webViewBridge(webView);
         if (bridge)
             endDocumentPermissions(webView, bridge);
+        bridge = webViewBridge(webView);
+        if (bridge)
+            endDocumentNotifications(bridge);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
         // Also the end of a load that failed or stopped before it committed. After the end of the web process, the view
         // keeps the title and the address of its page until a new one commits.
@@ -1125,7 +1173,8 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     bridge = webViewBridge(webView);
     if (!bridge)
         return;
-    // The document that asked for permissions went with the process.
+    // The document that asked for permissions went with the process, and so did the page of its notifications.
+    dropNotifications(bridge);
     endDocumentPermissions(webView, bridge);
     bridge = webViewBridge(webView);
     if (!bridge)
@@ -1504,6 +1553,85 @@ void JNIWebKitWebViewCache::endDocumentPermissions(WebKitWebView* webView, WebKi
     }
 }
 
+// A page that the app allowed shows a notification. Every one is taken here: WebKit sends one that is not to a
+// notification service of desktop systems, which Android does not have, and the page would wait for it in vain. Java
+// is told of it with an id, and clicks or closes it with nativeNotificationClick and nativeNotificationClose. WebDriver
+// has no use for them, and a page whose origin the app could not show gets none: both are closed at once, so the page
+// hears that they closed and never that they showed.
+gboolean JNIWebKitWebViewCache::onShowNotification(
+    WebKitWebView* webView, WebKitNotification* notification, WebKitWebViewBridge* bridge)
+{
+    if (webkit_web_view_is_controlled_by_automation(webView) || bridge->m_documentOrigin.empty()) {
+        webkit_notification_close(notification);
+        return TRUE;
+    }
+
+    jlong notificationId = ++bridge->m_lastNotificationId;
+    bridge->m_notifications.emplace(notificationId, WEBKIT_NOTIFICATION(g_object_ref(notification)));
+    g_signal_connect(notification, "closed", G_CALLBACK(onNotificationClosed), bridge);
+    auto jOrigin = JNI::String(bridge->m_documentOrigin.c_str());
+    auto jTitle = JNI::String(notificationText(webkit_notification_get_title(notification)).c_str());
+    auto jBody = JNI::String(notificationText(webkit_notification_get_body(notification)).c_str());
+    // Null when the page gave none.
+    const char* tag = webkit_notification_get_tag(notification);
+    auto jTag = JNI::String(tag ? notificationText(tag).c_str() : nullptr);
+    // The app may destroy the WebView as it is told, which deletes the bridge, so it is not used after.
+    if (!getJNIWebKitWebViewCache().m_onShowNotification.invoke(bridge->m_javaRef.get(), notificationId,
+            static_cast<jstring>(jOrigin), static_cast<jstring>(jTitle), static_cast<jstring>(jBody),
+            static_cast<jstring>(jTag))) {
+        Logging::logError("cannot deliver WebKitWebView onShowNotification callback");
+        webkit_notification_close(notification);
+    }
+    return TRUE;
+}
+
+// WebKit closed a notification that Java was told of: the page closed it, showed another one with its tag, went into
+// the back forward cache or away (endDocumentNotifications), or the view closes. Java tells the app later, after WebKit
+// returns: WebKit closes a notification whose tag a new one takes while it shows the new one, and goes on with its
+// page then.
+void JNIWebKitWebViewCache::onNotificationClosed(WebKitNotification* notification, WebKitWebViewBridge* bridge)
+{
+    auto it = std::find_if(bridge->m_notifications.begin(), bridge->m_notifications.end(),
+        [notification](const auto& entry) { return entry.second == notification; });
+    if (it == bridge->m_notifications.end())
+        return;
+    jlong notificationId = it->first;
+    bridge->m_notifications.erase(it);
+    // The signal holds the notification while it runs.
+    g_signal_handlers_disconnect_by_data(notification, bridge);
+    g_object_unref(notification);
+    // Java tells the app only after WebKit returns, so the app cannot destroy the WebView here.
+    if (!getJNIWebKitWebViewCache().m_onNotificationClosed.invoke(bridge->m_javaRef.get(), notificationId))
+        Logging::logError("cannot deliver WebKitWebView onNotificationClosed callback");
+}
+
+// The page committed a new main document, so the notifications of the old one have no page to hear of them any more.
+// WebKit closed those that went into the back forward cache, but keeps the others, so they are closed here, and Java
+// hears of them as of any notification that WebKit closes (onNotificationClosed), which the bridge outlives.
+void JNIWebKitWebViewCache::endDocumentNotifications(WebKitWebViewBridge* bridge)
+{
+    std::vector<WebKitNotification*> notifications;
+    notifications.reserve(bridge->m_notifications.size());
+    for (const auto& [id, notification] : bridge->m_notifications)
+        notifications.push_back(WEBKIT_NOTIFICATION(g_object_ref(notification)));
+    for (auto* notification : notifications) {
+        webkit_notification_close(notification);
+        g_object_unref(notification);
+    }
+}
+
+// The web process of the page ended, and its notifications have no page to hear of them. Java keeps them, which the
+// app may show as a way back to the page, but clicks and closes do nothing more. WebKit still lists them, so they are
+// closed there.
+void JNIWebKitWebViewCache::dropNotifications(WebKitWebViewBridge* bridge)
+{
+    for (auto& [id, notification] : std::exchange(bridge->m_notifications, {})) {
+        g_signal_handlers_disconnect_by_data(notification, bridge);
+        webkit_notification_close(notification);
+        g_object_unref(notification);
+    }
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -1592,6 +1720,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "notify::is-playing-audio", G_CALLBACK(onIsPlayingAudioChanged), bridge),
         g_signal_connect(webView, "permission-request", G_CALLBACK(onPermissionRequest), bridge),
         g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
+        g_signal_connect(webView, "show-notification", G_CALLBACK(onShowNotification), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -2060,6 +2189,30 @@ void JNIWebKitWebViewCache::nativePermissionStateQueryAnswer(
     bridge->m_permissionStateQueries.erase(it);
     webkit_permission_state_query_finish(query, static_cast<WebKitPermissionState>(state));
     webkit_permission_state_query_unref(query);
+}
+
+// The user tapped a notification that is not closed: the page hears of it with a click event.
+void JNIWebKitWebViewCache::nativeNotificationClick(JNIEnv*, jobject, jlong nativePtr, jlong notificationId)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    auto it = bridge->m_notifications.find(notificationId);
+    if (it != bridge->m_notifications.end())
+        webkit_notification_clicked(it->second);
+}
+
+// The app closes a notification that is not closed yet, as the user dismissed it or it does not show it: the page hears
+// of it with a close event, and Java is not told again.
+void JNIWebKitWebViewCache::nativeNotificationClose(JNIEnv*, jobject, jlong nativePtr, jlong notificationId)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    auto it = bridge->m_notifications.find(notificationId);
+    if (it == bridge->m_notifications.end())
+        return;
+    WebKitNotification* notification = it->second;
+    bridge->m_notifications.erase(it);
+    g_signal_handlers_disconnect_by_data(notification, bridge);
+    webkit_notification_close(notification);
+    g_object_unref(notification);
 }
 
 void JNIWebKitWebViewCache::nativeFileChooserSelect(JNIEnv*, jobject, jlong requestPtr, jstringArray pathsArray)
