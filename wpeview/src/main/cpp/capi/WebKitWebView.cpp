@@ -19,6 +19,7 @@
 #include "JNI/JNI.h"
 #include "JNIMappings.h"
 #include "Logging.h"
+#include "WPEGestureControllerAndroid.h"
 #include "WPEViewAndroid.h"
 #include "WebKitDownloadBridge.h"
 
@@ -147,6 +148,10 @@ struct WebKitWebViewBridge {
         auto* findController = webkit_web_view_get_find_controller(m_webView);
         for (gulong id : m_findSignalIds)
             g_signal_handler_disconnect(findController, id);
+        if (m_gestureController) {
+            g_signal_handler_disconnect(m_gestureController, m_longPressId);
+            g_object_unref(m_gestureController);
+        }
         // The app may destroy the WebView in one of its callbacks, while WebKit emits a signal of the web view or of a
         // request of its page, or while a call into WebKit has not returned, and WebKit then still uses the web view.
         // So it goes in the next iteration of the main loop, ahead of the sources of default priority. The main loop is
@@ -165,6 +170,9 @@ struct WebKitWebViewBridge {
     // or they failed before it.
     std::vector<WebKitDownload*> m_appDownloads;
     std::vector<gulong> m_findSignalIds;
+    // The gesture controller of the view, which tells of long presses.
+    WPEGestureControllerAndroid* m_gestureController {nullptr};
+    gulong m_longPressId {0};
     // The address and the Back/Forward state last reported, none at first.
     std::string m_historyUri;
     bool m_historyCanGoBack {false};
@@ -339,6 +347,10 @@ public:
         , m_onQueryPermissionState(getMethod<jboolean(jlong, jint, jstring)>("onQueryPermissionState"))
         , m_onShowNotification(getMethod<void(jlong, jstring, jstring, jstring, jstring)>("onShowNotification"))
         , m_onNotificationClosed(getMethod<void(jlong)>("onNotificationClosed"))
+        , m_onLongPress(getMethod<void()>("onLongPress"))
+        , m_onShowContextMenu(
+              getMethod<void(jstring, jstring, jstring, jstring, jstring, jboolean, jboolean, jfloat, jfloat)>(
+                  "onShowContextMenu"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -413,6 +425,9 @@ public:
     const JNI::Method<jboolean(jlong, jint, jstring)> m_onQueryPermissionState;
     const JNI::Method<void(jlong, jstring, jstring, jstring, jstring)> m_onShowNotification;
     const JNI::Method<void(jlong)> m_onNotificationClosed;
+    const JNI::Method<void()> m_onLongPress;
+    const JNI::Method<void(jstring, jstring, jstring, jstring, jstring, jboolean, jboolean, jfloat, jfloat)>
+        m_onShowContextMenu;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -466,6 +481,9 @@ private:
     static void onNotificationClosed(WebKitNotification* notification, WebKitWebViewBridge* bridge);
     static void endDocumentNotifications(WebKitWebViewBridge* bridge);
     static void dropNotifications(WebKitWebViewBridge* bridge);
+    static void onLongPress(WPEGestureControllerAndroid*, WebKitWebViewBridge* bridge);
+    static gboolean onContextMenu(
+        WebKitWebView* webView, WebKitContextMenu* menu, WebKitHitTestResult* hitTest, WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
 
@@ -1632,6 +1650,46 @@ void JNIWebKitWebViewCache::dropNotifications(WebKitWebViewBridge* bridge)
     }
 }
 
+// The gesture controller found a long press, and asked the page for its context menu: the view gives the long press
+// vibration, also when no menu comes.
+void JNIWebKitWebViewCache::onLongPress(WPEGestureControllerAndroid*, WebKitWebViewBridge* bridge)
+{
+    if (!getJNIWebKitWebViewCache().m_onLongPress.invoke(bridge->m_javaRef.get()))
+        Logging::logError("cannot deliver WebKitWebView onLongPress callback");
+}
+
+// WebKit asks for the context menu of the page, once a long press sent its contextmenu event. WPE shows no menu of its
+// own: the app gets the hit test as plain data, and shows its own menu, or nothing. WebKit's own items are not passed
+// on, and the handler returns FALSE, so that WebKit binds no actions to them. When the page cancelled the contextmenu
+// event, WebKit still asks, with no items and the hit test of the menu before: nothing is passed on then, and the touch
+// goes on to the page. A menu that no long press asked for, as one for a key, is not passed on yet.
+gboolean JNIWebKitWebViewCache::onContextMenu(
+    WebKitWebView*, WebKitContextMenu* menu, WebKitHitTestResult* hitTest, WebKitWebViewBridge* bridge)
+{
+    bool pageCancelled = webkit_context_menu_get_n_items(menu) == 0;
+    double x = 0;
+    double y = 0;
+    if (!bridge->m_gestureController
+        || !wpe_gesture_controller_android_take_long_press(
+            bridge->m_gestureController, pageCancelled ? FALSE : TRUE, &x, &y)
+        || pageCancelled)
+        return FALSE;
+
+    auto jLinkUri = JNI::String(webkit_hit_test_result_get_link_uri(hitTest));
+    auto jLinkText = JNI::String(webkit_hit_test_result_get_link_label(hitTest));
+    auto jLinkTitle = JNI::String(webkit_hit_test_result_get_link_title(hitTest));
+    auto jImageUri = JNI::String(webkit_hit_test_result_get_image_uri(hitTest));
+    auto jMediaUri = JNI::String(webkit_hit_test_result_get_media_uri(hitTest));
+    // Java tells the app once WebKit returns, and the app may destroy the WebView then.
+    if (!getJNIWebKitWebViewCache().m_onShowContextMenu.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jLinkUri),
+            static_cast<jstring>(jLinkText), static_cast<jstring>(jLinkTitle), static_cast<jstring>(jImageUri),
+            static_cast<jstring>(jMediaUri), webkit_hit_test_result_context_is_editable(hitTest) ? JNI_TRUE : JNI_FALSE,
+            webkit_hit_test_result_context_is_selection(hitTest) ? JNI_TRUE : JNI_FALSE, static_cast<jfloat>(x),
+            static_cast<jfloat>(y)))
+        Logging::logError("cannot deliver WebKitWebView onShowContextMenu callback");
+    return FALSE;
+}
+
 void JNIWebKitWebViewCache::onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData)
 {
     std::unique_ptr<JNI::GlobalRef<JNIWebKitWebViewEvalCallbackHolder>> holder(
@@ -1721,7 +1779,13 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "permission-request", G_CALLBACK(onPermissionRequest), bridge),
         g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
         g_signal_connect(webView, "show-notification", G_CALLBACK(onShowNotification), bridge),
+        g_signal_connect(webView, "context-menu", G_CALLBACK(onContextMenu), bridge),
     };
+    auto* gestureController = wpe_view_get_gesture_controller(webkit_web_view_get_wpe_view(webView));
+    if (gestureController && WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController)) {
+        bridge->m_gestureController = WPE_GESTURE_CONTROLLER_ANDROID(g_object_ref(gestureController));
+        bridge->m_longPressId = g_signal_connect(gestureController, "long-press", G_CALLBACK(onLongPress), bridge);
+    }
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
     bridge->m_downloadStartedId = g_signal_connect(

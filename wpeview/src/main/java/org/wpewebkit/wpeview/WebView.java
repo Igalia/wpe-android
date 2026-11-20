@@ -32,6 +32,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Display;
 import android.view.GestureDetector;
+import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -39,6 +40,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -1330,6 +1332,13 @@ public class WebView extends FrameLayout {
         }
 
         @Override
+        public void onShowContextMenu(@NonNull WebPage source, @NonNull ContextMenuParams params) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onShowContextMenu(target, new WebChromeClient.ContextMenuParams(params));
+        }
+
+        @Override
         public void onCloseNotification(@NonNull WebPage source, @NonNull WPENotification notification) {
             WebView target = target();
             if (target != null)
@@ -1545,6 +1554,9 @@ public class WebView extends FrameLayout {
             int actionIndex;
             switch (action) {
             case MotionEvent.ACTION_DOWN:
+                // Read at each touch, as the accessibility settings can change it.
+                platformView.setLongPressTimeout(ViewConfiguration.getLongPressTimeout());
+                // Fall through.
             case MotionEvent.ACTION_POINTER_DOWN:
                 WebView.this.requestFocus();
                 type = WPEEventType.TOUCH_DOWN;
@@ -1585,6 +1597,15 @@ public class WebView extends FrameLayout {
             return true;
         }
     }
+
+    // The page found a long press, and asked for its context menu. Package-private: called by the page.
+    void performLongPressFeedback() {
+        if (surfaceView != null)
+            surfaceView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    }
+
+    // How many pixels of the view a logical pixel of the page takes. Package-private: read by the page.
+    float getPageScale() { return wpeToplevel != null ? wpeToplevel.getScale() : 1; }
 
     // Whether a field of the page the view shows has the focus of the input method. Package-private: read by the
     // surface inner class (avoids a synthetic accessor).

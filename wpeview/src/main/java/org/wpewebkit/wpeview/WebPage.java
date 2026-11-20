@@ -1183,6 +1183,32 @@ public final class WebPage {
         public void onNotificationClosed(long notificationId) {
             notificationClosed(notificationId);
         }
+
+        @Override
+        public void onLongPress() {
+            WebView shownBy = view;
+            if (shownBy != null)
+                shownBy.performLongPressFeedback();
+        }
+
+        @Override
+        public void onShowContextMenu(@Nullable String linkUri, @Nullable String linkText, @Nullable String linkTitle,
+                                      @Nullable String imageUri, @Nullable String mediaUri, boolean editable,
+                                      boolean selection, float x, float y) {
+            showContextMenu(new WebPageChromeClient.ContextMenuParams(linkUri, linkText, linkTitle, imageUri, mediaUri,
+                                                                      editable, selection, x, y));
+        }
+    }
+
+    // A long press in the view that shows the page asks for its context menu. The point of the params is in the logical
+    // pixels of WebKit, and the app gets it in the pixels of the view. Nothing comes when the page left its view
+    // meanwhile, nor while it waits for a chrome client. Package-private: called from the PageListener inner class
+    // (avoids a synthetic accessor).
+    void showContextMenu(@NonNull WebPageChromeClient.ContextMenuParams params) {
+        WebView shownBy = view;
+        if (destroyed || shownBy == null || awaitsChromeClient)
+            return;
+        chromeClient.onShowContextMenu(this, params.scaledBy(shownBy.getPageScale()));
     }
 
     // WebKit closed a notification. The chrome client hears of it once WebKit returns, as WebKit may close it while it

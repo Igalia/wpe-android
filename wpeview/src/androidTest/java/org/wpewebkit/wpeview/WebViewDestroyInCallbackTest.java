@@ -300,6 +300,28 @@ public class WebViewDestroyInCallbackTest {
         assertDestroyedAndTheAppGoesOn();
     }
 
+    /** A long press, while the finger is still down. */
+    @Test
+    public void testDestroyInOnShowContextMenu() throws Throwable {
+        loadAndWait(setPage("/press.html", String.format(TAP_PAGE, "")));
+        onWebView(view -> view.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowContextMenu(@NonNull WebView view, @NonNull ContextMenuParams params) {
+                destroy(view);
+            }
+        }));
+        assertEquals("The page was not rendered", "true",
+                     WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario(), "rendered", "true"));
+        onWebView(view -> {
+            long downTime = SystemClock.uptimeMillis();
+            MotionEvent event = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, view.getWidth() / 2f,
+                                                   view.getHeight() / 2f, 0);
+            view.dispatchTouchEvent(event);
+            event.recycle();
+        });
+        assertDestroyedAndTheAppGoesOn();
+    }
+
     /** A page apart from any view, which the app destroys in a callback of its own client. */
     @Test
     public void testDestroyAPageInItsClient() throws Exception {

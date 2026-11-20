@@ -18,10 +18,14 @@
 
 #include "WPEGestureControllerAndroid.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <utility>
+
+static guint longPressSignal = 0;
 
 namespace {
 
@@ -59,6 +63,28 @@ bool isAtOrAfter(uint32_t time, uint32_t other)
     return static_cast<int32_t>(time - other) >= 0;
 }
 
+// The time of events made here, on the clock of Android's event times: milliseconds of the monotonic clock.
+uint32_t now()
+{
+    return static_cast<uint32_t>(g_get_monotonic_time() / 1000);
+}
+
+// A secondary click at a point, from the touchscreen, as WebKit's GTK port makes of a long press. WebKit gives a click
+// from the touchscreen to the touch that is down there, so the page gets its contextmenu event as a touch's.
+void sendSecondaryClick(WPEView* view, Position position)
+{
+    uint32_t time = now();
+    g_autoptr(WPEEvent) move = wpe_event_pointer_move_new(WPE_EVENT_POINTER_MOVE, view, WPE_INPUT_SOURCE_TOUCHSCREEN,
+        time, WPEModifiers {}, position.x, position.y, 0, 0);
+    wpe_view_event(view, move);
+    g_autoptr(WPEEvent) down = wpe_event_pointer_button_new(WPE_EVENT_POINTER_DOWN, view, WPE_INPUT_SOURCE_TOUCHSCREEN,
+        time, WPE_MODIFIER_POINTER_BUTTON3, 3, position.x, position.y, 1);
+    wpe_view_event(view, down);
+    g_autoptr(WPEEvent) up = wpe_event_pointer_button_new(
+        WPE_EVENT_POINTER_UP, view, WPE_INPUT_SOURCE_TOUCHSCREEN, time, WPEModifiers {}, 3, position.x, position.y, 1);
+    wpe_view_event(view, up);
+}
+
 // A touch of one finger, as the view sent it.
 struct Touch {
     uint32_t sequenceId;
@@ -71,15 +97,42 @@ struct Touch {
     std::optional<uint32_t> endTime;
     // Whether another finger was down at some point during the touch.
     bool withOtherFingers {false};
+    // Whether the app's context menu took the touch over, so that the rest of it goes nowhere.
+    bool takenByMenu {false};
+};
+
+// A long press that asked the page for its context menu, until WebKit asks the app for it.
+struct LongPress {
+    uint32_t sequenceId;
+    uint32_t downTime;
+    Position position;
 };
 
 class Detector {
 public:
-    void observe(WPEEvent* event)
+    explicit Detector(WPEGestureControllerAndroid* controller)
+        : m_controller(controller)
+    {
+    }
+
+    ~Detector()
+    {
+        stopLongPressTimer();
+        if (m_clickSource)
+            g_source_remove(m_clickSource);
+    }
+
+    Detector(const Detector&) = delete;
+    Detector& operator=(const Detector&) = delete;
+    Detector(Detector&&) = delete;
+    Detector& operator=(Detector&&) = delete;
+
+    // Returns whether WebKit gets the event: not the rest of a touch that the app's context menu took.
+    bool observe(WPEEvent* event)
     {
         auto position = positionOf(event);
         if (!position)
-            return;
+            return true;
 
         uint32_t sequenceId = wpe_event_touch_get_sequence_id(event);
         switch (wpe_event_get_event_type(event)) {
@@ -93,10 +146,11 @@ public:
                     touch.withOtherFingers = true;
                 }
             }
+            forgetEndedLongPress();
             m_touches.push_back(touch);
             if (m_touches.size() > maximumTouches)
                 m_touches.pop_front();
-            break;
+            return true;
         }
         case WPE_EVENT_TOUCH_MOVE:
         case WPE_EVENT_TOUCH_UP:
@@ -108,12 +162,30 @@ public:
                     it->leftSlop = true;
                 if (wpe_event_get_event_type(event) != WPE_EVENT_TOUCH_MOVE)
                     it->endTime = wpe_event_get_time(event);
-                break;
+                return !it->takenByMenu;
             }
-            break;
+            return true;
         default:
-            break;
+            return true;
         }
+    }
+
+    void setLongPressTimeout(uint32_t timeout)
+    {
+        m_longPressTimeout = timeout;
+    }
+
+    // WebKit asks the app for the context menu of the page. Returns where the long press that asked for it sent its
+    // click, if one waits for its menu; each long press is taken once. When the app's menu takes the touch over, the
+    // page gets a touch cancel, and the rest of the touch goes nowhere, unless the finger was lifted already.
+    std::optional<Position> takeLongPress(bool takeTouch)
+    {
+        auto longPress = std::exchange(m_longPress, std::nullopt);
+        if (!longPress)
+            return std::nullopt;
+        if (takeTouch)
+            cancelTouchOf(*longPress);
+        return longPress->position;
     }
 
     bool handleEvent(WPEEvent* event)
@@ -134,6 +206,8 @@ public:
                 m_downPosition = *position;
                 m_slop = touchSlop(event);
                 m_gesture = WPE_GESTURE_TAP;
+                m_view = wpe_event_get_view(event);
+                startLongPressTimer();
             }
             return true;
         }
@@ -157,6 +231,7 @@ public:
         switch (type) {
         case WPE_EVENT_TOUCH_MOVE:
             if (m_gesture == WPE_GESTURE_TAP && distance(point, m_downPosition) > m_slop) {
+                stopLongPressTimer();
                 // A page that cancelled a move of this touch keeps it from scrolling.
                 if (m_pageCancelledEvent)
                     m_gesture = WPE_GESTURE_NONE;
@@ -179,8 +254,10 @@ public:
                 m_gesture = WPE_GESTURE_NONE;
             else if (m_gesture == WPE_GESTURE_DRAG)
                 updateDelta(point);
+            longPressAtTouchUp(sequenceId, touch);
             // A new touch can start now. The gesture stays for WebKit to read.
             m_sequenceId = std::nullopt;
+            stopLongPressTimer();
             break;
         case WPE_EVENT_TOUCH_CANCEL:
             reset();
@@ -254,14 +331,115 @@ private:
         return false;
     }
 
+    Touch* findTouch(uint32_t sequenceId, uint32_t downTime)
+    {
+        for (auto it = m_touches.rbegin(); it != m_touches.rend(); ++it) {
+            if (it->sequenceId == sequenceId && it->downTime == downTime)
+                return &*it;
+        }
+        return nullptr;
+    }
+
     void updateDelta(Position position)
     {
         m_delta = Position {position.x - m_nextDeltaReferencePosition.x, position.y - m_nextDeltaReferencePosition.y};
         m_nextDeltaReferencePosition = position;
     }
 
+    // Counted from the touch down, since WebKit passes a touch on only after the page had it. A touch down time ahead
+    // of the clock, as made up events can have, counts as now.
+    void startLongPressTimer()
+    {
+        stopLongPressTimer();
+        auto elapsed = std::clamp<int64_t>(static_cast<int32_t>(now() - m_downTime), 0, m_longPressTimeout);
+        m_longPressSource = g_timeout_add(
+            m_longPressTimeout - static_cast<uint32_t>(elapsed),
+            [](gpointer data) -> gboolean {
+                auto* detector = static_cast<Detector*>(data);
+                detector->m_longPressSource = 0;
+                detector->longPressed();
+                return G_SOURCE_REMOVE;
+            },
+            this);
+    }
+
+    void stopLongPressTimer()
+    {
+        if (m_longPressSource)
+            g_source_remove(m_longPressSource);
+        m_longPressSource = 0;
+    }
+
+    // The finger stayed down for the long press timeout. The touch is no tap any more, and the page is asked for its
+    // context menu, while the finger is still down.
+    void longPressed()
+    {
+        if (!m_sequenceId || m_gesture != WPE_GESTURE_TAP || !m_view)
+            return;
+        uint32_t sequenceId = *m_sequenceId;
+        // The view's record runs ahead of WebKit: the finger may have gone away, or another one come, meanwhile. One
+        // lifted after the timeout made a long press all the same.
+        const Touch* touch = findTouch(sequenceId, m_downTime);
+        if (touch
+            && (touch->leftSlop || touch->withOtherFingers
+                || (touch->endTime && !isAtOrAfter(*touch->endTime, m_downTime + m_longPressTimeout))))
+            return;
+        m_gesture = WPE_GESTURE_NONE;
+        m_longPress = LongPress {sequenceId, m_downTime, m_downPosition};
+        sendSecondaryClick(m_view, m_downPosition);
+        g_signal_emit(m_controller, longPressSignal, 0);
+    }
+
+    // A finger held for the long press timeout, and lifted before WebKit passed its touch down on, as on a busy page,
+    // made a long press too, whether or not the timer ran before this touch up. The page is asked for its context
+    // menu once WebKit has handled the touch up, as WebKit's GTK port does for every long press.
+    void longPressAtTouchUp(uint32_t sequenceId, const Touch* touch)
+    {
+        if (m_gesture != WPE_GESTURE_TAP || !m_longPressSource || !m_view || !touch || !touch->endTime
+            || !isAtOrAfter(*touch->endTime, m_downTime + m_longPressTimeout))
+            return;
+        m_gesture = WPE_GESTURE_NONE;
+        m_longPress = LongPress {sequenceId, m_downTime, m_downPosition};
+        m_clickSource = g_idle_add(
+            [](gpointer data) -> gboolean {
+                auto* detector = static_cast<Detector*>(data);
+                detector->m_clickSource = 0;
+                if (detector->m_view && detector->m_longPress) {
+                    sendSecondaryClick(detector->m_view, detector->m_longPress->position);
+                    g_signal_emit(detector->m_controller, longPressSignal, 0);
+                }
+                return G_SOURCE_REMOVE;
+            },
+            this);
+    }
+
+    // The page gets a touch cancel for the touch of a long press, which the app's menu takes over, and the rest of the
+    // touch goes nowhere. Sent while WebKit asks for the menu, so that no event of the touch comes before it.
+    void cancelTouchOf(const LongPress& longPress)
+    {
+        Touch* touch = findTouch(longPress.sequenceId, longPress.downTime);
+        if (!touch || touch->endTime || !m_view)
+            return;
+        touch->takenByMenu = true;
+        g_autoptr(WPEEvent) cancel = wpe_event_touch_new(WPE_EVENT_TOUCH_CANCEL, m_view, WPE_INPUT_SOURCE_TOUCHSCREEN,
+            now(), WPEModifiers {}, longPress.sequenceId, longPress.position.x, longPress.position.y);
+        wpe_view_event(m_view, cancel);
+    }
+
+    // A new touch comes: a long press whose finger was lifted no longer waits for its menu, which the page may never
+    // ask for, as when it cancels its contextmenu event.
+    void forgetEndedLongPress()
+    {
+        if (!m_longPress)
+            return;
+        const Touch* touch = findTouch(m_longPress->sequenceId, m_longPress->downTime);
+        if (!touch || touch->endTime)
+            m_longPress = std::nullopt;
+    }
+
     void reset()
     {
+        stopLongPressTimer();
         m_sequenceId = std::nullopt;
         m_downTime = 0;
         m_downPosition = {};
@@ -287,6 +465,16 @@ private:
     Position m_nextDeltaReferencePosition {};
     std::optional<Position> m_delta;
     bool m_dragBegin {false};
+
+    // The controller owns the detector, and the view owns the controller.
+    WPEGestureControllerAndroid* m_controller;
+    WPEView* m_view {nullptr};
+    // Android's default, until the view gives its own.
+    uint32_t m_longPressTimeout {400};
+    guint m_longPressSource {0};
+    // The click of a long press found at its touch up, sent once WebKit has handled the touch up.
+    guint m_clickSource {0};
+    std::optional<LongPress> m_longPress;
 };
 
 } // namespace
@@ -365,11 +553,14 @@ static void wpeGestureControllerAndroidFinalize(GObject* object)
 static void wpe_gesture_controller_android_class_init(WPEGestureControllerAndroidClass* klass)
 {
     G_OBJECT_CLASS(klass)->finalize = wpeGestureControllerAndroidFinalize;
+
+    longPressSignal = g_signal_new(
+        "long-press", G_TYPE_FROM_CLASS(klass), G_SIGNAL_RUN_LAST, 0, nullptr, nullptr, nullptr, G_TYPE_NONE, 0);
 }
 
 static void wpe_gesture_controller_android_init(WPEGestureControllerAndroid* controller)
 {
-    controller->detector = new Detector;
+    controller->detector = new Detector(controller);
 }
 
 WPEGestureController* wpe_gesture_controller_android_new(void)
@@ -377,8 +568,26 @@ WPEGestureController* wpe_gesture_controller_android_new(void)
     return WPE_GESTURE_CONTROLLER(g_object_new(WPE_TYPE_GESTURE_CONTROLLER_ANDROID, nullptr));
 }
 
-void wpe_gesture_controller_android_observe_touch(WPEGestureControllerAndroid* controller, WPEEvent* event)
+gboolean wpe_gesture_controller_android_observe_touch(WPEGestureControllerAndroid* controller, WPEEvent* event)
+{
+    g_return_val_if_fail(WPE_IS_GESTURE_CONTROLLER_ANDROID(controller), TRUE);
+    return controller->detector->observe(event) ? TRUE : FALSE;
+}
+
+void wpe_gesture_controller_android_set_long_press_timeout(WPEGestureControllerAndroid* controller, guint timeout)
 {
     g_return_if_fail(WPE_IS_GESTURE_CONTROLLER_ANDROID(controller));
-    controller->detector->observe(event);
+    controller->detector->setLongPressTimeout(timeout);
+}
+
+gboolean wpe_gesture_controller_android_take_long_press(
+    WPEGestureControllerAndroid* controller, gboolean takeTouch, double* x, double* y)
+{
+    g_return_val_if_fail(WPE_IS_GESTURE_CONTROLLER_ANDROID(controller), FALSE);
+    auto position = controller->detector->takeLongPress(takeTouch);
+    if (!position)
+        return FALSE;
+    *x = position->x;
+    *y = position->y;
+    return TRUE;
 }

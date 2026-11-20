@@ -196,6 +196,16 @@ public class WebPageChromeClient {
     public void onCloseNotification(@NonNull WebPage page, @NonNull WPENotification notification) {}
 
     /**
+     * Tells the app what a long press in the view of the page was on, for its context menu: a link, an image, a field,
+     * text or the page itself, see {@link ContextMenuParams}. The app shows its own menu at the point, or nothing; the
+     * default does nothing. A finger held for Android's long press timeout makes a long press, and the page gets its
+     * contextmenu event then, while the finger is down: nothing comes here when the page cancels it, as maps and
+     * editors do to keep the long press for themselves. Otherwise the touch of the long press no longer goes to the
+     * page, which gets a touchcancel event, and lifting the finger does not click.
+     */
+    public void onShowContextMenu(@NonNull WebPage page, @NonNull ContextMenuParams params) {}
+
+    /**
      * A request of a page for a new window, given to {@link #onCreateWindow}. It is answered once the call returns:
      * the window opens if {@link #createPage()} made its page.
      */
@@ -290,6 +300,73 @@ public class WebPageChromeClient {
 
         /** Ends with the color the field had, as if it had not asked. */
         void cancel();
+    }
+
+    /**
+     * What a long press was on, given to {@link #onShowContextMenu}. A link and an image can come together, for an
+     * image inside a link. The addresses are absolute, as the page has them, of any scheme.
+     */
+    public static final class ContextMenuParams {
+        private final @Nullable String linkUrl;
+        private final @Nullable String linkText;
+        private final @Nullable String linkTitle;
+        private final @Nullable String imageUrl;
+        private final @Nullable String mediaUrl;
+        private final boolean editable;
+        private final boolean selection;
+        private final float x;
+        private final float y;
+
+        ContextMenuParams(@Nullable String linkUrl, @Nullable String linkText, @Nullable String linkTitle,
+                          @Nullable String imageUrl, @Nullable String mediaUrl, boolean editable, boolean selection,
+                          float x, float y) {
+            this.linkUrl = linkUrl;
+            this.linkText = linkText;
+            this.linkTitle = linkTitle;
+            this.imageUrl = imageUrl;
+            this.mediaUrl = mediaUrl;
+            this.editable = editable;
+            this.selection = selection;
+            this.x = x;
+            this.y = y;
+        }
+
+        // The same, with the point multiplied by the scale.
+        @NonNull
+        ContextMenuParams scaledBy(float scale) {
+            return new ContextMenuParams(linkUrl, linkText, linkTitle, imageUrl, mediaUrl, editable, selection,
+                                         x * scale, y * scale);
+        }
+
+        /** The address of the link, or null if the long press was not on a link. */
+        public @Nullable String getLinkUrl() { return linkUrl; }
+
+        /** The text of the link, or null. */
+        public @Nullable String getLinkText() { return linkText; }
+
+        /** The title attribute of the link, or null. */
+        public @Nullable String getLinkTitle() { return linkTitle; }
+
+        /** The address of the image, or null if the long press was not on an image. */
+        public @Nullable String getImageUrl() { return imageUrl; }
+
+        /** The address of the video or the sound, or null if the long press was not on one. */
+        public @Nullable String getMediaUrl() { return mediaUrl; }
+
+        /** Whether the long press was on a field or on editable content, which it gave the focus. */
+        public boolean isEditable() { return editable; }
+
+        /** Whether the long press was on selected text. */
+        public boolean isSelection() { return selection; }
+
+        /**
+         * Where the finger came down for the long press, in the pixels of the view that shows the page, from its left
+         * edge, as a {@link android.view.MotionEvent} has it.
+         */
+        public float getX() { return x; }
+
+        /** Where the finger came down for the long press, from the top edge of the view. */
+        public float getY() { return y; }
     }
 
     /** What a color field of the page asks for, given to {@link #onShowColorChooser}. */

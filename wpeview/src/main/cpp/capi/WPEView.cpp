@@ -39,6 +39,7 @@ public:
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetMapped", nativeSetMapped),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetVisible", nativeSetVisible),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetFocused", nativeSetFocused),
+            JNI::NativeMethod<void(jlong, jint)>("nativeSetLongPressTimeout", nativeSetLongPressTimeout),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
                 "nativeDispatchTouchEvent", nativeDispatchTouchEvent),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint)>(
@@ -76,6 +77,14 @@ private:
         focused ? wpe_view_focus_in(view) : wpe_view_focus_out(view);
     }
 
+    static void nativeSetLongPressTimeout(JNIEnv*, jobject, jlong viewPtr, jint timeout)
+    {
+        auto* gestureController = wpe_view_get_gesture_controller(JNI::from_jlong<WPEView>(viewPtr));
+        if (gestureController && WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController))
+            wpe_gesture_controller_android_set_long_press_timeout(
+                WPE_GESTURE_CONTROLLER_ANDROID(gestureController), static_cast<guint>(std::max(0, timeout)));
+    }
+
     static void nativeDispatchTouchEvent(JNIEnv* env, jobject, jlong viewPtr, jlong time, jint type, jint pointerCount,
         jintArray ids, jfloatArray xs, jfloatArray ys)
     {
@@ -92,8 +101,10 @@ private:
                 static_cast<double>(pointerXs.getReadOnlyContent()[i]),
                 static_cast<double>(pointerYs.getReadOnlyContent()[i]));
             // Before WebKit, which only passes on the events that the page did not cancel.
-            if (gestureController && WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController))
-                wpe_gesture_controller_android_observe_touch(WPE_GESTURE_CONTROLLER_ANDROID(gestureController), event);
+            if (gestureController && WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController)
+                && !wpe_gesture_controller_android_observe_touch(
+                    WPE_GESTURE_CONTROLLER_ANDROID(gestureController), event))
+                continue;
             wpe_view_event(view, event);
         }
 

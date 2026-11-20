@@ -390,6 +390,19 @@ public final class WebKitWebView {
          * reenter, for example by destroying the view.
          */
         void onNotificationClosed(long notificationId);
+        /**
+         * A finger stayed down on the page for the long press timeout, and the page is asked for its context menu,
+         * while WebKit does not run: the view gives the long press vibration.
+         */
+        void onLongPress();
+        /**
+         * Asks for the context menu of what a long press was on, once WebKit returns, on the main thread. The point
+         * is in logical pixels. It does not come when the page cancelled its contextmenu event. The page already got
+         * a touch cancel for the touch, and gets nothing more of it.
+         */
+        void onShowContextMenu(@Nullable String linkUri, @Nullable String linkText, @Nullable String linkTitle,
+                               @Nullable String imageUri, @Nullable String mediaUri, boolean editable,
+                               boolean selection, float x, float y);
     }
 
     private @Nullable Listener listener;
@@ -680,6 +693,26 @@ public final class WebKitWebView {
         Listener currentListener = listener;
         if (currentListener != null)
             MainLooperDispatcher.post(() -> currentListener.onNotificationClosed(notificationId));
+    }
+
+    @Keep
+    private void onLongPress() {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            currentListener.onLongPress();
+    }
+
+    // WebKit asks while it handles a message of the web process: the app hears of it once WebKit returns.
+    @Keep
+    private void onShowContextMenu(@Nullable String linkUri, @Nullable String linkText, @Nullable String linkTitle,
+                                   @Nullable String imageUri, @Nullable String mediaUri, boolean editable,
+                                   boolean selection, float x, float y) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.postLater(()
+                                               -> currentListener.onShowContextMenu(linkUri, linkText, linkTitle,
+                                                                                    imageUri, mediaUri, editable,
+                                                                                    selection, x, y));
     }
 
     /** Tells the page that the user tapped a notification, unless it is closed. */

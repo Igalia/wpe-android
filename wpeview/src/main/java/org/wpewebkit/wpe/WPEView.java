@@ -57,6 +57,12 @@ public final class WPEView {
             nativeSetFocused(mNativePtr, focused);
     }
 
+    /** How long a finger stays down for a long press, in milliseconds, for the touches that come from now on. */
+    public void setLongPressTimeout(int timeout) {
+        if (mNativePtr != 0)
+            nativeSetLongPressTimeout(mNativePtr, timeout);
+    }
+
     public void dispatchTouchEvent(long time, int type, int pointerCount, @NonNull int[] ids, @NonNull float[] xs,
                                    @NonNull float[] ys) {
         if (mNativePtr == 0 || pointerCount <= 0 || ids.length < pointerCount || xs.length < pointerCount ||
@@ -77,6 +83,7 @@ public final class WPEView {
     private native void nativeSetMapped(long nativePtr, boolean mapped);
     private native void nativeSetVisible(long nativePtr, boolean visible);
     private native void nativeSetFocused(long nativePtr, boolean focused);
+    private native void nativeSetLongPressTimeout(long nativePtr, int timeout);
     private native void nativeDispatchTouchEvent(long nativePtr, long time, int type, int pointerCount, int[] ids,
                                                  float[] xs, float[] ys);
     private native void nativeDispatchKeyEvent(long nativePtr, long time, int type, int keyCode, int unicodeChar,

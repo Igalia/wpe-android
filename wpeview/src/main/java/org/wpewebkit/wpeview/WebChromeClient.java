@@ -248,6 +248,53 @@ public class WebChromeClient {
      */
     public void onCloseNotification(@NonNull WebView view, @NonNull WPENotification notification) {}
 
+    /**
+     * Tells the host what a long press in {@code view} was on, for its context menu: a link, an image, a field, text or
+     * the page itself, see {@link ContextMenuParams}. The host shows its own menu at the point, or nothing; the default
+     * does nothing. A finger held for Android's long press timeout makes a long press, and the page gets its
+     * contextmenu event then, while the finger is down: nothing comes here when the page cancels it, as maps and
+     * editors do to keep the long press for themselves. Otherwise the touch of the long press no longer goes to the
+     * page, which gets a touchcancel event, and lifting the finger does not click.
+     */
+    public void onShowContextMenu(@NonNull WebView view, @NonNull ContextMenuParams params) {}
+
+    /**
+     * What a long press was on, given to {@link #onShowContextMenu}, the same as
+     * {@link WebPageChromeClient.ContextMenuParams}.
+     */
+    public static final class ContextMenuParams {
+        private final WebPageChromeClient.ContextMenuParams params;
+
+        ContextMenuParams(@NonNull WebPageChromeClient.ContextMenuParams params) { this.params = params; }
+
+        /** The address of the link, or null if the long press was not on a link. */
+        public @Nullable String getLinkUrl() { return params.getLinkUrl(); }
+
+        /** The text of the link, or null. */
+        public @Nullable String getLinkText() { return params.getLinkText(); }
+
+        /** The title attribute of the link, or null. */
+        public @Nullable String getLinkTitle() { return params.getLinkTitle(); }
+
+        /** The address of the image, or null if the long press was not on an image. */
+        public @Nullable String getImageUrl() { return params.getImageUrl(); }
+
+        /** The address of the video or the sound, or null if the long press was not on one. */
+        public @Nullable String getMediaUrl() { return params.getMediaUrl(); }
+
+        /** Whether the long press was on a field or on editable content, which it gave the focus. */
+        public boolean isEditable() { return params.isEditable(); }
+
+        /** Whether the long press was on selected text. */
+        public boolean isSelection() { return params.isSelection(); }
+
+        /** Where the finger came down for the long press, in the pixels of the view, from its left edge. */
+        public float getX() { return params.getX(); }
+
+        /** Where the finger came down for the long press, from the top edge of the view. */
+        public float getY() { return params.getY(); }
+    }
+
     /** A {@link WebPageChromeClient.ColorChooserCallback}, as {@link #onShowColorChooser} gets it. */
     public interface ColorChooserCallback extends WebPageChromeClient.ColorChooserCallback {}
 
