@@ -357,6 +357,11 @@ public:
                 "nativeSetBackgroundColor", nativeSetBackgroundColor),
             JNI::NativeMethod<void(jlong, jstring, jstring, JNIWebKitWebViewEvalCallbackHolder)>(
                 "nativeEvaluateJavascript", nativeEvaluateJavascript),
+            JNI::NativeMethod<jlong(jlong)>("nativeGetPageId", nativeGetPageId),
+            JNI::NativeMethod<jstring(jlong)>("nativeGetDocumentOrigin", nativeGetDocumentOrigin),
+            JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeSendAutofillKey", nativeSendAutofillKey),
+            JNI::NativeMethod<void(jlong, jstring, jstring, jstring, jintArray, jstringArray)>(
+                "nativeAutofill", nativeAutofill),
             JNI::NativeMethod<void(jlong, jint, jint, jint, JNIWebKitWebViewSnapshotCallbackHolder)>(
                 "nativeCaptureSnapshot", nativeCaptureSnapshot),
             JNI::NativeMethod<void(jlong, jlong, jboolean, jstring)>(
@@ -488,6 +493,11 @@ private:
         JNIEnv*, jobject, jlong nativePtr, jfloat red, jfloat green, jfloat blue, jfloat alpha);
     static void nativeEvaluateJavascript(JNIEnv* env, jobject, jlong nativePtr, jstring script, jstring worldName,
         JNIWebKitWebViewEvalCallbackHolder callbackHolder);
+    static jlong nativeGetPageId(JNIEnv*, jobject, jlong nativePtr);
+    static jstring nativeGetDocumentOrigin(JNIEnv* env, jobject, jlong nativePtr);
+    static void nativeSendAutofillKey(JNIEnv*, jobject, jlong nativePtr, jstring document, jstring key);
+    static void nativeAutofill(JNIEnv*, jobject, jlong nativePtr, jstring document, jstring key, jstring origin,
+        jintArray idsArray, jstringArray valuesArray);
     static void nativeCaptureSnapshot(JNIEnv* env, jobject, jlong nativePtr, jint region, jint maxWidth, jint maxHeight,
         JNIWebKitWebViewSnapshotCallbackHolder callbackHolder);
     static void nativeScriptDialogAnswer(
@@ -1842,6 +1852,87 @@ void JNIWebKitWebViewCache::nativeEvaluateJavascript(JNIEnv* env, jobject, jlong
     auto world = worldString.getContent();
     webkit_web_view_evaluate_javascript(bridge->m_webView, JNI::String(script).getContent().get(), -1, world.get(),
         nullptr, nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
+}
+
+// The id of the page that the view shows, which changes when a navigation moves it to another web process.
+jlong JNIWebKitWebViewCache::nativeGetPageId(JNIEnv*, jobject, jlong nativePtr)
+{
+    return static_cast<jlong>(webkit_web_view_get_page_id(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView));
+}
+
+jstring JNIWebKitWebViewCache::nativeGetDocumentOrigin(JNIEnv* env, jobject, jlong nativePtr)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    // Not a JNI::String: it deletes its reference when it goes away, before Java gets the result.
+    return bridge->m_documentOrigin.empty() ? nullptr : env->NewStringUTF(bridge->m_documentOrigin.c_str());
+}
+
+// Calls a function of the script of WPEView's extension of the web process, in its world of the main frame. The call
+// reaches only the web process of the page, and its arguments are never part of a script.
+static void callAutofillFunction(WebKitWebView* webView, const char* body, GVariantDict* arguments)
+{
+    // WebKit only reads the arguments, so they are sunk and freed here.
+    g_autoptr(GVariant) argumentsVariant = g_variant_ref_sink(g_variant_dict_end(arguments));
+    webkit_web_view_call_async_javascript_function(
+        webView, body, -1, argumentsVariant, "wpeview-autofill", nullptr, nullptr, nullptr, nullptr);
+}
+
+void JNIWebKitWebViewCache::nativeSendAutofillKey(JNIEnv*, jobject, jlong nativePtr, jstring document, jstring key)
+{
+    auto javaDocument = JNI::String(document);
+    auto documentContent = javaDocument.getContent();
+    auto javaKey = JNI::String(key);
+    auto keyContent = javaKey.getContent();
+    if (!documentContent || !keyContent)
+        return;
+
+    GVariantDict arguments;
+    g_variant_dict_init(&arguments, nullptr);
+    g_variant_dict_insert_value(&arguments, "documentToken", g_variant_new_string(documentContent.get()));
+    g_variant_dict_insert_value(&arguments, "key", g_variant_new_string(keyContent.get()));
+    callAutofillFunction(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView,
+        "return wpeviewSetKey(documentToken, key);", &arguments);
+}
+
+// Fills login fields. The script checks that the document is still the one of the fields.
+void JNIWebKitWebViewCache::nativeAutofill(JNIEnv*, jobject, jlong nativePtr, jstring document, jstring key,
+    jstring origin, jintArray idsArray, jstringArray valuesArray)
+{
+    auto javaDocument = JNI::String(document);
+    auto documentContent = javaDocument.getContent();
+    auto javaKey = JNI::String(key);
+    auto keyContent = javaKey.getContent();
+    auto javaOrigin = JNI::String(origin);
+    auto originContent = javaOrigin.getContent();
+    if (!documentContent || !keyContent || !originContent)
+        return;
+
+    JNI::ScalarArray<jint> ids(idsArray);
+    auto idsContent = ids.getReadOnlyContent();
+    auto values = JNI::ObjectArray<jstring>(valuesArray).getReadOnlyContent();
+    if (idsContent.getSize() != values.getSize())
+        return;
+
+    GVariantDict fields;
+    g_variant_dict_init(&fields, nullptr);
+    for (size_t i = 0; i < idsContent.getSize(); i++) {
+        // The JNI::String must outlive its content, whose release uses the Java string.
+        auto javaValue = JNI::String(values[i]);
+        auto valueContent = javaValue.getContent();
+        if (!valueContent)
+            continue;
+        g_autofree char* fieldKey = g_strdup_printf("%d", idsContent[i]);
+        g_variant_dict_insert_value(&fields, fieldKey, g_variant_new_string(valueContent.get()));
+    }
+
+    GVariantDict arguments;
+    g_variant_dict_init(&arguments, nullptr);
+    g_variant_dict_insert_value(&arguments, "documentToken", g_variant_new_string(documentContent.get()));
+    g_variant_dict_insert_value(&arguments, "key", g_variant_new_string(keyContent.get()));
+    g_variant_dict_insert_value(&arguments, "origin", g_variant_new_string(originContent.get()));
+    g_variant_dict_insert_value(&arguments, "values", g_variant_dict_end(&fields));
+    callAutofillFunction(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView,
+        "return wpeviewFill(documentToken, key, origin, values);", &arguments);
 }
 
 // Check that WebKit's buffer holds height rows of width BGRA pixels at the given stride.
