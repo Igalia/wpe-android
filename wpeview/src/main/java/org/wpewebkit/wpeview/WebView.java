@@ -30,6 +30,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.Display;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
@@ -39,8 +40,10 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewStructure;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.autofill.AutofillValue;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -100,6 +103,14 @@ import java.util.Objects;
  * that AppCompat gives each activity, with {@code AppCompatDelegate.setDefaultNightMode()} or
  * {@code setLocalNightMode()}: an app that wants light pages on a dark device, or that chooses its mode with
  * AppCompat, gives the pages that mode with {@code UiModeManager.setApplicationNightMode()}.
+ *
+ * <p>The view gives Android's Autofill the login fields of the main frame of the page it shows, a password field and
+ * its user name field, so that the password service the user chose offers its accounts there, and offers to save them
+ * when the page sends the form. Each sign in is offered, as the view cannot tell whether it worked; the service
+ * decides. A view left on {@code IMPORTANT_FOR_AUTOFILL_AUTO} takes part. To turn Autofill off, for example for
+ * private pages, set the view not important for it, with
+ * {@code setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)}, before it shows them: Android
+ * then hears nothing of their fields, and has nothing to offer to save, not even when the activity finishes.
  */
 @UiThread
 public class WebView extends FrameLayout {
@@ -154,6 +165,8 @@ public class WebView extends FrameLayout {
     // Counts the pages that come and go, so that the input connection made for one page ignores the next.
     private int pageGeneration;
     private PageSurfaceView surfaceView;
+    // Gives Android's Autofill the login fields of the page that the view shows.
+    private final ViewAutofill viewAutofill = new ViewAutofill(this);
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
     // Whether the page left fullscreen as it left the window, which the chrome client hears once the view is done.
@@ -288,6 +301,10 @@ public class WebView extends FrameLayout {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+        // A layout left on auto may be left out of what Android's Autofill asks for. An app that wants no Autofill, for
+        // example for private pages, sets the view not important for it.
+        if (getImportantForAutofill() == IMPORTANT_FOR_AUTOFILL_AUTO)
+            setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_YES);
         // The page draws its own focus rings. Android's highlight, drawn when the view gets the focus from a
         // key, would cover the whole page, since it is drawn over the SurfaceView.
         setDefaultFocusHighlightEnabled(false);
@@ -440,6 +457,7 @@ public class WebView extends FrameLayout {
         warnedOfNoPage = false;
         newPage.view = this;
         pageGeneration++;
+        viewAutofill.attach(newPage);
         platformView = newPage.getWPEView();
         imContext = newPage.getInputMethodContext();
         imeInputType = 0;
@@ -468,6 +486,8 @@ public class WebView extends FrameLayout {
             return oldPage;
         }
         boolean inputMethodConnected = oldPage.inputFieldFocused;
+        // A new page starts a new Autofill session.
+        viewAutofill.detach();
         if (inToplevel) {
             leaveToplevel();
         } else if (platformView != null) {
@@ -1818,6 +1838,19 @@ public class WebView extends FrameLayout {
         }
         if (inToplevel)
             wpeToplevel.setWindowFocused(hasWindowFocus);
+    }
+
+    // The login fields of the page, as virtual children of the view, for Android's Autofill.
+    @Override
+    public void onProvideAutofillVirtualStructure(@NonNull ViewStructure structure, int flags) {
+        super.onProvideAutofillVirtualStructure(structure, flags);
+        viewAutofill.provideVirtualStructure(structure);
+    }
+
+    // Android's Autofill fills login fields of the page, given by their virtual ids.
+    @Override
+    public void autofill(@NonNull SparseArray<AutofillValue> values) {
+        viewAutofill.autofill(values);
     }
 
     @Override

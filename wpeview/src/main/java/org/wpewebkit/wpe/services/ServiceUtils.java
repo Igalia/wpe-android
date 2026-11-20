@@ -27,6 +27,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.os.Build;
+import android.os.Process;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -47,7 +48,12 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public final class ServiceUtils {
     private static final String LOGTAG = "ServiceUtils";
@@ -72,6 +78,38 @@ public final class ServiceUtils {
     public static synchronized boolean installAssets(@NonNull Context context, @NonNull AssetManager assetManager,
                                                      @NonNull String path, boolean copyForCurrentABI,
                                                      @NonNull File... derivedFiles) {
+        return install(context, path, derivedFiles, tempDir -> {
+            String srcAsset = findAssets(assetManager, path, copyForCurrentABI);
+            if (srcAsset == null)
+                return false;
+            recCopyFileOrDir(assetManager, srcAsset, tempDir);
+            return true;
+        });
+    }
+
+    /**
+     * Copies a native library of the app into a folder of its own in the files folder, once per install or update of
+     * the app, for native code that loads every library of a folder. Android may leave the libraries of an app in its
+     * APK, where only {@code System.loadLibrary()} finds them. Returns the folder, or null if the library is not
+     * there.
+     */
+    public static synchronized @Nullable File installNativeLibrary(@NonNull Context context, @NonNull String path,
+                                                                   @NonNull String libraryName) {
+        install(context, path, new File[0],
+                tempDir -> copyNativeLibrary(context, libraryName, new File(tempDir, libraryName)));
+        File destDir = new File(context.getFilesDir(), path);
+        return new File(destDir, libraryName).isFile() ? destDir : null;
+    }
+
+    private interface Copier {
+        // Copies the files into the folder, which does not exist yet, and returns whether it found them.
+        boolean copyInto(@NonNull File tempDir) throws IOException;
+    }
+
+    // Installs a folder of the files folder with the copier, once per install or update of the app, as installAssets()
+    // tells. Returns whether it copied the folder.
+    private static boolean install(@NonNull Context context, @NonNull String path, @NonNull File[] derivedFiles,
+                                   @NonNull Copier copier) {
         File filesDir = context.getFilesDir();
         File destDir = new File(filesDir, path);
         File marker = new File(destDir, ".installed_" + getInstallId(context));
@@ -83,18 +121,16 @@ public final class ServiceUtils {
             if (marker.exists())
                 return false;
 
-            Log.i(LOGTAG, "Installing assets into " + destDir);
+            Log.i(LOGTAG, "Installing " + destDir);
             File tempDir = new File(filesDir, path + ".tmp");
             deleteRecursively(tempDir);
             for (File file : derivedFiles)
                 deleteRecursively(file);
             deleteRecursively(destDir);
 
-            String srcAsset = findAssets(assetManager, path, copyForCurrentABI);
-            if (srcAsset == null)
-                return false;
             try {
-                recCopyFileOrDir(assetManager, srcAsset, tempDir);
+                if (!copier.copyInto(tempDir))
+                    return false;
                 new File(tempDir, marker.getName()).createNewFile();
                 Files.move(tempDir.toPath(), destDir.toPath(), StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException e) {
@@ -111,9 +147,47 @@ public final class ServiceUtils {
             deleteOldMarkers(filesDir);
             return true;
         } catch (IOException e) {
-            Log.e(LOGTAG, "Cannot install assets into " + destDir, e);
+            Log.e(LOGTAG, "Cannot install " + destDir, e);
             return false;
         }
+    }
+
+    // Copies the library from the folder where Android unpacked the libraries of the app, or else from the APK, or its
+    // split APKs, for the processor types the process runs.
+    private static boolean copyNativeLibrary(@NonNull Context context, @NonNull String libraryName,
+                                             @NonNull File destFile) throws IOException {
+        ApplicationInfo appInfo = context.getApplicationInfo();
+        File unpacked = new File(appInfo.nativeLibraryDir, libraryName);
+        if (unpacked.isFile()) {
+            try (InputStream in = Files.newInputStream(unpacked.toPath())) {
+                copyStream(in, destFile);
+            }
+            destFile.setReadOnly();
+            return true;
+        }
+
+        List<String> apks = new ArrayList<>();
+        apks.add(appInfo.sourceDir);
+        if (appInfo.splitSourceDirs != null)
+            apks.addAll(Arrays.asList(appInfo.splitSourceDirs));
+        String[] abis = Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS : Build.SUPPORTED_32_BIT_ABIS;
+        for (String abi : abis) {
+            String entryName = "lib/" + abi + "/" + libraryName;
+            for (String apk : apks) {
+                try (ZipFile zip = new ZipFile(apk)) {
+                    ZipEntry entry = zip.getEntry(entryName);
+                    if (entry == null)
+                        continue;
+                    try (InputStream in = zip.getInputStream(entry)) {
+                        copyStream(in, destFile);
+                    }
+                    destFile.setReadOnly();
+                    return true;
+                }
+            }
+        }
+        Log.e(LOGTAG, "Cannot find the native library " + libraryName + " in the app");
+        return false;
     }
 
     // Changes whenever the app can bring other assets. The install time changes on every install or update, even
@@ -178,9 +252,14 @@ public final class ServiceUtils {
 
     private static void copyFile(@NonNull AssetManager assetManager, @NonNull String srcAsset, @NonNull File destFile)
         throws IOException {
+        try (InputStream in = assetManager.open(srcAsset)) {
+            copyStream(in, destFile);
+        }
+    }
+
+    private static void copyStream(@NonNull InputStream in, @NonNull File destFile) throws IOException {
         destFile.getParentFile().mkdirs();
-        try (InputStream in = assetManager.open(srcAsset);
-             FileOutputStream out = new FileOutputStream(destFile, false)) {
+        try (FileOutputStream out = new FileOutputStream(destFile, false)) {
             byte[] buffer = new byte[8192];
             int read;
             while ((read = in.read(buffer)) != -1)
