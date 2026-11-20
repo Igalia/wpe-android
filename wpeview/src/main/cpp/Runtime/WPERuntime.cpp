@@ -50,6 +50,17 @@ public:
             Logging::logError("Cannot terminate process");
     }
 
+    jlong acquireProcessPriority(jlong pid, jint priority) const noexcept
+    {
+        return m_acquireProcessPriorityMethod.invoke(m_runtimeJavaInstance.get(), pid, priority);
+    }
+
+    void releaseProcessPriority(jlong priorityId) const noexcept
+    {
+        if (!m_releaseProcessPriorityMethod.invoke(m_runtimeJavaInstance.get(), priorityId))
+            Logging::logError("Cannot release process priority");
+    }
+
 private:
     mutable JNI::ProtectedType<JNIWPERuntime> m_runtimeJavaInstance;
     // The MessagePump attaching the GLib main context to the Android main looper, alive between
@@ -59,6 +70,8 @@ private:
     // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jlong, jint, jint)> m_launchProcessMethod;
     const JNI::Method<void(jlong)> m_terminateProcessMethod;
+    const JNI::Method<jlong(jlong, jint)> m_acquireProcessPriorityMethod;
+    const JNI::Method<void(jlong)> m_releaseProcessPriorityMethod;
     // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
@@ -72,6 +85,8 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
     : JNI::TypedClass<JNIWPERuntime>(true)
     , m_launchProcessMethod(getMethod<void(jlong, jint, jint)>("launchProcess"))
     , m_terminateProcessMethod(getMethod<void(jlong)>("terminateProcess"))
+    , m_acquireProcessPriorityMethod(getMethod<jlong(jlong, jint)>("acquireProcessPriority"))
+    , m_releaseProcessPriorityMethod(getMethod<void(jlong)>("releaseProcessPriority"))
 {
     registerNativeMethods(JNI::StaticNativeMethod<void(jstringArray)>(
                               "setupNativeEnvironment",
@@ -99,7 +114,7 @@ JNIWPERuntimeCache::JNIWPERuntimeCache()
 }
 
 /***********************************************************************************************************************
- * Process launch/terminate bridge to the Java WPERuntime (used by WPEProcessManagerAndroid)
+ * Process launch, terminate and priority bridge to the Java WPERuntime (used by WPEProcessManagerAndroid)
  **********************************************************************************************************************/
 
 bool wpeRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept
@@ -110,6 +125,16 @@ bool wpeRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd
 void wpeRuntimeTerminateProcess(int64_t processId) noexcept
 {
     getJNIWPERuntimeCache().terminateProcess(processId);
+}
+
+int64_t wpeRuntimeAcquireProcessPriority(int64_t processId, int priority) noexcept
+{
+    return getJNIWPERuntimeCache().acquireProcessPriority(processId, priority);
+}
+
+void wpeRuntimeReleaseProcessPriority(int64_t priorityId) noexcept
+{
+    getJNIWPERuntimeCache().releaseProcessPriority(priorityId);
 }
 
 void WPERuntime::configureJNIMappings()

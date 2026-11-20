@@ -28,6 +28,9 @@
 // services. Used by WPEProcessManagerAndroid. processType is a Common/Environment.h ProcessType value.
 bool wpeRuntimeLaunchProcess(int64_t processId, int processType, int ipcSocketFd) noexcept;
 void wpeRuntimeTerminateProcess(int64_t processId) noexcept;
+// Holds a process at a priority (a WPEProcessPriority value) until released; returns 0 when the process is not ranked.
+int64_t wpeRuntimeAcquireProcessPriority(int64_t processId, int priority) noexcept;
+void wpeRuntimeReleaseProcessPriority(int64_t priorityId) noexcept;
 
 namespace WPERuntime {
 void configureJNIMappings();
