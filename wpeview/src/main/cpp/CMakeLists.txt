@@ -162,3 +162,8 @@ target_link_libraries(
     WPEWebKit-2.0
     WPEAndroidCommon
     WPEWebDriver)
+
+# libWPEViewWebProcessExtension, which WebKit loads into the web processes
+add_library(WPEViewWebProcessExtension SHARED WebProcessExtension/EntryPoint.cpp)
+target_configure_quality(WPEViewWebProcessExtension)
+target_link_libraries(WPEViewWebProcessExtension ${log-lib} glib-2.0 gobject-2.0 WPEWebKit-2.0)

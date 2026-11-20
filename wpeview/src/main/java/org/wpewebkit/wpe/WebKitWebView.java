@@ -72,6 +72,7 @@ public final class WebKitWebView {
     public static final int WEB_PROCESS_TERMINATED_BY_API = 2;
 
     private long mNativePtr = 0;
+    private final WebKitWebContext context;
     private final WPEView wpeView;
     private final WPEInputMethodContext inputMethodContext;
     private final WebKitSettings settings;
@@ -89,6 +90,7 @@ public final class WebKitWebView {
 
     public WebKitWebView(@NonNull WPEDisplay display, @NonNull WebKitWebContext context, @Nullable WPEToplevel toplevel,
                          @Nullable WebKitNetworkSession networkSession, @Nullable WebKitSettings settings) {
+        this.context = context;
         this.networkSession = networkSession;
         this.settings = settings;
         mNativePtr = nativeInit(
@@ -96,6 +98,7 @@ public final class WebKitWebView {
             networkSession != null ? networkSession.getNativePtr() : 0, settings != null ? settings.getNativePtr() : 0);
         wpeView = new WPEView(nativeGetWPEView(mNativePtr));
         inputMethodContext = new WPEInputMethodContext(WPEInputMethodContext.getForView(wpeView));
+        context.addWebView(this);
     }
 
     /**
@@ -106,11 +109,13 @@ public final class WebKitWebView {
     public WebKitWebView(@NonNull WebKitWebView relatedView, @Nullable WebKitSettings settings) {
         if (relatedView.mNativePtr == 0)
             throw new IllegalStateException("The related WebKitWebView was destroyed");
+        this.context = relatedView.context;
         this.networkSession = relatedView.networkSession;
         this.settings = settings;
         mNativePtr = nativeInitRelated(relatedView.mNativePtr, settings != null ? settings.getNativePtr() : 0);
         wpeView = new WPEView(nativeGetWPEView(mNativePtr));
         inputMethodContext = new WPEInputMethodContext(WPEInputMethodContext.getForView(wpeView));
+        context.addWebView(this);
     }
 
     public @NonNull WPEView getWPEView() { return wpeView; }
@@ -278,7 +283,47 @@ public final class WebKitWebView {
                                      null);
     }
 
+    /**
+     * The id of the page that the view shows, which changes when a navigation moves the page to another web process,
+     * or 0 once the view is destroyed.
+     */
+    public long getPageId() { return mNativePtr != 0 ? nativeGetPageId(mNativePtr) : 0; }
+
+    /**
+     * The origin of the document that the page committed last, as {@code scheme://host:port}, or null if it is not a
+     * web page, or while a load that the app asked for waits to be decided on.
+     */
+    public @Nullable String getDocumentOrigin() { return mNativePtr != 0 ? nativeGetDocumentOrigin(mNativePtr) : null; }
+
+    /**
+     * Gives a document that {@link Listener#onAutofillMessage} told of its key, which it then puts in its messages. The
+     * key goes only to the web process of the page, so its messages prove that they come from there.
+     */
+    public void sendAutofillKey(@NonNull String documentToken, @NonNull String key) {
+        if (mNativePtr != 0)
+            nativeSendAutofillKey(mNativePtr, documentToken, key);
+    }
+
+    /**
+     * Fills login fields that {@link Listener#onAutofillMessage} told of, as typed by the user. The fields are given
+     * by their ids, with the token, key and origin of their document, so that a document that replaced it gets nothing.
+     */
+    public void autofill(@NonNull String documentToken, @NonNull String key, @NonNull String origin,
+                         @NonNull int[] fieldIds, @NonNull String[] values) {
+        if (mNativePtr != 0 && fieldIds.length == values.length)
+            nativeAutofill(mNativePtr, documentToken, key, origin, fieldIds, values);
+    }
+
+    // A message of WPEView's extension of the web process about the login fields of the page, which the web context
+    // received for this view's page.
+    void onAutofillMessage(@NonNull String kind, @NonNull String content) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            currentListener.onAutofillMessage(kind, content);
+    }
+
     public void destroy() {
+        context.removeWebView(this);
         // Nothing else would end the downloads that still wait for a destination. Those already started go on.
         for (WebKitDownload download : new ArrayList<>(undecidedDownloads))
             download.cancel();
@@ -390,6 +435,13 @@ public final class WebKitWebView {
          * reenter, for example by destroying the view.
          */
         void onNotificationClosed(long notificationId);
+
+        /**
+         * WPEView's extension of the web process tells of the login fields of the main frame of the page, on the main
+         * thread: {@code kind} says what happened, and {@code content} holds the details as JSON, with the token of
+         * the document.
+         */
+        default void onAutofillMessage(@NonNull String kind, @NonNull String content) {}
     }
 
     private @Nullable Listener listener;
@@ -768,6 +820,11 @@ public final class WebKitWebView {
     private native long nativeInit(long displayPtr, long contextPtr, long toplevelPtr, long networkSessionPtr,
                                    long settingsPtr);
     private native long nativeInitRelated(long relatedPtr, long settingsPtr);
+    private native long nativeGetPageId(long nativePtr);
+    private native String nativeGetDocumentOrigin(long nativePtr);
+    private native void nativeSendAutofillKey(long nativePtr, String documentToken, String key);
+    private native void nativeAutofill(long nativePtr, String documentToken, String key, String origin, int[] fieldIds,
+                                       String[] values);
     private native void nativeDestroy(long nativePtr);
     private native void nativeLoadUrl(long nativePtr, String url);
     private native void nativeDownloadUri(long nativePtr, String uri);

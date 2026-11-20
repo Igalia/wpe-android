@@ -25,6 +25,8 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -54,13 +56,15 @@ public final class WebKitWebContext {
     public long getNativePtr() { return mNativePtr; }
     private @Nullable Client client;
     private @Nullable GeolocationListener geolocationListener;
+    // The views of the context that are not destroyed, which hear the messages of WPEView's extension for their pages.
+    private final List<WebKitWebView> webViews = new ArrayList<>();
 
     public WebKitWebContext(boolean automationMode) {
         Context applicationContext = WPERuntime.getInstance().getApplicationContext();
         if (applicationContext == null)
             throw new IllegalStateException(
                 "WPERuntime.initialize() must be called before creating a WebKitWebContext");
-        mNativePtr = nativeInit(automationMode);
+        mNativePtr = nativeInit(automationMode, WPERuntime.getInstance().getWebProcessExtensionsPath());
         PreferredLanguages.add(applicationContext, this);
     }
 
@@ -117,6 +121,22 @@ public final class WebKitWebContext {
     }
 
     public long getWebKitWebContextPtr() { return nativeGetWebKitWebContextPtr(mNativePtr); }
+
+    void addWebView(@NonNull WebKitWebView webView) { webViews.add(webView); }
+
+    void removeWebView(@NonNull WebKitWebView webView) { webViews.remove(webView); }
+
+    // A message of WPEView's extension of the web process, for the view that shows the page now. The id of a page
+    // changes when it moves to another web process, so the message of a page that is gone matches no view.
+    @Keep
+    private void onAutofillMessage(long pageId, @NonNull String kind, @NonNull String content) {
+        for (WebKitWebView webView : new ArrayList<>(webViews)) {
+            if (webView.getPageId() == pageId) {
+                webView.onAutofillMessage(kind, content);
+                return;
+            }
+        }
+    }
 
     /**
      * Sets who gives the pages the location of the device. Without one, WebKit's start fails, as it would look for a
@@ -185,7 +205,7 @@ public final class WebKitWebContext {
             nativeSetNotificationPermissions(mNativePtr, allowed, denied);
     }
 
-    private native long nativeInit(boolean automationMode);
+    private native long nativeInit(boolean automationMode, @Nullable String extensionsPath);
     private native void nativeDestroy(long nativePtr);
     private native boolean nativeIsAutomationMode(long nativePtr);
     private native long nativeGetWebKitWebContextPtr(long nativePtr);

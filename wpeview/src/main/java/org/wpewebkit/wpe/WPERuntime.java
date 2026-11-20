@@ -65,6 +65,28 @@ public final class WPERuntime {
 
     public @Nullable Context getApplicationContext() { return applicationContext; }
 
+    private static final String WEB_PROCESS_EXTENSION_LIBRARY = "libWPEViewWebProcessExtension.so";
+
+    private @Nullable String webProcessExtensionsPath = null;
+
+    /** The folder of WPEView's extension of the web processes, or null if it could not be set up. */
+    @Nullable
+    String getWebProcessExtensionsPath() {
+        return webProcessExtensionsPath;
+    }
+
+    // WebKit's injected bundle loads every library in the folder of the extensions, so WPEView's extension gets a
+    // folder of its own.
+    private static @Nullable String installWebProcessExtension(@NonNull Context context) {
+        File directory =
+            ServiceUtils.installNativeLibrary(context, "web-process-extensions", WEB_PROCESS_EXTENSION_LIBRARY);
+        if (directory == null) {
+            Log.e(LOGTAG, "Cannot install " + WEB_PROCESS_EXTENSION_LIBRARY + ", so pages get no autofill");
+            return null;
+        }
+        return directory.getAbsolutePath();
+    }
+
     private WPEDisplay display = null;
 
     /**
@@ -101,6 +123,7 @@ public final class WPERuntime {
             ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "mime", false);
             // Every process loads the GIO modules, so they are copied here, before this process starts the others.
             ServiceUtils.installAssets(applicationContext, applicationContext.getAssets(), "gio", true);
+            webProcessExtensionsPath = installWebProcessExtension(applicationContext);
 
             ApplicationInfo appInfo = applicationContext.getApplicationInfo();
             List<String> envStrings = new ArrayList<>();

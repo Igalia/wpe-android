@@ -37,6 +37,8 @@ struct WebKitWebContextBridge {
     ~WebKitWebContextBridge()
     {
         g_signal_handlers_disconnect_by_data(webkit_web_context_get_geolocation_manager(m_context), this);
+        if (m_userMessageSignalId)
+            g_signal_handler_disconnect(m_context, m_userMessageSignalId);
         if (m_automationSignalId)
             g_signal_handler_disconnect(m_context, m_automationSignalId);
         disconnectAutomationSession();
@@ -60,6 +62,7 @@ struct WebKitWebContextBridge {
     WebKitWebContext* m_context;
     JNI::GlobalRef<JNIWebKitWebContext> m_javaRef;
     GWeakRef m_automationSession;
+    gulong m_userMessageSignalId {0};
     gulong m_automationSignalId {0};
     gulong m_createWebViewSignalId {0};
     gulong m_willCloseSignalId {0};
@@ -74,8 +77,9 @@ public:
         , m_onGeolocationStart(getMethod<void(jboolean)>("onGeolocationStart"))
         , m_onGeolocationStop(getMethod<void()>("onGeolocationStop"))
         , m_onGeolocationHighAccuracyChanged(getMethod<void(jboolean)>("onGeolocationHighAccuracyChanged"))
+        , m_onAutofillMessage(getMethod<void(jlong, jstring, jstring)>("onAutofillMessage"))
     {
-        registerNativeMethods(JNI::NativeMethod<jlong(jboolean)>("nativeInit", nativeInit),
+        registerNativeMethods(JNI::NativeMethod<jlong(jboolean, jstring)>("nativeInit", nativeInit),
             JNI::NativeMethod<void(jlong)>("nativeDestroy", nativeDestroy),
             JNI::NativeMethod<jboolean(jlong)>("nativeIsAutomationMode", nativeIsAutomationMode),
             JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebContextPtr", nativeGetWebKitWebContextPtr),
@@ -97,8 +101,10 @@ private:
     static gboolean onGeolocationStart(WebKitGeolocationManager* manager, WebKitWebContextBridge* bridge);
     static void onGeolocationStop(WebKitGeolocationManager*, WebKitWebContextBridge* bridge);
     static void onGeolocationHighAccuracyChanged(GObject* manager, GParamSpec*, WebKitWebContextBridge* bridge);
+    static gboolean onUserMessageReceived(
+        WebKitWebContext*, WebKitUserMessage* message, WebKitWebContextBridge* bridge);
 
-    static jlong nativeInit(JNIEnv* env, jobject jniContext, jboolean automationMode);
+    static jlong nativeInit(JNIEnv* env, jobject jniContext, jboolean automationMode, jstring extensionsDirectory);
     static void nativeDestroy(JNIEnv*, jobject, jlong nativePtr);
     static jboolean nativeIsAutomationMode(JNIEnv*, jobject, jlong nativePtr);
     static jlong nativeGetWebKitWebContextPtr(JNIEnv*, jobject, jlong nativePtr);
@@ -118,6 +124,8 @@ private:
     const JNI::Method<void()> m_onGeolocationStop; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
     const JNI::Method<void(jboolean)>
         m_onGeolocationHighAccuracyChanged; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void(jlong, jstring, jstring)>
+        m_onAutofillMessage; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
 };
 
 static const JNIWebKitWebContextCache& getJNIWebKitWebContextCache()
@@ -189,10 +197,39 @@ void JNIWebKitWebContextCache::onGeolocationHighAccuracyChanged(
         Logging::logError("cannot deliver WebKitWebContext onGeolocationHighAccuracyChanged callback");
 }
 
-jlong JNIWebKitWebContextCache::nativeInit(JNIEnv* env, jobject jniContext, jboolean automationMode)
+// WPEView's extension of the web processes tells of the login fields of its pages with messages named
+// "wpeview.autofill", which hold the id of the page, the kind of message and its content as JSON. The extension sends
+// them to the web context, as WebKit 2.56 deprecates the messages of a page.
+gboolean JNIWebKitWebContextCache::onUserMessageReceived(
+    WebKitWebContext*, WebKitUserMessage* message, WebKitWebContextBridge* bridge)
+{
+    if (g_strcmp0(webkit_user_message_get_name(message), "wpeview.autofill") != 0)
+        return FALSE;
+
+    GVariant* parameters = webkit_user_message_get_parameters(message);
+    if (!parameters || !g_variant_is_of_type(parameters, G_VARIANT_TYPE("(tss)")))
+        return TRUE;
+    guint64 pageId = 0;
+    const char* kind = nullptr;
+    const char* content = nullptr;
+    g_variant_get(parameters, "(t&s&s)", &pageId, &kind, &content);
+    if (!getJNIWebKitWebContextCache().m_onAutofillMessage.invoke(bridge->m_javaRef.get(), static_cast<jlong>(pageId),
+            static_cast<jstring>(JNI::String(kind)), static_cast<jstring>(JNI::String(content))))
+        Logging::logError("cannot deliver WebKitWebContext onAutofillMessage callback");
+    return TRUE;
+}
+
+jlong JNIWebKitWebContextCache::nativeInit(
+    JNIEnv* env, jobject jniContext, jboolean automationMode, jstring extensionsDirectory)
 {
     auto* context = webkit_web_context_new();
     webkit_web_context_set_automation_allowed(context, automationMode ? TRUE : FALSE);
+    if (extensionsDirectory) {
+        auto javaDirectory = JNI::String(extensionsDirectory);
+        auto directory = javaDirectory.getContent();
+        if (directory)
+            webkit_web_context_set_web_process_extensions_directory(context, directory.get());
+    }
 
     auto* bridge = new WebKitWebContextBridge(context);
     bridge->m_javaRef = JNI::GlobalRef<JNIWebKitWebContext>(env, jniContext);
@@ -201,6 +238,8 @@ jlong JNIWebKitWebContextCache::nativeInit(JNIEnv* env, jobject jniContext, jboo
     g_signal_connect(geolocationManager, "stop", G_CALLBACK(onGeolocationStop), bridge);
     g_signal_connect(
         geolocationManager, "notify::enable-high-accuracy", G_CALLBACK(onGeolocationHighAccuracyChanged), bridge);
+    bridge->m_userMessageSignalId
+        = g_signal_connect(context, "user-message-received", G_CALLBACK(onUserMessageReceived), bridge);
     if (automationMode) {
         bridge->m_automationSignalId
             = g_signal_connect(context, "automation-started", G_CALLBACK(onAutomationStarted), bridge);

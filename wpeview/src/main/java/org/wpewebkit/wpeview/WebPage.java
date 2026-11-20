@@ -138,6 +138,8 @@ public final class WebPage {
     private final WebSettings settings;
     // Package-private: used by the inner classes (avoids synthetic accessors).
     final WebKitWebView webKitWebView;
+    // The login fields of the page, which the view that shows it gives to Android's Autofill.
+    final PageAutofill autofill = new PageAutofill(this);
     @NonNull
     WebPageClient client = new WebPageClient();
     @NonNull
@@ -1010,6 +1012,8 @@ public final class WebPage {
         public void onHistoryChanged(@NonNull String uri, boolean goBack, boolean goForward) {
             canGoBack = goBack;
             canGoForward = goForward;
+            // Also at each commit.
+            autofill.onCommitted();
             client.doUpdateVisitedHistory(WebPage.this, uri, /* isReload */ false);
             updateTitle();
         }
@@ -1055,11 +1059,17 @@ public final class WebPage {
         @Override
         public void onWebProcessTerminated(int reason) {
             endNotifications();
+            autofill.reset();
             boolean fieldFocused = inputFieldFocused;
             inputFieldFocused = false;
             if (view != null)
                 view.onPageWebProcessTerminated(fieldFocused);
             client.onWebProcessTerminated(WebPage.this, reason);
+        }
+
+        @Override
+        public void onAutofillMessage(@NonNull String kind, @NonNull String content) {
+            autofill.onMessage(kind, content);
         }
 
         // WebKit can only put the page of the new window in a view made for it, in this call.

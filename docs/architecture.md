@@ -37,6 +37,14 @@ Native code lives in:
 environment, registers the `WPERuntime` infrastructure JNI mappings, then
 registers the `capi/` mappings through `WebKit::configureJNIMappings()`.
 
+WPEView's extension of the web process, `libWPEViewWebProcessExtension.so` from
+`wpeview/src/main/cpp/WebProcessExtension/`, runs beside the pages in every web
+process. `WPERuntime` copies it into a folder of its own in the files folder,
+since WebKit's injected bundle loads every library of the folder it is given,
+and each web context points WebKit at that folder. The extension finds the login
+fields of the main frame of each page for Android's Autofill, and talks to the
+UI process through messages of the web context.
+
 ### Layer 1: Public Android convenience API
 
 This is the Android widget API intended for application developers. It owns the
@@ -569,6 +577,8 @@ Add runtime or process behavior to Layer 0:
 - Put looper and GLib main-loop integration in `Runtime/MessagePump.cpp`.
 - Put service-side code under `org.wpewebkit.wpe.services` and
   `wpeview/src/main/cpp/Service/`.
+- Put code that must run in the web process, beside the pages, in
+  `wpeview/src/main/cpp/WebProcessExtension/`.
 
 ## Naming
 
