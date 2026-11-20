@@ -277,4 +277,59 @@ public class AuxiliaryProcessesContainerTest {
         assertEquals(0, acquirePriority(1, true));
         assertEquals(boundServices, unboundServices);
     }
+
+    /**
+     * The page the app showed when its activity paused keeps the priority of the app while the app is away, so that
+     * Android does not end it before the app. Android may hide the window, and WebKit release its hold, before the
+     * activity stops. Pages hidden before keep no priority.
+     */
+    @Test
+    public void testPageShownAtPauseKeepsThePriorityOfTheAppWhileItIsAway() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        connect(launchProcess(3), new FakeService());
+        long shown = acquirePriority(1, true);
+        acquirePriority(2, false);
+
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.releasePriority(shown));
+        assertEquals(List.of(boundServices.get(0)), unboundServices);
+        onMainThread(container::onAppLeftFront);
+        onMainThread(container::onAppLeftFront);
+        assertEquals("Process 1 is held once more, and only process 1", 3, boundServices.size());
+        ServiceConnection appAway = boundServices.get(2);
+        assertEquals(Integer.valueOf(Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT), boundFlags.get(2));
+
+        onMainThread(container::onAppBackInFront);
+        assertEquals(List.of(boundServices.get(0), appAway), unboundServices);
+        onMainThread(container::onAppBackInFront);
+        assertEquals("A hold is released once", 2, unboundServices.size());
+    }
+
+    @Test
+    public void testHoldsWhileTheAppIsAwayAreReleasedWithTheirProcess() throws IOException {
+        WPEServiceConnection connection = launchProcess(1);
+        connect(connection, new FakeService());
+        acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(container::onAppLeftFront);
+        ServiceConnection appAway = boundServices.get(1);
+
+        onMainThread(() -> listener.onServiceDisconnected(connection));
+        assertEquals(List.of(boundServices.get(0), appAway, connection), unboundServices);
+        onMainThread(container::onAppBackInFront);
+        assertEquals("The hold was released with its process", 3, unboundServices.size());
+    }
+
+    @Test
+    public void testProcessEndedBeforeTheAppLeftIsNotHeld() throws IOException {
+        WPEServiceConnection connection = launchProcess(1);
+        connect(connection, new FakeService());
+        acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+
+        onMainThread(() -> listener.onServiceDisconnected(connection));
+        onMainThread(container::onAppLeftFront);
+        assertEquals(1, boundServices.size());
+    }
 }

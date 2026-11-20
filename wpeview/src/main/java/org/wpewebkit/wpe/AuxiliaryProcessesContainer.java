@@ -33,8 +33,10 @@ import org.wpewebkit.wpe.services.WPEServiceConnection;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 final class AuxiliaryProcessesContainer {
@@ -55,6 +57,10 @@ final class AuxiliaryProcessesContainer {
     // The priorities WebKit holds on processes, by identifier (see acquirePriority()).
     private final Map<Long, PriorityHold> priorityHolds = new HashMap<>();
     private long lastPriorityId = 0;
+    // The web processes WebKit held in the foreground when an activity of the app last paused (see onActivityPaused()).
+    private final Set<Long> processesShownAtPause = new HashSet<>();
+    // The holds that keep processes at the priority of the app while it is away (see onAppLeftFront()).
+    private final List<PriorityHold> appAwayHolds = new ArrayList<>();
 
     AuxiliaryProcessesContainer(@NonNull ServiceBinder serviceBinder,
                                 @NonNull Consumer<ServiceConnection> unbindService) {
@@ -111,7 +117,10 @@ final class AuxiliaryProcessesContainer {
 
         // Each hold binds the service with BIND_AUTO_CREATE, so one left behind would start the service again.
         for (PriorityHold hold : process.takePriorityHolds()) {
-            priorityHolds.remove(hold.id);
+            if (hold.id != 0)
+                priorityHolds.remove(hold.id);
+            else
+                appAwayHolds.remove(hold);
             unbindService.accept(hold);
         }
 
@@ -133,18 +142,73 @@ final class AuxiliaryProcessesContainer {
         if (process == null || process.getProcessType() != WPEProcessType.WebProcess)
             return 0;
 
-        PriorityHold hold = new PriorityHold(++lastPriorityId, pid);
-        int flags = Context.BIND_AUTO_CREATE | (foreground ? Context.BIND_IMPORTANT : Context.BIND_NOT_PERCEPTIBLE);
-        if (!serviceBinder.bindService(process.getService(), hold, flags)) {
-            // A failed binding is unbound too, as Context.bindService() asks.
-            Log.w(LOGTAG, "Cannot bind a priority hold for process " + pid);
-            unbindService.accept(hold);
+        PriorityHold hold = new PriorityHold(++lastPriorityId, pid, foreground);
+        if (!bindPriorityHold(process, hold))
             return 0;
-        }
-        process.addPriorityHold(hold);
         priorityHolds.put(hold.id, hold);
         return hold.id;
     }
+
+    private boolean bindPriorityHold(@NonNull AuxiliaryProcess process, @NonNull PriorityHold hold) {
+        int flags =
+            Context.BIND_AUTO_CREATE | (hold.foreground ? Context.BIND_IMPORTANT : Context.BIND_NOT_PERCEPTIBLE);
+        if (!serviceBinder.bindService(process.getService(), hold, flags)) {
+            // A failed binding is unbound too, as Context.bindService() asks.
+            Log.w(LOGTAG, "Cannot bind a priority hold for process " + hold.pid);
+            unbindService.accept(hold);
+            return false;
+        }
+        process.addPriorityHold(hold);
+        return true;
+    }
+
+    /**
+     * Remembers the web processes that WebKit holds in the foreground when an activity of the app pauses: the one of
+     * the page the activity shows, as Android pauses an activity before it hides its window, and any that plays sound
+     * or that the app waits on. The window may be hidden, and WebKit release its hold, before the activity stops. An
+     * activity that shows no page, such as one over the page, notes none.
+     */
+    public void onActivityPaused() {
+        processesShownAtPause.clear();
+        for (Map.Entry<Long, AuxiliaryProcess> entry : pidToProcessMap.entrySet()) {
+            if (entry.getValue().hasForegroundHold())
+                processesShownAtPause.add(entry.getKey());
+        }
+    }
+
+    /**
+     * Keeps the web processes that WebKit held in the foreground when an activity last paused at the priority of the
+     * app while the app is away, with none of its activities started, until onAppBackInFront(). One of them runs the
+     * page the app showed: WebKit releases its hold once the page is hidden, and the page frees memory as a hidden page
+     * does, but Android would otherwise end its process before the app, and the user would come back to the page
+     * loading again. Others may have played sound, and stay at the priority of the app until it comes back too. Pages
+     * hidden before keep no priority, so Android still ends their processes first.
+     */
+    public void onAppLeftFront() {
+        for (long pid : processesShownAtPause) {
+            AuxiliaryProcess process = pidToProcessMap.get(pid);
+            if (process == null || process.hasAppAwayHold())
+                continue;
+            PriorityHold hold = new PriorityHold(0, pid, /* foreground */ true);
+            if (bindPriorityHold(process, hold))
+                appAwayHolds.add(hold);
+        }
+        processesShownAtPause.clear();
+    }
+
+    /** Releases the holds of onAppLeftFront(), whichever page the app shows now. */
+    public void onAppBackInFront() {
+        for (PriorityHold hold : appAwayHolds) {
+            AuxiliaryProcess process = pidToProcessMap.get(hold.pid);
+            if (process != null)
+                process.removePriorityHold(hold);
+            unbindService.accept(hold);
+        }
+        appAwayHolds.clear();
+    }
+
+    // Package-private: read by the tests.
+    int getAppAwayHoldCount() { return appAwayHolds.size(); }
 
     /** Releases a hold of acquirePriority(). One whose process was unregistered meanwhile is already released. */
     public void releasePriority(long priorityId) {
@@ -196,12 +260,15 @@ final class AuxiliaryProcessesContainer {
 
     // A binding that only ranks the process of a service: the service is connected through WPEServiceConnection.
     private static final class PriorityHold implements ServiceConnection {
+        // The identifier WebKit releases the hold with, or 0 for a hold of onAppLeftFront().
         final long id;
         final long pid;
+        final boolean foreground;
 
-        PriorityHold(long id, long pid) {
+        PriorityHold(long id, long pid, boolean foreground) {
             this.id = id;
             this.pid = pid;
+            this.foreground = foreground;
         }
 
         @Override
@@ -234,6 +301,22 @@ final class AuxiliaryProcessesContainer {
         void addPriorityHold(@NonNull PriorityHold hold) { priorityHolds.add(hold); }
 
         void removePriorityHold(@NonNull PriorityHold hold) { priorityHolds.remove(hold); }
+
+        boolean hasForegroundHold() {
+            for (PriorityHold hold : priorityHolds) {
+                if (hold.id != 0 && hold.foreground)
+                    return true;
+            }
+            return false;
+        }
+
+        boolean hasAppAwayHold() {
+            for (PriorityHold hold : priorityHolds) {
+                if (hold.id == 0)
+                    return true;
+            }
+            return false;
+        }
 
         @NonNull
         List<PriorityHold> takePriorityHolds() {

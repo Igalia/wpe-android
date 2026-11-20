@@ -53,14 +53,18 @@ public class WPEActivityObserver implements Application.ActivityLifecycleCallbac
     @Override
     public void onActivityStarted(@NonNull Activity a) {
         Log.d(LOGTAG, "activity started: " + a);
+        boolean appWasAway = startedActivities.isEmpty();
         startedActivities.remove(a);
         startedActivities.add(a);
         setCurrentActivity(a);
+        if (appWasAway)
+            WPERuntime.getInstance().auxiliaryProcesses.onAppBackInFront();
     }
 
     @Override
     public void onActivityPaused(@NonNull Activity a) {
         Log.d(LOGTAG, "activity paused: " + a);
+        WPERuntime.getInstance().auxiliaryProcesses.onActivityPaused();
     }
 
     @Override
@@ -72,9 +76,13 @@ public class WPEActivityObserver implements Application.ActivityLifecycleCallbac
     public void onActivityStopped(@NonNull Activity a) {
         Log.d(LOGTAG, "activity stopped: " + a);
         boolean wasCurrent = getCurrentActivity() == a;
-        startedActivities.remove(a);
+        boolean wasStarted = startedActivities.remove(a);
         if (wasCurrent)
             setCurrentActivity(getCurrentActivity());
+        // The app leaves the front when its last started activity stops. An activity that is recreated for a new
+        // configuration starts again at once.
+        if (wasStarted && startedActivities.isEmpty() && !a.isChangingConfigurations())
+            WPERuntime.getInstance().auxiliaryProcesses.onAppLeftFront();
     }
 
     @Override
