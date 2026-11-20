@@ -22,6 +22,7 @@ namespace WebKit {
 
 void configureJNIMappings();
 
+void configureSoupTLDJNIMappings();
 void configureWebKitCookieManagerJNIMappings();
 void configureWebKitCookieManagerAcceptPolicyCallbackHolderJNIMappings();
 void configureWebKitDownloadJNIMappings();
