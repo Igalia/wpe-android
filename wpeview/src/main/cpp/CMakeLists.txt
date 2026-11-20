@@ -124,6 +124,7 @@ add_library(
     Runtime/MessagePump.cpp
     Runtime/WPERuntime.cpp
     capi/JNIMappings.cpp
+    capi/SoupTLD.cpp
     capi/WebKitCookieManager.cpp
     capi/WebKitDownload.cpp
     capi/WebKitNetworkSession.cpp
