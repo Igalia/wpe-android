@@ -19,6 +19,8 @@
 package org.wpewebkit.wpe;
 
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -36,11 +38,14 @@ import org.wpewebkit.wpe.services.WPEServiceConnectionListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 /**
  * Each slot of a process type is an Android service, which can only run a new process once the process it ran has
@@ -70,8 +75,16 @@ public class AuxiliaryProcessesContainerTest {
         }
     }
 
+    // The services the container bound, and their flags, in the order it bound them.
+    final List<ServiceConnection> boundServices = new ArrayList<>();
+    final List<Integer> boundFlags = new ArrayList<>();
+    boolean bindingSucceeds = true;
     final List<ServiceConnection> unboundServices = new ArrayList<>();
-    final AuxiliaryProcessesContainer container = new AuxiliaryProcessesContainer(unboundServices::add);
+    final AuxiliaryProcessesContainer container = new AuxiliaryProcessesContainer((service, connection, flags) -> {
+        boundServices.add(connection);
+        boundFlags.add(flags);
+        return bindingSucceeds;
+    }, unboundServices::add);
     // Tells the container what WPERuntime tells it.
     final WPEServiceConnectionListener listener = new WPEServiceConnectionListener() {
         @Override
@@ -113,14 +126,24 @@ public class AuxiliaryProcessesContainerTest {
     }
 
     private @NonNull WPEServiceConnection launchProcess(long pid) throws IOException {
+        return launchProcess(pid, WPEProcessType.WebProcess);
+    }
+
+    private @NonNull WPEServiceConnection launchProcess(long pid, @NonNull WPEProcessType type) throws IOException {
         ParcelFileDescriptor[] socketPair = ParcelFileDescriptor.createSocketPair();
         sockets.add(socketPair[1]);
         AtomicReference<WPEServiceConnection> connection = new AtomicReference<>();
         onMainThread(() -> {
-            connection.set(new WPEServiceConnection(pid, WPEProcessType.WebProcess, socketPair[0], listener));
-            container.register(pid, connection.get());
+            connection.set(new WPEServiceConnection(pid, type, socketPair[0], listener));
+            container.register(pid, connection.get(), new Intent());
         });
         return connection.get();
+    }
+
+    private long acquirePriority(long pid, boolean foreground) {
+        AtomicReference<Long> priorityId = new AtomicReference<>();
+        onMainThread(() -> priorityId.set(container.acquirePriority(pid, foreground)));
+        return priorityId.get();
     }
 
     private static void connect(@NonNull WPEServiceConnection connection, @NonNull FakeService service) {
@@ -197,5 +220,65 @@ public class AuxiliaryProcessesContainerTest {
         });
         assertEquals(1, firstAvailableSlot());
         assertEquals(1, unboundServices.size());
+    }
+
+    @Test
+    public void testPriorityHoldsBindTheServiceUntilReleased() throws IOException {
+        FakeService service = new FakeService();
+        connect(launchProcess(1), service);
+
+        long foreground = acquirePriority(1, true);
+        long background = acquirePriority(1, false);
+        assertNotEquals(0, foreground);
+        assertNotEquals(0, background);
+        assertNotEquals(foreground, background);
+        assertEquals(List.of(Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT,
+                             Context.BIND_AUTO_CREATE | Context.BIND_NOT_PERCEPTIBLE),
+                     boundFlags);
+
+        onMainThread(() -> container.releasePriority(foreground));
+        assertEquals(List.of(boundServices.get(0)), unboundServices);
+        onMainThread(() -> container.releasePriority(foreground));
+        assertEquals("A hold is released once", 1, unboundServices.size());
+    }
+
+    /** A hold left bound would start the service of an ended process again, with no socket, and keep its slot. */
+    @Test
+    public void testPriorityHoldsAreReleasedWithTheirProcess() throws IOException {
+        FakeService service = new FakeService();
+        WPEServiceConnection connection = launchProcess(1);
+        connect(connection, service);
+        long foreground = acquirePriority(1, true);
+        long background = acquirePriority(1, false);
+
+        onMainThread(() -> listener.onServiceDisconnected(connection));
+        assertEquals("Both holds are unbound, in any order, before the service",
+                     Set.of(boundServices.get(0), boundServices.get(1)), new HashSet<>(unboundServices.subList(0, 2)));
+        assertEquals(List.of(connection), unboundServices.subList(2, unboundServices.size()));
+
+        onMainThread(() -> {
+            container.releasePriority(foreground);
+            container.releasePriority(background);
+        });
+        assertEquals("WebKit releases its holds after the process ended", 3, unboundServices.size());
+        assertEquals(0, acquirePriority(1, true));
+    }
+
+    @Test
+    public void testOnlyRegisteredWebProcessesAreRanked() throws IOException {
+        connect(launchProcess(1, WPEProcessType.NetworkProcess), new FakeService());
+
+        assertEquals(0, acquirePriority(1, true));
+        assertEquals(0, acquirePriority(2, true));
+        assertEquals(List.of(), boundServices);
+    }
+
+    @Test
+    public void testFailedPriorityBindingIsUnbound() throws IOException {
+        connect(launchProcess(1), new FakeService());
+
+        bindingSucceeds = false;
+        assertEquals(0, acquirePriority(1, true));
+        assertEquals(boundServices, unboundServices);
     }
 }

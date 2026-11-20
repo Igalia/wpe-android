@@ -71,6 +71,18 @@ static void wpeProcessManagerAndroidTerminate(WPEProcessManager*, guint64 pid)
     wpeRuntimeTerminateProcess(static_cast<int64_t>(pid));
 }
 
+// Android ranks the process of a service by the strongest binding to it, so each hold is a binding of its own.
+static guint64 wpeProcessManagerAndroidAcquirePriority(WPEProcessManager*, guint64 pid, WPEProcessPriority priority)
+{
+    return static_cast<guint64>(
+        wpeRuntimeAcquireProcessPriority(static_cast<int64_t>(pid), priority == WPE_PROCESS_PRIORITY_FOREGROUND));
+}
+
+static void wpeProcessManagerAndroidReleasePriority(WPEProcessManager*, guint64 priorityId)
+{
+    wpeRuntimeReleaseProcessPriority(static_cast<int64_t>(priorityId));
+}
+
 static void wpe_process_manager_android_init(WPEProcessManagerAndroid*)
 {
 }
@@ -80,6 +92,8 @@ static void wpe_process_manager_android_class_init(WPEProcessManagerAndroidClass
     auto* managerClass = WPE_PROCESS_MANAGER_CLASS(klass);
     managerClass->launch = wpeProcessManagerAndroidLaunch;
     managerClass->terminate = wpeProcessManagerAndroidTerminate;
+    managerClass->acquire_priority = wpeProcessManagerAndroidAcquirePriority;
+    managerClass->release_priority = wpeProcessManagerAndroidReleasePriority;
 }
 
 WPEProcessManager* wpe_process_manager_android_new(void)

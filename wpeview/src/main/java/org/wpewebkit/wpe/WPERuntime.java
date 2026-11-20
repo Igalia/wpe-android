@@ -33,7 +33,6 @@ import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
-import androidx.annotation.WorkerThread;
 
 import org.wpewebkit.wpe.services.ServiceUtils;
 import org.wpewebkit.wpe.services.WPEServiceConnection;
@@ -131,7 +130,9 @@ public final class WPERuntime {
     }
 
     protected final AuxiliaryProcessesContainer auxiliaryProcesses =
-        new AuxiliaryProcessesContainer(connection -> getApplicationContext().unbindService(connection));
+        new AuxiliaryProcessesContainer((service, connection, flags)
+                                            -> getApplicationContext().bindService(service, connection, flags),
+                                        connection -> getApplicationContext().unbindService(connection));
 
     private final WPEServiceConnectionListener serviceConnectionDelegate = new WPEServiceConnectionListener() {
         public void onCleanExit(@NonNull WPEServiceConnection connection) {
@@ -179,7 +180,7 @@ public final class WPERuntime {
      * @param fd File descriptor used by WebKit for IPC.
      */
     @Keep
-    @WorkerThread
+    @UiThread
     public void launchProcess(long pid, int type, int fd) {
         WPEProcessType processType = WPEProcessType.fromValue(type);
         Log.d(LOGTAG, "launchProcess " + processType.name() + " (pid: " + pid + ", fd: " + fd + ")");
@@ -196,7 +197,7 @@ public final class WPERuntime {
             WPEServiceConnection serviceConnection =
                 new WPEServiceConnection(pid, processType, parcelFd, serviceConnectionDelegate);
             if (!applicationContext.bindService(intent, serviceConnection,
-                                                Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT)) {
+                                                AuxiliaryProcessesContainer.getBindingFlags(processType))) {
                 // The service never connects, so it is not registered, as it would keep its slot, and no service takes
                 // the socket.
                 Log.e(LOGTAG, "Cannot bind " + serviceClass.getSimpleName());
@@ -204,7 +205,7 @@ public final class WPERuntime {
                 applicationContext.unbindService(serviceConnection);
                 return;
             }
-            auxiliaryProcesses.register(pid, serviceConnection);
+            auxiliaryProcesses.register(pid, serviceConnection, intent);
         } catch (Exception e) {
             Log.e(LOGTAG, "Cannot launch auxiliary process", e);
         }
@@ -216,8 +217,31 @@ public final class WPERuntime {
      * system pid.
      */
     @Keep
-    @WorkerThread
+    @UiThread
     public void terminateProcess(long pid) {
         auxiliaryProcesses.unregister(pid);
+    }
+
+    /**
+     * Called from WebKit when it needs a process to run at a priority, until it calls releaseProcessPriority(). A
+     * process WebKit holds no priority on is idle: WebKit asks it to free memory first, and takes a priority again
+     * before it needs the process.
+     * @param pid The process identifier, as for launchProcess().
+     * @param foreground Whether WebKit needs the process in the foreground, otherwise in the background.
+     * @return An identifier for the hold, or 0 when the process is not ranked.
+     */
+    @Keep
+    @UiThread
+    public long acquireProcessPriority(long pid, boolean foreground) {
+        long priorityId = auxiliaryProcesses.acquirePriority(pid, foreground);
+        Log.d(LOGTAG, "acquireProcessPriority (pid: " + pid + ", foreground: " + foreground + ") gives " + priorityId);
+        return priorityId;
+    }
+
+    @Keep
+    @UiThread
+    public void releaseProcessPriority(long priorityId) {
+        Log.d(LOGTAG, "releaseProcessPriority " + priorityId);
+        auxiliaryProcesses.releasePriority(priorityId);
     }
 }
