@@ -50,9 +50,10 @@ public class WebViewWindowTest {
     // load() starts loading a new media element, and state says whether it has started; a page out of its
     // window does not start loading new media until it is back in one. Loading needs no audio output.
     private static final String MEDIA_PAGE = "<html><body><script>var state = 'none';\n"
+                                             + "var audio;\n"
                                              + "function load() {\n"
                                              + "    state = 'pending';\n"
-                                             + "    var audio = new Audio();\n"
+                                             + "    audio = new Audio();\n"
                                              + "    audio.onloadstart = () => state = 'loading';\n"
                                              + "    audio.src = '" + silentWavUrl() + "';\n"
                                              + "}</script></body></html>";
