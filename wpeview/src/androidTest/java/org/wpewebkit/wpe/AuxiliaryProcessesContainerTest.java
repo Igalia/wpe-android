@@ -75,16 +75,16 @@ public class AuxiliaryProcessesContainerTest {
         }
     }
 
-    // The services the container bound, and their flags, in the order it bound them.
+    // The services the container bound, their flags and the processes they run, in the order it bound them.
     final List<ServiceConnection> boundServices = new ArrayList<>();
     final List<Integer> boundFlags = new ArrayList<>();
+    final List<Long> boundPids = new ArrayList<>();
     boolean bindingSucceeds = true;
     final List<ServiceConnection> unboundServices = new ArrayList<>();
-    final AuxiliaryProcessesContainer container = new AuxiliaryProcessesContainer((service, connection, flags) -> {
-        boundServices.add(connection);
-        boundFlags.add(flags);
-        return bindingSucceeds;
-    }, unboundServices::add);
+    // How many services the container had bound when it unbound each of unboundServices.
+    final List<Integer> boundBeforeUnbinding = new ArrayList<>();
+    final AuxiliaryProcessesContainer container =
+        new AuxiliaryProcessesContainer(this::bindService, this::unbindService);
     // Tells the container what WPERuntime tells it.
     final WPEServiceConnectionListener listener = new WPEServiceConnectionListener() {
         @Override
@@ -115,6 +115,18 @@ public class AuxiliaryProcessesContainerTest {
             socket.close();
     }
 
+    private boolean bindService(@NonNull Intent service, @NonNull ServiceConnection connection, int flags) {
+        boundServices.add(connection);
+        boundFlags.add(flags);
+        boundPids.add(service.getLongExtra("pid", 0));
+        return bindingSucceeds;
+    }
+
+    private void unbindService(@NonNull ServiceConnection connection) {
+        unboundServices.add(connection);
+        boundBeforeUnbinding.add(boundServices.size());
+    }
+
     private static void onMainThread(@NonNull Runnable runnable) {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(runnable);
     }
@@ -135,7 +147,7 @@ public class AuxiliaryProcessesContainerTest {
         AtomicReference<WPEServiceConnection> connection = new AtomicReference<>();
         onMainThread(() -> {
             connection.set(new WPEServiceConnection(pid, type, socketPair[0], listener));
-            container.register(pid, connection.get(), new Intent());
+            container.register(pid, connection.get(), new Intent().putExtra("pid", pid));
         });
         return connection.get();
     }
@@ -144,6 +156,12 @@ public class AuxiliaryProcessesContainerTest {
         AtomicReference<Long> priorityId = new AtomicReference<>();
         onMainThread(() -> priorityId.set(container.acquirePriority(pid, foreground)));
         return priorityId.get();
+    }
+
+    private int appAwayHolds() {
+        AtomicInteger count = new AtomicInteger();
+        onMainThread(() -> count.set(container.getAppAwayHoldCount()));
+        return count.get();
     }
 
     private static void connect(@NonNull WPEServiceConnection connection, @NonNull FakeService service) {
@@ -280,5 +298,213 @@ public class AuxiliaryProcessesContainerTest {
         bindingSucceeds = false;
         assertEquals(0, acquirePriority(1, true));
         assertEquals(boundServices, unboundServices);
+    }
+
+    /**
+     * The page the app showed when its activity paused keeps the priority of the app while the app is away, so that
+     * Android does not rank it below the app. Android may hide the window, and WebKit release its hold, before the
+     * activity stops. Pages hidden before keep no priority.
+     */
+    @Test
+    public void testPageShownAtPauseKeepsThePriorityOfTheAppWhileItIsAway() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        connect(launchProcess(3), new FakeService());
+        long shown = acquirePriority(1, true);
+        acquirePriority(2, false);
+
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.releasePriority(shown));
+        assertEquals(List.of(boundServices.get(0)), unboundServices);
+        onMainThread(() -> container.onAppLeftFront(false));
+        onMainThread(() -> container.onAppLeftFront(false));
+        assertEquals("Process 1 is held once more, and only process 1", List.of(1L, 2L, 1L), boundPids);
+        assertEquals(Integer.valueOf(Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT), boundFlags.get(2));
+        assertEquals(1, unboundServices.size());
+    }
+
+    /**
+     * A page may be shown after the activity paused and before it stops, as after a load in a new process while a
+     * window of another app covers the activity. It keeps the priority of the app too.
+     */
+    @Test
+    public void testPageShownWhileTheActivityIsPausedKeepsThePriorityOfTheApp() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        connect(launchProcess(3), new FakeService());
+        long hidden = acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.releasePriority(hidden));
+        onMainThread(container::onActivityPaused);
+
+        long shown = acquirePriority(2, true);
+        acquirePriority(3, false);
+        onMainThread(() -> container.releasePriority(shown));
+        onMainThread(() -> container.onAppLeftFront(false));
+        assertEquals("Process 2 is held once more, and only process 2", List.of(1L, 2L, 3L, 2L), boundPids);
+    }
+
+    /**
+     * When the app comes back, the process of the page it showed keeps the priority of the app until WebKit holds it
+     * in the foreground again, once Android shows the window of the activity. Another process that the app showed
+     * when it left keeps it until WebKit holds a process in the foreground that has none, as when the app shows
+     * another page.
+     */
+    @Test
+    public void testAppAwayHoldIsReleasedOnceWebKitHoldsItsProcessAgain() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        connect(launchProcess(3), new FakeService());
+        long shown = acquirePriority(1, true);
+        long other = acquirePriority(2, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> {
+            container.releasePriority(shown);
+            container.releasePriority(other);
+            container.onAppLeftFront(false);
+        });
+        assertEquals(2, appAwayHolds());
+        ServiceConnection appAwayOfShown = boundServices.get(boundPids.lastIndexOf(1L));
+        ServiceConnection appAwayOfOther = boundServices.get(boundPids.lastIndexOf(2L));
+
+        onMainThread(container::onAppBackInFront);
+        assertEquals("WebKit does not hold the pages yet", 2, appAwayHolds());
+
+        acquirePriority(1, true);
+        assertEquals(1, appAwayHolds());
+        assertEquals(appAwayOfShown, unboundServices.get(unboundServices.size() - 1));
+        assertEquals("The process is held again before its hold is released", boundServices.size(),
+                     (int)boundBeforeUnbinding.get(boundBeforeUnbinding.size() - 1));
+        acquirePriority(1, true);
+        assertEquals("Another hold on a process kept while the app was away releases no other", 1, appAwayHolds());
+
+        acquirePriority(3, true);
+        assertEquals(0, appAwayHolds());
+        assertEquals(appAwayOfOther, unboundServices.get(unboundServices.size() - 1));
+    }
+
+    /**
+     * An activity that starts may stop again without having resumed, as one that is shown behind a window of another
+     * app. A page shown since the app came back keeps the priority of the app when it leaves again.
+     */
+    @Test
+    public void testPageShownBeforeAnActivityResumedKeepsThePriorityOfTheApp() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        long shown = acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> {
+            container.releasePriority(shown);
+            container.onAppLeftFront(false);
+            container.onAppBackInFront();
+        });
+
+        long shownSinceBack = acquirePriority(2, true);
+        onMainThread(() -> {
+            container.releasePriority(shownSinceBack);
+            container.onAppLeftFront(false);
+        });
+        assertEquals(1, appAwayHolds());
+        assertEquals(List.of(1L, 1L, 2L, 2L), boundPids);
+    }
+
+    /**
+     * A process that WebKit holds in the foreground while the app is away, as one that plays sound, keeps its rank by
+     * that hold when the app comes back. A page that starts to play sound while the app is away releases no hold.
+     */
+    @Test
+    public void testAppAwayHoldOfAProcessWebKitHoldsIsReleasedWhenTheAppComesBack() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        connect(launchProcess(3), new FakeService());
+        acquirePriority(1, true);
+        long shown = acquirePriority(2, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> {
+            container.releasePriority(shown);
+            container.onAppLeftFront(false);
+        });
+        assertEquals(2, appAwayHolds());
+
+        acquirePriority(3, true);
+        assertEquals(2, appAwayHolds());
+
+        onMainThread(container::onAppBackInFront);
+        assertEquals(1, appAwayHolds());
+        assertEquals(boundServices.get(boundPids.lastIndexOf(1L)), unboundServices.get(unboundServices.size() - 1));
+    }
+
+    /**
+     * When the user leaves with Back, the activity finishes and its pages close, so no process keeps the priority of
+     * the app: the process of a closed page may stay in the process cache of WebKit. A process that kept it from a
+     * time the app left before loses it.
+     */
+    @Test
+    public void testNoProcessKeepsThePriorityOfTheAppWhenTheActivityThatLeftIsFinishing() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        connect(launchProcess(2), new FakeService());
+        long shown = acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> {
+            container.releasePriority(shown);
+            container.onAppLeftFront(false);
+        });
+        acquirePriority(2, true);
+        onMainThread(container::onAppBackInFront);
+        assertEquals(1, appAwayHolds());
+
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.onAppLeftFront(true));
+        assertEquals(0, appAwayHolds());
+        assertEquals("No process is held once more", List.of(1L, 1L, 2L), boundPids);
+    }
+
+    /**
+     * A process that kept the priority of the app from a time the app left before, and that the app did not show
+     * since, loses it when the app leaves again.
+     */
+    @Test
+    public void testProcessNotShownSinceTheAppCameBackLosesThePriorityOfTheApp() throws IOException {
+        connect(launchProcess(1), new FakeService());
+        long shown = acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> {
+            container.releasePriority(shown);
+            container.onAppLeftFront(false);
+            container.onAppBackInFront();
+        });
+        ServiceConnection appAway = boundServices.get(1);
+
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.onAppLeftFront(false));
+        assertEquals(0, appAwayHolds());
+        assertEquals(appAway, unboundServices.get(unboundServices.size() - 1));
+    }
+
+    @Test
+    public void testHoldsWhileTheAppIsAwayAreReleasedWithTheirProcess() throws IOException {
+        WPEServiceConnection connection = launchProcess(1);
+        connect(connection, new FakeService());
+        acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+        onMainThread(() -> container.onAppLeftFront(false));
+        ServiceConnection appAway = boundServices.get(1);
+
+        onMainThread(() -> listener.onServiceDisconnected(connection));
+        assertEquals(List.of(boundServices.get(0), appAway, connection), unboundServices);
+        onMainThread(container::onAppBackInFront);
+        assertEquals("The hold was released with its process", 3, unboundServices.size());
+    }
+
+    @Test
+    public void testProcessEndedBeforeTheAppLeftIsNotHeld() throws IOException {
+        WPEServiceConnection connection = launchProcess(1);
+        connect(connection, new FakeService());
+        acquirePriority(1, true);
+        onMainThread(container::onActivityPaused);
+
+        onMainThread(() -> listener.onServiceDisconnected(connection));
+        onMainThread(() -> container.onAppLeftFront(false));
+        assertEquals(1, boundServices.size());
     }
 }
