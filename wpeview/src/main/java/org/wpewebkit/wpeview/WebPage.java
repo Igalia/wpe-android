@@ -474,6 +474,32 @@ public final class WebPage {
     public boolean isPlayingAudio() { return playingAudio; }
 
     /**
+     * Returns the icon of the page in a bitmap that fits a square of {@code size} by {@code size} pixels, or null while
+     * the page has none. The icons of a page are those it declares with {@code <link rel="icon">}, or for a page whose
+     * address is http or https and that declares none, the {@code /favicon.ico} of its site, in the sizes they come in:
+     * this picks the smallest whose longer side is at least {@code size}, and scales it down to fit, or else the
+     * biggest, at its own size. Icons for other uses, as {@code rel="apple-touch-icon"}, do not count. WebKit adds the
+     * icons that a page declares to those it had at its address before, so an icon that a site no longer uses may still
+     * count; of two of the same size, this picks the one that WebKit lists later, usually the newer.
+     *
+     * <p>A page loads its icons once it has loaded, and until then has those that the page showed last at its address,
+     * as when the user goes back to it, or else those that its {@link WebContext} keeps for its address from an earlier
+     * load, if any: see {@link WebContext#clearFavicons}. While a new page loads, the page keeps the icon of the one
+     * before until the new one commits, which then has none of the icons of the old one. A navigation within the page,
+     * as with {@code history.pushState}, keeps its icon, and so does the end of its web process.
+     * {@link WebPageChromeClient#onFaviconChanged} tells when it changes. A page of a context in automation mode has
+     * none, and so does a page once it is destroyed.
+     *
+     * @throws IllegalArgumentException if {@code size} is not positive.
+     */
+    public @Nullable Bitmap getFavicon(int size) {
+        checkThread();
+        if (size <= 0)
+            throw new IllegalArgumentException("The size of an icon must be positive");
+        return destroyed ? null : webKitWebView.getPageIcon(size);
+    }
+
+    /**
      * Mutes or unmutes the sound of the page, as {@link WebView#setAudioMuted} does. The page stays muted for what it
      * loads later, in any view, until it is unmuted. A new page starts unmuted.
      */
@@ -1183,6 +1209,12 @@ public final class WebPage {
         @Override
         public void onNotificationClosed(long notificationId) {
             notificationClosed(notificationId);
+        }
+
+        @Override
+        public void onPageIconsChanged() {
+            if (!destroyed)
+                chromeClient.onFaviconChanged(WebPage.this);
         }
     }
 

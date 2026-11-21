@@ -60,7 +60,9 @@ public:
         : JNI::TypedClass<JNIWebKitWebsiteDataManager>(true)
     {
         registerNativeMethods(JNI::NativeMethod<void(jlong, jint, JNIWebKitWebsiteDataManagerCallbackHolder)>(
-            "nativeClear", JNIWebKitWebsiteDataManagerCache::nativeClear));
+                                  "nativeClear", JNIWebKitWebsiteDataManagerCache::nativeClear),
+            JNI::NativeMethod<void(jlong)>(
+                "nativeClearFavicons", JNIWebKitWebsiteDataManagerCache::nativeClearFavicons));
     }
 
 private:
@@ -84,6 +86,14 @@ private:
             : nullptr;
         webkit_website_data_manager_clear(JNI::from_jlong<WebKitWebsiteDataManager>(nativePtr),
             static_cast<WebKitWebsiteDataTypes>(typesToClear), 0, nullptr, onClearReady, holder);
+    }
+
+    // Clears the icons and the addresses of their pages from the database, and the icons that WebKit keeps in memory.
+    static void nativeClearFavicons(JNIEnv*, jobject, jlong nativePtr)
+    {
+        if (auto* database
+            = webkit_website_data_manager_get_favicon_database(JNI::from_jlong<WebKitWebsiteDataManager>(nativePtr)))
+            webkit_favicon_database_clear(database);
     }
 };
 

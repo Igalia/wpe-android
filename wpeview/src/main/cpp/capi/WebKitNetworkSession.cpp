@@ -171,6 +171,16 @@ private:
             webkit_cookie_manager_set_persistent_storage(webkit_network_session_get_cookie_manager(session), cookieFile,
                 WEBKIT_COOKIE_PERSISTENT_STORAGE_SQLITE);
         }
+        // The icons of the pages, which WebKit keeps in its icon database, in the folder icondatabase of the cache
+        // folder, or in memory only for an ephemeral session. Those of a WebDriver session stay off, as WebKit has
+        // them.
+        // FIXME: The sessions that keep their data all open the same file, each with its own copy in memory of the page
+        // addresses in it, which WebKit reads when the session starts. Once one of them clears the file, the others
+        // keep addresses whose icons are gone, and never load those icons again; clearing it from several sessions at
+        // once made WebKit abort on a phone. WebKit needs one icon database for each file, or to read it again.
+        if (!automationMode)
+            webkit_website_data_manager_set_favicons_enabled(
+                webkit_network_session_get_website_data_manager(session), TRUE);
         return reinterpret_cast<jlong>(session);
     }
 

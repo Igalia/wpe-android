@@ -86,6 +86,17 @@ public class WebPageChromeClient {
     public void onPlayingAudioChanged(@NonNull WebPage page, boolean isPlayingAudio) {}
 
     /**
+     * Tells the app that the icon of the page changed, as {@link WebPage#getFavicon} returns it: the page loaded its
+     * icons, or got those kept for its address, or a new page committed. It comes again when a page loads the same
+     * icons again, as on a reload. When a new page commits, the page has no icon before
+     * {@link WebPageClient#doUpdateVisitedHistory} reports it, and gets the icon that it showed last at that address
+     * right after, so that the app can tell which page each icon belongs to. The icon that the {@link WebContext} keeps
+     * for the address comes a moment later, so an app that shows the icon of a site may keep showing the one before for
+     * that moment.
+     */
+    public void onFaviconChanged(@NonNull WebPage page) {}
+
+    /**
      * Tells the app of a JavaScript {@code alert()}. Return {@code true} to take over the dialog, and call
      * {@link WPEJsResult#confirm()} when done; return {@code false} for the built-in dialog, or the answer for a page
      * that is not shown.

@@ -18,9 +18,13 @@
 
 #pragma once
 
+#include "JNI/JNI.h"
+
 #include <cstddef>
 #include <cstdint>
-#include <jni.h>
+#include <wpe/webkit.h>
+
+DECLARE_JNI_CLASS_SIGNATURE(JNIBitmap, "android/graphics/Bitmap");
 
 namespace WebKit {
 
@@ -43,5 +47,13 @@ ImageSize scaledImageSize(int width, int height, int maxWidth, int maxHeight);
 // its pixels cannot be locked. Call only after validating the source layout with isValidImageLayout().
 bool fillBitmap(
     JNIEnv* env, jobject bitmap, const uint8_t* source, int width, int height, size_t sourceStride, ImageSize scaled);
+
+// The image of the list that best fits a size by size square, as for the icons of a page: the smallest whose longer
+// side is at least size, or else the largest. Null if the list is empty.
+WebKitImage* imageForSize(WebKitImageList* images, int size);
+
+// A new bitmap with the pixels of image, scaled down to fit in size by size, or null, after logging why, if there is no
+// image or the bitmap cannot be made. On the main thread, where WebKit gives images.
+JNI::ProtectedType<JNIBitmap> createIconBitmap(WebKitImage* image, int size);
 
 } // namespace WebKit

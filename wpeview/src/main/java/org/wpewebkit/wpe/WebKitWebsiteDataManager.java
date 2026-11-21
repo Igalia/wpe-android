@@ -90,7 +90,14 @@ public final class WebKitWebsiteDataManager {
         }
     }
 
+    /** Clears the icon database: the icons, and the addresses of their pages. */
+    public void clearFavicons() {
+        if (mNativePtr != 0)
+            nativeClearFavicons(mNativePtr);
+    }
+
     void invalidate() { mNativePtr = 0; }
 
     private native void nativeClear(long nativePtr, int typesToClear, @Nullable CallbackHolder callbackHolder);
+    private native void nativeClearFavicons(long nativePtr);
 }
