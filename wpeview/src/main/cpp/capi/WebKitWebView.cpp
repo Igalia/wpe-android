@@ -21,9 +21,9 @@
 #include "Logging.h"
 #include "WPEViewAndroid.h"
 #include "WebKitDownloadBridge.h"
+#include "WebKitImageBitmap.h"
 
 #include <algorithm>
-#include <android/bitmap.h>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -46,11 +46,6 @@ DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebView, "org/wpewebkit/wpe/WebKitWebView")
 DECLARE_JNI_CLASS_SIGNATURE(JNIBitmap, "android/graphics/Bitmap");
 
 namespace {
-
-struct SnapshotSize {
-    int width;
-    int height;
-};
 
 // What the snapshot callback needs, the size limits, and once WebKit delivers the snapshot, its size and pixels. The
 // pixels stay null if the snapshot failed.
@@ -1844,128 +1839,20 @@ void JNIWebKitWebViewCache::nativeEvaluateJavascript(JNIEnv* env, jobject, jlong
         nullptr, nullptr, holder ? onEvalJavascriptReady : nullptr, holder);
 }
 
-// Check that WebKit's buffer holds height rows of width BGRA pixels at the given stride.
-static bool isValidSnapshotLayout(int width, int height, size_t stride, size_t sourceSize)
-{
-    if (width <= 0 || height <= 0 || static_cast<size_t>(width) > std::numeric_limits<size_t>::max() / 4)
-        return false;
-
-    const size_t rowBytes = static_cast<size_t>(width) * 4;
-    if (stride < rowBytes || sourceSize < rowBytes)
-        return false;
-
-    // Check the last row without overflowing stride * height. Its trailing padding is optional.
-    return static_cast<size_t>(height - 1) <= (sourceSize - rowBytes) / stride;
-}
-
-// WebKit provides BGRA; Android RGBA_8888 bitmaps store RGBA bytes. Both are premultiplied, so only the channel
-// order changes.
-static void storeAsRGBA(uint8_t* destination, uint8_t blue, uint8_t green, uint8_t red, uint8_t alpha)
-{
-    destination[0] = red;
-    destination[1] = green;
-    destination[2] = blue;
-    destination[3] = alpha;
-}
-
-// Call only after validating the source layout with isValidSnapshotLayout().
-static void copySnapshotPixels(
-    const uint8_t* source, int width, int height, size_t sourceStride, uint8_t* destination, size_t destinationStride)
-{
-    const size_t rowBytes = static_cast<size_t>(width) * 4;
-    for (int y = 0; y < height; ++y) {
-        const auto* src = source + (static_cast<size_t>(y) * sourceStride);
-        auto* dst = destination + (static_cast<size_t>(y) * destinationStride);
-        for (size_t x = 0; x < rowBytes; x += 4)
-            storeAsRGBA(dst + x, src[x], src[x + 1], src[x + 2], src[x + 3]);
-    }
-}
-
-// The size of a width by height snapshot scaled down to fit in maxWidth by maxHeight, keeping its aspect ratio. A
-// snapshot that already fits keeps its size, and a limit of 0 means no limit on that side.
-static SnapshotSize scaledSnapshotSize(int width, int height, int maxWidth, int maxHeight)
-{
-    const int64_t limitWidth = maxWidth > 0 ? maxWidth : width;
-    const int64_t limitHeight = maxHeight > 0 ? maxHeight : height;
-    if (width <= limitWidth && height <= limitHeight)
-        return {width, height};
-
-    // The tighter limit sets the scale. The other side is rounded to the nearest pixel, and is at least one.
-    if (width * limitHeight >= height * limitWidth)
-        return {static_cast<int>(limitWidth), std::max(1, static_cast<int>((height * limitWidth + width / 2) / width))};
-    return {std::max(1, static_cast<int>((width * limitHeight + height / 2) / height)), static_cast<int>(limitHeight)};
-}
-
-// Scales the snapshot down by averaging the source pixels that fall in each destination pixel. The pixels are
-// premultiplied, so a plain average of each channel is correct. Call only after validating the source layout with
-// isValidSnapshotLayout(), and with a size from scaledSnapshotSize().
-static void copyScaledSnapshotPixels(const uint8_t* source, int width, int height, size_t sourceStride,
-    uint8_t* destination, SnapshotSize scaled, size_t destinationStride)
-{
-    // The source columns of destination column x are columns[x] up to, but not including, columns[x + 1].
-    std::vector<int> columns(static_cast<size_t>(scaled.width) + 1);
-    for (int x = 0; x <= scaled.width; ++x)
-        columns[x] = static_cast<int>(static_cast<int64_t>(x) * width / scaled.width);
-
-    std::vector<uint64_t> sums(static_cast<size_t>(scaled.width) * 4);
-    for (int y = 0; y < scaled.height; ++y) {
-        const int firstRow = static_cast<int>(static_cast<int64_t>(y) * height / scaled.height);
-        const int endRow = static_cast<int>(static_cast<int64_t>(y + 1) * height / scaled.height);
-        std::fill(sums.begin(), sums.end(), 0);
-        for (int row = firstRow; row < endRow; ++row) {
-            const auto* src = source + (static_cast<size_t>(row) * sourceStride);
-            for (int x = 0; x < scaled.width; ++x) {
-                for (int column = columns[x]; column < columns[x + 1]; ++column) {
-                    const auto* pixel = src + (static_cast<size_t>(column) * 4);
-                    for (int channel = 0; channel < 4; ++channel)
-                        sums[(static_cast<size_t>(x) * 4) + channel] += pixel[channel];
-                }
-            }
-        }
-
-        auto* dst = destination + (static_cast<size_t>(y) * destinationStride);
-        for (int x = 0; x < scaled.width; ++x) {
-            const uint64_t count = static_cast<uint64_t>(endRow - firstRow) * (columns[x + 1] - columns[x]);
-            const auto* sum = &sums[static_cast<size_t>(x) * 4];
-            auto average = [count](uint64_t total) { return static_cast<uint8_t>((total + count / 2) / count); };
-            storeAsRGBA(
-                dst + (static_cast<size_t>(x) * 4), average(sum[0]), average(sum[1]), average(sum[2]), average(sum[3]));
-        }
-    }
-}
-
 // Converts the request's pixels into a Java-allocated bitmap, scaled down to fit the request's limits. Returns null
-// on failure. Call only after validating the request's layout with isValidSnapshotLayout().
+// on failure. Call only after validating the request's layout with isValidImageLayout().
 static JNI::ProtectedType<JNIBitmap> createSnapshotBitmap(const SnapshotRequest& request)
 {
     const auto* data = static_cast<const uint8_t*>(g_bytes_get_data(request.bytes, nullptr));
-    const auto scaled = scaledSnapshotSize(request.width, request.height, request.maxWidth, request.maxHeight);
+    const auto scaled = scaledImageSize(request.width, request.height, request.maxWidth, request.maxHeight);
     auto bitmap = getJNIWebKitWebViewSnapshotCallbackHolderCache().createBitmap(
         request.holder.get(), scaled.width, scaled.height);
     if (!bitmap)
         return {};
 
-    auto* env = JNI::getCurrentThreadJNIEnv();
-    AndroidBitmapInfo info {};
-    if (AndroidBitmap_getInfo(env, bitmap.get(), &info) != ANDROID_BITMAP_RESULT_SUCCESS
-        || info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width != static_cast<uint32_t>(scaled.width)
-        || info.height != static_cast<uint32_t>(scaled.height) || info.stride < static_cast<size_t>(scaled.width) * 4) {
-        Logging::logError("unexpected snapshot bitmap layout");
+    if (!fillBitmap(
+            JNI::getCurrentThreadJNIEnv(), bitmap.get(), data, request.width, request.height, request.stride, scaled))
         return {};
-    }
-
-    void* pixels = nullptr;
-    if (AndroidBitmap_lockPixels(env, bitmap.get(), &pixels) != ANDROID_BITMAP_RESULT_SUCCESS) {
-        Logging::logError("cannot lock snapshot bitmap pixels");
-        return {};
-    }
-    auto* destination = static_cast<uint8_t*>(pixels);
-    // Without scaling, the plain copy gives the same pixels as copyScaledSnapshotPixels(), only faster.
-    if (scaled.width == request.width && scaled.height == request.height)
-        copySnapshotPixels(data, request.width, request.height, request.stride, destination, info.stride);
-    else
-        copyScaledSnapshotPixels(data, request.width, request.height, request.stride, destination, scaled, info.stride);
-    AndroidBitmap_unlockPixels(env, bitmap.get());
     return bitmap;
 }
 
@@ -2026,7 +1913,7 @@ void JNIWebKitWebViewCache::onCaptureSnapshotReady(GObject* object, GAsyncResult
         GBytes* bytes = webkit_image_as_bytes(image);
         gsize dataSize = 0;
         const void* data = bytes ? g_bytes_get_data(bytes, &dataSize) : nullptr;
-        if (data && isValidSnapshotLayout(request->width, request->height, request->stride, dataSize))
+        if (data && isValidImageLayout(request->width, request->height, request->stride, dataSize))
             request->bytes = g_bytes_ref(bytes);
         else
             Logging::logError("invalid WebKitWebView snapshot buffer");
