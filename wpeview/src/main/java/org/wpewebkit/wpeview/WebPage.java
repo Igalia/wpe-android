@@ -251,6 +251,7 @@ public final class WebPage {
         // page starts out of any window, and joins the toplevel of the WebView that shows it.
         WPEView wpeView = webKitWebView.getWPEView();
         wpeView.setToplevel(null);
+        wpeView.setTouchListener(new TapListener());
         if (!inOwnToplevel) {
             int[] size = sizeForNewPage(context.getApplicationContext(), opener);
             resize(size[0], size[1]);
@@ -1497,6 +1498,14 @@ public final class WebPage {
             ended = true;
             notifications.remove(notificationId);
             webKitWebView.notificationClose(notificationId);
+        }
+    }
+
+    class TapListener implements WPEView.TouchListener {
+        @Override
+        public void onPageCancelledTap(long downTime) {
+            if (!destroyed && view != null)
+                view.onPageCancelledTap(downTime);
         }
     }
 

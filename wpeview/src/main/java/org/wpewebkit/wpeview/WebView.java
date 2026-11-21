@@ -39,6 +39,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -141,6 +142,15 @@ public class WebView extends FrameLayout {
     // The input type and options that the input method was last restarted for.
     private int imeInputType;
     private int imeOptions;
+    // Whether WebKit asked to keep the keyboard down for the focused field, when the view last heard of the field.
+    private boolean imeKeyboardKeptDown;
+    // Whether the keyboard of the focused field was up when the window lost the focus, to a dialog, the notification
+    // shade or another app. It comes back with the window, as for a text field of Android. WebKit sends the field
+    // again when the page gets the focus back, asking to keep the keyboard down.
+    private boolean keyboardUpWhenWindowLeft;
+    // The times of the touch down of the last tap, and of the last tap whose click the page cancelled.
+    private long lastTapDownTime = -1;
+    private long pageCancelledTapDownTime = -1;
     // Counts the pages that come and go, so that the input connection made for one page ignores the next.
     private int pageGeneration;
     private PageSurfaceView surfaceView;
@@ -434,6 +444,8 @@ public class WebView extends FrameLayout {
         imContext = newPage.getInputMethodContext();
         imeInputType = 0;
         imeOptions = 0;
+        imeKeyboardKeptDown = false;
+        keyboardUpWhenWindowLeft = false;
         applyBackgroundColor();
         // A page that is not in the window yet still takes the size of the view, to lay out once.
         int[] size = toplevelSize();
@@ -1511,7 +1523,8 @@ public class WebView extends FrameLayout {
      */
     class PageSurfaceView extends SurfaceView {
         // A tap brings back the keyboard of the focused field, which Back may have hidden: one finger that stays
-        // within the touch slop and is lifted before a long press. A scroll, a pinch or a long press does not.
+        // within the touch slop and is lifted before a long press. A scroll, a pinch or a long press does not. A field
+        // that WebKit keeps the keyboard down for gets it from WebKit, once a tap lands on that field, see onTap().
         private final GestureDetector tapDetector;
 
         public PageSurfaceView(android.content.Context context) {
@@ -1520,8 +1533,7 @@ public class WebView extends FrameLayout {
             tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public boolean onSingleTapUp(@NonNull MotionEvent event) {
-                    if (isInputFieldFocused())
-                        showSoftInput();
+                    onTap(event.getDownTime());
                     return true;
                 }
             });
@@ -1590,6 +1602,36 @@ public class WebView extends FrameLayout {
     // surface inner class (avoids a synthetic accessor).
     boolean isInputFieldFocused() { return page != null && page.inputFieldFocused; }
 
+    // Whether WebKit asks to keep the keyboard down for the focused field: for a field that a script focused without
+    // the user, for the field that has the focus again when its page gets the focus back, and for a field with
+    // inputmode=none. WebKit sends the field again without the hint when the user taps it, unless inputmode=none
+    // keeps it. Package-private: read by the surface inner class (avoids a synthetic accessor).
+    boolean fieldKeepsKeyboardDown() {
+        return imContext != null && (imContext.getInputHints() & WPEInputHints.INHIBIT_OSK) != 0;
+    }
+
+    // A tap on the page brings the keyboard of the focused field. For a field that WebKit keeps the keyboard down for,
+    // WebKit sends the field again without the hint once the click of the tap lands on it. A page that cancelled the
+    // touch down or the touch up of the tap gets no click, so then the tap brings the keyboard by itself, whichever
+    // of the tap and the page's answer comes first. Package-private: called by the surface inner class.
+    void onTap(long downTime) {
+        lastTapDownTime = toTouchTime(downTime);
+        if (isInputFieldFocused() && (!fieldKeepsKeyboardDown() || lastTapDownTime == pageCancelledTapDownTime))
+            showSoftInput();
+    }
+
+    // Package-private: called by the page.
+    void onPageCancelledTap(long downTime) {
+        if (downTime == pageCancelledTapDownTime)
+            return;
+        pageCancelledTapDownTime = downTime;
+        if (downTime == lastTapDownTime && isInputFieldFocused() && fieldKeepsKeyboardDown())
+            showSoftInput();
+    }
+
+    // WPE has the times of touch events in 32 bits.
+    private static long toTouchTime(long time) { return time & 0xffffffffL; }
+
     // Whether an input connection made while the view showed its page of that generation still goes to it.
     // Package-private: called by WPEInputConnection.
     boolean isInputConnectionCurrent(int generation) { return generation == pageGeneration && platformView != null; }
@@ -1604,10 +1646,21 @@ public class WebView extends FrameLayout {
             // restartInput refreshes EditorInfo (and re-invokes onCreateInputConnection) for the new field.
             updateImeContentType();
             inputMethodManager.restartInput(this);
-            showSoftInput();
+            imeKeyboardKeptDown = fieldKeepsKeyboardDown();
+            boolean backWithWindow = keyboardUpWhenWindowLeft && hasWindowFocus();
+            if (hasWindowFocus())
+                keyboardUpWhenWindowLeft = false;
+            if (!imeKeyboardKeptDown || backWithWindow)
+                showSoftInput();
         } else if (getWindowToken() != null) {
             inputMethodManager.hideSoftInputFromWindow(getWindowToken(), 0);
         }
+    }
+
+    // Whether the keyboard of the input method is up in the window. Package-private: tests replace it.
+    boolean isKeyboardShown() {
+        WindowInsets insets = getRootWindowInsets();
+        return insets != null && insets.isVisible(WindowInsets.Type.ime());
     }
 
     // Asks the input method to show its keyboard for the focused field.
@@ -1627,13 +1680,18 @@ public class WebView extends FrameLayout {
 
     // The focused field changed its purpose or hints without losing focus, as a password field does when a "show
     // password" button turns it into a text field, or the focus moved to another field: WebKit tells no focus out or
-    // focus in for that. Restart the input method if the field now needs another input type or options.
-    // Package-private: called by the page.
+    // focus in for that. Restart the input method if the field now needs another input type or options, and show the
+    // keyboard once WebKit no longer asks to keep it down, as when the user taps the field. Package-private: called by
+    // the page.
     void onImeContentTypeChanged() {
         if (!isInputFieldFocused() || inputMethodManager == null)
             return;
         if (updateImeContentType())
             inputMethodManager.restartInput(this);
+        boolean keptDown = fieldKeepsKeyboardDown();
+        if (imeKeyboardKeptDown && !keptDown)
+            showSoftInput();
+        imeKeyboardKeptDown = keptDown;
     }
 
     // Takes the input type and options of the focused field, and returns whether they changed.
@@ -1751,6 +1809,13 @@ public class WebView extends FrameLayout {
     @Override
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
+        if (!hasWindowFocus) {
+            keyboardUpWhenWindowLeft = isInputFieldFocused() && isKeyboardShown();
+        } else if (keyboardUpWhenWindowLeft && isInputFieldFocused()) {
+            // The page kept its field while the window was away, so WebKit sends nothing.
+            keyboardUpWhenWindowLeft = false;
+            showSoftInput();
+        }
         if (inToplevel)
             wpeToplevel.setWindowFocused(hasWindowFocus);
     }
@@ -1786,6 +1851,9 @@ public class WebView extends FrameLayout {
     @Override
     protected void onFocusChanged(boolean gainFocus, int direction, @Nullable android.graphics.Rect previous) {
         super.onFocusChanged(gainFocus, direction, previous);
+        // Another view took the focus, as the address field of a browser does: the keyboard waits for a tap.
+        if (!gainFocus)
+            keyboardUpWhenWindowLeft = false;
         // Mirror the widget's focus onto the WebKit view so DOM focus, document.hasFocus() and the
         // input method engage; without this a focused editable never raises the IME.
         if (platformView != null)
