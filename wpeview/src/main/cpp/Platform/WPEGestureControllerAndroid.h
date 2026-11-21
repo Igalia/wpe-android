@@ -48,4 +48,13 @@ WPEGestureController* wpe_gesture_controller_android_new(void);
 
 void wpe_gesture_controller_android_observe_touch(WPEGestureControllerAndroid* controller, WPEEvent* event);
 
+/**
+ * Called when the page cancelled the touch down or the touch up of a touch that is still a tap, with the time of
+ * its touch down. WebKit makes no click from such a tap.
+ */
+typedef void (*WPEGestureControllerAndroidTapCancelledCallback)(guint32 downTime, gpointer userData);
+
+void wpe_gesture_controller_android_set_tap_cancelled_callback(WPEGestureControllerAndroid* controller,
+    WPEGestureControllerAndroidTapCancelledCallback callback, gpointer userData);
+
 G_END_DECLS

@@ -18,6 +18,7 @@
 
 #include "WPEGestureControllerAndroid.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <deque>
@@ -75,11 +76,23 @@ struct Touch {
 
 class Detector {
 public:
+    ~Detector()
+    {
+        for (auto* event : m_unanswered)
+            wpe_event_unref(event);
+    }
+
     void observe(WPEEvent* event)
     {
         auto position = positionOf(event);
         if (!position)
             return;
+
+        m_unanswered.push_back(wpe_event_ref(event));
+        if (m_unanswered.size() > maximumUnanswered) {
+            wpe_event_unref(m_unanswered.front());
+            m_unanswered.pop_front();
+        }
 
         uint32_t sequenceId = wpe_event_touch_get_sequence_id(event);
         switch (wpe_event_get_event_type(event)) {
@@ -118,6 +131,7 @@ public:
 
     bool handleEvent(WPEEvent* event)
     {
+        forgetAnsweredUpTo(event);
         auto position = positionOf(event);
         uint32_t sequenceId = wpe_event_touch_get_sequence_id(event);
         auto type = wpe_event_get_event_type(event);
@@ -195,14 +209,17 @@ public:
     // followed, it is mostly one of its moves, or its touch up, but it can be an event of another finger. A
     // cancelled move keeps the touch from scrolling, and stops a drag that began, but leaves a tap a tap; after a
     // cancelled touch up, the touch up does not come here, so there is no tap either. WPE's own controller drops
-    // the whole touch for any of them.
-    void cancel()
+    // the whole touch for any of them. Returns the time of the touch down of a touch that is still a tap, when the
+    // page cancelled its touch down or its touch up: WebKit makes no click from it.
+    std::optional<uint32_t> cancel()
     {
+        auto cancelledTap = takeCancelledTap();
         if (!m_sequenceId)
-            return;
+            return cancelledTap;
         m_pageCancelledEvent = true;
         if (m_gesture == WPE_GESTURE_DRAG)
             m_gesture = WPE_GESTURE_NONE;
+        return cancelledTap;
     }
 
     WPEGesture gesture() const
@@ -231,6 +248,39 @@ public:
 private:
     // Enough for the touches that WebKit has not passed on yet.
     static constexpr size_t maximumTouches = 16;
+    // Enough for the touch events that WebKit has not answered yet.
+    static constexpr size_t maximumUnanswered = 256;
+
+    // WebKit answered the event, and those before it, which it answers first.
+    void forgetAnsweredUpTo(WPEEvent* event)
+    {
+        auto it = std::find(m_unanswered.begin(), m_unanswered.end(), event);
+        if (it == m_unanswered.end())
+            return;
+        for (auto answered = m_unanswered.begin(); answered <= it; ++answered)
+            wpe_event_unref(*answered);
+        m_unanswered.erase(m_unanswered.begin(), it + 1);
+    }
+
+    // WebKit answers each touch event in order, and the page cancelled the oldest one it has not answered. WebKit
+    // answers a cancelled move that takes a tap out of the touch slop twice, so this can take a later event then, but
+    // that touch is no tap.
+    std::optional<uint32_t> takeCancelledTap()
+    {
+        if (m_unanswered.empty())
+            return std::nullopt;
+        WPEEvent* event = m_unanswered.front();
+        m_unanswered.pop_front();
+        std::optional<uint32_t> downTime;
+        auto type = wpe_event_get_event_type(event);
+        if (type == WPE_EVENT_TOUCH_DOWN || type == WPE_EVENT_TOUCH_UP) {
+            const Touch* touch = touchFor(event);
+            if (touch && !touch->leftSlop && !touch->withOtherFingers)
+                downTime = touch->downTime;
+        }
+        wpe_event_unref(event);
+        return downTime;
+    }
 
     const Touch* touchFor(WPEEvent* event) const
     {
@@ -276,6 +326,10 @@ private:
     // The touches the view sent, newest last. WebKit passes the events on after the page had them, so the touch it
     // is at can be behind the newest one.
     std::deque<Touch> m_touches;
+    // The touch events the view sent that WebKit has not answered yet, oldest first, with a reference each. WebKit
+    // answers each one once the page had it: it passes it on to handleEvent(), or calls cancel() if the page cancelled
+    // it.
+    std::deque<WPEEvent*> m_unanswered;
 
     // The touch followed, from the touch down that the page did not cancel, and what it is so far.
     std::optional<uint32_t> m_sequenceId;
@@ -294,6 +348,8 @@ private:
 struct _WPEGestureControllerAndroid {
     GObject parent;
     Detector* detector;
+    WPEGestureControllerAndroidTapCancelledCallback tapCancelledCallback;
+    gpointer tapCancelledUserData;
 };
 
 static void wpe_gesture_controller_android_interface_init(WPEGestureControllerInterface* interface);
@@ -313,7 +369,10 @@ static gboolean wpeGestureControllerAndroidHandleEvent(WPEGestureController* con
 
 static void wpeGestureControllerAndroidCancel(WPEGestureController* controller)
 {
-    detectorOf(controller).cancel();
+    auto* androidController = WPE_GESTURE_CONTROLLER_ANDROID(controller);
+    auto tapDownTime = androidController->detector->cancel();
+    if (tapDownTime && androidController->tapCancelledCallback)
+        androidController->tapCancelledCallback(*tapDownTime, androidController->tapCancelledUserData);
 }
 
 static WPEGesture wpeGestureControllerAndroidGetGesture(WPEGestureController* controller)
@@ -381,4 +440,12 @@ void wpe_gesture_controller_android_observe_touch(WPEGestureControllerAndroid* c
 {
     g_return_if_fail(WPE_IS_GESTURE_CONTROLLER_ANDROID(controller));
     controller->detector->observe(event);
+}
+
+void wpe_gesture_controller_android_set_tap_cancelled_callback(WPEGestureControllerAndroid* controller,
+    WPEGestureControllerAndroidTapCancelledCallback callback, gpointer userData)
+{
+    g_return_if_fail(WPE_IS_GESTURE_CONTROLLER_ANDROID(controller));
+    controller->tapCancelledCallback = callback;
+    controller->tapCancelledUserData = userData;
 }

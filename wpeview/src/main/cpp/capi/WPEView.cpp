@@ -26,8 +26,60 @@
 #include <wpe/wpe-platform.h>
 
 DECLARE_JNI_CLASS_SIGNATURE(JNIWPEView, "org/wpewebkit/wpe/WPEView");
+DECLARE_JNI_CLASS_SIGNATURE(JNIWPEViewTouchListener, "org/wpewebkit/wpe/WPEView$TouchListenerHolder");
 
 namespace WebKit {
+
+class JNIWPEViewTouchListenerCache final : public JNI::TypedClass<JNIWPEViewTouchListener> {
+public:
+    JNIWPEViewTouchListenerCache()
+        : JNI::TypedClass<JNIWPEViewTouchListener>(true)
+        , m_onPageCancelledTap(getMethod<void(jlong)>("onPageCancelledTap"))
+    {
+    }
+
+    void onPageCancelledTap(JNIWPEViewTouchListener listener, guint32 downTime) const
+    {
+        if (!m_onPageCancelledTap.invoke(listener, static_cast<jlong>(downTime)))
+            Logging::logError("cannot call WPEView tap-cancelled callback");
+    }
+
+private:
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::Method<void(jlong)> m_onPageCancelledTap;
+};
+
+static const JNIWPEViewTouchListenerCache& getJNITouchListenerCache()
+{
+    static const JNIWPEViewTouchListenerCache s_singleton;
+    return s_singleton;
+}
+
+namespace {
+
+    struct TouchListenerHolder {
+        JNI::GlobalRef<JNIWPEViewTouchListener> ref;
+    };
+
+    GQuark touchListenerQuark()
+    {
+        static GQuark quark = g_quark_from_static_string("wpe-view-android-touch-listener");
+        return quark;
+    }
+
+    void destroyTouchListenerHolder(gpointer ptr) noexcept
+    {
+        delete static_cast<TouchListenerHolder*>(ptr);
+    }
+
+    void onPageCancelledTapThunk(guint32 downTime, gpointer userData)
+    {
+        auto* holder = static_cast<TouchListenerHolder*>(userData);
+        if (holder && holder->ref)
+            getJNITouchListenerCache().onPageCancelledTap(holder->ref.get(), downTime);
+    }
+
+} // namespace
 
 class JNIWPEViewCache final : public JNI::TypedClass<JNIWPEView> {
 public:
@@ -42,7 +94,8 @@ public:
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jintArray, jfloatArray, jfloatArray)>(
                 "nativeDispatchTouchEvent", nativeDispatchTouchEvent),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint)>(
-                "nativeDispatchKeyEvent", nativeDispatchKeyEvent));
+                "nativeDispatchKeyEvent", nativeDispatchKeyEvent),
+            JNI::NativeMethod<void(jlong, JNIWPEViewTouchListener)>("nativeSetTouchListener", nativeSetTouchListener));
     }
 
 private:
@@ -112,6 +165,24 @@ private:
             WPE_INPUT_SOURCE_KEYBOARD, static_cast<uint32_t>(time), modifiers, hardwareKeyCode, keySym);
         wpe_view_event(view, event);
     }
+
+    // The gesture controller of the view tells which taps the page cancelled.
+    static void nativeSetTouchListener(JNIEnv* env, jobject, jlong viewPtr, JNIWPEViewTouchListener listener)
+    {
+        auto* gestureController = wpe_view_get_gesture_controller(JNI::from_jlong<WPEView>(viewPtr));
+        if (!gestureController || !WPE_IS_GESTURE_CONTROLLER_ANDROID(gestureController))
+            return;
+        auto* controller = WPE_GESTURE_CONTROLLER_ANDROID(gestureController);
+        if (listener) {
+            auto* holder = new TouchListenerHolder {JNI::GlobalRef<JNIWPEViewTouchListener>(env, listener)};
+            // qdata owns the holder: the destroy notify runs on controller dispose and on listener replacement.
+            g_object_set_qdata_full(G_OBJECT(controller), touchListenerQuark(), holder, destroyTouchListenerHolder);
+            wpe_gesture_controller_android_set_tap_cancelled_callback(controller, onPageCancelledTapThunk, holder);
+        } else {
+            wpe_gesture_controller_android_set_tap_cancelled_callback(controller, nullptr, nullptr);
+            g_object_set_qdata(G_OBJECT(controller), touchListenerQuark(), nullptr);
+        }
+    }
 };
 
 static const JNIWPEViewCache& getJNIWPEViewCache()
@@ -122,6 +193,7 @@ static const JNIWPEViewCache& getJNIWPEViewCache()
 
 void configureWPEViewJNIMappings()
 {
+    getJNITouchListenerCache();
     getJNIWPEViewCache();
 }
 } // namespace WebKit

@@ -18,6 +18,7 @@
 
 package org.wpewebkit.wpe;
 
+import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -26,6 +27,14 @@ import androidx.annotation.Nullable;
  * This wrapper does not own the native pointer. Its methods do nothing once the WebKitWebView is destroyed.
  */
 public final class WPEView {
+    public interface TouchListener {
+        /**
+         * The page cancelled the touch down or the touch up of a touch that is still a tap, so WebKit makes no click
+         * from it. The time is that of the touch down, cut to 32 bits as in the touch events.
+         */
+        void onPageCancelledTap(long downTime);
+    }
+
     private long mNativePtr = 0;
     public long getNativePtr() { return mNativePtr; }
 
@@ -70,7 +79,24 @@ public final class WPEView {
             nativeDispatchKeyEvent(mNativePtr, time, type, keyCode, unicodeChar, metaState);
     }
 
+    public void setTouchListener(@Nullable TouchListener listener) {
+        if (mNativePtr != 0)
+            nativeSetTouchListener(mNativePtr, listener != null ? new TouchListenerHolder(listener) : null);
+    }
+
     void invalidate() { mNativePtr = 0; }
+
+    private static class TouchListenerHolder {
+        private final TouchListener delegate;
+
+        TouchListenerHolder(@NonNull TouchListener delegate) { this.delegate = delegate; }
+
+        // WebKit tells it while it answers a touch event. Run the delegate after that.
+        @Keep
+        public void onPageCancelledTap(long downTime) {
+            MainLooperDispatcher.postLater(() -> delegate.onPageCancelledTap(downTime));
+        }
+    }
 
     private native void nativeSetToplevel(long nativePtr, long toplevelPtr);
     private native void nativeResized(long nativePtr, int width, int height);
@@ -81,4 +107,5 @@ public final class WPEView {
                                                  float[] xs, float[] ys);
     private native void nativeDispatchKeyEvent(long nativePtr, long time, int type, int keyCode, int unicodeChar,
                                                int metaState);
+    private native void nativeSetTouchListener(long nativePtr, @Nullable TouchListenerHolder listener);
 }

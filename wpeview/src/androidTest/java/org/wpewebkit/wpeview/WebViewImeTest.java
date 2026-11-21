@@ -10,6 +10,7 @@ import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.widget.EditText;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -341,8 +342,8 @@ public class WebViewImeTest {
     private long lastEventTime;
 
     /**
-     * A tap on the page brings back the keyboard of the focused field, which Back may have hidden. A scroll does not,
-     * nor a touch of two fingers, nor a long press. The page is all one field, tall enough to scroll.
+     * A tap on the page brings back the keyboard of the field that the user focused, which Back may have hidden. A
+     * scroll does not, nor a touch of two fingers, nor a long press. The page is all one field, tall enough to scroll.
      */
     @Test
     public void testOnlyATapShowsTheKeyboard() throws Throwable {
@@ -378,16 +379,10 @@ public class WebViewImeTest {
             });
             assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
 
-            AtomicBoolean isTextEditor = new AtomicBoolean(false);
-            for (int i = 0; i < 60 && !isTextEditor.get(); i++) {
-                scenario.onActivity(activity -> {
-                    webView.get().evaluateJavascript("document.getElementById('editor').focus()", null);
-                    isTextEditor.set(webView.get().onCheckIsTextEditor());
-                });
-                if (!isTextEditor.get())
-                    Thread.sleep(250);
-            }
-            assertTrue("The WebView did not become a text editor", isTextEditor.get());
+            // The user focuses the field with a tap. WebKit keeps the keyboard down for a field that a script focused.
+            scenario.onActivity(activity -> moveFinger(webView.get(), TAP));
+            WebPageTestHelper.waitFor("The WebView did not become a text editor",
+                                      () -> webView.get().onCheckIsTextEditor());
 
             // Each touch is sent and counted in one go on the main thread, so that only its own requests count.
             AtomicInteger dragRequests = new AtomicInteger();
@@ -458,6 +453,281 @@ public class WebViewImeTest {
                     webContext.get().destroy();
             });
         }
+    }
+
+    // A field that fills the page, and counts its blurs and clicks.
+    private static final String FIELD_PAGE = "<input id='field' onblur='blurs++' onclick='clicks++' style='display: "
+                                             + "block; width: 100%; height: 100vh; border: 0'>"
+                                             + "<script>var blurs = 0, clicks = 0</script>";
+
+    /**
+     * The user focuses a field with a tap, which brings the keyboard. Another view takes the focus, as the address
+     * field of a browser does, and gives it back: WebKit gives the focus back to the field and asks to keep the
+     * keyboard down, so the keyboard comes with the next tap on the field.
+     */
+    @Test
+    public void testKeyboardWaitsForATapWhenThePageGetsTheFocusBack() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views, FIELD_PAGE);
+            WebView view = views.webView;
+            scenario.onActivity(activity -> tapAt(view, 0.5f));
+            WebPageTestHelper.waitFor("The tap did not focus the field", view::onCheckIsTextEditor);
+            assertTrue("The field that the user focused did not get the keyboard", views.keyboardRequests.get() > 0);
+
+            views.keyboardShown.set(true);
+            views.keyboardRequests.set(0);
+            scenario.onActivity(activity -> views.otherView.requestFocus());
+            waitForPage(scenario, view, "blurs === 1");
+            assertFalse("The field kept the focus of the input method",
+                        WebPageTestHelper.onMainGet(view::onCheckIsTextEditor));
+            scenario.onActivity(activity -> view.requestFocus());
+            WebPageTestHelper.waitFor("The field did not get the focus back", view::onCheckIsTextEditor);
+            assertEquals("The field got the keyboard when its page got the focus back", 0,
+                         views.keyboardRequests.get());
+
+            scenario.onActivity(activity -> tapAt(view, 0.5f));
+            WebPageTestHelper.waitFor("A tap on the field did not bring the keyboard",
+                                      () -> views.keyboardRequests.get() > 0);
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    /**
+     * The window loses the focus to a dialog, as to the notification shade or another app, while the user types in a
+     * field: the keyboard comes back with the window. If the user had hidden it, it stays down.
+     */
+    @Test
+    public void testKeyboardComesBackWithTheWindow() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views, FIELD_PAGE);
+            WebView view = views.webView;
+            scenario.onActivity(activity -> tapAt(view, 0.5f));
+            WebPageTestHelper.waitFor("The tap did not focus the field", view::onCheckIsTextEditor);
+
+            views.keyboardShown.set(true);
+            views.keyboardRequests.set(0);
+            leaveTheWindowAndComeBack(scenario, views, "blurs === 1");
+            WebPageTestHelper.waitFor("The keyboard did not come back with the window",
+                                      () -> views.keyboardRequests.get() > 0);
+
+            views.keyboardShown.set(false);
+            views.keyboardRequests.set(0);
+            leaveTheWindowAndComeBack(scenario, views, "blurs === 2");
+            WebPageTestHelper.waitFor("The field did not get the focus back", view::onCheckIsTextEditor);
+            waitForPage(scenario, view, "document.activeElement.id == 'field'");
+            assertEquals("The keyboard that the user hid came back with the window", 0, views.keyboardRequests.get());
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    // A dialog takes the focus of the window, until the page has let its field go, and closes.
+    private static void leaveTheWindowAndComeBack(ActivityScenario<WebViewTestActivity> scenario, KeyboardViews views,
+                                                  String blurred) throws Throwable {
+        AtomicReference<android.app.Dialog> dialog = new AtomicReference<>();
+        scenario.onActivity(activity -> {
+            dialog.set(new android.app.Dialog(activity));
+            dialog.get().show();
+        });
+        WebPageTestHelper.waitFor("The dialog did not take the focus", () -> !views.webView.hasWindowFocus());
+        waitForPage(scenario, views.webView, blurred);
+        scenario.onActivity(activity -> dialog.get().dismiss());
+        WebPageTestHelper.waitFor("The window did not get the focus back", views.webView::hasWindowFocus);
+    }
+
+    /**
+     * A page that handles taps itself cancels their touch end and focuses the tapped field, so WebKit gets no click
+     * and keeps the keyboard down: the tap brings the keyboard. The field fills the top half of the page.
+     */
+    @Test
+    public void testTapThatThePageCancelledBringsTheKeyboard() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views,
+                                "<input id='field' style='display: block; width: 100%; height: 50vh; border: 0'>"
+                                    + "<script>var ends = 0; document.addEventListener('touchend', event => { ends++;"
+                                    + " event.preventDefault(); if (event.target.id == 'field') event.target.focus();"
+                                    + " }, {passive: false})</script>");
+            WebView view = views.webView;
+            focusFieldWithScript(view);
+            assertEquals("The field that a script focused got the keyboard", 0, views.keyboardRequests.get());
+            scenario.onActivity(activity -> tapAt(view, 0.25f));
+            WebPageTestHelper.waitFor("The tap that the page cancelled did not bring the keyboard",
+                                      () -> views.keyboardRequests.get() > 0);
+            waitForPage(scenario, view, "ends === 1");
+            assertEquals("The tap brought the keyboard more than once", 1, views.keyboardRequests.get());
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    /**
+     * A page that cancels the touch moves, as a map does, still gets clicks from taps: a tap away from the field that
+     * a script focused brings no keyboard. The field fills the top half of the page.
+     */
+    @Test
+    public void testTapAwayOnAPageThatCancelsMovesBringsNoKeyboard() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views,
+                                "<input id='field' style='display: block; width: 100%; height: 50vh; border: 0'>"
+                                    + "<script>document.addEventListener('touchmove', event => "
+                                    + "event.preventDefault(), {passive: false})</script>");
+            WebView view = views.webView;
+            focusFieldWithScript(view);
+            scenario.onActivity(activity -> tapAt(view, 0.75f));
+            WebPageTestHelper.waitFor("A tap away from the field left it the focus", () -> !view.onCheckIsTextEditor());
+            assertEquals("A tap away from the field showed the keyboard", 0, views.keyboardRequests.get());
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    /**
+     * A script focuses a field without the user, and WebKit asks to keep the keyboard down: a tap elsewhere on the page
+     * does not bring the keyboard, and a tap on the field does. The field fills the top half of the page.
+     */
+    @Test
+    public void testKeyboardWaitsForATapOnAFieldThatAScriptFocused() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views,
+                                "<input id='field' style='display: block; width: 100%; height: 50vh; border: 0'>");
+            WebView view = views.webView;
+            focusFieldWithScript(view);
+            assertEquals("The field that a script focused got the keyboard", 0, views.keyboardRequests.get());
+
+            scenario.onActivity(activity -> tapAt(view, 0.75f));
+            WebPageTestHelper.waitFor("A tap away from the field left it the focus", () -> !view.onCheckIsTextEditor());
+            assertEquals("A tap away from the field showed the keyboard", 0, views.keyboardRequests.get());
+
+            focusFieldWithScript(view);
+            assertEquals("The field that a script focused again got the keyboard", 0, views.keyboardRequests.get());
+            scenario.onActivity(activity -> tapAt(view, 0.25f));
+            WebPageTestHelper.waitFor("A tap on the field did not bring the keyboard",
+                                      () -> views.keyboardRequests.get() > 0);
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    /**
+     * A field with inputmode=none gets no keyboard, not even from taps on it: the page shows keys of its own for it.
+     */
+    @Test
+    public void testFieldWithInputModeNoneGetsNoKeyboard() throws Throwable {
+        ActivityScenario<WebViewTestActivity> scenario = webViewActivityTestRule.getScenario();
+        scenario.moveToState(Lifecycle.State.RESUMED);
+        KeyboardViews views = new KeyboardViews();
+        try {
+            loadInKeyboardViews(scenario, views, FIELD_PAGE.replace("<input ", "<input inputmode='none' "));
+            WebView view = views.webView;
+            scenario.onActivity(activity -> tapAt(view, 0.5f));
+            WebPageTestHelper.waitFor("The tap did not focus the field", view::onCheckIsTextEditor);
+            scenario.onActivity(activity -> tapAt(view, 0.5f));
+            waitForPage(scenario, view, "clicks === 2");
+            assertEquals("A field with inputmode=none got the keyboard", 0, views.keyboardRequests.get());
+        } finally {
+            destroyKeyboardViews(scenario, views);
+        }
+    }
+
+    // A WebView that counts its requests for the keyboard, and a text field under it that can take the focus from it,
+    // as the address field of a browser does.
+    private static final class KeyboardViews {
+        final AtomicInteger keyboardRequests = new AtomicInteger();
+        // Whether the WebView takes the keyboard for up. The activity keeps the input method away.
+        final AtomicBoolean keyboardShown = new AtomicBoolean();
+        WebContext webContext;
+        WebView webView;
+        EditText otherView;
+    }
+
+    private static void loadInKeyboardViews(ActivityScenario<WebViewTestActivity> scenario, KeyboardViews views,
+                                            String body) throws InterruptedException {
+        CountDownLatch loaded = new CountDownLatch(1);
+        scenario.onActivity(activity -> {
+            views.webContext = new WebContext(activity, false, true);
+            views.otherView = new EditText(activity);
+            activity.addContentView(views.otherView, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                                                ViewGroup.LayoutParams.WRAP_CONTENT));
+            views.webView = new WebView(activity, views.webContext) {
+                @Override
+                void showSoftInput() {
+                    views.keyboardRequests.incrementAndGet();
+                    super.showSoftInput();
+                }
+
+                @Override
+                boolean isKeyboardShown() {
+                    return views.keyboardShown.get();
+                }
+            };
+            views.webView.setWebViewClient(new WebViewClient() {
+                @Override
+                public void onPageFinished(@NonNull WebView view, @NonNull String url) {
+                    loaded.countDown();
+                }
+            });
+            activity.addContentView(views.webView, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                              ViewGroup.LayoutParams.MATCH_PARENT));
+            views.webView.requestFocus();
+            views.webView.loadHtml("<html><head><meta name=viewport content='width=device-width'></head>"
+                                       + "<body style='margin: 0'>" + body + "</body></html>",
+                                   null);
+        });
+        assertTrue("The page did not load", loaded.await(30, TimeUnit.SECONDS));
+    }
+
+    private static void destroyKeyboardViews(ActivityScenario<WebViewTestActivity> scenario, KeyboardViews views) {
+        scenario.onActivity(activity -> {
+            if (views.webView != null) {
+                if (views.webView.getParent() != null)
+                    ((ViewGroup)views.webView.getParent()).removeView(views.webView);
+                views.webView.destroy();
+            }
+            if (views.webContext != null)
+                views.webContext.destroy();
+        });
+    }
+
+    private static void focusFieldWithScript(WebView view) throws InterruptedException {
+        WebPageTestHelper.waitFor("The script did not focus the field", () -> {
+            view.evaluateJavascript("document.getElementById('field').focus()", null);
+            return view.onCheckIsTextEditor();
+        });
+    }
+
+    // Waits for the condition to hold in the page. One more script round trip then lets what WebKit sent with the
+    // last event reach the view first, as the field it lets go after a blur.
+    private static void waitForPage(ActivityScenario<WebViewTestActivity> scenario, WebView view, String condition)
+        throws Throwable {
+        String result =
+            WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, activity -> view, condition, "true");
+        assertEquals("The page did not see " + condition, "true", result);
+        WebViewActivityScenarioHelper.waitForJavaScriptResult(scenario, activity -> view, condition, "true");
+    }
+
+    // A tap at the given height in the view, as a fraction of its height from the top.
+    private void tapAt(WebView view, float height) {
+        float offset = view.getHeight() * (height - 0.5f);
+        float[][] path = new float[TAP.length][];
+        for (int i = 0; i < TAP.length; i++)
+            path[i] = new float[] {TAP[i][0], TAP[i][1] + offset};
+        moveFinger(view, path);
     }
 
     /**
