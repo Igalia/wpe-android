@@ -336,6 +336,29 @@ public class WebContext {
     }
 
     /**
+     * Clears the icons that the pages of this context loaded. WebKit keeps them for the next loads of the same pages,
+     * which then show their icon from the start: see {@link WebPage#getFavicon}. With them, it keeps the address of
+     * each page that had an icon, which tells what the user visited, so an app that clears its browsing history clears
+     * these too. The pages that are open keep their icon, and the icons of the pages that each showed last, for going
+     * back to them, and pages load theirs again as they load.
+     *
+     * <p>A session that keeps its data keeps them in WebKit's icon database, a file in the folder {@code icondatabase}
+     * of the app's cache folder: Android may delete it to make room, and leaves it out of backups. WebKit itself
+     * deletes an icon that no page loaded in 30 days, with the addresses of its pages. All the contexts of the app that
+     * keep their data share that file, and this clears it for all of them, but another context that runs keeps in
+     * memory the addresses that it read when it was made, and gets no icon for those pages until it is made again: an
+     * app that clears its icons is best served by one context that keeps its data, rather than, for example, several
+     * WebViews made without a context, which make one each. An ephemeral session keeps the icons in memory only, and
+     * only for a short while once they were last used, and a context in automation mode keeps none.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void clearFavicons() {
+        checkUsable();
+        websiteDataManager.clearFavicons();
+    }
+
+    /**
      * Sets where the pages of this context get the location of the device from, once the app grants them
      * {@link WPEPermissionRequest#RESOURCE_LOCATION}, or with null, Android's location services, the default, as
      * {@link WPELocationSource} tells. A source that runs is stopped, and the new one starts in its place.

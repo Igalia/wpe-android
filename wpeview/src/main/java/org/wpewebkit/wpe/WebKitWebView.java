@@ -390,6 +390,11 @@ public final class WebKitWebView {
          * reenter, for example by destroying the view.
          */
         void onNotificationClosed(long notificationId);
+        /**
+         * The icons of the page changed, as {@link #getPageIcon} gives them: a new page committed, with none of the
+         * icons of the old one, or the page got the icons that WebKit keeps for its address or loaded its own.
+         */
+        void onPageIconsChanged();
     }
 
     private @Nullable Listener listener;
@@ -682,6 +687,21 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(() -> currentListener.onNotificationClosed(notificationId));
     }
 
+    @Keep
+    private void onPageIconsChanged() {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(currentListener::onPageIconsChanged);
+    }
+
+    /**
+     * The icon of the page that best fits a square of size by size pixels: of the images it has, the smallest whose
+     * longer side is at least size, scaled down to fit, or else the biggest, as it is. Null while the page has none.
+     */
+    public @Nullable Bitmap getPageIcon(int size) {
+        return mNativePtr != 0 ? nativeGetPageIcon(mNativePtr, size) : null;
+    }
+
     /** Tells the page that the user tapped a notification, unless it is closed. */
     public void notificationClick(long notificationId) {
         if (mNativePtr != 0)
@@ -805,4 +825,5 @@ public final class WebKitWebView {
     private native void nativePermissionStateQueryAnswer(long nativePtr, long queryId, int state);
     private native void nativeNotificationClick(long nativePtr, long notificationId);
     private native void nativeNotificationClose(long nativePtr, long notificationId);
+    private native @Nullable Bitmap nativeGetPageIcon(long nativePtr, int size);
 }

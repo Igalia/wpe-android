@@ -25,7 +25,39 @@
 #include <limits>
 #include <vector>
 
+DECLARE_JNI_CLASS_SIGNATURE(JNIBitmapConfig, "android/graphics/Bitmap$Config");
+
 namespace WebKit {
+
+// Makes the bitmaps of icons, as Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) does.
+class JNIBitmapCache final : public JNI::TypedClass<JNIBitmap> {
+public:
+    JNIBitmapCache()
+        : JNI::TypedClass<JNIBitmap>(true)
+        , m_createBitmap(getStaticMethod<JNIBitmap(jint, jint, JNIBitmapConfig)>("createBitmap"))
+        , m_argb8888(JNI::getCurrentThreadJNIEnv(),
+              JNI::TypedClass<JNIBitmapConfig>().getStaticField<JNIBitmapConfig>("ARGB_8888").getValue().get())
+    {
+    }
+
+    // Null, with the exception logged and cleared, if Java cannot make it, as when it is out of memory.
+    JNI::ProtectedType<JNIBitmap> createBitmap(jint width, jint height) const
+    {
+        return m_createBitmap.invoke(width, height, m_argb8888.get());
+    }
+
+private:
+    // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const JNI::StaticMethod<JNIBitmap(jint, jint, JNIBitmapConfig)> m_createBitmap;
+    const JNI::GlobalRef<JNIBitmapConfig> m_argb8888;
+    // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
+};
+
+static const JNIBitmapCache& getJNIBitmapCache()
+{
+    static const JNIBitmapCache s_singleton;
+    return s_singleton;
+}
 
 bool isValidImageLayout(int width, int height, size_t stride, size_t sourceSize)
 {
@@ -138,6 +170,47 @@ bool fillBitmap(
         copyScaledImagePixels(source, width, height, sourceStride, destination, scaled, info.stride);
     AndroidBitmap_unlockPixels(env, bitmap);
     return true;
+}
+
+WebKitImage* imageForSize(WebKitImageList* images, int size)
+{
+    WebKitImage* best = nullptr;
+    int bestSide = 0;
+    const gsize length = images ? webkit_image_list_get_length(images) : 0;
+    for (gsize i = 0; i < length; ++i) {
+        auto* image = webkit_image_list_get(images, i);
+        const int side = std::max(webkit_image_get_width(image), webkit_image_get_height(image));
+        // A smaller image that is still big enough, or a bigger one while none is. Of two of the same size, the later,
+        // as WebKit adds the icons a page declares after those it had, which it keeps.
+        if (!best || (side >= size && (bestSide < size || side <= bestSide)) || (bestSide < size && side >= bestSide)) {
+            best = image;
+            bestSide = side;
+        }
+    }
+    return best;
+}
+
+JNI::ProtectedType<JNIBitmap> createIconBitmap(WebKitImage* image, int size)
+{
+    if (!image)
+        return {};
+
+    const int width = webkit_image_get_width(image);
+    const int height = webkit_image_get_height(image);
+    const size_t stride = webkit_image_get_stride(image);
+    GBytes* bytes = webkit_image_as_bytes(image);
+    gsize dataSize = 0;
+    const auto* data = static_cast<const uint8_t*>(bytes ? g_bytes_get_data(bytes, &dataSize) : nullptr);
+    if (!data || !isValidImageLayout(width, height, stride, dataSize)) {
+        Logging::logError("invalid WebKit icon buffer");
+        return {};
+    }
+
+    const auto scaled = scaledImageSize(width, height, size, size);
+    auto bitmap = getJNIBitmapCache().createBitmap(scaled.width, scaled.height);
+    if (!bitmap || !fillBitmap(JNI::getCurrentThreadJNIEnv(), bitmap.get(), data, width, height, stride, scaled))
+        return {};
+    return bitmap;
 }
 
 } // namespace WebKit

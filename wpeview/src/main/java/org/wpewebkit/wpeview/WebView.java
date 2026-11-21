@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.DialogInterface;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -786,6 +787,19 @@ public class WebView extends FrameLayout {
     public boolean isPlayingAudio() { return page != null && page.isPlayingAudio(); }
 
     /**
+     * Returns the icon of the page in a bitmap that fits a square of {@code size} by {@code size} pixels, as
+     * {@link WebPage#getFavicon} does, or null while the page has none, after {@link #destroy()}, and while the view
+     * shows no page. {@link WebChromeClient#onFaviconChanged} tells when it changes.
+     *
+     * @throws IllegalArgumentException if {@code size} is not positive.
+     */
+    public @Nullable Bitmap getFavicon(int size) {
+        if (size <= 0)
+            throw new IllegalArgumentException("The size of an icon must be positive");
+        return page != null ? page.getFavicon(size) : null;
+    }
+
+    /**
      * Mutes or unmutes the sound of the page, for example for a tab that the user mutes. The page plays on, and its
      * media elements keep their own muted and volume values. The page stays muted for what it loads later, also after
      * its web process ends, until it is unmuted, and showing another page does not change it: the setting belongs to
@@ -1248,6 +1262,13 @@ public class WebView extends FrameLayout {
             WebView target = target();
             if (target != null)
                 target.chromeClient.onPlayingAudioChanged(target, isPlayingAudio);
+        }
+
+        @Override
+        public void onFaviconChanged(@NonNull WebPage source) {
+            WebView target = target();
+            if (target != null)
+                target.chromeClient.onFaviconChanged(target);
         }
 
         @Override

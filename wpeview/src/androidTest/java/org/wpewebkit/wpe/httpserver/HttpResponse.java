@@ -23,6 +23,7 @@ public class HttpResponse {
     private final Map<String, String> headers = new HashMap<>();
     private String bodyText;
     private String body;
+    private byte[] bodyBytes;
     private CountDownLatch held;
 
     private static final String bodyTemplate = "<html><head><title>%s</title></head><body>%s</body></html>";
@@ -41,6 +42,9 @@ public class HttpResponse {
 
     /** Sends this page as it is, instead of a page made from the body text with that text as its title. */
     public void setBody(String body) { this.body = body; }
+
+    /** Sends these bytes as the body, as for an image, instead of a page. */
+    public void setBodyBytes(byte[] bodyBytes) { this.bodyBytes = bodyBytes; }
 
     /** Sends nothing, not even the headers, until the latch opens, as a server that takes its time. */
     public void holdUntil(CountDownLatch released) { held = released; }
@@ -72,15 +76,21 @@ public class HttpResponse {
         String body = this.body;
         if (body == null && bodyText != null)
             body = String.format(bodyTemplate, bodyText, bodyText);
-        if (body != null)
+        if (bodyBytes != null)
+            writer.println("Content-Length: " + bodyBytes.length);
+        else if (body != null)
             writer.println("Content-Length: " + body.getBytes(StandardCharsets.UTF_8).length);
 
         // End of headers
         writer.println();
 
         // Write body
-        if (body != null)
+        if (bodyBytes != null) {
+            writer.flush();
+            outputStream.write(bodyBytes);
+        } else if (body != null) {
             writer.print(body);
+        }
 
         writer.flush();
     }

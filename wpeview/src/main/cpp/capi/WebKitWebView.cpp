@@ -43,7 +43,6 @@ DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebViewEvalCallbackHolder, "org/wpewebkit/w
 DECLARE_JNI_CLASS_SIGNATURE(
     JNIWebKitWebViewSnapshotCallbackHolder, "org/wpewebkit/wpe/WebKitWebView$SnapshotCallbackHolder");
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebView, "org/wpewebkit/wpe/WebKitWebView");
-DECLARE_JNI_CLASS_SIGNATURE(JNIBitmap, "android/graphics/Bitmap");
 
 namespace {
 
@@ -142,6 +141,14 @@ struct WebKitWebViewBridge {
         auto* findController = webkit_web_view_get_find_controller(m_webView);
         for (gulong id : m_findSignalIds)
             g_signal_handler_disconnect(findController, id);
+        if (m_storedPageIconsSearch) {
+            g_cancellable_cancel(m_storedPageIconsSearch);
+            g_object_unref(m_storedPageIconsSearch);
+        }
+        if (m_pageIcons)
+            webkit_image_list_unref(m_pageIcons);
+        for (auto& [uri, icons] : m_recentPageIcons)
+            webkit_image_list_unref(icons);
         // The app may destroy the WebView in one of its callbacks, while WebKit emits a signal of the web view or of a
         // request of its page, or while a call into WebKit has not returned, and WebKit then still uses the web view.
         // So it goes in the next iteration of the main loop, ahead of the sources of default priority. The main loop is
@@ -227,7 +234,18 @@ struct WebKitWebViewBridge {
     // until WebKit decides on the first main frame navigation of the view. It does so without that gesture.
     std::string m_windowLoadUri;
     bool m_windowLoadGesture {false};
+    // The icons of the page shown, or null while it has none. WebKit keeps the icons of a page until the next page that
+    // loads icons has its own, so the bridge keeps those of the page shown itself (clearPageIcons, startPageIcons).
+    WebKitImageList* m_pageIcons {nullptr};
+    // The search of the icon database for the icons of the page that committed last, while it runs.
+    GCancellable* m_storedPageIconsSearch {nullptr};
+    // The icons of the pages that the view showed last, by their address, the newest first, at most
+    // maxRecentPageIcons, so that a page that the view goes back to has its icon at once. WebKit loads none for a page
+    // that comes back from the back/forward cache, and an ephemeral session keeps its icons for a short while only.
+    std::deque<std::pair<std::string, WebKitImageList*>> m_recentPageIcons;
 };
+
+static constexpr size_t maxRecentPageIcons = 16;
 
 // The bridge of the web view, or null once the app destroyed the WebView. The web view itself stays until the main
 // loop runs again. A call into Java may call the app, which may destroy the WebView, so a callback that called Java
@@ -334,6 +352,7 @@ public:
         , m_onQueryPermissionState(getMethod<jboolean(jlong, jint, jstring)>("onQueryPermissionState"))
         , m_onShowNotification(getMethod<void(jlong, jstring, jstring, jstring, jstring)>("onShowNotification"))
         , m_onNotificationClosed(getMethod<void(jlong)>("onNotificationClosed"))
+        , m_onPageIconsChanged(getMethod<void()>("onPageIconsChanged"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -378,7 +397,8 @@ public:
             JNI::NativeMethod<void(jlong, jlong, jint)>(
                 "nativePermissionStateQueryAnswer", nativePermissionStateQueryAnswer),
             JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClick", nativeNotificationClick),
-            JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClose", nativeNotificationClose));
+            JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClose", nativeNotificationClose),
+            JNI::NativeMethod<JNIBitmap(jlong, jint)>("nativeGetPageIcon", nativeGetPageIcon));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -408,10 +428,12 @@ public:
     const JNI::Method<jboolean(jlong, jint, jstring)> m_onQueryPermissionState;
     const JNI::Method<void(jlong, jstring, jstring, jstring, jstring)> m_onShowNotification;
     const JNI::Method<void(jlong)> m_onNotificationClosed;
+    const JNI::Method<void()> m_onPageIconsChanged;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
     static void onLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent, WebKitWebViewBridge* bridge);
+    static void onLoadCommitted(WebKitWebView* webView, WebKitWebViewBridge* bridge);
     static void onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
@@ -463,6 +485,12 @@ private:
     static void dropNotifications(WebKitWebViewBridge* bridge);
     static void onEvalJavascriptReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onCaptureSnapshotReady(GObject* object, GAsyncResult* result, gpointer userData);
+    static void rememberPageIcons(WebKitWebViewBridge* bridge, const char* uri, WebKitImageList* icons);
+    static bool clearPageIcons(WebKitWebViewBridge* bridge);
+    static bool startPageIcons(WebKitWebViewBridge* bridge);
+    static void onStoredPageIconsReady(GObject* object, GAsyncResult* result, gpointer userData);
+    static void onPageIconsChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static bool setPageIcons(WebKitWebViewBridge* bridge, WebKitImageList* icons);
 
     static WebKitWebViewBridge* createBridge(JNIEnv* env, jobject jniWebView, WebKitWebView* webView);
     static jlong nativeInit(JNIEnv* env, jobject jniWebView, jlong displayPtr, jlong contextPtr, jlong toplevelPtr,
@@ -509,6 +537,7 @@ private:
     static void nativePermissionStateQueryAnswer(JNIEnv*, jobject, jlong nativePtr, jlong queryId, jint state);
     static void nativeNotificationClick(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
     static void nativeNotificationClose(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
+    static JNIBitmap nativeGetPageIcon(JNIEnv* env, jobject, jlong nativePtr, jint size);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -601,37 +630,7 @@ void JNIWebKitWebViewCache::onLoadChanged(
     } else if (loadEvent == WEBKIT_LOAD_REDIRECTED) {
         bridge->m_redirectCount++;
     } else if (loadEvent == WEBKIT_LOAD_COMMITTED) {
-        // The origin of the new document, before Java hears of anything. WebKit gives the view the address of a load
-        // that the app asked for as soon as it asks, so while one waits to be decided on, the address may not be the
-        // one that committed: the document then asks nothing of the app until the next one commits.
-        bridge->m_documentOrigin
-            = bridge->m_appLoadUris.empty() ? permissionOrigin(webkit_web_view_get_uri(webView)) : std::string();
-        bridge->m_loadStarting = false;
-        bridge->m_pageCommitted = true;
-        updateAwaitsFirstPage(bridge);
-        // The new page ends the frames of the old one and their loads, so their navigations no longer count. The
-        // downloads of the old page have taken their counts by then: WebKit tells of a download right after it is
-        // decided on, not once the server answers.
-        bridge->m_navigationCounts.clear();
-        bridge->m_navigationCountsFull = false;
-        // The first page after the end of the web process has its title reported, also when WebKit's stays empty.
-        bool titlePending = bridge->m_titlePending || bridge->m_webProcessTerminated;
-        bridge->m_webProcessTerminated = false;
-        if (titlePending) {
-            reportTitle(bridge);
-            // The app may have destroyed the WebView as it heard of the title.
-            bridge = webViewBridge(webView);
-            if (!bridge)
-                return;
-        }
-        reportHistory(bridge, true);
-        // Last, since the app may destroy the WebView as it hears that the requests of the old document ended.
-        bridge = webViewBridge(webView);
-        if (bridge)
-            endDocumentPermissions(webView, bridge);
-        bridge = webViewBridge(webView);
-        if (bridge)
-            endDocumentNotifications(bridge);
+        onLoadCommitted(webView, bridge);
     } else if (loadEvent == WEBKIT_LOAD_FINISHED) {
         // Also the end of a load that failed or stopped before it committed. After the end of the web process, the view
         // keeps the title and the address of its page until a new one commits.
@@ -650,6 +649,50 @@ void JNIWebKitWebViewCache::onLoadChanged(
         if (!getJNIWebKitWebViewCache().m_onLoadFinished.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri)))
             Logging::logError("cannot deliver WebKitWebView onLoadFinished callback");
     }
+}
+
+void JNIWebKitWebViewCache::onLoadCommitted(WebKitWebView* webView, WebKitWebViewBridge* bridge)
+{
+    // The origin of the new document, before Java hears of anything. WebKit gives the view the address of a load
+    // that the app asked for as soon as it asks, so while one waits to be decided on, the address may not be the
+    // one that committed: the document then asks nothing of the app until the next one commits.
+    bridge->m_documentOrigin
+        = bridge->m_appLoadUris.empty() ? permissionOrigin(webkit_web_view_get_uri(webView)) : std::string();
+    bridge->m_loadStarting = false;
+    bridge->m_pageCommitted = true;
+    updateAwaitsFirstPage(bridge);
+    // The new page ends the frames of the old one and their loads, so their navigations no longer count. The
+    // downloads of the old page have taken their counts by then: WebKit tells of a download right after it is
+    // decided on, not once the server answers.
+    bridge->m_navigationCounts.clear();
+    bridge->m_navigationCountsFull = false;
+    // The first page after the end of the web process has its title reported, also when WebKit's stays empty.
+    bool titlePending = bridge->m_titlePending || bridge->m_webProcessTerminated;
+    bridge->m_webProcessTerminated = false;
+    // The icons of the old page go before the app hears of the new one, and those that the new page has at once come
+    // after, so that the app knows which page they belong to.
+    if (clearPageIcons(bridge)) {
+        bridge = webViewBridge(webView);
+        if (!bridge)
+            return;
+    }
+    if (titlePending) {
+        reportTitle(bridge);
+        // The app may have destroyed the WebView as it heard of the title.
+        bridge = webViewBridge(webView);
+        if (!bridge)
+            return;
+    }
+    reportHistory(bridge, true);
+    bridge = webViewBridge(webView);
+    if (bridge && startPageIcons(bridge))
+        bridge = webViewBridge(webView);
+    // Last, since the app may destroy the WebView as it hears that the requests of the old document ended.
+    if (bridge)
+        endDocumentPermissions(webView, bridge);
+    bridge = webViewBridge(webView);
+    if (bridge)
+        endDocumentNotifications(bridge);
 }
 
 void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
@@ -724,6 +767,9 @@ void JNIWebKitWebViewCache::reportHistory(WebKitWebViewBridge* bridge, bool comm
     bridge->m_historyUri = uri;
     bridge->m_historyCanGoBack = canGoBack;
     bridge->m_historyCanGoForward = canGoForward;
+    // A navigation within the page keeps its icons, for its new address too.
+    if (!committed && bridge->m_pageIcons)
+        rememberPageIcons(bridge, uri, bridge->m_pageIcons);
     auto jUri = JNI::String(uri);
     if (!getJNIWebKitWebViewCache().m_onHistoryChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
             static_cast<jboolean>(canGoBack), static_cast<jboolean>(canGoForward)))
@@ -738,6 +784,117 @@ void JNIWebKitWebViewCache::onIsPlayingAudioChanged(GObject* obj, GParamSpec*, W
     if (!getJNIWebKitWebViewCache().m_onIsPlayingAudioChanged.invoke(
             bridge->m_javaRef.get(), static_cast<jboolean>(isPlayingAudio)))
         Logging::logError("cannot deliver WebKitWebView onIsPlayingAudioChanged callback");
+}
+
+// Sets the icons of the page shown, or none, and tells Java if they changed. Returns whether it told Java, which may
+// have destroyed the WebView meanwhile. A list without images is no icon.
+bool JNIWebKitWebViewCache::setPageIcons(WebKitWebViewBridge* bridge, WebKitImageList* icons)
+{
+    if (icons && !webkit_image_list_get_length(icons))
+        icons = nullptr;
+    if (icons == bridge->m_pageIcons)
+        return false;
+    if (icons)
+        webkit_image_list_ref(icons);
+    if (bridge->m_pageIcons)
+        webkit_image_list_unref(bridge->m_pageIcons);
+    bridge->m_pageIcons = icons;
+    // Under the address of the page shown, as the view's address is already that of a load that the app asked for.
+    if (icons)
+        rememberPageIcons(bridge, bridge->m_historyUri.c_str(), icons);
+    if (!getJNIWebKitWebViewCache().m_onPageIconsChanged.invoke(bridge->m_javaRef.get()))
+        Logging::logError("cannot deliver WebKitWebView onPageIconsChanged callback");
+    return true;
+}
+
+// Keeps the icons of the page at the address, which the view showed, the newest first.
+void JNIWebKitWebViewCache::rememberPageIcons(WebKitWebViewBridge* bridge, const char* uri, WebKitImageList* icons)
+{
+    if (!uri || !*uri)
+        return;
+    auto& recent = bridge->m_recentPageIcons;
+    auto same = std::find_if(recent.begin(), recent.end(), [uri](const auto& entry) { return entry.first == uri; });
+    if (same != recent.end()) {
+        webkit_image_list_unref(same->second);
+        recent.erase(same);
+    }
+    recent.emplace_front(uri, webkit_image_list_ref(icons));
+    if (recent.size() > maxRecentPageIcons) {
+        webkit_image_list_unref(recent.back().second);
+        recent.pop_back();
+    }
+}
+
+// A page that commits has none of the icons of the page before. Returns whether it told Java that the icons changed.
+bool JNIWebKitWebViewCache::clearPageIcons(WebKitWebViewBridge* bridge)
+{
+    if (bridge->m_storedPageIconsSearch) {
+        g_cancellable_cancel(bridge->m_storedPageIconsSearch);
+        g_clear_object(&bridge->m_storedPageIconsSearch);
+    }
+    return setPageIcons(bridge, nullptr);
+}
+
+// WebKit looks for the icons of a page that committed only once it has loaded, so meanwhile the page gets those that
+// the view showed for its address last, as when the user goes back to it, or else those that the icon database keeps
+// for it, from an earlier visit, if any. Called once the page is reported. Returns whether it told Java that the icons
+// changed.
+bool JNIWebKitWebViewCache::startPageIcons(WebKitWebViewBridge* bridge)
+{
+    const char* uri = webkit_web_view_get_uri(bridge->m_webView);
+    // While a load that the app asked for waits to be decided on, the address is the one of that load, not of the page.
+    if (!uri || !*uri || bridge->m_historyUri != uri || !bridge->m_appLoadUris.empty())
+        return false;
+    const auto& recent = bridge->m_recentPageIcons;
+    auto shown = std::find_if(recent.begin(), recent.end(), [uri](const auto& entry) { return entry.first == uri; });
+    if (shown != recent.end())
+        return setPageIcons(bridge, shown->second);
+    auto* manager
+        = webkit_network_session_get_website_data_manager(webkit_web_view_get_network_session(bridge->m_webView));
+    auto* database = webkit_website_data_manager_get_favicon_database(manager);
+    // WebKit keeps no icons for about: addresses.
+    if (database && g_ascii_strncasecmp(uri, "about:", 6)) {
+        bridge->m_storedPageIconsSearch = g_cancellable_new();
+        webkit_favicon_database_get_page_icons(
+            database, uri, bridge->m_storedPageIconsSearch, onStoredPageIconsReady, g_object_ref(bridge->m_webView));
+    }
+    return false;
+}
+
+void JNIWebKitWebViewCache::onStoredPageIconsReady(GObject* object, GAsyncResult* result, gpointer userData)
+{
+    g_autoptr(WebKitWebView) webView = WEBKIT_WEB_VIEW(userData);
+    g_autoptr(GError) error = nullptr;
+    g_autoptr(WebKitImageList) icons
+        = webkit_favicon_database_get_page_icons_finish(WEBKIT_FAVICON_DATABASE(object), result, &error);
+    // A search that was cancelled, or that is not the last one, was for a page that is gone, or whose own icons came
+    // first.
+    auto* bridge = webViewBridge(webView);
+    if (!bridge || g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)
+        || g_task_get_cancellable(G_TASK(result)) != bridge->m_storedPageIconsSearch)
+        return;
+    g_clear_object(&bridge->m_storedPageIconsSearch);
+    setPageIcons(bridge, icons);
+}
+
+// WebKit sets the icons of a page once it loaded them, or found them in the icon database, after the page has loaded,
+// also when they are the same as before, as for a reload. A page whose icons are unknown or cannot be loaded gets a
+// list without images. WebKit sets none for a page that declares no icon and is not http or https, as about:blank, nor
+// for navigations within a page, which keeps its icons. It files them under the address of the load that is starting,
+// if any, so those that come then are not the icons of the page shown, which keeps its own.
+void JNIWebKitWebViewCache::onPageIconsChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
+{
+    // FIXME: WebKit looks the icons up for the address that is active when it starts, and sets them whenever the lookup
+    // ends, without checking that the page is still the same one, so a page that leaves at once can give its icons to
+    // the next one, which keeps them if it loads none of its own, as about:blank. WebKit should check the page.
+    if (bridge->m_loadStarting)
+        return;
+    // The page's own icons take the place of those stored for its address.
+    if (bridge->m_storedPageIconsSearch) {
+        g_cancellable_cancel(bridge->m_storedPageIconsSearch);
+        g_clear_object(&bridge->m_storedPageIconsSearch);
+    }
+    setPageIcons(bridge, webkit_web_view_get_page_icons(WEBKIT_WEB_VIEW(obj)));
 }
 
 // WebKit answers each search once, in the order they were asked for, as a page without site isolation sends them all to
@@ -1716,6 +1873,7 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "permission-request", G_CALLBACK(onPermissionRequest), bridge),
         g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
         g_signal_connect(webView, "show-notification", G_CALLBACK(onShowNotification), bridge),
+        g_signal_connect(webView, "notify::page-icons", G_CALLBACK(onPageIconsChanged), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);
@@ -1967,6 +2125,15 @@ void JNIWebKitWebViewCache::nativeScriptDialogAnswer(
 void JNIWebKitWebViewCache::nativeTerminateWebProcess(JNIEnv*, jobject, jlong nativePtr)
 {
     webkit_web_view_terminate_web_process(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+}
+
+// The icon of the page shown that best fits a size by size square, scaled down to fit it, or null if it has none.
+JNIBitmap JNIWebKitWebViewCache::nativeGetPageIcon(JNIEnv* env, jobject, jlong nativePtr, jint size)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    auto bitmap = createIconBitmap(imageForSize(bridge->m_pageIcons, size), size);
+    // A reference of its own for Java, as the protected one goes when this returns.
+    return bitmap ? reinterpret_cast<JNIBitmap>(env->NewLocalRef(bitmap.get())) : nullptr;
 }
 
 // WebKit's session state of the view, which holds its Back/Forward list, serialized. Returns null, with Java's

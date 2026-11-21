@@ -74,6 +74,12 @@ public class WebChromeClient {
     public void onPlayingAudioChanged(@NonNull WebView view, boolean isPlayingAudio) {}
 
     /**
+     * Tells the app that the icon of the page changed, as {@link WebView#getFavicon} returns it, for example to show it
+     * in the page's tab: see {@link WebPageChromeClient#onFaviconChanged}.
+     */
+    public void onFaviconChanged(@NonNull WebView view) {}
+
+    /**
      * Tells the app that an element of the page went fullscreen, as a video does with its fullscreen button, or any
      * element with {@code element.requestFullscreen()}. The element now fills the {@link WebView}, which draws the page
      * itself, so there is no other view to show: the app gives the WebView the whole screen where it is, for example
