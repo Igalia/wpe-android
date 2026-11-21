@@ -127,6 +127,7 @@ add_library(
     capi/SoupTLD.cpp
     capi/WebKitCookieManager.cpp
     capi/WebKitDownload.cpp
+    capi/WebKitImageBitmap.cpp
     capi/WebKitNetworkSession.cpp
     capi/WebKitSettings.cpp
     capi/WebKitWebContext.cpp
