@@ -873,6 +873,20 @@ public class WebView extends FrameLayout {
             target.reload();
     }
 
+    /**
+     * Loads the page again, as {@link #reload()} does, but takes nothing from the cache: the page and every resource
+     * that it loads, as images, scripts and style sheets, come from the network, and the requests ask the servers and
+     * the proxies on the way for new copies. A plain reload asks the servers whether each copy that the cache holds
+     * changed, and keeps those that did not. This one helps when a site sends a copy that is out of date, or a broken
+     * one, as when its style sheets changed but the cache still holds the old ones. The copies that it loads replace
+     * those in the cache.
+     */
+    public void reloadBypassingCache() {
+        WebPage target = pageFor("reloadBypassingCache");
+        if (target != null)
+            target.reloadBypassingCache();
+    }
+
     public void stopLoading() {
         WebPage target = pageFor("stopLoading");
         if (target != null)

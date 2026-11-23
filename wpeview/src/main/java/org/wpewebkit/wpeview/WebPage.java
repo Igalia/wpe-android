@@ -609,6 +609,14 @@ public final class WebPage {
         webKitWebView.reload();
     }
 
+    /**
+     * Loads the page again without the cache, as {@link WebView#reloadBypassingCache()} does.
+     */
+    public void reloadBypassingCache() {
+        checkThread();
+        webKitWebView.reloadBypassCache();
+    }
+
     public void stopLoading() {
         checkThread();
         webKitWebView.stopLoading();
