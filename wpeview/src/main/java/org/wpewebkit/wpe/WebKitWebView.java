@@ -183,6 +183,12 @@ public final class WebKitWebView {
         }
     }
 
+    public void reloadBypassCache() {
+        if (mNativePtr != 0) {
+            nativeReloadBypassCache(mNativePtr);
+        }
+    }
+
     public void goBack() {
         if (mNativePtr != 0) {
             nativeGoBack(mNativePtr);
@@ -794,6 +800,7 @@ public final class WebKitWebView {
     private native void nativeLoadHtml(long nativePtr, String content, String baseUri);
     private native void nativeStopLoading(long nativePtr);
     private native void nativeReload(long nativePtr);
+    private native void nativeReloadBypassCache(long nativePtr);
     private native void nativeGoBack(long nativePtr);
     private native void nativeGoForward(long nativePtr);
     private native long nativeGetWPEView(long nativePtr);

@@ -362,6 +362,7 @@ public:
             JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", nativeLoadHtml),
             JNI::NativeMethod<void(jlong)>("nativeStopLoading", nativeStopLoading),
             JNI::NativeMethod<void(jlong)>("nativeReload", nativeReload),
+            JNI::NativeMethod<void(jlong)>("nativeReloadBypassCache", nativeReloadBypassCache),
             JNI::NativeMethod<void(jlong)>("nativeGoBack", nativeGoBack),
             JNI::NativeMethod<void(jlong)>("nativeGoForward", nativeGoForward),
             JNI::NativeMethod<jlong(jlong)>("nativeGetWebKitWebViewPtr", nativeGetWebKitWebViewPtr),
@@ -502,6 +503,7 @@ private:
     static void nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri);
     static void nativeStopLoading(JNIEnv*, jobject, jlong nativePtr);
     static void nativeReload(JNIEnv*, jobject, jlong nativePtr);
+    static void nativeReloadBypassCache(JNIEnv*, jobject, jlong nativePtr);
     static void nativeGoBack(JNIEnv*, jobject, jlong nativePtr);
     static void nativeGoForward(JNIEnv*, jobject, jlong nativePtr);
     static jlong nativeGetWebKitWebViewPtr(JNIEnv*, jobject, jlong nativePtr);
@@ -1948,6 +1950,11 @@ void JNIWebKitWebViewCache::nativeStopLoading(JNIEnv*, jobject, jlong nativePtr)
 void JNIWebKitWebViewCache::nativeReload(JNIEnv*, jobject, jlong nativePtr)
 {
     webkit_web_view_reload(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
+}
+
+void JNIWebKitWebViewCache::nativeReloadBypassCache(JNIEnv*, jobject, jlong nativePtr)
+{
+    webkit_web_view_reload_bypass_cache(JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_webView);
 }
 
 void JNIWebKitWebViewCache::nativeGoBack(JNIEnv*, jobject, jlong nativePtr)
