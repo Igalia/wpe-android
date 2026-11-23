@@ -164,6 +164,14 @@ public final class TrackingPrevention {
      * WebKit gives it, also in an address that a user typed.
      */
     static @NonNull String siteOf(@NonNull String url) {
+        return WebKitNetworkSession.getRegistrableDomain(hostOf(url));
+    }
+
+    /**
+     * The host of {@code url} as WebKit gives it: lowercase, in its ASCII form for an international name, and that of
+     * the page that made a blob for the address of the blob. Empty if it has none.
+     */
+    static @NonNull String hostOf(@NonNull String url) {
         Uri uri = Uri.parse(url);
         if ("blob".equalsIgnoreCase(uri.getScheme()) && uri.getSchemeSpecificPart() != null)
             uri = Uri.parse(uri.getSchemeSpecificPart());
@@ -175,6 +183,6 @@ public final class TrackingPrevention {
         IDNA_PROCESSING.nameToASCII(host, asciiHost, info);
         if (!info.hasErrors())
             host = asciiHost.toString();
-        return WebKitNetworkSession.getRegistrableDomain(host.toLowerCase(Locale.ROOT));
+        return host.toLowerCase(Locale.ROOT);
     }
 }

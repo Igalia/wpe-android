@@ -160,6 +160,14 @@ public final class WebKitNetworkSession {
         return nativeGetRegistrableDomain(host);
     }
 
+    /**
+     * The name that WebKit gives the website data of {@code host}, which {@code webkit_website_data_get_name()} gives:
+     * the registrable domain after the public suffix list, the last two labels for an unknown suffix, or the host
+     * itself for an IPv4 address or localhost. Empty for a host that WebKit files no website data under: an IPv6
+     * address, a public suffix itself or another single label. The host is lowercase, as in a URL.
+     */
+    public static @NonNull String getWebsiteDataName(@NonNull String host) { return nativeGetWebsiteDataName(host); }
+
     private native long nativeInit(long contextPtr, boolean automationMode, boolean ephemeral, String dataDir,
                                    String cacheDir);
     private native void nativeDestroy(long nativePtr);
@@ -170,4 +178,5 @@ public final class WebKitNetworkSession {
     private native boolean nativeIsEphemeral(long nativePtr);
     private native void nativeGetITPSummary(long nativePtr, @NonNull ITPSummaryCallbackHolder callbackHolder);
     private static native @NonNull String nativeGetRegistrableDomain(@NonNull String host);
+    private static native @NonNull String nativeGetWebsiteDataName(@NonNull String host);
 }
