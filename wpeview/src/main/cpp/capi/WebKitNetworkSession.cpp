@@ -91,10 +91,10 @@ getJNIWebKitNetworkSessionITPSummaryCallbackHolderCache()
     return s_singleton;
 }
 
-// WebKit's registrableDomainFromHost() (RegistrableDomain.h) with PublicSuffixStore::topPrivatelyControlledDomain()
-// and its libsoup part (PublicSuffixStoreSoup.cpp), which give the site that tracking prevention files a host under.
-// The host is lowercase, as WebKit's URL parser leaves it. An empty result means no site.
-static std::string registrableDomain(const std::string& host)
+// WebKit's PublicSuffixStore::topPrivatelyControlledDomain() and its libsoup part (PublicSuffixStoreSoup.cpp), which
+// also names the website data of the host (WebsiteDataRecord.cpp). The host is lowercase, as WebKit's URL parser leaves
+// it. An empty result means none: WebKit then files no website data under the host.
+static std::string topPrivatelyControlledDomain(const std::string& host)
 {
     if (host.empty())
         return {};
@@ -102,15 +102,17 @@ static std::string registrableDomain(const std::string& host)
         if (character > 127)
             return host;
     }
-    // An IPv6 address keeps its brackets in a URL's host, which then is no address for GLib nor a known name for
-    // libsoup, and WebKit keeps the host.
-    if (host == "localhost" || host.front() == '[' || g_hostname_is_ip_address(host.c_str()))
+    if (host == "localhost" || g_hostname_is_ip_address(host.c_str()))
         return host;
+    // An IPv6 address keeps its brackets in a URL's host, which then is no address for GLib nor a known name for
+    // libsoup.
+    if (host.front() == '[')
+        return {};
 
     // Cookie domains may start with dots, which WebKit skips.
     std::string domain = host.substr(std::min(host.find_first_not_of('.'), host.size()));
     if (domain.empty())
-        return host;
+        return {};
 
     GError* error = nullptr;
     if (const char* baseDomain = soup_tld_get_base_domain(domain.c_str(), &error))
@@ -126,7 +128,15 @@ static std::string registrableDomain(const std::string& host)
     } else if (g_error_matches(error, SOUP_TLD_ERROR, SOUP_TLD_ERROR_IS_IP_ADDRESS))
         result = domain;
     g_clear_error(&error);
-    return result.empty() ? host : result;
+    return result;
+}
+
+// WebKit's registrableDomainFromHost() (RegistrableDomain.h), which gives the site that tracking prevention files a
+// host under: the host itself when it has no top domain. An empty result means no site.
+static std::string registrableDomain(const std::string& host)
+{
+    std::string domain = topPrivatelyControlledDomain(host);
+    return domain.empty() ? host : domain;
 }
 
 class JNIWebKitNetworkSessionCache final : public JNI::TypedClass<JNIWebKitNetworkSession> {
@@ -144,7 +154,8 @@ public:
             JNI::NativeMethod<jboolean(jlong)>("nativeIsEphemeral", nativeIsEphemeral),
             JNI::NativeMethod<void(jlong, JNIWebKitNetworkSessionITPSummaryCallbackHolder)>(
                 "nativeGetITPSummary", nativeGetITPSummary),
-            JNI::StaticNativeMethod<jstring(jstring)>("nativeGetRegistrableDomain", nativeGetRegistrableDomain));
+            JNI::StaticNativeMethod<jstring(jstring)>("nativeGetRegistrableDomain", nativeGetRegistrableDomain),
+            JNI::StaticNativeMethod<jstring(jstring)>("nativeGetWebsiteDataName", nativeGetWebsiteDataName));
     }
 
 private:
@@ -242,6 +253,15 @@ private:
         auto hostContent = javaHost.getContent();
         // Not a JNI::String: it deletes its reference when it goes away, before Java gets the result.
         return env->NewStringUTF(registrableDomain(hostContent ? hostContent.get() : "").c_str());
+    }
+
+    static jstring nativeGetWebsiteDataName(JNIEnv* env, jclass, jstring host)
+    {
+        // The JNI::String must outlive its content, whose release uses the Java string.
+        auto javaHost = JNI::String(host);
+        auto hostContent = javaHost.getContent();
+        // Not a JNI::String: it deletes its reference when it goes away, before Java gets the result.
+        return env->NewStringUTF(topPrivatelyControlledDomain(hostContent ? hostContent.get() : "").c_str());
     }
 };
 

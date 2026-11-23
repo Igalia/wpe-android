@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * WebContext represents the shared engine and session state used by high-level {@link WebView} instances.
@@ -217,6 +218,79 @@ public class WebContext {
     }
 
     /**
+     * Clears the data of the given {@code types} that WebKit keeps for every site that the pages of this context
+     * loaded, and gives {@code callback} whether it is cleared, on the main thread, never before this returns. For
+     * example, a browser clears {@link WebsiteDataType#Cache} when the user asks to clear the cached images and files,
+     * and every type to clear all the data of the sites. The callback is not called if the context is destroyed first.
+     *
+     * <p>This does not clear the icons of pages nor what tracking prevention noted about sites, which are not website
+     * data: {@link #clearFavicons} and {@link #clearTrackingPreventionData} clear them. A browser that clears all the
+     * browsing data calls all three.
+     *
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void clearWebsiteData(@NonNull Set<WebsiteDataType> types, @Nullable WPECallback<Boolean> callback) {
+        checkUsable();
+        websiteDataManager.clear(WebsiteDataType.toWebKit(types), whileAlive(callback));
+    }
+
+    /**
+     * Clears the data of the given {@code types} that WebKit keeps for the site of {@code url}, as
+     * {@link #clearWebsiteData} does for every site, for example when the user asks to clear the data of the site of
+     * the page shown. Other sites keep theirs. The site is what WebKit files the data under: the registrable domain of
+     * the host, for both http and https. For {@code https://www.example.com/page} it is {@code example.com}, so the
+     * data of {@code mail.example.com} goes too. The site of an IPv4 address or of {@code localhost} is the host alone.
+     *
+     * <p>The cache goes by the address of each resource, not by the page that loaded it: clearing the cache of a site
+     * clears the copies of its resources that pages of other sites loaded, and keeps those of the other sites, as
+     * images from another domain, that its pages loaded. The pages of the site that are open keep running, and may
+     * store data again.
+     *
+     * <p>WebKit keeps the data of some hosts under no site: an IPv6 address, a public suffix itself, and a host of a
+     * single label other than {@code localhost}, such as {@code http://intranet/}. This clears nothing for them, and
+     * {@code callback} gets false: only {@link #clearWebsiteData} clears their data.
+     *
+     * @throws IllegalArgumentException if {@code url} is not an http or https address with a host.
+     * @throws IllegalStateException if called on a thread other than the main one, or once the context is destroyed.
+     */
+    public void clearWebsiteDataForSite(@NonNull String url, @NonNull Set<WebsiteDataType> types,
+                                        @Nullable WPECallback<Boolean> callback) {
+        checkUsable();
+        if (!isWebAddress(Uri.parse(url)))
+            throw new IllegalArgumentException("Not an http or https address: " + url);
+        websiteDataManager.removeForSite(WebsiteDataType.toWebKit(types), getWebsiteDataSite(url),
+                                         whileAlive(callback));
+    }
+
+    /**
+     * The site that WebKit files the website data of {@code url} under, which {@link #clearWebsiteDataForSite} clears:
+     * {@code example.com} for {@code https://www.example.com/page}, or the host itself for an IPv4 address or
+     * {@code localhost}. An app can name it, for example in a button that clears the data of the site of the page
+     * shown. An international name comes in its ASCII form, as {@code xn--mnchen-3ya.example}, and lowercase.
+     *
+     * <p>It is empty for an address that is not http or https. It is empty as well for a host that WebKit files under
+     * no site, such as an IPv6 address or {@code http://intranet/}: {@link #clearWebsiteDataForSite} cannot clear the
+     * data of such a host, and only {@link #clearWebsiteData} does.
+     */
+    @NonNull
+    public static String getWebsiteDataSite(@NonNull String url) {
+        if (!isWebAddress(Uri.parse(url)))
+            return "";
+        return WebKitNetworkSession.getWebsiteDataName(TrackingPrevention.hostOf(url));
+    }
+
+    // The callback for an answer of WebKit, which the app gets unless the context is destroyed first.
+    @Nullable
+    private WebKitWebsiteDataManager.Callback whileAlive(@Nullable WPECallback<Boolean> callback) {
+        if (callback == null)
+            return null;
+        return result -> {
+            if (!destroyed)
+                callback.onResult(result);
+        };
+    }
+
+    /**
      * Turns tracking prevention on or off for the pages of this context. It is off unless turned on. While it is on,
      * WebKit keeps sites from following the user across the sites that embed them:
      * <ul>
@@ -393,14 +467,19 @@ public class WebContext {
         String[] addresses = new String[origins.size()];
         int i = 0;
         for (Uri origin : origins) {
-            String scheme = origin.getScheme();
-            String host = origin.getHost();
-            if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) ||
-                host == null || host.isEmpty())
+            if (!isWebAddress(origin))
                 throw new IllegalArgumentException("Not the origin of an http or https page: " + origin);
             addresses[i++] = origin.toString();
         }
         return addresses;
+    }
+
+    // Whether the address is an http or https one with a host.
+    private static boolean isWebAddress(@NonNull Uri address) {
+        String scheme = address.getScheme();
+        String host = address.getHost();
+        return scheme != null && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")) &&
+            host != null && !host.isEmpty();
     }
 
     private void checkUsable() {
