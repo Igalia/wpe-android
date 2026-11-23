@@ -153,7 +153,7 @@
     },
     "imported/w3c/webdriver/tests/classic/element_click/navigate.py": {
         "subtests": {
-            "test_link_cross_origin": {"expected": {"wpe": {"status": ["PASS", "FAIL"], "bug": "webkit.org/b/218737"}}},
+            "test_link_cross_origin": {"expected": {"wpe": {"status": ["PASS"], "bug": "webkit.org/b/218737"}}},
             "test_link_from_nested_context_with_target[_blank]": {"expected": {"wpe": {"status": ["FAIL"]}}},
             "test_link_from_toplevel_context_with_target[_blank]": {"expected": {"wpe": {"status": ["FAIL"]}}}
         }
@@ -161,16 +161,6 @@
     "imported/w3c/webdriver/tests/classic/element_click/single_tick.py": {
         "subtests": {
             "test_element_click_dispatches_actions_in_a_single_tick": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
-        }
-    },
-    "imported/w3c/webdriver/tests/classic/element_click/user_prompts.py": {
-        "subtests": {
-            "test_accept[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
-            "test_accept_and_notify[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
-            "test_default[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
-            "test_dismiss[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
-            "test_dismiss_and_notify[beforeunload-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}},
-            "test_ignore[beforeunload]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/element_send_keys/events.py": {
@@ -367,11 +357,6 @@
             "test_window_with_frame[cross_origin]": {"expected": {"wpe": {"status": ["PASS"]}}}
         }
     },
-    "imported/w3c/webdriver/tests/classic/get_window_rect/user_prompts.py": {
-        "subtests": {
-            "test_accept[alert-None]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
-        }
-    },
     "imported/w3c/webdriver/tests/classic/is_element_enabled/enabled.py": {
         "subtests": {
             "test_xml": {"expected": {"wpe": {"status": ["PASS"]}}}
@@ -432,6 +417,11 @@
             "test_special_key_sends_keydown[NUMPAD7-expected40]": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_special_key_sends_keydown[NUMPAD8-expected41]": {"expected": {"wpe": {"status": ["PASS"]}}},
             "test_special_key_sends_keydown[NUMPAD9-expected42]": {"expected": {"wpe": {"status": ["PASS"]}}}
+        }
+    },
+    "imported/w3c/webdriver/tests/classic/perform_actions/pointer_touch.py": {
+        "subtests": {
+            "test_touch_pointer_in_shadow_tree[outer-open]": {"expected": {"wpe": {"status": ["PASS", "FAIL"]}}}
         }
     },
     "imported/w3c/webdriver/tests/classic/switch_to_frame/switch.py": {
