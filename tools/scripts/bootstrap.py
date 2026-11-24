@@ -354,12 +354,17 @@ class Bootstrap:
         (stdout, _) = p.communicate()
 
         for line in stdout.splitlines():
-            needed = re.match(r"^ 0x[0-9a-f]+ \(NEEDED\)\s+Shared library: \[(.+)\]$", line)
+            # GNU readelf indents these lines with one space, LLVM's with two
+            needed = re.match(r"^\s*0x[0-9a-f]+\s+\(NEEDED\)\s+Shared library: \[(.+)\]$", line)
             if needed:
                 needed_list.append(needed.group(1))
-            soname = re.match(r"^ 0x[0-9a-f]+ \(SONAME\)\s+Library soname: \[(.+)\]$", line)
+            soname = re.match(r"^\s*0x[0-9a-f]+\s+\(SONAME\)\s+Library soname: \[(.+)\]$", line)
             if soname:
                 soname_list.append(soname.group(1))
+
+        # All the libraries read here need other ones, so finding none means the output of readelf wasn't understood
+        if len(needed_list) == 0:
+            raise Exception(f"No NEEDED entries found in {lib_path}: unexpected output from readelf")
 
         if len(soname_list) == 0:
             soname_list = [os.path.basename(lib_path)]
