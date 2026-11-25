@@ -822,6 +822,13 @@ public class WebView extends FrameLayout {
      */
     public boolean isAudioMuted() { return page != null && page.isAudioMuted(); }
 
+    /**
+     * Whether the web process of the page answers in time. {@link WebViewClient#onWebProcessUnresponsive} and
+     * {@link WebViewClient#onWebProcessResponsive} tell when it changes. It is true again once the process ended, and
+     * true after {@link #destroy()} and while the view shows no page.
+     */
+    public boolean isWebProcessResponsive() { return page == null || page.isWebProcessResponsive(); }
+
     public void loadUrl(@NonNull String url) {
         WebPage target = pageFor("loadUrl");
         if (target != null)
@@ -1228,6 +1235,20 @@ public class WebView extends FrameLayout {
             WebView target = target();
             if (target != null)
                 target.viewClient.onWebProcessTerminated(target, reason);
+        }
+
+        @Override
+        public void onWebProcessUnresponsive(@NonNull WebPage source) {
+            WebView target = target();
+            if (target != null)
+                target.viewClient.onWebProcessUnresponsive(target);
+        }
+
+        @Override
+        public void onWebProcessResponsive(@NonNull WebPage source) {
+            WebView target = target();
+            if (target != null)
+                target.viewClient.onWebProcessResponsive(target);
         }
 
         // The page makes its handlers for the view's client too.

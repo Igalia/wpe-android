@@ -21,6 +21,7 @@ package org.wpewebkit.wpeview;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.os.Process;
+import android.view.KeyEvent;
 
 import androidx.annotation.NonNull;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
@@ -68,6 +69,8 @@ public class WebViewWebProcessTest {
     private HttpServer httpServer;
     private final BlockingQueue<String> finishedUrls = new LinkedBlockingQueue<>();
     private final BlockingQueue<Integer> terminations = new LinkedBlockingQueue<>();
+    // "unresponsive" and "responsive", as the view reports them.
+    private final BlockingQueue<String> responsiveness = new LinkedBlockingQueue<>();
     private final BlockingQueue<String> titles = new LinkedBlockingQueue<>();
     // The navigations and titles that the view reports, in order.
     private final BlockingQueue<String> reports = new LinkedBlockingQueue<>();
@@ -90,6 +93,16 @@ public class WebViewWebProcessTest {
                 @Override
                 public void onWebProcessTerminated(@NonNull WebView view, int reason) {
                     terminations.add(reason);
+                }
+
+                @Override
+                public void onWebProcessUnresponsive(@NonNull WebView view) {
+                    responsiveness.add("unresponsive");
+                }
+
+                @Override
+                public void onWebProcessResponsive(@NonNull WebView view) {
+                    responsiveness.add("responsive");
                 }
             });
             view.setWebChromeClient(new WebChromeClient() {
@@ -196,6 +209,79 @@ public class WebViewWebProcessTest {
         assertNull(reports.poll(QUIET_MILLISECONDS, TimeUnit.MILLISECONDS));
         assertEquals(url, fromWebView(WebView::getUrl));
         assertEquals(title, fromWebView(WebView::getTitle));
+    }
+
+    // Forgets what the view reported of the web process before, as when it was slow to start while the page loaded,
+    // once it answers.
+    private void forgetEarlierResponsiveness() {
+        assertEquals(true, fromWebView(WebView::isWebProcessResponsive));
+        responsiveness.clear();
+    }
+
+    // Keeps the web process busy with a script for the given time, or for ever, and has WebKit wait for an answer from
+    // it, which a reload does.
+    private void blockWebProcess(String loop) {
+        forgetEarlierResponsiveness();
+        onWebView(view -> {
+            view.evaluateJavascript(loop, null);
+            view.reload();
+        });
+    }
+
+    private void waitForResponsiveness(String expected) throws InterruptedException {
+        assertEquals(expected, responsiveness.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    }
+
+    /** A web process that does not answer is reported, and ending it makes the view responsive again. */
+    @Test
+    public void testUnresponsiveWebProcess() throws Exception {
+        String page = setTitledPage("/page.html", "Page");
+
+        loadTitledPage(page, "Page");
+        assertEquals(true, fromWebView(WebView::isWebProcessResponsive));
+        blockWebProcess("for (;;) {}");
+        waitForResponsiveness("unresponsive");
+        assertEquals(false, fromWebView(WebView::isWebProcessResponsive));
+
+        onWebView(WebView::terminateWebProcess);
+        waitForTermination(WebViewClient.WEB_PROCESS_TERMINATED_BY_API);
+        assertEquals(true, fromWebView(WebView::isWebProcessResponsive));
+        // The end of the process is reported, not that it answers again.
+        assertNull(responsiveness.poll(QUIET_MILLISECONDS, TimeUnit.MILLISECONDS));
+    }
+
+    /**
+     * WebKit takes a web process that ends as responsive again while it cancels the answers it waited for, such as the
+     * one to a key event, right before it reports the end. Only the end is reported.
+     */
+    @Test
+    public void testTerminateAfterUnansweredKeyEvent() throws Exception {
+        String page = setTitledPage("/page.html", "Page");
+
+        loadTitledPage(page, "Page");
+        forgetEarlierResponsiveness();
+        onWebView(view -> {
+            view.evaluateJavascript("for (;;) {}", null);
+            view.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A));
+        });
+        waitForResponsiveness("unresponsive");
+        onWebView(WebView::terminateWebProcess);
+        waitForTermination(WebViewClient.WEB_PROCESS_TERMINATED_BY_API);
+        assertNull(responsiveness.poll(QUIET_MILLISECONDS, TimeUnit.MILLISECONDS));
+        assertEquals(true, fromWebView(WebView::isWebProcessResponsive));
+    }
+
+    /** A web process that answers again once its script is done is reported as responsive. */
+    @Test
+    public void testWebProcessResponsiveAgain() throws Exception {
+        String page = setTitledPage("/page.html", "Page");
+
+        loadTitledPage(page, "Page");
+        blockWebProcess("for (const end = Date.now() + 8000; Date.now() < end;) {}");
+        waitForResponsiveness("unresponsive");
+        waitForResponsiveness("responsive");
+        assertEquals(true, fromWebView(WebView::isWebProcessResponsive));
+        waitForPageFinished(page);
     }
 
     @Test

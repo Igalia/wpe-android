@@ -195,6 +195,9 @@ struct WebKitWebViewBridge {
     // Whether the web process of the page ended, until the next page commits. WebKit then empties the address and the
     // title, but the page stays in the Back/Forward list, where a reload finds it, so the view keeps both meanwhile.
     bool m_webProcessTerminated {false};
+    // Counts the ends of the web process of the view, so that a report that it answers again, which waits for WebKit to
+    // be done, is dropped if the process ended meanwhile (onIsWebProcessResponsiveChanged).
+    unsigned m_webProcessTerminations {0};
     // The addresses of the loads the app asked for, as WebKit keeps them, in the order it asked, until WebKit decides
     // on them. The app may ask for a load before WebKit decided on the one before, as for the first page of a new
     // view, and WebKit then decides on each in turn. The app is not asked about its own loads.
@@ -350,6 +353,7 @@ public:
               getMethod<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)>("onAuthenticate"))
         , m_onAuthenticationCancelled(getMethod<void(jlong)>("onAuthenticationCancelled"))
         , m_onIsPlayingAudioChanged(getMethod<void(jboolean)>("onIsPlayingAudioChanged"))
+        , m_onIsWebProcessResponsiveChanged(getMethod<void(jboolean)>("onIsWebProcessResponsiveChanged"))
         , m_onFindResult(getMethod<void(jint)>("onFindResult"))
         , m_onPermissionRequest(getMethod<void(jlong, jint, jstring)>("onPermissionRequest"))
         , m_onPermissionRequestCancelled(getMethod<void(jlong)>("onPermissionRequestCancelled"))
@@ -429,6 +433,7 @@ public:
     const JNI::Method<void(jlong, jstring, jint, jstring, jstring, jboolean, jboolean)> m_onAuthenticate;
     const JNI::Method<void(jlong)> m_onAuthenticationCancelled;
     const JNI::Method<void(jboolean)> m_onIsPlayingAudioChanged;
+    const JNI::Method<void(jboolean)> m_onIsWebProcessResponsiveChanged;
     const JNI::Method<void(jint)> m_onFindResult;
     const JNI::Method<void(jlong, jint, jstring)> m_onPermissionRequest;
     const JNI::Method<void(jlong)> m_onPermissionRequestCancelled;
@@ -477,6 +482,8 @@ private:
     static void onAuthenticationCancelled(WebKitAuthenticationRequest* request, WebKitWebViewBridge* bridge);
     static void answerAuthentication(WebKitWebViewBridge* bridge, jlong requestId, WebKitCredential* credential);
     static void onIsPlayingAudioChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void onIsWebProcessResponsiveChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void reportIsWebProcessResponsive(WebKitWebViewBridge* bridge, bool isResponsive);
     static void onFoundText(WebKitFindController*, guint matchCount, WebKitWebViewBridge* bridge);
     static void onFailedToFindText(WebKitFindController*, WebKitWebViewBridge* bridge);
     static void reportFindResult(WebKitWebViewBridge* bridge, jint matchCount);
@@ -919,6 +926,49 @@ void JNIWebKitWebViewCache::onPageIconsChanged(GObject* obj, GParamSpec*, WebKit
     setPageIcons(bridge, webkit_web_view_get_page_icons(WEBKIT_WEB_VIEW(obj)));
 }
 
+// Whether the web process of the page answers in time. WebKit waits 3 seconds for an answer to what it sends that needs
+// one, such as an input event or a load, and the process is responsive again once it answers. WebKit also takes it as
+// responsive when the process ends: while it cancels the answers it waited for, such as the one to a key event, right
+// before it reports the end, and again after. So that it answers again is reported once WebKit is done, unless the
+// process ended meanwhile, or does not answer again by then.
+void JNIWebKitWebViewCache::onIsWebProcessResponsiveChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
+{
+    auto* webView = WEBKIT_WEB_VIEW(obj);
+    if (!webkit_web_view_get_is_web_process_responsive(webView)) {
+        reportIsWebProcessResponsive(bridge, false);
+        return;
+    }
+
+    struct PendingReport {
+        WebKitWebView* webView;
+        unsigned terminations;
+    };
+    auto* report = new PendingReport {WEBKIT_WEB_VIEW(g_object_ref(webView)), bridge->m_webProcessTerminations};
+    g_idle_add_full(
+        G_PRIORITY_HIGH,
+        +[](gpointer data) -> gboolean {
+            auto* report = static_cast<PendingReport*>(data);
+            auto* bridge = webViewBridge(report->webView);
+            if (bridge && bridge->m_webProcessTerminations == report->terminations
+                && webkit_web_view_get_is_web_process_responsive(report->webView))
+                reportIsWebProcessResponsive(bridge, true);
+            return G_SOURCE_REMOVE;
+        },
+        report,
+        +[](gpointer data) {
+            auto* report = static_cast<PendingReport*>(data);
+            g_object_unref(report->webView);
+            delete report;
+        });
+}
+
+void JNIWebKitWebViewCache::reportIsWebProcessResponsive(WebKitWebViewBridge* bridge, bool isResponsive)
+{
+    if (!getJNIWebKitWebViewCache().m_onIsWebProcessResponsiveChanged.invoke(
+            bridge->m_javaRef.get(), static_cast<jboolean>(isResponsive)))
+        Logging::logError("cannot deliver WebKitWebView onIsWebProcessResponsiveChanged callback");
+}
+
 // WebKit answers each search once, in the order they were asked for, as a page without site isolation sends them all to
 // its one web process, also when that ends meanwhile, as its replies then come with nothing found. An answer says how
 // many matches the page has, but not which one is the current match. A search that found more matches than it was
@@ -1326,6 +1376,7 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     WebKitWebView* webView, WebKitWebProcessTerminationReason reason, WebKitWebViewBridge* bridge)
 {
     bridge->m_webProcessTerminated = true;
+    bridge->m_webProcessTerminations++;
     bridge->m_loadStarting = false;
     bridge->m_navigationPending = false;
     bridge->m_failedLoadUri.clear();
@@ -1893,6 +1944,8 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "run-color-chooser", G_CALLBACK(onRunColorChooser), bridge),
         g_signal_connect(webView, "authenticate", G_CALLBACK(onAuthenticate), bridge),
         g_signal_connect(webView, "notify::is-playing-audio", G_CALLBACK(onIsPlayingAudioChanged), bridge),
+        g_signal_connect(
+            webView, "notify::is-web-process-responsive", G_CALLBACK(onIsWebProcessResponsiveChanged), bridge),
         g_signal_connect(webView, "permission-request", G_CALLBACK(onPermissionRequest), bridge),
         g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
         g_signal_connect(webView, "show-notification", G_CALLBACK(onShowNotification), bridge),

@@ -371,6 +371,12 @@ public final class WebKitWebView {
         void onPlayingAudioChanged(boolean isPlayingAudio);
 
         /**
+         * The web process of the page stopped answering in time, or answers again. WebKit makes it responsive again
+         * after it reports the end of the process with {@link #onWebProcessTerminated}.
+         */
+        void onWebProcessResponsiveChanged(boolean isResponsive);
+
+        /**
          * Answers a search with the number of matches in the page, 0 if none was found, or -1 if there are more than
          * the search could count. WebKit answers each search once, in the order they were asked for, also when the web
          * process ends meanwhile.
@@ -658,6 +664,13 @@ public final class WebKitWebView {
         Listener currentListener = listener;
         if (currentListener != null)
             MainLooperDispatcher.post(() -> currentListener.onPlayingAudioChanged(isPlayingAudio));
+    }
+
+    @Keep
+    private void onIsWebProcessResponsiveChanged(boolean isResponsive) {
+        Listener currentListener = listener;
+        if (currentListener != null)
+            MainLooperDispatcher.post(() -> currentListener.onWebProcessResponsiveChanged(isResponsive));
     }
 
     @Keep

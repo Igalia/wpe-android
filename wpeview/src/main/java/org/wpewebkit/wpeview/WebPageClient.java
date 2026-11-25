@@ -133,6 +133,18 @@ public class WebPageClient {
     public void onWebProcessTerminated(@NonNull WebPage page, int reason) {}
 
     /**
+     * Tells the app that the web process of the page stopped answering in time, as
+     * {@link WebViewClient#onWebProcessUnresponsive}. {@link WebPage#isWebProcessResponsive()} then returns false.
+     */
+    public void onWebProcessUnresponsive(@NonNull WebPage page) {}
+
+    /**
+     * Tells the app that the web process of the page answers again, as {@link WebViewClient#onWebProcessResponsive}.
+     * {@link WebPage#isWebProcessResponsive()} then returns true.
+     */
+    public void onWebProcessResponsive(@NonNull WebPage page) {}
+
+    /**
      * Tells the app that a server or a proxy asks for a user name and password, as
      * {@link WebViewClient#onReceivedHttpAuthRequest}. The load waits until the handler is answered. The default
      * answers with {@link HttpAuthHandler#cancel()}.
