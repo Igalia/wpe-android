@@ -19,5 +19,15 @@
     <string name="clear_browsing_data_prompt_message">Clear the selected browsing data.</string>
     <string name="clear_browsing_data_prompt_cancel">Cancel</string>
     <string name="Clear_browsing_data_prompt_ok">Clear</string>
+    <string name="error_page_crash_title">This page crashed</string>
+    <string name="error_page_crash_description">The process that showed this page stopped unexpectedly. Reload the page, or go to another one.</string>
+    <string name="error_page_memory_title">This page ran out of memory</string>
+    <string name="error_page_memory_description">The process that showed this page used more memory than it may, and was stopped. Reload the page, or go to another one.</string>
+    <string name="error_page_stopped_title">This page was stopped</string>
+    <string name="error_page_stopped_description">The process that showed this page was stopped because it did not respond. Reload the page, or go to another one.</string>
+    <string name="unresponsive_dialog_title">Page not responding</string>
+    <string name="unresponsive_dialog_message">%1$s is not responding. Wait for it, or stop it.</string>
+    <string name="unresponsive_dialog_wait">Wait</string>
+    <string name="unresponsive_dialog_stop">Stop</string>
     <string name="empty_string" translatable="false"></string>
 </resources>
