@@ -842,6 +842,37 @@ public class WebView extends FrameLayout {
             target.loadHtml(content, baseUri);
     }
 
+    /**
+     * Shows HTML content in place of the page at {@code contentUrl}, such as an error page that the app makes for a
+     * page that could not load, or whose web process ended ({@link WebViewClient#onWebProcessTerminated}). The view
+     * keeps {@code contentUrl} as its address, and reports the load with it, as {@link WebViewClient#onPageStarted} and
+     * {@link WebViewClient#onPageFinished} do. The title is the one of the content. {@link #reload()} loads
+     * {@code contentUrl} again, in the entry of the content in the Back/Forward list.
+     * <p>
+     * Called in {@link WebViewClient#onReceivedError}, or {@link WebPageClient#onReceivedError}, for the page that
+     * failed to load, the content takes the entry of that page in the Back/Forward list, in place of the error page
+     * that WebKit would show. Only a call made before that callback returns replaces that error page: WebKit loads its
+     * own once the callback returns, and ignores a call made while that page loads. Called at any other time, as in
+     * {@link WebViewClient#onWebProcessTerminated}, the content takes a new entry for {@code contentUrl}, as a page
+     * that loads does: going back from it finds the page that it replaced, which loads again if it is gone.
+     * <p>
+     * Scripts of the content run in a document whose address is {@code baseUrl}, about:blank if it is null, so they
+     * have the origin of that address, and neither the cookies nor the storage of {@code contentUrl} unless it is
+     * {@code baseUrl}. A script can load {@code contentUrl} again with {@code location.replace()}, in the entry of the
+     * content. Unlike {@link #reload()}, that is a navigation of the page, which the app is asked about in
+     * {@link WebViewClient#shouldOverrideUrlLoading}: an app that overrides it there keeps the content from loading the
+     * page again. Does nothing while the view shows no page.
+     *
+     * @param content The HTML content, which the page reads as UTF-8.
+     * @param contentUrl The address that the view keeps, and that {@link #reload()} loads.
+     * @param baseUrl The address of the document of the content, or null for about:blank.
+     */
+    public void loadAlternateHtml(@NonNull String content, @NonNull String contentUrl, @Nullable String baseUrl) {
+        WebPage target = pageFor("loadAlternateHtml");
+        if (target != null)
+            target.loadAlternateHtml(content, contentUrl, baseUrl);
+    }
+
     public void loadData(@NonNull String data, @Nullable String mimeType, @Nullable String encoding) {
         WebPage target = pageFor("loadData");
         if (target != null)

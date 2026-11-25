@@ -182,6 +182,10 @@ struct WebKitWebViewBridge {
     // starts is replaced by the next one. The method is for the failure of the load.
     std::string m_navigationUri;
     std::string m_navigationMethod;
+    // The address of the content that the app asked to show in place of a page (nativeLoadAlternateHtml), until the
+    // next load starts. WebKit decides on no navigation for it, but may still decide on one the app asked for just
+    // before, which the content replaces and whose load never starts.
+    std::string m_alternateLoadUri;
     bool m_navigationPending {false};
     // The server redirects of the current main frame load.
     unsigned m_redirectCount {0};
@@ -360,6 +364,8 @@ public:
             JNI::NativeMethod<void(jlong, jstring)>("nativeLoadUrl", nativeLoadUrl),
             JNI::NativeMethod<void(jlong, jstring)>("nativeDownloadUri", nativeDownloadUri),
             JNI::NativeMethod<void(jlong, jstring, jstring)>("nativeLoadHtml", nativeLoadHtml),
+            JNI::NativeMethod<void(jlong, jstring, jstring, jstring)>(
+                "nativeLoadAlternateHtml", nativeLoadAlternateHtml),
             JNI::NativeMethod<void(jlong)>("nativeStopLoading", nativeStopLoading),
             JNI::NativeMethod<void(jlong)>("nativeReload", nativeReload),
             JNI::NativeMethod<void(jlong)>("nativeGoBack", nativeGoBack),
@@ -434,6 +440,7 @@ private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
     static void onLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent, WebKitWebViewBridge* bridge);
     static void onLoadCommitted(WebKitWebView* webView, WebKitWebViewBridge* bridge);
+    static const char* startedLoadUri(WebKitWebViewBridge* bridge);
     static void onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onEstimatedLoadProgress(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
     static void onTitleChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
@@ -500,6 +507,8 @@ private:
     static void nativeLoadUrl(JNIEnv*, jobject, jlong nativePtr, jstring url);
     static void nativeDownloadUri(JNIEnv*, jobject, jlong nativePtr, jstring uri);
     static void nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, jstring content, jstring baseUri);
+    static void nativeLoadAlternateHtml(
+        JNIEnv*, jobject, jlong nativePtr, jstring content, jstring contentUri, jstring baseUri);
     static void nativeStopLoading(JNIEnv*, jobject, jlong nativePtr);
     static void nativeReload(JNIEnv*, jobject, jlong nativePtr);
     static void nativeGoBack(JNIEnv*, jobject, jlong nativePtr);
@@ -614,9 +623,7 @@ void JNIWebKitWebViewCache::onLoadChanged(
     // WEBKIT_LOAD_REDIRECTED and WEBKIT_LOAD_COMMITTED are intentionally not surfaced, but a page that commits is
     // reported as visited.
     if (loadEvent == WEBKIT_LOAD_STARTED) {
-        // For a load the page starts itself, a link or a script, the web view's URI is still the old one here.
-        auto jUri = JNI::String(
-            bridge->m_navigationPending ? bridge->m_navigationUri.c_str() : webkit_web_view_get_uri(webView));
+        auto jUri = JNI::String(startedLoadUri(bridge));
         // Each navigation is decided on before its load starts. Should a load start without, the loads of the app still
         // to be decided on are no longer taken as the app's, as after a navigation of the page.
         if (!bridge->m_navigationPending)
@@ -693,6 +700,19 @@ void JNIWebKitWebViewCache::onLoadCommitted(WebKitWebView* webView, WebKitWebVie
     bridge = webViewBridge(webView);
     if (bridge)
         endDocumentNotifications(bridge);
+}
+
+// The address of the load that starts. For a load the page starts itself, a link or a script, the web view's URI is
+// still the old one, and the navigation that was decided on last has the address. For content shown in place of a page,
+// the URI is already the address of that page, which WebKit gave the view when the app asked, while the navigation
+// decided on last may be one that the content replaced, so it no longer counts.
+const char* JNIWebKitWebViewCache::startedLoadUri(WebKitWebViewBridge* bridge)
+{
+    const char* viewUri = webkit_web_view_get_uri(bridge->m_webView);
+    if (!bridge->m_alternateLoadUri.empty() && !g_strcmp0(viewUri, bridge->m_alternateLoadUri.c_str()))
+        bridge->m_navigationPending = false;
+    bridge->m_alternateLoadUri.clear();
+    return bridge->m_navigationPending ? bridge->m_navigationUri.c_str() : viewUri;
 }
 
 void JNIWebKitWebViewCache::onUriChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge)
@@ -1308,6 +1328,7 @@ void JNIWebKitWebViewCache::onWebProcessTerminated(
     bridge->m_navigationPending = false;
     bridge->m_failedLoadUri.clear();
     bridge->m_appLoadUris.clear();
+    bridge->m_alternateLoadUri.clear();
 
     // WebKit ends every load of the view with it, also one in another web process that would have replaced the page,
     // but cancels a request for credentials only when a load starts or ends. So the requests are cancelled here, which
@@ -1938,6 +1959,27 @@ void JNIWebKitWebViewCache::nativeLoadHtml(JNIEnv*, jobject, jlong nativePtr, js
     webkit_web_view_load_html(
         webView, JNI::String(content).getContent().get(), JNI::String(baseUri).getContent().get());
     rememberAppLoad(webView);
+}
+
+// Shows the content in place of the page at contentUri, which stays the address of the view. WebKit loads it without
+// deciding on a navigation, so it is not remembered as a load of the app, and it starts with contentUri as the view's
+// URI. While WebKit reports that a load failed, the content takes the entry of that load in the Back/Forward list, and
+// WebKit then does not load its own error page; at other times it takes a new entry. A reload loads contentUri. A null
+// base is about:blank.
+void JNIWebKitWebViewCache::nativeLoadAlternateHtml(
+    JNIEnv*, jobject, jlong nativePtr, jstring content, jstring contentUri, jstring baseUri)
+{
+    // The JNI::Strings must outlive their content, whose release uses the Java strings. A null base has no content.
+    auto javaContent = JNI::String(content);
+    auto javaContentUri = JNI::String(contentUri);
+    auto javaBaseUri = JNI::String(baseUri);
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    // The content replaces a navigation that was decided on and whose load has not started, or that WebKit decides on
+    // later, so its start is reported with contentUri rather than with the address of that navigation (onLoadChanged).
+    bridge->m_navigationPending = false;
+    bridge->m_alternateLoadUri = javaContentUri.getContent().get();
+    webkit_web_view_load_alternate_html(bridge->m_webView, javaContent.getContent().get(),
+        javaContentUri.getContent().get(), javaBaseUri.getContent().get());
 }
 
 void JNIWebKitWebViewCache::nativeStopLoading(JNIEnv*, jobject, jlong nativePtr)

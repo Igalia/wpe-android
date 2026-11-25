@@ -171,6 +171,15 @@ public final class WebKitWebView {
         }
     }
 
+    // Shows the content in place of the page at contentUri, which stays the address of the view. While a failed load is
+    // reported, it takes the entry of that load in the Back/Forward list, and at other times a new one. A reload loads
+    // contentUri. A null base is about:blank.
+    public void loadAlternateHtml(@NonNull String content, @NonNull String contentUri, @Nullable String baseUri) {
+        if (mNativePtr != 0) {
+            nativeLoadAlternateHtml(mNativePtr, content, contentUri, baseUri);
+        }
+    }
+
     public void stopLoading() {
         if (mNativePtr != 0) {
             nativeStopLoading(mNativePtr);
@@ -792,6 +801,8 @@ public final class WebKitWebView {
     private native void nativeLoadUrl(long nativePtr, String url);
     private native void nativeDownloadUri(long nativePtr, String uri);
     private native void nativeLoadHtml(long nativePtr, String content, String baseUri);
+    private native void nativeLoadAlternateHtml(long nativePtr, String content, String contentUri,
+                                                @Nullable String baseUri);
     private native void nativeStopLoading(long nativePtr);
     private native void nativeReload(long nativePtr);
     private native void nativeGoBack(long nativePtr);

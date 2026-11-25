@@ -580,6 +580,19 @@ public final class WebPage {
         webKitWebView.loadHtml(content, baseUri);
     }
 
+    /**
+     * Shows HTML content in place of the page at {@code contentUrl}, as {@link WebView#loadAlternateHtml} does.
+     *
+     * @param content The HTML content, which the page reads as UTF-8.
+     * @param contentUrl The address that the page keeps, and that {@link #reload()} loads.
+     * @param baseUrl The address of the document of the content, or null for about:blank.
+     */
+    public void loadAlternateHtml(@NonNull String content, @NonNull String contentUrl, @Nullable String baseUrl) {
+        checkThread();
+        originalUrl = contentUrl;
+        webKitWebView.loadAlternateHtml(content, contentUrl, baseUrl);
+    }
+
     /** Loads HTML content, as {@link #loadHtml} does: the page always reads the content as UTF-8 HTML. */
     public void loadData(@NonNull String data, @Nullable String mimeType, @Nullable String encoding) {
         loadDataWithBaseURL(null, data, mimeType, encoding, null);
