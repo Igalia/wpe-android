@@ -189,6 +189,8 @@ public final class WebPage {
     boolean inputFieldFocused;
     // Whether the page plays audio, as it last reported.
     boolean playingAudio;
+    // Whether the web process of the page answers in time, as WebKit last reported. A process that ended is responsive.
+    boolean webProcessResponsive = true;
     // Whether the page was muted when it was destroyed.
     private boolean mutedWhenDestroyed;
     // The color that the app gave the page, or null for the default of the app's mode, which WebKit paints itself.
@@ -498,6 +500,13 @@ public final class WebPage {
             throw new IllegalArgumentException("The size of an icon must be positive");
         return destroyed ? null : webKitWebView.getPageIcon(size);
     }
+
+    /**
+     * Whether the web process of the page answers in time, as {@link WebView#isWebProcessResponsive()} tells it.
+     * {@link WebPageClient#onWebProcessUnresponsive} and {@link WebPageClient#onWebProcessResponsive} tell when it
+     * changes. It is true once the page is destroyed.
+     */
+    public boolean isWebProcessResponsive() { return webProcessResponsive; }
 
     /**
      * Mutes or unmutes the sound of the page, as {@link WebView#setAudioMuted} does. The page stays muted for what it
@@ -927,6 +936,7 @@ public final class WebPage {
         endNotifications();
         closingNotifications.clear();
         playingAudio = false;
+        webProcessResponsive = true;
         inputFieldFocused = false;
         settings.detach();
         webKitSettings.destroy();
@@ -1094,6 +1104,9 @@ public final class WebPage {
         // hears of them any more.
         @Override
         public void onWebProcessTerminated(int reason) {
+            // The process that ended no longer counts as unresponsive. The client hears of its end, not that it
+            // answers again, and WebKit's report that it is responsive comes after this one.
+            webProcessResponsive = true;
             endNotifications();
             boolean fieldFocused = inputFieldFocused;
             inputFieldFocused = false;
@@ -1184,6 +1197,17 @@ public final class WebPage {
                 return;
             playingAudio = isPlayingAudio;
             chromeClient.onPlayingAudioChanged(WebPage.this, isPlayingAudio);
+        }
+
+        @Override
+        public void onWebProcessResponsiveChanged(boolean isResponsive) {
+            if (destroyed || webProcessResponsive == isResponsive)
+                return;
+            webProcessResponsive = isResponsive;
+            if (isResponsive)
+                client.onWebProcessResponsive(WebPage.this);
+            else
+                client.onWebProcessUnresponsive(WebPage.this);
         }
 
         @Override

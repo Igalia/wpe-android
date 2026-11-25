@@ -170,6 +170,26 @@ public class WebViewClient {
     public void onWebProcessTerminated(@NonNull WebView view, int reason) {}
 
     /**
+     * Notify the host application that the web process of the page stopped answering in time, for example because a
+     * script of the page runs a long loop: the page neither draws nor takes input meanwhile. WebKit waits 3 seconds for
+     * an answer to what it sends that needs one, such as an input event or a load. The process may answer again, which
+     * {@link #onWebProcessResponsive} tells. The app may tell the user, and offer to wait, or to end the process with
+     * {@link WebView#terminateWebProcess()}, which leads to {@link #onWebProcessTerminated} rather than to
+     * {@link #onWebProcessResponsive}. This mirrors
+     * {@code android.webkit.WebViewRenderProcessClient.onRenderProcessUnresponsive}, which Android calls again every 5
+     * seconds while the process does not answer; this is called once.
+     * @param view The WebView whose web process stopped answering.
+     */
+    public void onWebProcessUnresponsive(@NonNull WebView view) {}
+
+    /**
+     * Notify the host application that the web process of the page answers again after
+     * {@link #onWebProcessUnresponsive}.
+     * @param view The WebView whose web process answers again.
+     */
+    public void onWebProcessResponsive(@NonNull WebView view) {}
+
+    /**
      * The interface used to accept or reject an invalid SSL certificate.
      */
     public interface SslErrorHandler {
