@@ -25,6 +25,7 @@ import android.util.Log
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
@@ -42,6 +43,10 @@ import org.wpewebkit.wpeview.WebViewClient
 const val INITIAL_URL = "https://igalia.com"
 const val SEARCH_URI_BASE = "https://duckduckgo.com/?q="
 
+// How long a page may not respond, after WebKit's own 3 seconds, before the user is asked whether to stop it, and asked
+// again after choosing to wait.
+const val UNRESPONSIVE_DIALOG_DELAY_MS = 5000L
+
 class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
     private val TAG = "BrowserFragment"
@@ -49,6 +54,13 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
     private lateinit var binding: FragmentBrowserBinding
 
     private val browserViewModel by activityViewModels<BrowserViewModel>()
+
+    private var unresponsiveDialog: AlertDialog? = null
+    // Whether the view shows the error page, from the moment it is asked to load it until another load starts, and the
+    // address of the error page while the start of its own load is still to come.
+    private var showingErrorPage = false
+    private var errorPageStartPending: String? = null
+    private val showUnresponsiveDialogTask = Runnable { showUnresponsiveDialog() }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         Log.i(TAG, "onCreateView")
@@ -91,6 +103,7 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
     override fun onDestroyView() {
         Log.i(TAG, "onDestroyView")
+        dismissUnresponsiveDialog()
         super.onDestroyView()
         binding.tabContainerView.removeAllViews()
     }
@@ -138,11 +151,41 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
 
         selectedTab.webview.setWebViewClient(object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String) {
+                if (url != errorPageStartPending)
+                    showingErrorPage = false
+                errorPageStartPending = null
                 showUrl(url)
             }
 
             override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
                 showUrl(url)
+            }
+
+            // The view keeps the address of the page that is gone, which the error page shows and reloads. The error
+            // page needs a new web process, so it is not loaded again when the process that ended was the one of the
+            // error page: Android may end each new one, as it does when it lacks memory, and the view would start
+            // processes without end. The view then keeps the last picture of the error page.
+            override fun onWebProcessTerminated(view: WebView, reason: Int) {
+                Log.w(TAG, "The web process of ${view.url} ended, reason $reason")
+                dismissUnresponsiveDialog()
+                if (showingErrorPage) {
+                    Log.w(TAG, "The web process of the error page ended, which is not loaded again")
+                    return
+                }
+                showingErrorPage = true
+                errorPageStartPending = view.url
+                view.loadAlternateHtml(ErrorPage.forWebProcessTermination(view.context, view.url, reason),
+                                       view.url, null)
+            }
+
+            override fun onWebProcessUnresponsive(view: WebView) {
+                Log.w(TAG, "The web process of ${view.url} does not respond")
+                binding.root.postDelayed(showUnresponsiveDialogTask, UNRESPONSIVE_DIALOG_DELAY_MS)
+            }
+
+            override fun onWebProcessResponsive(view: WebView) {
+                Log.i(TAG, "The web process of ${view.url} responds again")
+                dismissUnresponsiveDialog()
             }
 
             // The address the user is typing is kept.
@@ -222,6 +265,31 @@ class BrowserFragment : Fragment(R.layout.fragment_browser) {
             insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             insetsController.hide(WindowInsetsCompat.Type.systemBars())
         }
+    }
+
+    // Asks whether to stop the page, unless it responds again meanwhile. Stopping it ends its web process, which leads
+    // to the error page.
+    private fun showUnresponsiveDialog() {
+        if (!isAdded)
+            return
+        val webview = selectedTab().webview
+        if (webview.isWebProcessResponsive || unresponsiveDialog != null)
+            return
+        unresponsiveDialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.unresponsive_dialog_title)
+            .setMessage(getString(R.string.unresponsive_dialog_message, webview.url))
+            .setNegativeButton(R.string.unresponsive_dialog_wait) { _, _ ->
+                binding.root.postDelayed(showUnresponsiveDialogTask, UNRESPONSIVE_DIALOG_DELAY_MS)
+            }
+            .setPositiveButton(R.string.unresponsive_dialog_stop) { _, _ -> webview.terminateWebProcess() }
+            .setOnDismissListener { unresponsiveDialog = null }
+            .show()
+    }
+
+    private fun dismissUnresponsiveDialog() {
+        binding.root.removeCallbacks(showUnresponsiveDialogTask)
+        unresponsiveDialog?.dismiss()
+        unresponsiveDialog = null
     }
 
     private fun hideKeyboard() {
