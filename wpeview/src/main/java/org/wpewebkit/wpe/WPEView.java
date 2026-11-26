@@ -84,6 +84,41 @@ public final class WPEView {
             nativeSetTouchListener(mNativePtr, listener != null ? new TouchListenerHolder(listener) : null);
     }
 
+    /**
+     * Sends a pointer that moves, enters the view or leaves it ({@link WPEEventType#POINTER_MOVE},
+     * {@link WPEEventType#POINTER_ENTER} or {@link WPEEventType#POINTER_LEAVE}), from a {@link WPEInputSource}. The
+     * meta state and the button state are those of Android's events, and the position and the deltas are in logical
+     * pixels.
+     */
+    public void dispatchPointerMoveEvent(long time, int type, int source, int metaState, int buttonState, float x,
+                                         float y, float deltaX, float deltaY) {
+        if (mNativePtr != 0)
+            nativeDispatchPointerMoveEvent(mNativePtr, time, type, source, metaState, buttonState, x, y, deltaX,
+                                           deltaY);
+    }
+
+    /**
+     * Sends the press or the release ({@link WPEEventType#POINTER_DOWN} or {@link WPEEventType#POINTER_UP}) of one of
+     * Android's mouse buttons, the primary, secondary or tertiary one. The button state is the one after the change.
+     */
+    public void dispatchPointerButtonEvent(long time, int type, int source, int metaState, int buttonState, int button,
+                                           float x, float y) {
+        if (mNativePtr != 0)
+            nativeDispatchPointerButtonEvent(mNativePtr, time, type, source, metaState, buttonState, button, x, y);
+    }
+
+    /**
+     * Sends a scroll at a position, in steps of a wheel or in logical pixels when {@code preciseDeltas} is true. A
+     * positive delta scrolls towards the top or the left of the page. A stop ends a scroll in pixels, and lets WebKit
+     * carry it on with its momentum.
+     */
+    public void dispatchScrollEvent(long time, int source, int metaState, int buttonState, float deltaX, float deltaY,
+                                    boolean preciseDeltas, boolean isStop, float x, float y) {
+        if (mNativePtr != 0)
+            nativeDispatchScrollEvent(mNativePtr, time, source, metaState, buttonState, deltaX, deltaY, preciseDeltas,
+                                      isStop, x, y);
+    }
+
     void invalidate() { mNativePtr = 0; }
 
     private static class TouchListenerHolder {
@@ -108,4 +143,11 @@ public final class WPEView {
     private native void nativeDispatchKeyEvent(long nativePtr, long time, int type, int keyCode, int unicodeChar,
                                                int metaState);
     private native void nativeSetTouchListener(long nativePtr, @Nullable TouchListenerHolder listener);
+    private native void nativeDispatchPointerMoveEvent(long nativePtr, long time, int type, int source, int metaState,
+                                                       int buttonState, float x, float y, float deltaX, float deltaY);
+    private native void nativeDispatchPointerButtonEvent(long nativePtr, long time, int type, int source, int metaState,
+                                                         int buttonState, int button, float x, float y);
+    private native void nativeDispatchScrollEvent(long nativePtr, long time, int source, int metaState, int buttonState,
+                                                  float deltaX, float deltaY, boolean preciseDeltas, boolean isStop,
+                                                  float x, float y);
 }

@@ -95,7 +95,13 @@ public:
                 "nativeDispatchTouchEvent", nativeDispatchTouchEvent),
             JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint)>(
                 "nativeDispatchKeyEvent", nativeDispatchKeyEvent),
-            JNI::NativeMethod<void(jlong, JNIWPEViewTouchListener)>("nativeSetTouchListener", nativeSetTouchListener));
+            JNI::NativeMethod<void(jlong, JNIWPEViewTouchListener)>("nativeSetTouchListener", nativeSetTouchListener),
+            JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint, jfloat, jfloat, jfloat, jfloat)>(
+                "nativeDispatchPointerMoveEvent", nativeDispatchPointerMoveEvent),
+            JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jint, jint, jfloat, jfloat)>(
+                "nativeDispatchPointerButtonEvent", nativeDispatchPointerButtonEvent),
+            JNI::NativeMethod<void(jlong, jlong, jint, jint, jint, jfloat, jfloat, jboolean, jboolean, jfloat, jfloat)>(
+                "nativeDispatchScrollEvent", nativeDispatchScrollEvent));
     }
 
 private:
@@ -182,6 +188,69 @@ private:
             wpe_gesture_controller_android_set_tap_cancelled_callback(controller, nullptr, nullptr);
             g_object_set_qdata(G_OBJECT(controller), touchListenerQuark(), nullptr);
         }
+    }
+
+    // The keys and the mouse buttons held, from the meta state and the button state of Android's events.
+    static WPEModifiers pointerModifiers(jint metaState, jint buttonState)
+    {
+        unsigned modifiers = androidToWpeModifiers(metaState);
+        if (buttonState & AMOTION_EVENT_BUTTON_PRIMARY)
+            modifiers |= WPE_MODIFIER_POINTER_BUTTON1;
+        if (buttonState & AMOTION_EVENT_BUTTON_TERTIARY)
+            modifiers |= WPE_MODIFIER_POINTER_BUTTON2;
+        if (buttonState & AMOTION_EVENT_BUTTON_SECONDARY)
+            modifiers |= WPE_MODIFIER_POINTER_BUTTON3;
+        return static_cast<WPEModifiers>(modifiers);
+    }
+
+    static void nativeDispatchPointerMoveEvent(JNIEnv*, jobject, jlong viewPtr, jlong time, jint type, jint source,
+        jint metaState, jint buttonState, jfloat x, jfloat y, jfloat deltaX, jfloat deltaY)
+    {
+        auto* view = JNI::from_jlong<WPEView>(viewPtr);
+        g_autoptr(WPEEvent) event
+            = wpe_event_pointer_move_new(static_cast<WPEEventType>(type), view, static_cast<WPEInputSource>(source),
+                static_cast<uint32_t>(time), pointerModifiers(metaState, buttonState), x, y, deltaX, deltaY);
+        wpe_view_event(view, event);
+    }
+
+    static void nativeDispatchPointerButtonEvent(JNIEnv*, jobject, jlong viewPtr, jlong time, jint type, jint source,
+        jint metaState, jint buttonState, jint androidButton, jfloat x, jfloat y)
+    {
+        guint button;
+        switch (androidButton) {
+        case AMOTION_EVENT_BUTTON_PRIMARY:
+            button = WPE_BUTTON_PRIMARY;
+            break;
+        case AMOTION_EVENT_BUTTON_TERTIARY:
+            button = WPE_BUTTON_MIDDLE;
+            break;
+        case AMOTION_EVENT_BUTTON_SECONDARY:
+            button = WPE_BUTTON_SECONDARY;
+            break;
+        default:
+            return;
+        }
+
+        // A press counts the presses of the button before it, for double clicks, and its release goes with it.
+        auto* view = JNI::from_jlong<WPEView>(viewPtr);
+        auto eventType = static_cast<WPEEventType>(type);
+        auto eventTime = static_cast<uint32_t>(time);
+        guint pressCount = eventType == WPE_EVENT_POINTER_DOWN
+            ? wpe_view_compute_press_count(view, x, y, button, eventTime)
+            : wpe_view_get_press_count(view, button);
+        g_autoptr(WPEEvent) event = wpe_event_pointer_button_new(eventType, view, static_cast<WPEInputSource>(source),
+            eventTime, pointerModifiers(metaState, buttonState), button, x, y, pressCount);
+        wpe_view_event(view, event);
+    }
+
+    static void nativeDispatchScrollEvent(JNIEnv*, jobject, jlong viewPtr, jlong time, jint source, jint metaState,
+        jint buttonState, jfloat deltaX, jfloat deltaY, jboolean preciseDeltas, jboolean isStop, jfloat x, jfloat y)
+    {
+        auto* view = JNI::from_jlong<WPEView>(viewPtr);
+        g_autoptr(WPEEvent) event = wpe_event_scroll_new(view, static_cast<WPEInputSource>(source),
+            static_cast<uint32_t>(time), pointerModifiers(metaState, buttonState), deltaX, deltaY,
+            preciseDeltas ? TRUE : FALSE, isStop ? TRUE : FALSE, x, y);
+        wpe_view_event(view, event);
     }
 };
 
