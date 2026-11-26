@@ -18,21 +18,16 @@
 
 package org.wpewebkit.wpeview;
 
-import android.os.ParcelFileDescriptor;
 import android.view.InputDevice;
 
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.rules.ActivityScenarioRule;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.platform.app.InstrumentationRegistry;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeFalse;
@@ -49,16 +44,6 @@ public class WebViewPointerTest {
     private static final String TOUCH = "\"pointer:coarse any-pointer:coarse hover:none any-hover:none\"";
     private static final String TOUCH_AND_MOUSE =
         "\"pointer:fine any-pointer:coarse|fine hover:hover any-hover:hover\"";
-
-    // A USB mouse with three buttons and a wheel, for the uinput command of the shell. It stays while its standard
-    // input is open.
-    private static final String MOUSE = "{\"id\": 1, \"type\": \"uinput\", \"command\": \"register\","
-                                        + " \"name\": \"WebViewPointerTest mouse\", \"vid\": 6353, \"pid\": 43981,"
-                                        + " \"bus\": \"usb\", \"configuration\": ["
-                                        + "{\"type\": 100, \"data\": [1, 2]},"          // UI_SET_EVBIT: EV_KEY, EV_REL
-                                        + "{\"type\": 101, \"data\": [272, 273, 274]}," // UI_SET_KEYBIT: BTN_LEFT...
-                                        + "{\"type\": 102, \"data\": [0, 1, 8]},"       // UI_SET_RELBIT: REL_X...
-                                        + "{\"type\": 110, \"data\": [0]}]}";           // UI_SET_PROPBIT: POINTER
 
     @Rule
     public ActivityScenarioRule<WebViewTestActivity> webViewActivityTestRule =
@@ -115,16 +100,10 @@ public class WebViewPointerTest {
         WebViewActivityScenarioHelper.loadHtmlSync(scenario, webViewClient, PAGE);
         assertEquals(TOUCH, waitForPointer(scenario, webViewClient, TOUCH));
 
-        ParcelFileDescriptor[] uinput =
-            InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommandRw("uinput -");
-        try (ParcelFileDescriptor output = uinput[0];
-             OutputStream input = new ParcelFileDescriptor.AutoCloseOutputStream(uinput[1])) {
-            input.write(MOUSE.getBytes(StandardCharsets.UTF_8));
-            input.flush();
+        try (VirtualInputDevice mouse = VirtualInputDevice.mouse("WebViewPointerTest mouse")) {
             assertEquals("The page did not get the mouse", TOUCH_AND_MOUSE,
                          waitForPointer(scenario, webViewClient, TOUCH_AND_MOUSE));
         }
-        // The mouse goes when its standard input closes.
         assertEquals("The page did not lose the mouse", TOUCH, waitForPointer(scenario, webViewClient, TOUCH));
     }
 }

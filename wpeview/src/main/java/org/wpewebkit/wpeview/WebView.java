@@ -154,6 +154,9 @@ public class WebView extends FrameLayout {
     // Counts the pages that come and go, so that the input connection made for one page ignores the next.
     private int pageGeneration;
     private PageSurfaceView surfaceView;
+    // Gives the page the mouse over the view as a mouse, not as touches. Package-private: used by the surface inner
+    // class (avoids a synthetic accessor).
+    final MouseInput mouse = new MouseInput(this);
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
     // Whether the page left fullscreen as it left the window, which the chrome client hears once the view is done.
@@ -468,6 +471,7 @@ public class WebView extends FrameLayout {
             return oldPage;
         }
         boolean inputMethodConnected = oldPage.inputFieldFocused;
+        mouse.leavePage();
         if (inToplevel) {
             leaveToplevel();
         } else if (platformView != null) {
@@ -1542,10 +1546,22 @@ public class WebView extends FrameLayout {
         }
 
         @Override
+        public boolean onHoverEvent(MotionEvent event) {
+            return mouse.onHoverEvent(event) || super.onHoverEvent(event);
+        }
+
+        @Override
+        public boolean onGenericMotionEvent(MotionEvent event) {
+            return mouse.onGenericMotionEvent(event) || super.onGenericMotionEvent(event);
+        }
+
+        @Override
         @SuppressLint("ClickableViewAccessibility")
         public boolean onTouchEvent(MotionEvent event) {
             if (platformView == null || wpeToplevel == null)
                 return false;
+            if (mouse.onTouchEvent(event))
+                return true;
             tapDetector.onTouchEvent(event);
 
             // MotionEvent coords are in physical pixels; WPE expects logical pixels, at the scale of the screen the
@@ -1829,6 +1845,7 @@ public class WebView extends FrameLayout {
         // The user no longer sees the built-in dialogs of the page. A stopped activity keeps its views in their window,
         // and their dialogs, for when it starts again.
         closeDialogsOfPage();
+        mouse.leavePage();
         super.onDetachedFromWindow();
         // A page of the app outlives the activity, which may end without destroying the view. The view destroys itself
         // when it leaves the window of its destroyed activity, which lets the page go, so that the page neither keeps
