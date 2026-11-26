@@ -31,6 +31,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.Display;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
@@ -40,8 +41,10 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewStructure;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.autofill.AutofillValue;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -101,6 +104,15 @@ import java.util.Objects;
  * that AppCompat gives each activity, with {@code AppCompatDelegate.setDefaultNightMode()} or
  * {@code setLocalNightMode()}: an app that wants light pages on a dark device, or that chooses its mode with
  * AppCompat, gives the pages that mode with {@code UiModeManager.setApplicationNightMode()}.
+ *
+ * <p>The view gives Android's Autofill the login fields of the page it shows, as WebKit finds them when one gets the
+ * focus: a password field and its user name field, also in frames, with the site of their frame. The password service
+ * the user chose offers its accounts there, and offers to save them when the page sends the form. Each sign in is
+ * offered, as the view cannot tell whether it worked; the service decides. For private pages, let the service fill
+ * but never offer to save, with {@link WebSettings#setAutofillMode}, which can also turn Autofill off for a page. A
+ * view left on {@code IMPORTANT_FOR_AUTOFILL_AUTO} takes part. A view set not important for it, with
+ * {@code setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)}, gives Android nothing of any
+ * page it shows.
  */
 @UiThread
 public class WebView extends FrameLayout {
@@ -158,6 +170,8 @@ public class WebView extends FrameLayout {
     // Gives the page the mouse over the view as a mouse, not as touches. Package-private: used by the surface inner
     // class (avoids a synthetic accessor).
     final MouseInput mouse = new MouseInput(this);
+    // Gives Android's Autofill the login fields of the page that the view shows.
+    private final ViewAutofill viewAutofill = new ViewAutofill(this);
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
     // Whether the page left fullscreen as it left the window, which the chrome client hears once the view is done.
@@ -205,7 +219,8 @@ public class WebView extends FrameLayout {
      * {@link WebPageChromeClient#onCreateWindow} for the page that {@code opener} shows, which makes the page of the
      * window this way. It shares the {@link WebContext} of {@code opener}, and one that {@code opener} made for itself
      * ends with the last page made with it. Like any new WebView, it has settings of its own, though it takes from
-     * {@code opener} whether the input method may learn, as {@link WebSettings#setPersonalizedLearningEnabled} says.
+     * {@code opener} whether the input method may learn and what Android's Autofill may do, as
+     * {@link WebSettings#setPersonalizedLearningEnabled} and {@link WebSettings#setAutofillMode} say.
      * Pass an Activity context, as for {@link #WebView(android.content.Context, WebContext)}.
      *
      * @throws IllegalStateException if the page of {@code opener} is not asking for a window there, or a WebView or a
@@ -292,6 +307,10 @@ public class WebView extends FrameLayout {
 
         setFocusable(true);
         setFocusableInTouchMode(true);
+        // A layout left on auto may be left out of what Android's Autofill asks for. An app that wants no Autofill in
+        // the view sets it not important for it.
+        if (getImportantForAutofill() == IMPORTANT_FOR_AUTOFILL_AUTO)
+            setImportantForAutofill(IMPORTANT_FOR_AUTOFILL_YES);
         // The page draws its own focus rings. Android's highlight, drawn when the view gets the focus from a
         // key, would cover the whole page, since it is drawn over the SurfaceView.
         setDefaultFocusHighlightEnabled(false);
@@ -444,6 +463,7 @@ public class WebView extends FrameLayout {
         warnedOfNoPage = false;
         newPage.view = this;
         pageGeneration++;
+        viewAutofill.attach(newPage);
         platformView = newPage.getWPEView();
         imContext = newPage.getInputMethodContext();
         imeInputType = 0;
@@ -473,6 +493,8 @@ public class WebView extends FrameLayout {
         }
         boolean inputMethodConnected = oldPage.inputFieldFocused;
         mouse.leavePage();
+        // A new page starts a new Autofill session.
+        viewAutofill.detach();
         if (inToplevel) {
             leaveToplevel();
         } else if (platformView != null) {
@@ -1912,6 +1934,9 @@ public class WebView extends FrameLayout {
     @Override
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
+        // The user may have turned a password service on or off in the Settings app meanwhile.
+        if (hasWindowFocus)
+            viewAutofill.updateLoginFormAutofill();
         if (!hasWindowFocus) {
             keyboardUpWhenWindowLeft = isInputFieldFocused() && isKeyboardShown();
         } else if (keyboardUpWhenWindowLeft && isInputFieldFocused()) {
@@ -1921,6 +1946,33 @@ public class WebView extends FrameLayout {
         }
         if (inToplevel)
             wpeToplevel.setWindowFocused(hasWindowFocus);
+    }
+
+    @Override
+    public void setImportantForAutofill(int mode) {
+        super.setImportantForAutofill(mode);
+        // The View constructor may call it before the field is set. Off applies at once. On waits until the app is done
+        // with this turn of the main thread, as an app sets it before it shows another page, and the page shown now
+        // must not tell of its login forms meanwhile.
+        if (viewAutofill == null)
+            return;
+        if (isImportantForAutofill())
+            post(viewAutofill::updateLoginFormAutofill);
+        else
+            viewAutofill.updateLoginFormAutofill();
+    }
+
+    // The login fields of the page, as virtual children of the view, for Android's Autofill.
+    @Override
+    public void onProvideAutofillVirtualStructure(@NonNull ViewStructure structure, int flags) {
+        super.onProvideAutofillVirtualStructure(structure, flags);
+        viewAutofill.provideVirtualStructure(structure);
+    }
+
+    // Android's Autofill fills login fields of the page, given by their virtual ids.
+    @Override
+    public void autofill(@NonNull SparseArray<AutofillValue> values) {
+        viewAutofill.autofill(values);
     }
 
     @Override
@@ -1962,6 +2014,7 @@ public class WebView extends FrameLayout {
         // input method engage; without this a focused editable never raises the IME.
         if (platformView != null)
             platformView.setFocused(gainFocus);
+        viewAutofill.onViewFocusChanged(gainFocus);
     }
 
     // Keys that Android handles, as in GeckoView: the volume keys change the volume, and Back, Forward, Menu, Search

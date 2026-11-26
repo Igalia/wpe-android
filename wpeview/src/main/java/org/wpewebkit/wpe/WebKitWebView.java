@@ -20,6 +20,7 @@ package org.wpewebkit.wpe;
 
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.util.Log;
 
 import androidx.annotation.ColorInt;
@@ -31,7 +32,9 @@ import androidx.annotation.UiThread;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -70,6 +73,68 @@ public final class WebKitWebView {
     public static final int WEB_PROCESS_CRASHED = 0;
     public static final int WEB_PROCESS_EXCEEDED_MEMORY_LIMIT = 1;
     public static final int WEB_PROCESS_TERMINATED_BY_API = 2;
+
+    // Mirrors WebKitLoginFormFieldRole.
+    public static final int LOGIN_FORM_FIELD_ROLE_USERNAME = 0;
+    public static final int LOGIN_FORM_FIELD_ROLE_PASSWORD = 1;
+    public static final int LOGIN_FORM_FIELD_ROLE_NEW_PASSWORD = 2;
+
+    /** A login form of the page, as WebKit finds it: its user name and password fields, from one to three. */
+    public static final class LoginForm {
+        /** A field of the form. */
+        public static final class Field {
+            /** WebKit's identifier of the element, the same in each snapshot of the form while the element lives. */
+            public final long id;
+            /** One of the LOGIN_FORM_FIELD_ROLE constants. */
+            public final int role;
+            public final @NonNull String value;
+            // Attributes of the element, empty when it has none. The type is the one the element has.
+            public final @NonNull String name;
+            public final @NonNull String idAttribute;
+            public final @NonNull String type;
+            public final @NonNull String autocomplete;
+            public final @NonNull String placeholder;
+            /** The text of the first label of the field. */
+            public final @NonNull String label;
+            /** Where the field is, in pixels of the view. */
+            public final @NonNull Rect bounds;
+
+            Field(long id, int role, @NonNull String[] strings, int first, @NonNull Rect bounds) {
+                this.id = id;
+                this.role = role;
+                value = strings[first];
+                name = strings[first + 1];
+                idAttribute = strings[first + 2];
+                type = strings[first + 3];
+                autocomplete = strings[first + 4];
+                placeholder = strings[first + 5];
+                label = strings[first + 6];
+                this.bounds = bounds;
+            }
+        }
+
+        // The strings of each field that the native side gives, in the order of the Field constructor.
+        private static final int FIELD_STRINGS = 7;
+
+        /** The origin of the frame of the form, http or https, as WebKit's UI process knows it. */
+        public final @NonNull String origin;
+        /** The index of the field that has the focus, or -1. */
+        public final int focusedField;
+        public final @NonNull List<Field> fields;
+
+        LoginForm(@NonNull String origin, int focusedField, @NonNull long[] ids, @NonNull int[] roles,
+                  @NonNull String[] strings, @NonNull int[] bounds) {
+            this.origin = origin;
+            this.focusedField = focusedField;
+            List<Field> list = new ArrayList<>(ids.length);
+            for (int i = 0; i < ids.length; i++) {
+                Rect rect = new Rect(bounds[i * 4], bounds[i * 4 + 1], bounds[i * 4] + bounds[i * 4 + 2],
+                                     bounds[i * 4 + 1] + bounds[i * 4 + 3]);
+                list.add(new Field(ids[i], roles[i], strings, i * FIELD_STRINGS, rect));
+            }
+            fields = Collections.unmodifiableList(list);
+        }
+    }
 
     private long mNativePtr = 0;
     private final WPEView wpeView;
@@ -327,7 +392,8 @@ public final class WebKitWebView {
         void onURLChanged(@NonNull String uri);
         void onLoadProgress(double progress);
         void onTitleChanged(@NonNull String title);
-        void onHistoryChanged(@NonNull String uri, boolean canGoBack, boolean canGoForward);
+        /** A navigation is done. Committed when it committed a new document, not for a navigation within the page. */
+        void onHistoryChanged(@NonNull String uri, boolean canGoBack, boolean canGoForward, boolean committed);
         void onReceivedHttpError(@NonNull String uri, @NonNull String method, @NonNull String mimeType, int statusCode,
                                  boolean isMainFrame);
         void onReceivedError(@NonNull String uri, @NonNull String method, int errorCode, @NonNull String description);
@@ -416,6 +482,13 @@ public final class WebKitWebView {
          * icons of the old one, or the page got the icons that WebKit keeps for its address or loaded its own.
          */
         void onPageIconsChanged();
+        /**
+         * The login form whose field has the focus changed: a field of one got the focus, or the values or the bounds
+         * of its fields changed. Null when no field of a login form has the focus.
+         */
+        void onFocusedLoginFormChanged(@Nullable LoginForm form);
+        /** The page is about to submit a login form, with the values it submits. */
+        void onLoginFormSubmitted(@NonNull LoginForm form);
     }
 
     private @Nullable Listener listener;
@@ -465,10 +538,10 @@ public final class WebKitWebView {
     }
 
     @Keep
-    private void onHistoryChanged(String uri, boolean canGoBack, boolean canGoForward) {
+    private void onHistoryChanged(String uri, boolean canGoBack, boolean canGoForward, boolean committed) {
         Listener currentListener = listener;
         if (currentListener != null)
-            MainLooperDispatcher.post(() -> currentListener.onHistoryChanged(uri, canGoBack, canGoForward));
+            MainLooperDispatcher.post(() -> currentListener.onHistoryChanged(uri, canGoBack, canGoForward, committed));
     }
 
     @Keep
@@ -722,6 +795,38 @@ public final class WebKitWebView {
             MainLooperDispatcher.post(currentListener::onPageIconsChanged);
     }
 
+    // The native side gives a form as the origin of its frame, the index of its focused field, and for each field
+    // its identifier, role, strings and bounds, all null for none.
+    @Keep
+    private void onFocusedLoginFormChanged(@Nullable String origin, int focusedField, @Nullable long[] ids,
+                                           @Nullable int[] roles, @Nullable String[] strings, @Nullable int[] bounds) {
+        Listener currentListener = listener;
+        if (currentListener == null)
+            return;
+        LoginForm form = origin != null ? new LoginForm(origin, focusedField, ids, roles, strings, bounds) : null;
+        MainLooperDispatcher.post(() -> currentListener.onFocusedLoginFormChanged(form));
+    }
+
+    @Keep
+    private void onLoginFormSubmitted(@NonNull String origin, int focusedField, @NonNull long[] ids,
+                                      @NonNull int[] roles, @NonNull String[] strings, @NonNull int[] bounds) {
+        Listener currentListener = listener;
+        if (currentListener == null)
+            return;
+        LoginForm form = new LoginForm(origin, focusedField, ids, roles, strings, bounds);
+        MainLooperDispatcher.post(() -> currentListener.onLoginFormSubmitted(form));
+    }
+
+    /**
+     * Fills the login form whose field has the focus, as a user who typed the values would, if that field is the one
+     * with focusedFieldId. Each value goes to the field of the form with the identifier at the same index in fieldIds,
+     * in the form that WebKit has when it fills; a field without a value stays as it is.
+     */
+    public void autofillLoginForm(long focusedFieldId, @NonNull long[] fieldIds, @NonNull String[] values) {
+        if (mNativePtr != 0)
+            nativeAutofillLoginForm(mNativePtr, focusedFieldId, fieldIds, values);
+    }
+
     /**
      * The icon of the page that best fits a square of size by size pixels: of the images it has, the smallest whose
      * longer side is at least size, scaled down to fit, or else the biggest, as it is. Null while the page has none.
@@ -857,4 +962,6 @@ public final class WebKitWebView {
     private native void nativeNotificationClick(long nativePtr, long notificationId);
     private native void nativeNotificationClose(long nativePtr, long notificationId);
     private native @Nullable Bitmap nativeGetPageIcon(long nativePtr, int size);
+    private native void nativeAutofillLoginForm(long nativePtr, long focusedFieldId, @NonNull long[] fieldIds,
+                                                @NonNull String[] values);
 }

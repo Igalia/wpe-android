@@ -24,11 +24,13 @@
 #include "WebKitImageBitmap.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <deque>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <pthread.h>
 #include <string>
 #include <string_view>
@@ -45,6 +47,9 @@ DECLARE_JNI_CLASS_SIGNATURE(
 DECLARE_JNI_CLASS_SIGNATURE(JNIWebKitWebView, "org/wpewebkit/wpe/WebKitWebView");
 
 namespace {
+
+// The strings of each field of a login form that Java gets, as JNIWebKitWebViewCache::reportLoginForm lists them.
+constexpr size_t loginFormFieldStrings = 7;
 
 // What the snapshot callback needs, the size limits, and once WebKit delivers the snapshot, its size and pixels. The
 // pixels stay null if the snapshot failed.
@@ -325,6 +330,10 @@ static const JNIWebKitWebViewSnapshotCallbackHolderCache& getJNIWebKitWebViewSna
     return s_singleton;
 }
 
+// The origin of the frame of a login form, the index of its focused field, and the identifiers, roles, strings and
+// bounds of its fields, as JNIWebKitWebViewCache::reportLoginForm gives them.
+using LoginFormCallback = void(jstring, jint, jlongArray, jintArray, jstringArray, jintArray);
+
 class JNIWebKitWebViewCache final : public JNI::TypedClass<JNIWebKitWebView> {
 public:
     JNIWebKitWebViewCache()
@@ -335,7 +344,7 @@ public:
         , m_onUriChanged(getMethod<void(jstring)>("onUriChanged"))
         , m_onEstimatedLoadProgress(getMethod<void(jdouble)>("onEstimatedLoadProgress"))
         , m_onTitleChanged(getMethod<void(jstring)>("onTitleChanged"))
-        , m_onHistoryChanged(getMethod<void(jstring, jboolean, jboolean)>("onHistoryChanged"))
+        , m_onHistoryChanged(getMethod<void(jstring, jboolean, jboolean, jboolean)>("onHistoryChanged"))
         , m_onReceivedHttpError(getMethod<void(jstring, jstring, jstring, jint, jboolean)>("onReceivedHttpError"))
         , m_onLoadFailed(getMethod<void(jstring, jstring, jint, jstring)>("onLoadFailed"))
         , m_onScriptDialog(getMethod<void(jlong, jint, jstring, jstring, jstring)>("onScriptDialog"))
@@ -361,6 +370,8 @@ public:
         , m_onShowNotification(getMethod<void(jlong, jstring, jstring, jstring, jstring)>("onShowNotification"))
         , m_onNotificationClosed(getMethod<void(jlong)>("onNotificationClosed"))
         , m_onPageIconsChanged(getMethod<void()>("onPageIconsChanged"))
+        , m_onFocusedLoginFormChanged(getMethod<LoginFormCallback>("onFocusedLoginFormChanged"))
+        , m_onLoginFormSubmitted(getMethod<LoginFormCallback>("onLoginFormSubmitted"))
     {
         registerNativeMethods(JNI::NativeMethod<jlong(jlong, jlong, jlong, jlong, jlong)>("nativeInit", nativeInit),
             JNI::NativeMethod<jlong(jlong, jlong)>("nativeInitRelated", nativeInitRelated),
@@ -409,7 +420,9 @@ public:
                 "nativePermissionStateQueryAnswer", nativePermissionStateQueryAnswer),
             JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClick", nativeNotificationClick),
             JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClose", nativeNotificationClose),
-            JNI::NativeMethod<JNIBitmap(jlong, jint)>("nativeGetPageIcon", nativeGetPageIcon));
+            JNI::NativeMethod<JNIBitmap(jlong, jint)>("nativeGetPageIcon", nativeGetPageIcon),
+            JNI::NativeMethod<void(jlong, jlong, jlongArray, jstringArray)>(
+                "nativeAutofillLoginForm", nativeAutofillLoginForm));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -418,7 +431,7 @@ public:
     const JNI::Method<void(jstring)> m_onUriChanged;
     const JNI::Method<void(jdouble)> m_onEstimatedLoadProgress;
     const JNI::Method<void(jstring)> m_onTitleChanged;
-    const JNI::Method<void(jstring, jboolean, jboolean)> m_onHistoryChanged;
+    const JNI::Method<void(jstring, jboolean, jboolean, jboolean)> m_onHistoryChanged;
     const JNI::Method<void(jstring, jstring, jstring, jint, jboolean)> m_onReceivedHttpError;
     const JNI::Method<void(jstring, jstring, jint, jstring)> m_onLoadFailed;
     const JNI::Method<void(jlong, jint, jstring, jstring, jstring)> m_onScriptDialog;
@@ -441,6 +454,8 @@ public:
     const JNI::Method<void(jlong, jstring, jstring, jstring, jstring)> m_onShowNotification;
     const JNI::Method<void(jlong)> m_onNotificationClosed;
     const JNI::Method<void()> m_onPageIconsChanged;
+    const JNI::Method<LoginFormCallback> m_onFocusedLoginFormChanged;
+    const JNI::Method<LoginFormCallback> m_onLoginFormSubmitted;
 
 private:
     static void onClose(WebKitWebView*, WebKitWebViewBridge* bridge);
@@ -505,6 +520,10 @@ private:
     static bool startPageIcons(WebKitWebViewBridge* bridge);
     static void onStoredPageIconsReady(GObject* object, GAsyncResult* result, gpointer userData);
     static void onPageIconsChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static bool reportLoginForm(
+        const JNI::Method<LoginFormCallback>& method, WebKitWebViewBridge* bridge, WebKitLoginForm* form);
+    static void onFocusedLoginFormChanged(GObject* obj, GParamSpec*, WebKitWebViewBridge* bridge);
+    static void onLoginFormSubmitted(WebKitWebView* webView, WebKitLoginForm* form, WebKitWebViewBridge* bridge);
     static bool setPageIcons(WebKitWebViewBridge* bridge, WebKitImageList* icons);
 
     static WebKitWebViewBridge* createBridge(JNIEnv* env, jobject jniWebView, WebKitWebView* webView);
@@ -555,6 +574,8 @@ private:
     static void nativePermissionStateQueryAnswer(JNIEnv*, jobject, jlong nativePtr, jlong queryId, jint state);
     static void nativeNotificationClick(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
     static void nativeNotificationClose(JNIEnv*, jobject, jlong nativePtr, jlong notificationId);
+    static void nativeAutofillLoginForm(
+        JNIEnv*, jobject, jlong nativePtr, jlong focusedFieldId, jlongArray fieldIds, jstringArray values);
     static JNIBitmap nativeGetPageIcon(JNIEnv* env, jobject, jlong nativePtr, jint size);
 };
 
@@ -801,7 +822,7 @@ void JNIWebKitWebViewCache::reportHistory(WebKitWebViewBridge* bridge, bool comm
         rememberPageIcons(bridge, uri, bridge->m_pageIcons);
     auto jUri = JNI::String(uri);
     if (!getJNIWebKitWebViewCache().m_onHistoryChanged.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jUri),
-            static_cast<jboolean>(canGoBack), static_cast<jboolean>(canGoForward)))
+            static_cast<jboolean>(canGoBack), static_cast<jboolean>(canGoForward), static_cast<jboolean>(committed)))
         Logging::logError("cannot deliver WebKitWebView onHistoryChanged callback");
 }
 
@@ -967,6 +988,124 @@ void JNIWebKitWebViewCache::reportIsWebProcessResponsive(WebKitWebViewBridge* br
     if (!getJNIWebKitWebViewCache().m_onIsWebProcessResponsiveChanged.invoke(
             bridge->m_javaRef.get(), static_cast<jboolean>(isResponsive)))
         Logging::logError("cannot deliver WebKitWebView onIsWebProcessResponsiveChanged callback");
+}
+
+// Tells Java of a login form, or of none: the origin of its frame, the index of its focused field or -1, and for each
+// field WebKit's identifier of its element, its role, its strings and its bounds. The roles are WebKit's
+// WebKitLoginFormFieldRole values. The strings are LOGIN_FORM_FIELD_STRINGS for each field: the value, the name, id,
+// type, autocomplete and placeholder attributes, and the label. The bounds are the left, top, width and height of each
+// field, in pixels of the view. The values go only to Java and are never logged.
+bool JNIWebKitWebViewCache::reportLoginForm(
+    const JNI::Method<LoginFormCallback>& method, WebKitWebViewBridge* bridge, WebKitLoginForm* form)
+{
+    if (form == nullptr) {
+        return method.invoke(bridge->m_javaRef.get(), static_cast<jstring>(nullptr), static_cast<jint>(-1),
+            static_cast<jlongArray>(nullptr), static_cast<jintArray>(nullptr), static_cast<jstringArray>(nullptr),
+            static_cast<jintArray>(nullptr));
+    }
+
+    WPEView* wpeView = webkit_web_view_get_wpe_view(bridge->m_webView);
+    const double scale = wpeView != nullptr ? wpe_view_get_scale(wpeView) : 1;
+    auto pixels = [scale](double value) { return static_cast<jint>(std::lround(value * scale)); };
+    auto* env = JNI::getCurrentThreadJNIEnv();
+    const guint count = webkit_login_form_get_n_fields(form);
+    std::vector<jlong> ids(count);
+    std::vector<jint> roles(count);
+    std::vector<jint> bounds(static_cast<size_t>(count) * 4);
+    auto strings = JNI::ObjectArray<jstring>(
+        JNI::TypedClass<jstring>().createArray(static_cast<size_t>(count) * loginFormFieldStrings));
+    for (guint i = 0; i < count; i++) {
+        const size_t index = i;
+        ids[index] = static_cast<jlong>(webkit_login_form_get_field_id(form, i));
+        roles[index] = static_cast<jint>(webkit_login_form_get_field_role(form, i));
+        const std::array<const char*, loginFormFieldStrings> fieldStrings = {webkit_login_form_get_field_value(form, i),
+            webkit_login_form_get_field_attribute(form, i, "name"),
+            webkit_login_form_get_field_attribute(form, i, "id"),
+            webkit_login_form_get_field_attribute(form, i, "type"),
+            webkit_login_form_get_field_attribute(form, i, "autocomplete"),
+            webkit_login_form_get_field_attribute(form, i, "placeholder"), webkit_login_form_get_field_label(form, i)};
+        const size_t firstString = index * loginFormFieldStrings;
+        for (size_t j = 0; j < fieldStrings.size(); j++) {
+            jstring text = JNI::newStringFromUTF8(env, fieldStrings[j]);
+            strings.setValue(firstString + j, JNI::String(text != nullptr ? text : JNI::newStringFromUTF8(env, "")));
+        }
+        double x = 0;
+        double y = 0;
+        double width = 0;
+        double height = 0;
+        webkit_login_form_get_field_bounds(form, i, &x, &y, &width, &height);
+        // The edges are scaled, rather than the size, so that the field ends where WebKit draws its edge.
+        const size_t firstBound = index * 4;
+        bounds[firstBound] = pixels(x);
+        bounds[firstBound + 1] = pixels(y);
+        bounds[firstBound + 2] = pixels(x + width) - pixels(x);
+        bounds[firstBound + 3] = pixels(y + height) - pixels(y);
+    }
+    JNI::ScalarArray<jlong> jIds(count);
+    env->SetLongArrayRegion(jIds, 0, static_cast<jsize>(count), ids.data());
+    JNI::ScalarArray<jint> jRoles(count);
+    env->SetIntArrayRegion(jRoles, 0, static_cast<jsize>(count), roles.data());
+    JNI::ScalarArray<jint> jBounds(bounds.size());
+    env->SetIntArrayRegion(jBounds, 0, static_cast<jsize>(bounds.size()), bounds.data());
+    g_autofree char* origin = webkit_security_origin_to_string(webkit_login_form_get_security_origin(form));
+    auto jOrigin = JNI::String(origin);
+    return method.invoke(bridge->m_javaRef.get(), static_cast<jstring>(jOrigin),
+        static_cast<jint>(webkit_login_form_get_focused_field(form)), static_cast<jlongArray>(jIds),
+        static_cast<jintArray>(jRoles), static_cast<jstringArray>(strings), static_cast<jintArray>(jBounds));
+}
+
+// The login form whose field has the focus changed: a field of one got or lost the focus, or the values or the bounds
+// of its fields changed.
+void JNIWebKitWebViewCache::onFocusedLoginFormChanged(GObject*, GParamSpec*, WebKitWebViewBridge* bridge)
+{
+    if (!reportLoginForm(getJNIWebKitWebViewCache().m_onFocusedLoginFormChanged, bridge,
+            webkit_web_view_get_focused_login_form(bridge->m_webView)))
+        Logging::logError("cannot deliver WebKitWebView onFocusedLoginFormChanged callback");
+}
+
+void JNIWebKitWebViewCache::onLoginFormSubmitted(WebKitWebView*, WebKitLoginForm* form, WebKitWebViewBridge* bridge)
+{
+    if (!reportLoginForm(getJNIWebKitWebViewCache().m_onLoginFormSubmitted, bridge, form))
+        Logging::logError("cannot deliver WebKitWebView onLoginFormSubmitted callback");
+}
+
+// Fills the login form whose field has the focus, if that field is still the one the password service answered for.
+// WebKit then fills it only while that element has the focus, in the same document. Each value goes to the field with
+// the identifier at the same index, in the form that WebKit has now, so that no value lands in another field of a form
+// whose fields changed since Java heard of it. A field without a value stays as it is.
+void JNIWebKitWebViewCache::nativeAutofillLoginForm(
+    JNIEnv*, jobject, jlong nativePtr, jlong focusedFieldId, jlongArray fieldIds, jstringArray values)
+{
+    auto* bridge = JNI::from_jlong<WebKitWebViewBridge>(nativePtr);
+    WebKitLoginForm* form = webkit_web_view_get_focused_login_form(bridge->m_webView);
+    if (form == nullptr)
+        return;
+    const int focused = webkit_login_form_get_focused_field(form);
+    if (focused < 0 || webkit_login_form_get_field_id(form, focused) != static_cast<guint64>(focusedFieldId))
+        return;
+    // The span of the elements needs the array to outlive it.
+    const JNI::ScalarArray<jlong> idArray(fieldIds);
+    const auto ids = idArray.getReadOnlyContent();
+    // In standard UTF-8, for passwords with characters outside the BMP.
+    auto* env = JNI::getCurrentThreadJNIEnv();
+    std::vector<std::optional<std::string>> contents(webkit_login_form_get_n_fields(form));
+    size_t index = 0;
+    for (auto value : JNI::ObjectArray<jstring>(values).getReadOnlyContent()) {
+        jstring text = value.get();
+        const size_t valueIndex = index++;
+        if (text == nullptr || valueIndex >= ids.getSize())
+            continue;
+        for (size_t field = 0; field < contents.size(); field++) {
+            if (webkit_login_form_get_field_id(form, static_cast<guint>(field))
+                == static_cast<guint64>(ids[valueIndex]))
+                contents[field] = JNI::toUTF8(env, text);
+        }
+    }
+    std::vector<const char*> fieldValues;
+    fieldValues.reserve(contents.size());
+    for (const auto& content : contents)
+        fieldValues.push_back(content ? content->c_str() : nullptr);
+    webkit_web_view_autofill_login_form(bridge->m_webView, form, fieldValues.data(), fieldValues.size());
 }
 
 // WebKit answers each search once, in the order they were asked for, as a page without site isolation sends them all to
@@ -1950,6 +2089,8 @@ WebKitWebViewBridge* JNIWebKitWebViewCache::createBridge(JNIEnv* env, jobject jn
         g_signal_connect(webView, "query-permission-state", G_CALLBACK(onQueryPermissionState), bridge),
         g_signal_connect(webView, "show-notification", G_CALLBACK(onShowNotification), bridge),
         g_signal_connect(webView, "notify::page-icons", G_CALLBACK(onPageIconsChanged), bridge),
+        g_signal_connect(webView, "notify::focused-login-form", G_CALLBACK(onFocusedLoginFormChanged), bridge),
+        g_signal_connect(webView, "login-form-submitted", G_CALLBACK(onLoginFormSubmitted), bridge),
     };
     bridge->m_backForwardListChangedId = g_signal_connect(
         webkit_web_view_get_back_forward_list(webView), "changed", G_CALLBACK(onBackForwardListChanged), bridge);

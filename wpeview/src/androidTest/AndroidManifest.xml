@@ -22,6 +22,19 @@
             android:label="WebViewFragmentTestActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|locale|layoutDirection|fontScale|uiMode"
             android:exported="false" />
+        <!-- The authentication of TestAutofillService, which holds the window focus as a screen lock prompt does. -->
+        <activity android:name="org.wpewebkit.wpeview.TestAutofillAuthActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:exported="false" />
+        <!-- The password service of WebViewAutofillTest, which sets it as the device's own while it runs. -->
+        <service android:name="org.wpewebkit.wpeview.TestAutofillService"
+            android:label="WPEView test password service"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

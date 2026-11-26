@@ -21,6 +21,10 @@
 
 #include "JNIEnv.h"
 
+#include <cstdint>
+#include <utility>
+#include <vector>
+
 JNI::String::String(const char* str, bool useGlobalRef)
 {
     if (str == nullptr)
@@ -90,4 +94,127 @@ std::shared_ptr<const char> JNI::String::getContent() const
                 if (auto* env = tryGetCurrentThreadJNIEnv())
                     env->ReleaseStringUTFChars(javaStringRef, ptr);
             }};
+}
+
+namespace {
+
+constexpr uint32_t replacementCharacter = 0xFFFD;
+constexpr uint32_t firstLeadSurrogate = 0xD800;
+constexpr uint32_t firstTrailSurrogate = 0xDC00;
+constexpr uint32_t lastTrailSurrogate = 0xDFFF;
+constexpr uint32_t firstSupplementary = 0x10000;
+constexpr uint32_t lastCodePoint = 0x10FFFF;
+
+bool isLeadSurrogate(uint32_t unit)
+{
+    return unit >= firstLeadSurrogate && unit < firstTrailSurrogate;
+}
+
+bool isTrailSurrogate(uint32_t unit)
+{
+    return unit >= firstTrailSurrogate && unit <= lastTrailSurrogate;
+}
+
+void appendUTF8(std::string& text, uint32_t codePoint)
+{
+    if (codePoint < 0x80) {
+        text += static_cast<char>(codePoint);
+    } else if (codePoint < 0x800) {
+        text += static_cast<char>(0xC0 | (codePoint >> 6));
+        text += static_cast<char>(0x80 | (codePoint & 0x3F));
+    } else if (codePoint < firstSupplementary) {
+        text += static_cast<char>(0xE0 | (codePoint >> 12));
+        text += static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F));
+        text += static_cast<char>(0x80 | (codePoint & 0x3F));
+    } else {
+        text += static_cast<char>(0xF0 | (codePoint >> 18));
+        text += static_cast<char>(0x80 | ((codePoint >> 12) & 0x3F));
+        text += static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F));
+        text += static_cast<char>(0x80 | (codePoint & 0x3F));
+    }
+}
+
+// The code point of the UTF-8 sequence at bytes[index], and its length, or the replacement character and 1 for a byte
+// that does not start a valid, shortest sequence.
+std::pair<uint32_t, size_t> decodeUTF8(const std::string& bytes, size_t index)
+{
+    const auto lead = static_cast<unsigned char>(bytes[index]);
+    size_t length = 0;
+    uint32_t codePoint = 0;
+    uint32_t smallest = 0;
+    if (lead < 0x80)
+        return {lead, 1};
+    if ((lead & 0xE0) == 0xC0) {
+        length = 2;
+        codePoint = lead & 0x1F;
+        smallest = 0x80;
+    } else if ((lead & 0xF0) == 0xE0) {
+        length = 3;
+        codePoint = lead & 0x0F;
+        smallest = 0x800;
+    } else if ((lead & 0xF8) == 0xF0) {
+        length = 4;
+        codePoint = lead & 0x07;
+        smallest = firstSupplementary;
+    } else {
+        return {replacementCharacter, 1};
+    }
+    if (index + length > bytes.size())
+        return {replacementCharacter, 1};
+    for (size_t i = 1; i < length; i++) {
+        const auto next = static_cast<unsigned char>(bytes[index + i]);
+        if ((next & 0xC0) != 0x80)
+            return {replacementCharacter, 1};
+        codePoint = (codePoint << 6) | (next & 0x3F);
+    }
+    if (codePoint < smallest || codePoint > lastCodePoint
+        || (codePoint >= firstLeadSurrogate && codePoint <= lastTrailSurrogate))
+        return {replacementCharacter, 1};
+    return {codePoint, length};
+}
+
+} // namespace
+
+std::string JNI::toUTF8(JNIEnv* env, jstring text)
+{
+    const jsize length = env->GetStringLength(text);
+    std::vector<jchar> units(static_cast<size_t>(length));
+    if (length > 0)
+        env->GetStringRegion(text, 0, length, units.data());
+    std::string result;
+    result.reserve(units.size());
+    for (size_t i = 0; i < units.size(); i++) {
+        uint32_t codePoint = units[i];
+        if (isLeadSurrogate(codePoint) && i + 1 < units.size() && isTrailSurrogate(units[i + 1])) {
+            codePoint
+                = firstSupplementary + ((codePoint - firstLeadSurrogate) << 10) + (units[i + 1] - firstTrailSurrogate);
+            i++;
+        } else if (isLeadSurrogate(codePoint) || isTrailSurrogate(codePoint)) {
+            codePoint = replacementCharacter;
+        }
+        appendUTF8(result, codePoint);
+    }
+    return result;
+}
+
+jstring JNI::newStringFromUTF8(JNIEnv* env, const char* text)
+{
+    const std::string bytes = text != nullptr ? text : "";
+    std::vector<jchar> units;
+    units.reserve(bytes.size());
+    for (size_t i = 0; i < bytes.size();) {
+        const auto [codePoint, length] = decodeUTF8(bytes, i);
+        if (codePoint >= firstSupplementary) {
+            const uint32_t offset = codePoint - firstSupplementary;
+            units.push_back(static_cast<jchar>(firstLeadSurrogate + (offset >> 10)));
+            units.push_back(static_cast<jchar>(firstTrailSurrogate + (offset & 0x3FF)));
+        } else {
+            units.push_back(static_cast<jchar>(codePoint));
+        }
+        i += length;
+    }
+    jstring result = env->NewString(units.data(), static_cast<jsize>(units.size()));
+    if (result == nullptr)
+        clearJavaException(env);
+    return result;
 }

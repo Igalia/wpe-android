@@ -138,6 +138,8 @@ public final class WebPage {
     private final WebSettings settings;
     // Package-private: used by the inner classes (avoids synthetic accessors).
     final WebKitWebView webKitWebView;
+    // The login fields of the page, which the view that shows it gives to Android's Autofill.
+    final PageAutofill autofill = new PageAutofill(this);
     @NonNull
     WebPageClient client = new WebPageClient();
     @NonNull
@@ -223,11 +225,12 @@ public final class WebPage {
     public WebPage(@NonNull WebContext context) { this(onMainThread(context), null, false); }
 
     // The page of a new window that opener asks for, made by its WindowRequest. It starts with what the settings of
-    // opener say about the input method learning, so that the window of a private page is private too when the app sets
-    // nothing on it.
+    // opener say about the input method learning and Android's Autofill, so that the window of a private page is
+    // private too when the app sets nothing on it.
     WebPage(@NonNull WebPage opener) {
         this(opener.context, opener, false);
         settings.setPersonalizedLearningEnabled(opener.settings.getPersonalizedLearningEnabled());
+        settings.setAutofillMode(opener.settings.getAutofillMode());
     }
 
     // The page of a new window is related to the page of its opener, which asks for it, and shares its context. A page
@@ -246,7 +249,8 @@ public final class WebPage {
         webKitWebView = opener != null ? new WebKitWebView(opener.webKitWebView, webKitSettings)
                                        : new WebKitWebView(context.getWPEDisplay(), context.getWebKitWebContext(), null,
                                                            context.getWebKitNetworkSession(), webKitSettings);
-        settings = new WebSettings(webKitSettings, webKitWebView, context.getApplicationContext());
+        settings = new WebSettings(webKitSettings, webKitWebView, context.getApplicationContext(),
+                                   this::onAutofillModeChanged);
         webKitWebView.setListener(new PageListener());
         webKitWebView.getInputMethodContext().setListener(new InputMethodListener());
         // WebKit gives every new view a toplevel of its own, with the scale of the screen, which the page keeps. The
@@ -451,6 +455,22 @@ public final class WebPage {
 
     /** Returns the address of the page, which is "about:blank" before it loads one. */
     public @NonNull String getUrl() { return url; }
+
+    // Whether WebKit tells of the login forms of the page, which the view that shows it decides.
+    void setLoginFormAutofillEnabled(boolean enabled) {
+        if (!destroyed)
+            webKitSettings.setLoginFormAutofillEnabled(enabled);
+    }
+
+    boolean isLoginFormAutofillEnabled() { return !destroyed && webKitSettings.getLoginFormAutofillEnabled(); }
+
+    // The settings of the page tell of a new Autofill mode. With Autofill off, the app keeps nothing of the login
+    // fields either: WebKit tells of them again once it is on.
+    private void onAutofillModeChanged() {
+        if (settings.getAutofillMode() == WebSettings.AUTOFILL_OFF)
+            autofill.reset();
+        autofill.onModeChanged();
+    }
 
     /** Returns the address that the app last asked the page to load, before any redirect, or null if none. */
     public @Nullable String getOriginalUrl() { return originalUrl; }
@@ -1065,9 +1085,12 @@ public final class WebPage {
         }
 
         @Override
-        public void onHistoryChanged(@NonNull String uri, boolean goBack, boolean goForward) {
+        public void onHistoryChanged(@NonNull String uri, boolean goBack, boolean goForward, boolean committed) {
             canGoBack = goBack;
             canGoForward = goForward;
+            // The login fields go with their document, not with a navigation within the page.
+            if (committed)
+                autofill.reset();
             client.doUpdateVisitedHistory(WebPage.this, uri, /* isReload */ false);
             updateTitle();
         }
@@ -1116,11 +1139,22 @@ public final class WebPage {
             // answers again, and WebKit's report that it is responsive comes after this one.
             webProcessResponsive = true;
             endNotifications();
+            autofill.reset();
             boolean fieldFocused = inputFieldFocused;
             inputFieldFocused = false;
             if (view != null)
                 view.onPageWebProcessTerminated(fieldFocused);
             client.onWebProcessTerminated(WebPage.this, reason);
+        }
+
+        @Override
+        public void onFocusedLoginFormChanged(@Nullable WebKitWebView.LoginForm form) {
+            autofill.onFocusedLoginForm(form);
+        }
+
+        @Override
+        public void onLoginFormSubmitted(@NonNull WebKitWebView.LoginForm form) {
+            autofill.onSubmitted(form);
         }
 
         // WebKit can only put the page of the new window in a view made for it, in this call.
