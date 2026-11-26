@@ -22,6 +22,7 @@ import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.res.Configuration;
 
+import androidx.annotation.IntDef;
 import androidx.annotation.MainThread;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -29,6 +30,8 @@ import androidx.annotation.Nullable;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Set;
@@ -40,6 +43,21 @@ import java.util.WeakHashMap;
  * have no effect.
  */
 public class WebSettings {
+    /** Android's Autofill fills the login fields of the page and may offer to save its sign ins. */
+    public static final int AUTOFILL_FILL_AND_SAVE = 0;
+    /**
+     * Android's Autofill fills the login fields of the page but never offers to save its sign ins: it hears of the
+     * site of a login field when the user enters it, never of the values of the fields. So its list of accounts does
+     * not narrow as the user types.
+     */
+    public static final int AUTOFILL_FILL_ONLY = 1;
+    /** Android's Autofill hears nothing of the page, and what users type stays in the web process. */
+    public static final int AUTOFILL_OFF = 2;
+
+    @IntDef({AUTOFILL_FILL_AND_SAVE, AUTOFILL_FILL_ONLY, AUTOFILL_OFF})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface AutofillMode {}
+
     // The settings whose text zoom follows the font size of the device: those whose app has not set one.
     private static final Set<WebSettings> followingFontScale = Collections.newSetFromMap(new WeakHashMap<>());
     private static boolean listeningToFontScale;
@@ -56,14 +74,20 @@ public class WebSettings {
     private boolean audiblePlaybackRequiresPageVisibility;
     // Not a WebKit setting: the WebView reads it for the input method.
     private boolean personalizedLearningEnabled = true;
+    // Not a WebKit setting either: the WebView reads it for Android's Autofill, and hears of each change through the
+    // page, until it is destroyed.
+    private @AutofillMode int autofillMode = AUTOFILL_FILL_AND_SAVE;
+    private @Nullable Runnable autofillModeListener;
     // Kept here also while the page lives. It is the zoom level of the web view, whose settings have zoom text only
     // on, and WebKit's is 100%.
     private int textZoom = 100;
 
     @MainThread
-    WebSettings(@NonNull WebKitSettings settings, @NonNull WebKitWebView webView, @NonNull Context applicationContext) {
+    WebSettings(@NonNull WebKitSettings settings, @NonNull WebKitWebView webView, @NonNull Context applicationContext,
+                @NonNull Runnable autofillModeListener) {
         this.settings = settings;
         this.webView = webView;
+        this.autofillModeListener = autofillModeListener;
         followFontScale(applicationContext);
     }
 
@@ -126,6 +150,7 @@ public class WebSettings {
         audiblePlaybackRequiresPageVisibility = settings.getAudiblePlaybackRequiresPageVisibility();
         settings = null;
         webView = null;
+        autofillModeListener = null;
         followingFontScale.remove(this);
     }
 
@@ -218,6 +243,30 @@ public class WebSettings {
      * that the windows of a private page are private too. The default is true.
      */
     public void setPersonalizedLearningEnabled(boolean enabled) { personalizedLearningEnabled = enabled; }
+
+    public @AutofillMode int getAutofillMode() { return autofillMode; }
+    /**
+     * What Android's Autofill may do with the login fields of the page, which the view that shows it gives to the
+     * password service the user chose: fill them and offer to save the sign ins, {@link #AUTOFILL_FILL_AND_SAVE};
+     * fill them but never offer to save, {@link #AUTOFILL_FILL_ONLY}, as a private browsing mode needs, since a saved
+     * login would keep the visit; or nothing, {@link #AUTOFILL_OFF}. A change applies at once: Android forgets what it
+     * heard of the page, which ends the one Autofill session of the activity, also for the other views of it, and
+     * hears again of a login field that has the focus. Like
+     * {@link #setPersonalizedLearningEnabled}, it passes to the page of a window that the page opens. A view that is
+     * not important for Autofill gives Android nothing of any page. The default is {@link #AUTOFILL_FILL_AND_SAVE}.
+     *
+     * @throws IllegalArgumentException if mode is none of the three
+     */
+    @MainThread
+    public void setAutofillMode(@AutofillMode int mode) {
+        if (mode != AUTOFILL_FILL_AND_SAVE && mode != AUTOFILL_FILL_ONLY && mode != AUTOFILL_OFF)
+            throw new IllegalArgumentException("Unknown Autofill mode " + mode);
+        if (mode == autofillMode)
+            return;
+        autofillMode = mode;
+        if (autofillModeListener != null)
+            autofillModeListener.run();
+    }
 
     /**
      * The text zoom of the page in percent. Until the app sets one with {@link #setTextZoom}, it is the font size

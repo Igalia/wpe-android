@@ -62,6 +62,10 @@ public final class WebKitSettings {
     public boolean getDeveloperExtrasEnabled() { return nativeGetDeveloperExtrasEnabled(mNativePtr); }
     public void setDeveloperExtrasEnabled(boolean flag) { nativeSetDeveloperExtrasEnabled(mNativePtr, flag); }
 
+    /** Whether WebKit tells of the login forms of the page, with what users type in them, for Android's Autofill. */
+    public boolean getLoginFormAutofillEnabled() { return nativeGetLoginFormAutofillEnabled(mNativePtr); }
+    public void setLoginFormAutofillEnabled(boolean flag) { nativeSetLoginFormAutofillEnabled(mNativePtr, flag); }
+
     public boolean getDisableWebSecurity() { return nativeGetDisableWebSecurity(mNativePtr); }
     public void setDisableWebSecurity(boolean disable) { nativeSetDisableWebSecurity(mNativePtr, disable); }
 
@@ -88,6 +92,8 @@ public final class WebKitSettings {
     private native void nativeSetAllowFileAccessFromFileURLs(long nativePtr, boolean flag);
     private native boolean nativeGetDeveloperExtrasEnabled(long nativePtr);
     private native void nativeSetDeveloperExtrasEnabled(long nativePtr, boolean flag);
+    private native boolean nativeGetLoginFormAutofillEnabled(long nativePtr);
+    private native void nativeSetLoginFormAutofillEnabled(long nativePtr, boolean flag);
     private native boolean nativeGetDisableWebSecurity(long nativePtr);
     private native void nativeSetDisableWebSecurity(long nativePtr, boolean disable);
     private native boolean nativeGetAudiblePlaybackRequiresPageVisibility(long nativePtr);

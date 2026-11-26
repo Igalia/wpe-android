@@ -18,6 +18,7 @@
 
 package org.wpewebkit.wpeview;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -542,6 +543,34 @@ public class WebPageTest {
             WebPage window = windows.get(windows.size() - 1);
             assertEquals(learning, onMainGet(() -> window.getSettings().getPersonalizedLearningEnabled()));
         }
+    }
+
+    /**
+     * The page that the request makes starts with what the settings of its opener say about Android's Autofill, so that
+     * the windows of a private page are never offered to save either.
+     */
+    @Test
+    @SuppressLint("WrongConstant")
+    public void testWindowTakesTheAutofillModeOfItsOpener() throws Exception {
+        WebPageTestHelper.RecordingClient client = new WebPageTestHelper.RecordingClient();
+        WebPage opener = loadedPage(client, "<html><body></body></html>");
+        List<WebPage> windows = new ArrayList<>();
+        onMain(() -> opener.setChromeClient(new WebPageChromeClient() {
+            @Override
+            public void onCreateWindow(@NonNull WebPage source, @NonNull WindowRequest request) {
+                WebPage window = request.createPage();
+                windows.add(window);
+                pages.add(window);
+            }
+        }));
+        for (int mode :
+             new int[] {WebSettings.AUTOFILL_FILL_ONLY, WebSettings.AUTOFILL_OFF, WebSettings.AUTOFILL_FILL_AND_SAVE}) {
+            onMain(() -> opener.getSettings().setAutofillMode(mode));
+            assertEquals("true", evaluate(opener, "window.open('about:blank') !== null"));
+            WebPage window = windows.get(windows.size() - 1);
+            assertEquals(mode, (int)onMainGet(() -> window.getSettings().getAutofillMode()));
+        }
+        assertThrows(IllegalArgumentException.class, () -> onMain(() -> opener.getSettings().setAutofillMode(3)));
     }
 
     /** A chrome client that makes no page opens no window, and window.open() returns null. */

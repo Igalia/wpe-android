@@ -229,9 +229,10 @@ public class WebPageChromeClient {
 
         /**
          * Makes the page of the new window, which shares the {@link WebContext} of the opener and has settings of its
-         * own, starting from the defaults of that context, except whether the input method may learn, which it takes
-         * from the opener, as {@link WebSettings#setPersonalizedLearningEnabled} says. The app owns it, as any page it
-         * makes.
+         * own, starting from the defaults of that context, except whether the input method may learn and what
+         * Android's Autofill may do, which it takes from the opener, as
+         * {@link WebSettings#setPersonalizedLearningEnabled} and {@link WebSettings#setAutofillMode} say. The app owns
+         * it, as any page it makes.
          *
          * @throws IllegalStateException if {@link #onCreateWindow} has returned, or the page was already made, or the
          *     opener is destroyed.

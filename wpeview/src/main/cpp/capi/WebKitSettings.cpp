@@ -50,6 +50,9 @@ public:
             JNI::NativeMethod<jboolean(jlong)>("nativeGetDeveloperExtrasEnabled", nativeGetDeveloperExtrasEnabled),
             JNI::NativeMethod<void(jlong, jboolean)>(
                 "nativeSetDeveloperExtrasEnabled", nativeSetDeveloperExtrasEnabled),
+            JNI::NativeMethod<jboolean(jlong)>("nativeGetLoginFormAutofillEnabled", nativeGetLoginFormAutofillEnabled),
+            JNI::NativeMethod<void(jlong, jboolean)>(
+                "nativeSetLoginFormAutofillEnabled", nativeSetLoginFormAutofillEnabled),
             JNI::NativeMethod<jboolean(jlong)>("nativeGetDisableWebSecurity", nativeGetDisableWebSecurity),
             JNI::NativeMethod<void(jlong, jboolean)>("nativeSetDisableWebSecurity", nativeSetDisableWebSecurity),
             JNI::NativeMethod<jboolean(jlong)>(
@@ -124,6 +127,7 @@ private:
     DEFINE_BOOL_SETTER_GETTER(DeveloperExtrasEnabled, enable_developer_extras)
     DEFINE_BOOL_SETTER_GETTER(DisableWebSecurity, disable_web_security)
     DEFINE_BOOL_SETTER_GETTER(ZoomTextOnly, zoom_text_only)
+    DEFINE_BOOL_SETTER_GETTER(LoginFormAutofillEnabled, enable_login_form_autofill)
 
 #undef DEFINE_BOOL_SETTER_GETTER
     // NOLINTEND(cppcoreguidelines-macro-usage)

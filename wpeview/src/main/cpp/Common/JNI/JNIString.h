@@ -21,6 +21,8 @@
 
 #include "JNITypes.h"
 
+#include <string>
+
 namespace JNI {
 
 class String final {
@@ -45,5 +47,14 @@ public:
 private:
     ProtectedType<jstring> m_javaStringRef;
 };
+
+// Standard UTF-8 for a Java string, which GetStringUTFChars does not give: it encodes a character outside the BMP, such
+// as an emoji, as two surrogates. An unpaired surrogate, as when an input method splits an emoji, becomes U+FFFD rather
+// than lose the whole text.
+std::string toUTF8(JNIEnv* env, jstring text);
+
+// A new local reference to a Java string of standard UTF-8, which NewStringUTF does not take for a character outside
+// the BMP. A byte that does not start a valid sequence becomes U+FFFD.
+jstring newStringFromUTF8(JNIEnv* env, const char* text);
 
 } // namespace JNI
