@@ -112,7 +112,10 @@ import java.util.Objects;
  * but never offer to save, with {@link WebSettings#setAutofillMode}, which can also turn Autofill off for a page. A
  * view left on {@code IMPORTANT_FOR_AUTOFILL_AUTO} takes part. A view set not important for it, with
  * {@code setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)}, gives Android nothing of any
- * page it shows.
+ * page it shows. While Android shows its list of accounts for a field of the page, the page keeps the focus and the
+ * keyboard stays up, as for Android's own text fields. Android tells of the list through the one
+ * {@code AutofillCallback} of the activity's {@code AutofillManager}: the view registers its own when a field of the
+ * page gets the focus, which unregisters a callback that the app registered before.
  */
 @UiThread
 public class WebView extends FrameLayout {
@@ -171,7 +174,19 @@ public class WebView extends FrameLayout {
     // class (avoids a synthetic accessor).
     final MouseInput mouse = new MouseInput(this);
     // Gives Android's Autofill the login fields of the page that the view shows.
-    private final ViewAutofill viewAutofill = new ViewAutofill(this);
+    private final ViewAutofill viewAutofill = new ViewAutofill(this, this::onAutofillListShownChanged);
+    // Android tells that it hid its list of accounts before it gives the window its focus back, so the page keeps the
+    // focus that long after the list goes, unless the window does not get it back, as when the password service asks
+    // to unlock the account in an activity of its own.
+    private static final long AUTOFILL_LIST_FOCUS_RETURN_MS = 500;
+    private boolean autofillListJustHidden;
+    // Whether a window that took the focus while Android's list showed also took the input method, as a dialog does,
+    // so that the page lost the focus to it.
+    private boolean autofillListLostInputMethod;
+    private final Runnable autofillListFocusTimeout = () -> {
+        autofillListJustHidden = false;
+        updateWindowFocused();
+    };
     private @Nullable Surface attachedSurface;
     private boolean inToplevel;
     // Whether the page left fullscreen as it left the window, which the chrome client hears once the view is done.
@@ -707,7 +722,7 @@ public class WebView extends FrameLayout {
             return;
         inToplevel = true;
         platformView.setToplevel(wpeToplevel);
-        wpeToplevel.setWindowFocused(hasWindowFocus());
+        wpeToplevel.setWindowFocused(isWindowFocusedForPage());
         platformView.setFocused(isFocused());
         platformView.setVisible(isShown());
     }
@@ -1782,6 +1797,21 @@ public class WebView extends FrameLayout {
         }
     }
 
+    // The input method let go of a connection of the view. While Android's list of accounts has the window focus, the
+    // input method stays with the view, unless another window took the focus meanwhile, as a dialog does, and the
+    // input method with it: the page then loses the focus. The connection closes before the input method serves the
+    // other window, so the view checks once the closing is done. Package-private: called by WPEInputConnection.
+    void onInputConnectionClosed() {
+        if (hasWindowFocus() || !(viewAutofill.isListShown() || autofillListJustHidden))
+            return;
+        post(() -> {
+            if (hasWindowFocus() || inputMethodManager == null || inputMethodManager.isActive(this))
+                return;
+            autofillListLostInputMethod = true;
+            updateWindowFocused();
+        });
+    }
+
     // Whether the keyboard of the input method is up in the window. Package-private: tests replace it.
     boolean isKeyboardShown() {
         WindowInsets insets = getRootWindowInsets();
@@ -1944,8 +1974,36 @@ public class WebView extends FrameLayout {
             keyboardUpWhenWindowLeft = false;
             showSoftInput();
         }
+        if (hasWindowFocus) {
+            autofillListJustHidden = false;
+            autofillListLostInputMethod = false;
+            removeCallbacks(autofillListFocusTimeout);
+            viewAutofill.onWindowFocusGained();
+        }
+        updateWindowFocused();
+    }
+
+    // The page has the focus of the window while the window has it, and while Android shows its list of accounts for a
+    // field of the page, in a window that takes the window focus but leaves the input method to the view, as for its
+    // own text fields.
+    private boolean isWindowFocusedForPage() {
+        return hasWindowFocus() ||
+            ((viewAutofill.isListShown() || autofillListJustHidden) && !autofillListLostInputMethod);
+    }
+
+    private void updateWindowFocused() {
         if (inToplevel)
-            wpeToplevel.setWindowFocused(hasWindowFocus);
+            wpeToplevel.setWindowFocused(isWindowFocusedForPage());
+    }
+
+    private void onAutofillListShownChanged() {
+        removeCallbacks(autofillListFocusTimeout);
+        if (viewAutofill.isListShown())
+            autofillListLostInputMethod = false;
+        autofillListJustHidden = !viewAutofill.isListShown() && !hasWindowFocus() && isAttachedToWindow();
+        if (autofillListJustHidden)
+            postDelayed(autofillListFocusTimeout, AUTOFILL_LIST_FOCUS_RETURN_MS);
+        updateWindowFocused();
     }
 
     @Override
@@ -1985,6 +2043,10 @@ public class WebView extends FrameLayout {
         // and their dialogs, for when it starts again.
         closeDialogsOfPage();
         mouse.leavePage();
+        viewAutofill.onDetachedFromWindow();
+        autofillListJustHidden = false;
+        autofillListLostInputMethod = false;
+        removeCallbacks(autofillListFocusTimeout);
         super.onDetachedFromWindow();
         // A page of the app outlives the activity, which may end without destroying the view. The view destroys itself
         // when it leaves the window of its destroyed activity, which lets the page go, so that the page neither keeps

@@ -56,6 +56,7 @@ final class ViewAutofill implements PageAutofill.Listener {
     private static final long MOVE_DELAY_MS = 1000;
 
     private final @NonNull View view;
+    private final @NonNull Runnable onListShownChanged;
     private @Nullable WebPage page;
     private @Nullable PageAutofill autofill;
     // Whether the view entered a field of the page since the last commit or cancel.
@@ -70,7 +71,60 @@ final class ViewAutofill implements PageAutofill.Listener {
     // from them.
     private final Map<Integer, String> signedInValues = new HashMap<>();
 
-    ViewAutofill(@NonNull View view) { this.view = view; }
+    // Whether Android shows its list of accounts for the field that the view entered. The list is a window that takes
+    // the window focus but leaves the input method to the view, so the page keeps the focus while it shows.
+    private boolean listShown;
+    // Android tells of its list through the one callback of the AutofillManager of the activity, which the view holds
+    // while it has the focus and a field entered. Registering it unregisters the callback that held it before.
+    private boolean holdsListCallback;
+    private final AutofillManager.AutofillCallback listCallback = new AutofillManager.AutofillCallback() {
+        @Override
+        public void onAutofillEvent(@NonNull View anchor, int virtualId, int event) {
+            onListEvent(anchor, virtualId, event);
+        }
+    };
+
+    ViewAutofill(@NonNull View view, @NonNull Runnable onListShownChanged) {
+        this.view = view;
+        this.onListShownChanged = onListShownChanged;
+    }
+
+    /** Whether Android shows its list of accounts for a field of the page. */
+    boolean isListShown() { return listShown; }
+
+    // Package-private: called by the list callback (avoids a synthetic accessor).
+    void onListEvent(@NonNull View anchor, int virtualId, int event) {
+        if (anchor == view)
+            setListShown(event == AutofillManager.AutofillCallback.EVENT_INPUT_SHOWN && virtualId == enteredId);
+    }
+
+    private void setListShown(boolean shown) {
+        if (listShown == shown)
+            return;
+        listShown = shown;
+        onListShownChanged.run();
+    }
+
+    /**
+     * The window has the focus again, so Android's list no longer has it, also when the view heard no hide, as when
+     * another callback took the place of its own while the list showed.
+     */
+    void onWindowFocusGained() { setListShown(false); }
+
+    private void releaseListCallback(@NonNull AutofillManager manager) {
+        if (holdsListCallback) {
+            holdsListCallback = false;
+            manager.unregisterCallback(listCallback);
+        }
+        setListShown(false);
+    }
+
+    /** The view left its window. */
+    void onDetachedFromWindow() {
+        AutofillManager manager = getManager();
+        if (manager != null)
+            exitEntered(manager);
+    }
 
     /** The view shows the page. A field that the page kept focused while it was out of the view is entered again. */
     void attach(@NonNull WebPage page) {
@@ -150,6 +204,7 @@ final class ViewAutofill implements PageAutofill.Listener {
         if (enteredId != 0)
             manager.notifyViewExited(view, enteredId);
         enteredId = 0;
+        releaseListCallback(manager);
     }
 
     private void endSession() {
@@ -241,6 +296,10 @@ final class ViewAutofill implements PageAutofill.Listener {
         enteredBounds.set(bounds);
         enteredTime = SystemClock.uptimeMillis();
         inSession = true;
+        if (!holdsListCallback && view.hasFocus()) {
+            holdsListCallback = true;
+            manager.registerCallback(listCallback);
+        }
         manager.notifyViewEntered(view, field.virtualId, bounds);
     }
 
@@ -311,6 +370,7 @@ final class ViewAutofill implements PageAutofill.Listener {
         }
         view.removeCallbacks(moveEntered);
         enteredId = 0;
+        releaseListCallback(manager);
         inSession = false;
         manager.commit();
     }
