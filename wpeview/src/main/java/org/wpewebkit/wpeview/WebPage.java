@@ -23,7 +23,9 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
+import android.net.http.SslCertificate;
 import android.os.Looper;
+import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Display;
 
@@ -43,8 +45,12 @@ import org.wpewebkit.wpe.WebKitDownload;
 import org.wpewebkit.wpe.WebKitSettings;
 import org.wpewebkit.wpe.WebKitWebView;
 
+import java.io.ByteArrayInputStream;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -128,6 +134,8 @@ public final class WebPage {
              WebView.SNAPSHOT_REGION_FULL_DOCUMENT})
     @Retention(RetentionPolicy.SOURCE)
     public @interface SnapshotRegion {}
+
+    private static final String LOGTAG = "WPEWebPage";
 
     // The size in logical pixels of the page that a WebView showed last on the default display, which a new page takes.
     // A new array each time, so that a WebView made on another thread reads a whole one.
@@ -527,6 +535,34 @@ public final class WebPage {
      * changes. It is true once the page is destroyed.
      */
     public boolean isWebProcessResponsive() { return webProcessResponsive; }
+
+    /**
+     * Returns the certificate that the server of the page in the main frame gave for its connection, or null when there
+     * is none: for addresses that are not https, before the first page commits, for content loaded with
+     * {@link #loadHtml} or {@link #loadAlternateHtml}, also at an https address, and once the page is destroyed.
+     *
+     * <p>The certificate changes only when a page commits. While another page loads it is still that of the page shown,
+     * even when {@link #getUrl()} already returns the new address; {@link WebPageClient#doUpdateVisitedHistory} tells
+     * when the new page commits. After the web process of the page ends, it stays until a page commits again, as the
+     * address does.
+     *
+     * <p>WebKit refuses certificates that fail verification, and loads the http parts of an https page over https or
+     * blocks them, except those from the device itself, so a certificate means that the page came over a secure
+     * connection. That does not hold while the app ignores TLS errors with {@link WebView#setTLSErrorsPolicy}.
+     */
+    public @Nullable SslCertificate getCertificate() {
+        checkThread();
+        byte[] encoded = destroyed ? null : webKitWebView.getCertificate();
+        if (encoded == null)
+            return null;
+        try {
+            CertificateFactory factory = CertificateFactory.getInstance("X.509");
+            return new SslCertificate((X509Certificate)factory.generateCertificate(new ByteArrayInputStream(encoded)));
+        } catch (CertificateException e) {
+            Log.w(LOGTAG, "Cannot read the certificate of the page", e);
+            return null;
+        }
+    }
 
     /**
      * Mutes or unmutes the sound of the page, as {@link WebView#setAudioMuted} does. The page stays muted for what it

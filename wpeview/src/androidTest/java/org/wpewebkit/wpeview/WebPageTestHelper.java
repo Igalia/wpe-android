@@ -91,6 +91,14 @@ final class WebPageTestHelper {
             return url;
         }
 
+        /** Waits until the load of the address finished, past the ends of other loads. */
+        void waitForFinishedLoad(@NonNull String url) throws InterruptedException {
+            String finished;
+            do {
+                finished = waitForFinishedLoad();
+            } while (!finished.equals(url));
+        }
+
         WPEResourceError waitForError() throws InterruptedException {
             WPEResourceError error = errors.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertNotNull("The load did not fail", error);
@@ -178,10 +186,7 @@ final class WebPageTestHelper {
         throws InterruptedException {
         client.finishedUrls.clear();
         onMain(() -> page.loadUrl(url));
-        String finished;
-        do {
-            finished = client.waitForFinishedLoad();
-        } while (!finished.equals(url));
+        client.waitForFinishedLoad(url);
     }
 
     /** A local port where nothing listens, so that connections to it are refused. */

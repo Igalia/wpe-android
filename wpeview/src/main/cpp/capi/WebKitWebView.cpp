@@ -203,6 +203,9 @@ struct WebKitWebViewBridge {
     // Counts the ends of the web process of the view, so that a report that it answers again, which waits for WebKit to
     // be done, is dropped if the process ended meanwhile (onIsWebProcessResponsiveChanged).
     unsigned m_webProcessTerminations {0};
+    // The DER encoded certificate of the page that committed last, or empty. Kept here because WebKit drops it with the
+    // main frame when the web process ends, while the view keeps the address of the page.
+    std::vector<uint8_t> m_certificate;
     // The addresses of the loads the app asked for, as WebKit keeps them, in the order it asked, until WebKit decides
     // on them. The app may ask for a load before WebKit decided on the one before, as for the first page of a new
     // view, and WebKit then decides on each in turn. The app is not asked about its own loads.
@@ -422,7 +425,8 @@ public:
             JNI::NativeMethod<void(jlong, jlong)>("nativeNotificationClose", nativeNotificationClose),
             JNI::NativeMethod<JNIBitmap(jlong, jint)>("nativeGetPageIcon", nativeGetPageIcon),
             JNI::NativeMethod<void(jlong, jlong, jlongArray, jstringArray)>(
-                "nativeAutofillLoginForm", nativeAutofillLoginForm));
+                "nativeAutofillLoginForm", nativeAutofillLoginForm),
+            JNI::NativeMethod<jbyteArray(jlong)>("nativeGetCertificate", nativeGetCertificate));
     }
 
     const JNI::Method<void()> m_onClose;
@@ -577,6 +581,7 @@ private:
     static void nativeAutofillLoginForm(
         JNIEnv*, jobject, jlong nativePtr, jlong focusedFieldId, jlongArray fieldIds, jstringArray values);
     static JNIBitmap nativeGetPageIcon(JNIEnv* env, jobject, jlong nativePtr, jint size);
+    static jbyteArray nativeGetCertificate(JNIEnv* env, jobject, jlong nativePtr);
 };
 
 static const JNIWebKitWebViewCache& getJNIWebKitWebViewCache()
@@ -688,6 +693,20 @@ void JNIWebKitWebViewCache::onLoadChanged(
     }
 }
 
+// Empty for addresses that are not https and for content that the app loaded itself. WebKit sets the TLS information
+// from the response before it reports the commit.
+static std::vector<uint8_t> committedCertificate(WebKitWebView* webView)
+{
+    GTlsCertificate* certificate = nullptr;
+    if (!webkit_web_view_get_tls_info(webView, &certificate, nullptr))
+        return {};
+    g_autoptr(GByteArray) der = nullptr;
+    g_object_get(certificate, "certificate", &der, nullptr);
+    if (!der)
+        return {};
+    return {der->data, der->data + der->len};
+}
+
 void JNIWebKitWebViewCache::onLoadCommitted(WebKitWebView* webView, WebKitWebViewBridge* bridge)
 {
     // The origin of the new document, before Java hears of anything. WebKit gives the view the address of a load
@@ -697,6 +716,7 @@ void JNIWebKitWebViewCache::onLoadCommitted(WebKitWebView* webView, WebKitWebVie
         = bridge->m_appLoadUris.empty() ? permissionOrigin(webkit_web_view_get_uri(webView)) : std::string();
     bridge->m_loadStarting = false;
     bridge->m_pageCommitted = true;
+    bridge->m_certificate = committedCertificate(webView);
     updateAwaitsFirstPage(bridge);
     // The new page ends the frames of the old one and their loads, so their navigations no longer count. The
     // downloads of the old page have taken their counts by then: WebKit tells of a download right after it is
@@ -2377,6 +2397,19 @@ JNIBitmap JNIWebKitWebViewCache::nativeGetPageIcon(JNIEnv* env, jobject, jlong n
     auto bitmap = createIconBitmap(imageForSize(bridge->m_pageIcons, size), size);
     // A reference of its own for Java, as the protected one goes when this returns.
     return bitmap ? reinterpret_cast<JNIBitmap>(env->NewLocalRef(bitmap.get())) : nullptr;
+}
+
+// Returns null when there is no certificate, or with Java's OutOfMemoryError pending if the array cannot be allocated.
+jbyteArray JNIWebKitWebViewCache::nativeGetCertificate(JNIEnv* env, jobject, jlong nativePtr)
+{
+    const auto& certificate = JNI::from_jlong<WebKitWebViewBridge>(nativePtr)->m_certificate;
+    if (certificate.empty())
+        return nullptr;
+    const auto size = static_cast<jsize>(certificate.size());
+    jbyteArray array = env->NewByteArray(size);
+    if (array)
+        env->SetByteArrayRegion(array, 0, size, reinterpret_cast<const jbyte*>(certificate.data()));
+    return array;
 }
 
 // WebKit's session state of the view, which holds its Back/Forward list, serialized. Returns null, with Java's
