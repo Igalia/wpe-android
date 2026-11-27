@@ -1,6 +1,6 @@
 {
     "repository": "https://github.com/WebKit/WebKit.git",
-    "revision": "569e3705d6eae7607eb05b089f54e980846df51a",
+    "revision": "6cef180fb58a8d1d0e576fa1187847d1bfd7ef12",
     "paths": [
         "WebDriverTests",
         "Tools/Scripts/webkitpy",
