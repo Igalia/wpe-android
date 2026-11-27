@@ -22,6 +22,7 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.Activity;
 import android.app.Dialog;
 import android.app.UiAutomation;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.util.SparseArray;
@@ -363,10 +364,10 @@ public class WebViewAutofillTest {
         assertTrue("Android did not show the account", tapAccount(TIMEOUT_SECONDS * 1000));
         assertEquals("\"saved-user\"", waitForResult(page, "document.forms[0].user.value", "\"saved-user\""));
         assertEquals("\"saved-secret\"", waitForResult(page, "document.forms[0].pass.value", "\"saved-secret\""));
+        assertEquals("true", waitForResult(page, "document.hasFocus()", "true"));
     }
 
-    // Android's list of accounts is a window that takes the window focus, so the page is blurred while the user picks
-    // one, and its field keeps the focus of its document.
+    // The user picks the account in Android's list, a window that takes the window focus.
     @Test
     public void pickingAnAccountFills() throws Exception {
         assertPickingTheAccountFills(false, WebSettings.AUTOFILL_FILL_AND_SAVE);
@@ -384,8 +385,8 @@ public class WebViewAutofillTest {
         assertPickingTheAccountFills(false, WebSettings.AUTOFILL_FILL_ONLY);
     }
 
-    // Shows a dialog, which takes the window focus and blurs the page, as Android's list of accounts and the screen
-    // lock prompt of a password service do, and waits until the view heard of the blur.
+    // Shows a dialog, which takes the window focus and the input method, and so blurs the page, as the screen lock
+    // prompt of a password service does, and waits until the view heard of the blur.
     private Dialog blurWithADialog(WebPage page) throws InterruptedException {
         Dialog dialog = onMainGet(() -> {
             Dialog shown = new Dialog(activity);
@@ -435,6 +436,68 @@ public class WebViewAutofillTest {
         }
         assertEquals("true", waitForResult(page, "document.hasFocus()", "true"));
         waitFor("The removed field kept its login form", () -> page.autofill.getFocusedField() == null);
+    }
+
+    // Android's list of accounts takes the window focus but leaves the input method to the view, as for its own text
+    // fields, so the page keeps the focus while it shows, and the keyboard can stay up.
+    @Test
+    public void thePageKeepsTheFocusWhileAndroidShowsItsList() throws Exception {
+        TestAutofillService.accountUser = "saved-user";
+        TestAutofillService.accountPassword = "saved-secret";
+        WebPage page = showPage("/login", LOGIN_FORM);
+        focus(page, "user");
+        nextFillRequest();
+        waitForAccountList(true);
+        waitFor("The list did not take the window focus", () -> !activity.hasWindowFocus());
+
+        Thread.sleep(1000);
+        assertEquals("true", evaluate(page, "document.hasFocus()"));
+        assertTrue(onMainGet(() -> view.isInputFieldFocused()));
+    }
+
+    // A window that is not the list, as a dialog that the app opens over it, takes the focus of the page.
+    @Test
+    public void aDialogOverAndroidsListBlursThePage() throws Exception {
+        TestAutofillService.accountUser = "saved-user";
+        TestAutofillService.accountPassword = "saved-secret";
+        WebPage page = showPage("/login", LOGIN_FORM);
+        focus(page, "user");
+        nextFillRequest();
+        waitForAccountList(true);
+        waitFor("The list did not take the window focus", () -> !activity.hasWindowFocus());
+        assertEquals("true", evaluate(page, "document.hasFocus()"));
+
+        Dialog dialog = onMainGet(() -> {
+            Dialog shown = new Dialog(activity);
+            shown.setContentView(new View(activity));
+            shown.show();
+            return shown;
+        });
+        try {
+            assertEquals("true", waitForResult(page, "!document.hasFocus()", "true"));
+        } finally {
+            onMain(dialog::dismiss);
+        }
+    }
+
+    // An activity that comes up over the list, as the unlock of a password service does, takes the focus of the page.
+    @Test
+    public void anActivityOverAndroidsListBlursThePage() throws Exception {
+        TestAutofillService.accountUser = "saved-user";
+        TestAutofillService.accountPassword = "saved-secret";
+        WebPage page = showPage("/login", LOGIN_FORM);
+        focus(page, "user");
+        nextFillRequest();
+        waitForAccountList(true);
+        waitFor("The list did not take the window focus", () -> !activity.hasWindowFocus());
+        assertEquals("true", evaluate(page, "document.hasFocus()"));
+
+        onMain(() -> activity.startActivityForResult(new Intent(activity, WebViewFragmentTestActivity.class), 1));
+        try {
+            assertEquals("true", waitForResult(page, "!document.hasFocus()", "true"));
+        } finally {
+            onMain(() -> activity.finishActivity(1));
+        }
     }
 
     // Another view of the app takes the focus, as the address field of a browser does, and gives it back: the field

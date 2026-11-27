@@ -47,6 +47,12 @@ public class WPEInputConnection extends BaseInputConnection {
         this.pageGeneration = webView.getPageGeneration();
     }
 
+    @Override
+    public void closeConnection() {
+        super.closeConnection();
+        webView.onInputConnectionClosed();
+    }
+
     // Whether the page that the connection was made for is still the one the WebView shows.
     private boolean isCurrent() { return webView.isInputConnectionCurrent(pageGeneration); }
 
