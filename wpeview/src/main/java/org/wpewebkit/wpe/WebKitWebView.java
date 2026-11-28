@@ -835,6 +835,9 @@ public final class WebKitWebView {
         return mNativePtr != 0 ? nativeGetPageIcon(mNativePtr, size) : null;
     }
 
+    /** The DER encoded certificate of the page that committed last in the main frame, or null when it has none. */
+    public @Nullable byte[] getCertificate() { return mNativePtr != 0 ? nativeGetCertificate(mNativePtr) : null; }
+
     /** Tells the page that the user tapped a notification, unless it is closed. */
     public void notificationClick(long notificationId) {
         if (mNativePtr != 0)
@@ -964,4 +967,5 @@ public final class WebKitWebView {
     private native @Nullable Bitmap nativeGetPageIcon(long nativePtr, int size);
     private native void nativeAutofillLoginForm(long nativePtr, long focusedFieldId, @NonNull long[] fieldIds,
                                                 @NonNull String[] values);
+    private native @Nullable byte[] nativeGetCertificate(long nativePtr);
 }

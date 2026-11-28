@@ -29,6 +29,7 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.http.SslCertificate;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.SparseArray;
@@ -839,6 +840,12 @@ public class WebView extends FrameLayout {
             throw new IllegalArgumentException("The size of an icon must be positive");
         return page != null ? page.getFavicon(size) : null;
     }
+
+    /**
+     * Returns the certificate of the page the view shows, as {@link WebPage#getCertificate()} does, or null while the
+     * view shows no page and after {@link #destroy()}.
+     */
+    public @Nullable SslCertificate getCertificate() { return page != null ? page.getCertificate() : null; }
 
     /**
      * Mutes or unmutes the sound of the page, for example for a tab that the user mutes. The page plays on, and its
